@@ -2064,6 +2064,8 @@ export class LeadsService {
           batchRules: [],
           directAssign: null,
           createdAt: now,
+          allocatedAt: now.toISOString(),
+          allocatedTimestamp: now.getTime(),
         },
       ];
     }
@@ -2078,6 +2080,8 @@ export class LeadsService {
         hour: '2-digit',
         minute: '2-digit',
       });
+      const allocatedAt = mapData.allocatedAt || imp.createdAt;
+      const allocatedTimestamp = allocatedAt ? new Date(allocatedAt).getTime() : undefined;
 
       return {
         id: imp.id,
@@ -2093,6 +2097,8 @@ export class LeadsService {
         batchRules: mapData.batchRules || [],
         directAssign: mapData.directAssign || null,
         createdAt: imp.createdAt,
+        allocatedAt,
+        allocatedTimestamp,
       };
     });
   }

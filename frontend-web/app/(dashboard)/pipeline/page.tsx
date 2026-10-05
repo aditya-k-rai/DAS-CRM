@@ -56,6 +56,41 @@ function sanitizeCellString(input: any, fallback: string = '—'): string {
   return cleaned;
 }
 
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+export function isReallocateAvailable(item: {
+  status: string;
+  allocatedAt?: string | number;
+  allocatedTimestamp?: number;
+  createdAt?: string | Date;
+  injectedAt?: string;
+}): boolean {
+  if (item.status !== 'ALLOCATED') return false;
+
+  let timestamp: number | null = null;
+  if (item.allocatedTimestamp && typeof item.allocatedTimestamp === 'number' && !isNaN(item.allocatedTimestamp)) {
+    timestamp = item.allocatedTimestamp;
+  } else if (item.allocatedAt) {
+    const parsed = new Date(item.allocatedAt).getTime();
+    if (!isNaN(parsed)) timestamp = parsed;
+  }
+
+  if (timestamp === null && item.createdAt) {
+    const parsed = new Date(item.createdAt).getTime();
+    if (!isNaN(parsed)) timestamp = parsed;
+  }
+
+  if (timestamp === null && item.injectedAt) {
+    const parsed = new Date(item.injectedAt).getTime();
+    if (!isNaN(parsed)) timestamp = parsed;
+  }
+
+  if (timestamp === null) return false;
+
+  const elapsed = Date.now() - timestamp;
+  return elapsed >= 0 && elapsed < ONE_HOUR_MS;
+}
+
 export default function LeadPipelinePage() {
   const router = useRouter();
   const { currentUser } = useAuth();
@@ -141,7 +176,23 @@ export default function LeadPipelinePage() {
     platform: string;
     status: 'PENDING_ALLOCATION' | 'ALLOCATED';
     allocationSummary?: string;
+    allocatedAt?: string | number;
+    allocatedTimestamp?: number;
+    createdAt?: string | Date;
   }>>([]);
+
+  const [selectedHistorySheetId, setSelectedHistorySheetId] = useState<string | null>(null);
+  const [currentTimeTick, setCurrentTimeTick] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTimeTick(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const selectedHistorySheet = useMemo(() => {
+    if (!selectedHistorySheetId) return null;
+    return webAuditLogs.find(a => a.id === selectedHistorySheetId) || null;
+  }, [selectedHistorySheetId, webAuditLogs]);
 
   const [webAuditFilter, setWebAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
   const [selectedWebAuditDetail, setSelectedWebAuditDetail] = useState<typeof webAuditLogs[0] | null>(null);
@@ -685,7 +736,59 @@ export default function LeadPipelinePage() {
     return leadDirectory.filter(lead => {
       if (!lead) return false;
 
-      // Filter by selected source platform card if active
+      // 1. Specific Spreadsheet History Card Selection Filter
+      if (selectedHistorySheet) {
+        const targetFile = (selectedHistorySheet.fileName || '').trim().toLowerCase();
+        const targetId = selectedHistorySheet.id;
+        const leadFile = (lead.fileName || lead.customFields?.fileName || '').trim().toLowerCase();
+        const leadAuditId = lead.customFields?.auditId;
+
+        const matchesId = Boolean(leadAuditId && targetId && leadAuditId === targetId);
+        const matchesFile = Boolean(targetFile && leadFile && (
+          leadFile === targetFile ||
+          targetFile.includes(leadFile) ||
+          leadFile.includes(targetFile)
+        ));
+
+        if (!matchesId && !matchesFile) return false;
+      } else {
+        // 2. Status Tab Filter (when NO specific card is selected)
+        if (webAuditFilter === 'PENDING') {
+          const isPendingLead =
+            !lead.assignedRep ||
+            lead.assignedRep === 'Unassigned' ||
+            lead.assignedRep === 'Pending Allocation' ||
+            lead.stage === 'Unassigned' ||
+            lead.stage === 'PENDING_ALLOCATION';
+
+          const leadFile = (lead.fileName || lead.customFields?.fileName || '').trim().toLowerCase();
+          const matchingPendingAudit = webAuditLogs.some(
+            a => a.status === 'PENDING_ALLOCATION' && (
+              (a.id && lead.customFields?.auditId === a.id) ||
+              (a.fileName && leadFile && a.fileName.toLowerCase() === leadFile)
+            )
+          );
+
+          if (!isPendingLead && !matchingPendingAudit) return false;
+        } else if (webAuditFilter === 'ALLOCATED') {
+          const isAllocatedLead =
+            lead.assignedRep &&
+            lead.assignedRep !== 'Unassigned' &&
+            lead.assignedRep !== 'Pending Allocation';
+
+          const leadFile = (lead.fileName || lead.customFields?.fileName || '').trim().toLowerCase();
+          const matchingAllocatedAudit = webAuditLogs.some(
+            a => a.status === 'ALLOCATED' && (
+              (a.id && lead.customFields?.auditId === a.id) ||
+              (a.fileName && leadFile && a.fileName.toLowerCase() === leadFile)
+            )
+          );
+
+          if (!isAllocatedLead && !matchingAllocatedAudit) return false;
+        }
+      }
+
+      // 3. Filter by selected source platform card if active
       if (selectedSourceFilter) {
         const leadSrc = (lead.source || lead.customFields?.platform || '').toLowerCase().trim();
         const filt = selectedSourceFilter.toLowerCase().trim();
@@ -716,7 +819,7 @@ export default function LeadPipelinePage() {
         safeString(lead.source).toLowerCase().includes(q) ||
         safeString(lead.fileName).toLowerCase().includes(q);
     });
-  }, [leadDirectory, selectedSourceFilter, leadSearchQuery]);
+  }, [leadDirectory, selectedHistorySheet, webAuditFilter, webAuditLogs, selectedSourceFilter, leadSearchQuery]);
 
   // ── Pagination State ────────────────────────────────────────────────────────
   const [pageSize, setPageSize] = useState<10 | 20 | 50 | 100>(50);
@@ -730,6 +833,10 @@ export default function LeadPipelinePage() {
   const pagedLeads = filteredLeadDirectory.slice(startIdx, endIdx);
 
   // Sync currentPage safely inside useEffect when filters/counts change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedHistorySheetId, webAuditFilter, selectedSourceFilter, leadSearchQuery]);
+
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -895,7 +1002,10 @@ export default function LeadPipelinePage() {
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setWebAuditFilter(tab.id as any)}
+                  onClick={() => {
+                    setWebAuditFilter(tab.id as any);
+                    setSelectedHistorySheetId(null);
+                  }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border ${
                     webAuditFilter === tab.id
                       ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
@@ -934,28 +1044,67 @@ export default function LeadPipelinePage() {
                   })
                 .map(item => {
                   const isPending = item.status === 'PENDING_ALLOCATION';
+                  const isSelected = selectedHistorySheetId === item.id;
+                  const canReallocate = isReallocateAvailable(item);
+
                   return (
                     <div
                       key={item.id}
-                      className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
-                        isPending
-                          ? 'bg-amber-500/5 border-amber-500/40 shadow-lg shadow-amber-500/5 hover:border-amber-500/60'
-                          : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
+                      onClick={() => {
+                        setSelectedHistorySheetId(prev => (prev === item.id ? null : item.id));
+                        if (!isSelected) {
+                          setTimeout(() => {
+                            document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }, 50);
+                        }
+                      }}
+                      className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all cursor-pointer select-none group relative ${
+                        isSelected
+                          ? 'bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500 shadow-xl shadow-indigo-500/20 scale-[1.01]'
+                          : isPending
+                          ? 'bg-amber-500/5 border-amber-500/40 shadow-lg shadow-amber-500/5 hover:border-amber-500/70 hover:scale-[1.01]'
+                          : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700 hover:scale-[1.01]'
                       }`}
                     >
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <FileSpreadsheet
+                              size={14}
+                              className={
+                                isSelected
+                                  ? 'text-indigo-400 flex-shrink-0'
+                                  : isPending
+                                  ? 'text-amber-400 flex-shrink-0'
+                                  : 'text-indigo-400 flex-shrink-0'
+                              }
+                            />
+                            <span
+                              className="truncate text-xs font-extrabold text-white group-hover:text-indigo-300 transition-colors"
+                              title={item.fileName}
+                            >
+                              {item.fileName}
+                            </span>
+                            {isSelected ? (
+                              <span className="text-[9px] font-black uppercase text-white bg-indigo-600 px-1.5 py-0.5 rounded border border-indigo-400 whitespace-nowrap flex items-center gap-0.5 shadow-sm">
+                                <Check size={10} /> Selected
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedWebAuditDetail(item);
+                                }}
+                                className="text-[9px] text-indigo-300 hover:text-white font-semibold bg-indigo-500/15 hover:bg-indigo-500/30 px-1.5 py-0.5 rounded border border-indigo-500/30 whitespace-nowrap flex-shrink-0 hidden sm:inline-block transition-all"
+                                title="Click to view Assigned To allocation breakdown modal"
+                              >
+                                🔍 Assigned To
+                              </button>
+                            )}
+                          </div>
                           <button
-                            onClick={() => setSelectedWebAuditDetail(item)}
-                            className="text-xs font-extrabold text-white dark:text-white hover:text-indigo-300 hover:underline flex items-center gap-1.5 transition-all text-left min-w-0 flex-1"
-                            title="Click to view Assigned To Whom allocation breakdown"
-                          >
-                            <FileSpreadsheet size={14} className={isPending ? 'text-amber-400 flex-shrink-0' : 'text-indigo-400 flex-shrink-0'} />
-                            <span className="truncate">{item.fileName}</span>
-                            <span className="text-[9px] text-indigo-300 no-underline font-semibold bg-indigo-500/15 px-1.5 py-0.5 rounded border border-indigo-500/30 whitespace-nowrap flex-shrink-0 hidden sm:inline-block">🔍 Assigned To</span>
-                          </button>
-                          <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (isPending) {
                                 setPendingAllocationSheet({
                                   isOpen: true,
@@ -1003,7 +1152,8 @@ export default function LeadPipelinePage() {
                               <span className="text-[9px] font-bold text-amber-400/90 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 flex-shrink-0 whitespace-nowrap">Action Required</span>
                             </div>
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setPendingAllocationSheet({
                                   isOpen: true,
                                   fileName: item.fileName,
@@ -1025,20 +1175,23 @@ export default function LeadPipelinePage() {
                                 {item.allocationSummary || 'Assigned to sales reps'}
                               </span>
                             </div>
-                            <button
-                              onClick={() => {
-                                setPendingAllocationSheet({
-                                  isOpen: true,
-                                  fileName: item.fileName,
-                                  leadsCount: item.leadsCount,
-                                  auditId: item.id,
-                                });
-                              }}
-                              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 hover:underline flex-shrink-0 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 whitespace-nowrap"
-                              title="Reallocate or adjust distribution rules"
-                            >
-                              Re-allocate
-                            </button>
+                            {canReallocate && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingAllocationSheet({
+                                    isOpen: true,
+                                    fileName: item.fileName,
+                                    leadsCount: item.leadsCount,
+                                    auditId: item.id,
+                                  });
+                                }}
+                                className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 hover:underline flex-shrink-0 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 whitespace-nowrap transition-all"
+                                title="Reallocate or adjust distribution rules (Available within 1 hour)"
+                              >
+                                Re-allocate
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1047,7 +1200,8 @@ export default function LeadPipelinePage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {isPending && (
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setPendingAllocationSheet({
                                   isOpen: true,
                                   fileName: item.fileName,
@@ -1062,9 +1216,13 @@ export default function LeadPipelinePage() {
                             </button>
                           )}
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (confirm(`Delete sheet allocation record for "${item.fileName}"?\n\nℹ️ 6-Month Retention Policy: Company operational history automatically purges after 6 months (180 days). Verified Employee Documents are permanently preserved.`)) {
                                 setWebAuditLogs(prev => prev.filter(a => a.id !== item.id));
+                                if (selectedHistorySheetId === item.id) {
+                                  setSelectedHistorySheetId(null);
+                                }
                               }
                             }}
                             className="px-2 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 font-extrabold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
@@ -1073,9 +1231,20 @@ export default function LeadPipelinePage() {
                             <Trash2 size={12} /> Delete
                           </button>
                         </div>
-                        <span className="text-[9px] font-bold text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                          <Clock size={10} /> 6-Month Auto-Purge
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isSelected ? (
+                            <span className="text-[9px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/40 flex items-center gap-1 whitespace-nowrap animate-pulse">
+                              Viewing Leads Below ↓
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-semibold text-slate-500 group-hover:text-slate-300 transition-colors">
+                              Click card to view leads ↓
+                            </span>
+                          )}
+                          <span className="text-[9px] font-bold text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                            <Clock size={10} /> 6-Month Auto-Purge
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1088,9 +1257,24 @@ export default function LeadPipelinePage() {
           <div id="lead-directory-section" className="space-y-3 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                   <Database size={15} className="text-indigo-400" />
                   Live Adjustable Lead Directory ({filteredLeadDirectory.length} Leads)
+                  {selectedHistorySheet && (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/25 border border-indigo-500/50 text-indigo-300 flex items-center gap-1.5 shadow-sm">
+                      <FileSpreadsheet size={12} className="text-indigo-400" />
+                      Sheet: <span className="text-white">{selectedHistorySheet.fileName}</span>
+                    </span>
+                  )}
+                  {webAuditFilter !== 'ALL' && !selectedHistorySheet && (
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                      webAuditFilter === 'PENDING'
+                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                        : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                    }`}>
+                      {webAuditFilter === 'PENDING' ? '⏳ Unassigned Pending Leads' : '✓ Completed Allocation Leads'}
+                    </span>
+                  )}
                 </h3>
                 <p className="text-[10px] text-muted">
                   Showing <span className="text-white font-bold">{filteredLeadDirectory.length === 0 ? 0 : startIdx + 1}–{endIdx}</span> of <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span> leads
@@ -1099,6 +1283,35 @@ export default function LeadPipelinePage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Active History Sheet Filter Pill */}
+                {selectedHistorySheet && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/25 border border-indigo-500/50 text-indigo-200 text-xs font-bold animate-fade-in shadow-sm">
+                    <FileSpreadsheet size={13} className="text-indigo-400" />
+                    <span className="truncate max-w-[200px]">Sheet: {selectedHistorySheet.fileName}</span>
+                    <button
+                      onClick={() => setSelectedHistorySheetId(null)}
+                      className="ml-1 hover:text-white p-0.5 rounded hover:bg-indigo-500/40 font-extrabold text-[11px]"
+                      title="Clear sheet filter (Show all leads)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Active Status Filter Pill */}
+                {webAuditFilter !== 'ALL' && !selectedHistorySheet && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold animate-fade-in shadow-sm">
+                    <span>Filter: {webAuditFilter === 'PENDING' ? 'Pending Leads' : 'Allocated Leads'}</span>
+                    <button
+                      onClick={() => setWebAuditFilter('ALL')}
+                      className="ml-1 hover:text-white p-0.5 rounded hover:bg-slate-700 font-extrabold text-[11px]"
+                      title="Reset filter to ALL"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
                 {selectedSourceFilter && (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold animate-fade-in shadow-sm">
                     <span>Source: {selectedSourceFilter}</span>
@@ -1194,24 +1407,54 @@ export default function LeadPipelinePage() {
                     <tr>
                       <td colSpan={tableColumns.filter(c => !c.hidden).length + 1} className="py-12 px-4 text-center text-slate-400">
                         <Database size={36} className="mx-auto mb-3 text-slate-600 opacity-60" />
-                        <p className="text-sm font-bold text-slate-300">No leads found in directory</p>
-                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                          Import a CSV/Excel sheet or insert a lead to view and organize data in this interactive Excel grid.
+                        <p className="text-sm font-bold text-slate-300">
+                          {selectedHistorySheet
+                            ? `No leads found for "${selectedHistorySheet.fileName}"`
+                            : webAuditFilter === 'PENDING'
+                            ? 'No unassigned pending leads found'
+                            : webAuditFilter === 'ALLOCATED'
+                            ? 'No completed allocation leads found'
+                            : 'No leads found in directory'}
                         </p>
-                        <div className="flex items-center justify-center gap-2 mt-4">
-                          <button
-                            onClick={() => setInsertLeadModalOpen(true)}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
-                          >
-                            + Insert Lead
-                          </button>
-                          {canBulkImport && (
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          {selectedHistorySheet
+                            ? 'Try clearing the sheet filter or searching with different criteria.'
+                            : 'Import a CSV/Excel sheet or insert a lead to view and organize data in this interactive Excel grid.'}
+                        </p>
+                        <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+                          {selectedHistorySheet && (
                             <button
-                              onClick={() => setImportCsvModalOpen(true)}
-                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                              onClick={() => setSelectedHistorySheetId(null)}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
                             >
-                              <Upload size={13} /> Import CSV
+                              ✕ Clear Sheet Filter &amp; View All Leads
                             </button>
+                          )}
+                          {webAuditFilter !== 'ALL' && !selectedHistorySheet && (
+                            <button
+                              onClick={() => setWebAuditFilter('ALL')}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
+                            >
+                              ✕ Reset Filter to ALL Leads
+                            </button>
+                          )}
+                          {!selectedHistorySheet && webAuditFilter === 'ALL' && (
+                            <>
+                              <button
+                                onClick={() => setInsertLeadModalOpen(true)}
+                                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
+                              >
+                                + Insert Lead
+                              </button>
+                              {canBulkImport && (
+                                <button
+                                  onClick={() => setImportCsvModalOpen(true)}
+                                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                                >
+                                  <Upload size={13} /> Import CSV
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -1884,6 +2127,9 @@ export default function LeadPipelinePage() {
             setImportCsvModalOpen(true);
           }}
           onAllocationComplete={async (result) => {
+            const allocationNow = Date.now();
+            const allocationIso = new Date().toISOString();
+
             // Update webAuditLogs item to ALLOCATED
             setWebAuditLogs(prev => {
               const updated = prev.map(a => {
@@ -1900,6 +2146,8 @@ export default function LeadPipelinePage() {
                     ...a,
                     status: 'ALLOCATED' as const,
                     allocationSummary: summaryText,
+                    allocatedAt: allocationIso,
+                    allocatedTimestamp: allocationNow,
                   };
                 }
                 return a;
@@ -1915,37 +2163,54 @@ export default function LeadPipelinePage() {
             // Assign reps to directory leads
             const nowTime = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             setLeadDirectory(prev => {
+              const isTargetSheet = (l: DashboardLeadRecord) => {
+                if (pendingAllocationSheet.auditId && l.customFields?.auditId === pendingAllocationSheet.auditId) return true;
+                if (pendingAllocationSheet.fileName && l.fileName === pendingAllocationSheet.fileName) return true;
+                if (pendingAllocationSheet.fileName && l.customFields?.fileName === pendingAllocationSheet.fileName) return true;
+                return false;
+              };
+
+              const hasMatchingLeads = prev.some(isTargetSheet);
+
               let updated: DashboardLeadRecord[] = [];
               if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
                 const assignedFileName = safeString(pendingAllocationSheet.fileName, 'Spreadsheet_Import.xlsx');
                 const assignedPlatform = safeString(pendingAllocationSheet.platform, 'Google Ads');
-                updated = prev.map(l => ({
-                  ...l,
-                  assignedRep: result.assignedUser!.name,
-                  fileName: assignedFileName || l.fileName,
-                  source: assignedPlatform || l.source,
-                  allocatedAt: l.allocatedAt || nowTime,
-                  customFields: {
-                    ...(l.customFields || {}),
-                    fileName: assignedFileName || safeString(l.fileName, 'Spreadsheet_Import.xlsx'),
-                    platform: assignedPlatform || safeString(l.source, 'Google Ads'),
-                  },
-                }));
+                updated = prev.map(l => {
+                  if (hasMatchingLeads && !isTargetSheet(l)) return l;
+                  return {
+                    ...l,
+                    assignedRep: result.assignedUser!.name,
+                    fileName: assignedFileName || l.fileName,
+                    source: assignedPlatform || l.source,
+                    allocatedAt: nowTime,
+                    customFields: {
+                      ...(l.customFields || {}),
+                      fileName: assignedFileName || safeString(l.fileName, 'Spreadsheet_Import.xlsx'),
+                      platform: assignedPlatform || safeString(l.source, 'Google Ads'),
+                      auditId: pendingAllocationSheet.auditId || l.customFields?.auditId,
+                    },
+                  };
+                });
               } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
                 const assignedFileName = safeString(pendingAllocationSheet.fileName, 'Spreadsheet_Import.xlsx');
                 const assignedPlatform = safeString(pendingAllocationSheet.platform, 'Google Ads');
-                updated = prev.map((l, idx) => {
-                  const matchedRule = result.batchRules?.find(r => (idx + 1) >= r.fromRow && (idx + 1) <= r.toRow);
+                let targetRowIdx = 0;
+                updated = prev.map((l) => {
+                  if (hasMatchingLeads && !isTargetSheet(l)) return l;
+                  targetRowIdx += 1;
+                  const matchedRule = result.batchRules?.find(r => targetRowIdx >= r.fromRow && targetRowIdx <= r.toRow);
                   return {
                     ...l,
                     assignedRep: matchedRule ? matchedRule.assigneeName : l.assignedRep,
                     fileName: assignedFileName || l.fileName,
                     source: assignedPlatform || l.source,
-                    allocatedAt: l.allocatedAt || nowTime,
+                    allocatedAt: nowTime,
                     customFields: {
                       ...(l.customFields || {}),
                       fileName: assignedFileName || safeString(l.fileName, 'Spreadsheet_Import.xlsx'),
                       platform: assignedPlatform || safeString(l.source, 'Google Ads'),
+                      auditId: pendingAllocationSheet.auditId || l.customFields?.auditId,
                     },
                   };
                 });
@@ -1960,6 +2225,9 @@ export default function LeadPipelinePage() {
               return updated;
             });
 
+            if (pendingAllocationSheet.auditId) {
+              setSelectedHistorySheetId(pendingAllocationSheet.auditId);
+            }
             setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
             await fetchAuditLogsAndLeads();
           }}
@@ -2042,21 +2310,40 @@ export default function LeadPipelinePage() {
               >
                 Close Breakdown
               </button>
-              <button
-                onClick={() => {
-                  const detail = selectedWebAuditDetail;
-                  setSelectedWebAuditDetail(null);
-                  setPendingAllocationSheet({
-                    isOpen: true,
-                    fileName: detail.fileName,
-                    leadsCount: detail.leadsCount,
-                    auditId: detail.id,
-                  });
-                }}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserCheck size={14} /> ⚡ {selectedWebAuditDetail.status === 'PENDING_ALLOCATION' ? 'Allocate Leads Now' : 'Re-Allocate Leads'}
-              </button>
+              {selectedWebAuditDetail.status === 'PENDING_ALLOCATION' ? (
+                <button
+                  onClick={() => {
+                    const detail = selectedWebAuditDetail;
+                    setSelectedWebAuditDetail(null);
+                    setPendingAllocationSheet({
+                      isOpen: true,
+                      fileName: detail.fileName,
+                      leadsCount: detail.leadsCount,
+                      auditId: detail.id,
+                    });
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <UserCheck size={14} /> ⚡ Allocate Leads Now
+                </button>
+              ) : isReallocateAvailable(selectedWebAuditDetail) ? (
+                <button
+                  onClick={() => {
+                    const detail = selectedWebAuditDetail;
+                    setSelectedWebAuditDetail(null);
+                    setPendingAllocationSheet({
+                      isOpen: true,
+                      fileName: detail.fileName,
+                      leadsCount: detail.leadsCount,
+                      auditId: detail.id,
+                    });
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+                  title="Reallocate leads (Available within 1 hour)"
+                >
+                  <UserCheck size={14} /> ⚡ Re-Allocate Leads
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
