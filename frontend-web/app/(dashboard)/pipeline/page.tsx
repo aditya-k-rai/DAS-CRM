@@ -25,6 +25,7 @@ import {
 } from '@/lib/userDirectoryCache';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource } from '@/lib/leadNormalizer';
 import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
+import { apiFetch } from '@/lib/apiClient';
 
 interface DashboardLeadRecord {
   id: string;
@@ -193,8 +194,8 @@ export default function LeadPipelinePage() {
 
     try {
       const [auditRes, leadsRes] = await Promise.allSettled([
-        fetch(`${apiBase}/leads/distribution/ingestion-audit-logs`, { headers }),
-        fetch(`${apiBase}/leads?limit=1000`, { headers }),
+        apiFetch('/leads/distribution/ingestion-audit-logs'),
+        apiFetch('/leads?limit=1000'),
       ]);
 
       let serverLogs: any[] = [];

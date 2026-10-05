@@ -4,7 +4,17 @@
  * transparent token refresh, and retry of failed requests.
  */
 
-const getApiBase = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const getApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+    const envUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    if (!isLocal && (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+      return '/api/v1';
+    }
+  }
+  return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/+$/, '');
+};
 
 let isRefreshing = false;
 let refreshSubscribers: Array<(token: string) => void> = [];

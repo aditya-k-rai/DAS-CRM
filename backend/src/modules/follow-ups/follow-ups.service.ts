@@ -734,8 +734,11 @@ export class FollowUpsService {
   async getSummary(organizationId: string, userId: string, userRole?: string) {
     const base = this.baseWhere(organizationId, userId, userRole);
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    // Accommodate IST (UTC+5:30) and local server time for accurate date boundaries
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDateStr = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+    const todayStart = new Date(`${istDateStr}T00:00:00.000+05:30`);
+    const todayEnd = new Date(`${istDateStr}T23:59:59.999+05:30`);
 
     const [total, today, upcoming, overdue, completed, highPriority, mediumPriority, normalPriority] =
       await Promise.all([
@@ -806,8 +809,10 @@ export class FollowUpsService {
    */
   async getToday(organizationId: string, userId: string, userRole?: string) {
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDateStr = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+    const todayStart = new Date(`${istDateStr}T00:00:00.000+05:30`);
+    const todayEnd = new Date(`${istDateStr}T23:59:59.999+05:30`);
     const base = this.baseWhere(organizationId, userId, userRole);
 
     const items = await this.prisma.task.findMany({

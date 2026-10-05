@@ -24,7 +24,7 @@ export function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
       case 'MANAGER':
         return '/dashboard/manager';
       case 'TEAM_LEADER':
-        return '/dashboard/team-leader';
+        return '/tl/lead-assignment';
       case 'SALES_EXEC':
         return '/dashboard/sales';
       case 'ADMIN':

@@ -73,7 +73,7 @@ export function RoleDashboardRouter() {
     } else if (resolvedRole === 'MANAGER') {
       router.replace('/dashboard/manager');
     } else if (resolvedRole === 'TEAM_LEADER') {
-      router.replace('/dashboard/team-leader');
+      router.replace('/tl/lead-assignment');
     } else if (resolvedRole === 'SALES_EXEC') {
       router.replace('/dashboard/sales');
     }

@@ -1449,15 +1449,34 @@ export class LeadsService {
       }
     }
 
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: dto.targetUserId },
+      select: { firstName: true, lastName: true, role: true },
+    });
+    const repName = targetUser ? `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() : 'Sales Rep';
+
     await this.prisma.lead.updateMany({
       where: { id: { in: dto.leadIds }, organizationId },
       data: { ownerId: dto.targetUserId, lastActivityAt: new Date() },
     });
 
-    const targetUser = await this.prisma.user.findUnique({
-      where: { id: dto.targetUserId },
-      select: { firstName: true, lastName: true, role: true },
-    });
+    for (const leadId of dto.leadIds) {
+      try {
+        const existing = await this.prisma.lead.findUnique({ where: { id: leadId }, select: { customFields: true } });
+        const existingCustom = (typeof existing?.customFields === 'object' && existing?.customFields !== null) ? existing.customFields : {};
+        await this.prisma.lead.update({
+          where: { id: leadId },
+          data: {
+            customFields: {
+              ...existingCustom,
+              assignedRep: repName,
+              assignedRepName: repName,
+              owner: repName,
+            },
+          },
+        });
+      } catch (_) {}
+    }
 
     await this.notificationsService.send({
       organizationId,

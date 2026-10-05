@@ -10,6 +10,7 @@ import {
   getDefaultDirectory,
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
+import { apiFetch } from '@/lib/apiClient';
 
 export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN';
 
@@ -684,12 +685,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       let verifiedData: any = null;
 
       try {
-        const res = await fetch(`${apiBase}/leads/distribution/allocate-verify`, {
+        const res = await apiFetch('/leads/distribution/allocate-verify', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
           body: JSON.stringify(payload),
         });
 

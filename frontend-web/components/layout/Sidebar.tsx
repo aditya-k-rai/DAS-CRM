@@ -50,7 +50,8 @@ const salesRepNavigation: NavItem[] = [
 
 // ─── Team Leader Navigation (Exact Default Order with Leads Tree) ──────────────
 const teamLeaderNavigation: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard/team-leader', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
+  { label: 'Lead Distribution Hub', href: '/tl/lead-assignment', icon: Share2, moduleKey: 'LEAD_ASSIGNMENT' },
+  { label: 'Dashboard Overview', href: '/dashboard/team-leader', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
   { label: 'My Team', href: '/hr/employees', icon: Users, moduleKey: 'EMPLOYEES' },
   {
     label: 'Leads',
@@ -66,7 +67,6 @@ const teamLeaderNavigation: NavItem[] = [
     ],
   },
   { label: 'Team Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS' },
-  { label: 'Lead Assignment', href: '/tl/lead-assignment', icon: Share2, moduleKey: 'LEAD_ASSIGNMENT' },
   { label: 'Unassigned Leads', href: '/leads?filter=unassigned', icon: UserX, moduleKey: 'LEADS' },
   { label: 'Team Follow-ups', href: '/follow-ups', icon: Clock, moduleKey: 'FOLLOW_UPS' },
   { label: 'Team Calls', href: '/reports?tab=calls', icon: Phone, moduleKey: 'REPORTS', dividerAfter: true },
@@ -88,7 +88,6 @@ const adminNavigation: NavItem[] = [
   { label: 'Tasks & Follow-ups', href: '/follow-ups', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
-  { label: 'Lead Assignment & Distribution', href: '/tl/lead-assignment', icon: Share2, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Quotations & Invoices', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER'] },
   { label: 'WhatsApp Cloud', href: '/comms', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },
@@ -227,7 +226,7 @@ export function Sidebar() {
     if (currentNormalizedRole === 'UNASSIGNED') return '/dashboard';
     if (currentNormalizedRole === 'HR') return '/hr';
     if (currentNormalizedRole === 'MANAGER') return '/dashboard/manager';
-    if (currentNormalizedRole === 'TEAM_LEADER') return '/dashboard/team-leader';
+    if (currentNormalizedRole === 'TEAM_LEADER') return '/tl/lead-assignment';
     if (currentNormalizedRole === 'SALES_EXEC') return '/dashboard/sales';
     return '/dashboard';
   };

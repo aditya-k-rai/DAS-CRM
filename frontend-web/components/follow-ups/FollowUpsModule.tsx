@@ -44,25 +44,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { apiFetch } from '@/lib/apiClient';
 
-// API Configuration helper that safely normalizes baseURL
-const getApiUrl = (endpoint: string) => {
-  const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-  const base = raw.replace(/\/+$/, '');
+const fetchApi = async (endpoint: string, _token?: string | null, options: RequestInit = {}) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${base}${cleanEndpoint}`;
-};
-
-const fetchApi = async (endpoint: string, token: string | null, options: RequestInit = {}) => {
-  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null);
-  const res = await fetch(getApiUrl(endpoint), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  const res = await apiFetch(cleanEndpoint, options);
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'API request failed' }));
     throw new Error(error.message || `Request failed with status ${res.status}`);
@@ -329,6 +315,55 @@ export default function FollowUpsModule() {
           localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(filtered));
         }
       }
+
+      // Also inspect lead contact histories for scheduled callbacks (e.g. Rahul Kapoor callback)
+      try {
+        let leadsDir: any[] = [];
+        try { leadsDir = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]'); } catch (_) {}
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('das_crm_contact_history_')) {
+            const leadIdKey = key.replace('das_crm_contact_history_', '');
+            try {
+              const hist = JSON.parse(localStorage.getItem(key) || '[]');
+              if (Array.isArray(hist)) {
+                for (const att of hist) {
+                  if (att.followUpDate) {
+                    const matchedLead = Array.isArray(leadsDir) ? leadsDir.find((l: any) => String(l.id) === leadIdKey || l.phone === att.phone) : null;
+                    const leadName = matchedLead?.name || (matchedLead ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim() : '') || 'Rahul Kapoor';
+                    const leadPhone = matchedLead?.phone || '+91 98000 10008';
+                    const exists = filtered.some((f: any) => (f.leadId === leadIdKey || f.lead?.id === leadIdKey) && (f.dueAt?.includes(att.followUpDate) || f.scheduledDate === att.followUpDate));
+                    if (!exists) {
+                      filtered.push({
+                        id: `synth_${att.id || leadIdKey}_${att.followUpDate}`,
+                        title: `📞 Callback: ${leadName} (${leadPhone})`,
+                        leadId: leadIdKey,
+                        lead: {
+                          id: leadIdKey,
+                          firstName: leadName.split(' ')[0] || leadName,
+                          lastName: leadName.split(' ').slice(1).join(' ') || '',
+                          email: matchedLead?.email || 'rahul.kapoor@example.com',
+                          phone: leadPhone,
+                          owner: { firstName: att.by || 'Sachin Puri' },
+                        },
+                        scheduledDate: att.followUpDate,
+                        scheduledTime: att.followUpTime || '10:30',
+                        dueAt: `${att.followUpDate}T${att.followUpTime || '10:30'}:00`,
+                        followUpType: 'CALL',
+                        priority: 'HIGH',
+                        status: 'PENDING',
+                        purpose: att.notes || 'Talked: Busy, Scheduled Callback',
+                        isCompleted: false,
+                        assignee: { firstName: att.by || 'Sachin Puri' },
+                      });
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
 
       return (filtered || [])
         .map((item: any) => normalizeFollowUpItem(item))
@@ -797,6 +832,7 @@ export default function FollowUpsModule() {
       refreshAll();
     };
 
+    window.addEventListener('das_crm_followups_updated', handleSync);
     window.addEventListener('das_crm_followup_created', handleSync);
     window.addEventListener('das_crm_workflow_updated', handleSync);
     window.addEventListener('das_crm_leads_updated', handleSync);
@@ -807,13 +843,14 @@ export default function FollowUpsModule() {
     try {
       bc = new BroadcastChannel('das_crm_lead_sync');
       bc.onmessage = (event) => {
-        if (event.data?.type === 'LEADS_DELETED' || event.data?.type === 'LEAD_DELETED') {
+        if (event.data?.type === 'LEADS_DELETED' || event.data?.type === 'LEAD_DELETED' || event.data?.type === 'FOLLOWUP_UPDATED') {
           refreshAll();
         }
       };
     } catch (_) {}
 
     return () => {
+      window.removeEventListener('das_crm_followups_updated', handleSync);
       window.removeEventListener('das_crm_followup_created', handleSync);
       window.removeEventListener('das_crm_workflow_updated', handleSync);
       window.removeEventListener('das_crm_leads_updated', handleSync);

@@ -879,6 +879,57 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       }),
     }).catch(e => console.warn('Could not persist call activity:', e));
 
+    if (autoQueueFollowUp && funnelScheduledDate) {
+      const followUpTask = {
+        id: `fu_${Date.now()}`,
+        title: `📞 Callback: ${lead.name} (${lead.phone})`,
+        leadId: lead.id,
+        lead: {
+          id: lead.id,
+          firstName: lead.name.split(' ')[0] || lead.name,
+          lastName: lead.name.split(' ').slice(1).join(' ') || '',
+          email: lead.email,
+          phone: lead.phone,
+          company: { name: lead.company || '' },
+          owner: { firstName: currentUser?.name || lead.owner },
+        },
+        scheduledDate: funnelScheduledDate,
+        scheduledTime: funnelScheduledTime || '10:30',
+        dueAt: `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`,
+        followUpType: 'CALL',
+        priority: 'HIGH',
+        status: 'PENDING',
+        purpose: callResponseNotes || dispositionSummaryTitle || 'Scheduled Callback',
+        isCompleted: false,
+        assignee: {
+          firstName: currentUser?.name || lead.owner,
+        },
+      };
+
+      if (typeof window !== 'undefined') {
+        try {
+          const rawTasks = localStorage.getItem('das_crm_followup_tasks_cache') || '[]';
+          const existingTasks = JSON.parse(rawTasks);
+          const updatedTasks = [followUpTask, ...(Array.isArray(existingTasks) ? existingTasks : [])];
+          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updatedTasks));
+          window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: followUpTask }));
+        } catch (_) {}
+      }
+
+      apiFetch('/follow-ups', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `📞 Callback: ${lead.name} (${lead.phone})`,
+          leadId: lead.id,
+          followUpType: 'CALL',
+          scheduledDate: funnelScheduledDate,
+          scheduledTime: funnelScheduledTime || '10:30',
+          priority: 'HIGH',
+          purpose: callResponseNotes || dispositionSummaryTitle || 'Scheduled Callback',
+        }),
+      }).catch(err => console.warn('Could not persist follow-up to server:', err));
+    }
+
     if (productInterestLogged) {
       setLead(prev => ({ ...prev, requirement: productInterestLogged }));
     }

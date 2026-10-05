@@ -50,7 +50,6 @@ export interface ModuleDefinition {
 export const ALL_WEB_MODULES: ModuleDefinition[] = [
   // Sales & Revenue
   { key: 'LEADS',            icon: Users,         label: 'Leads Directory',               description: 'Lead generation, records, and contact directory',                          category: 'SALES',         href: '/leads' },
-  { key: 'LEAD_ASSIGNMENT',  icon: Share2,        label: 'Lead Assignment & Distribution', description: 'Team leader & manager lead allocation rules and workload balancing',      category: 'SALES',         href: '/tl/lead-assignment' },
   { key: 'PIPELINE',         icon: Zap,           label: 'Lead Pipeline & Stages',        description: 'Kanban boards, ingestion rules, and stage movement',                      category: 'SALES',         href: '/pipeline' },
   { key: 'TASKS',            icon: Clock,         label: 'Follow-ups & Meetings Tracker', description: 'Task calendar, sales rep follow-ups, and meeting schedules',              category: 'SALES',         href: '/tasks' },
   { key: 'PRODUCTS',         icon: Package,       label: 'Product Catalogue',             description: 'Inventory, SKU management, pricing, and variants',                        category: 'SALES',         href: '/products',        hasEditControl: true },
@@ -249,11 +248,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     };
 
     try {
-      const keyUrl = compId
-        ? `${apiBase}/users/company-key?organizationId=${compId}`
-        : `${apiBase}/users/company-key`;
-      let keyRes = await fetch(keyUrl, { headers: requestHeaders }).catch(() => null);
-      if (!keyRes?.ok) keyRes = await fetch(compId ? `/api/v1/users/company-key?organizationId=${compId}` : `/api/v1/users/company-key`, { headers: requestHeaders }).catch(() => null);
+      const keyRes = await apiFetch(compId ? `/users/company-key?organizationId=${compId}` : `/users/company-key`).catch(() => null);
       if (keyRes?.ok) {
         const keyJson = await keyRes.json();
         if (keyJson?.companyKey) setCompanyKey(keyJson.companyKey);
@@ -263,9 +258,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     let realUsers: ManagedWorkspaceUser[] = [];
 
     try {
-      const usersUrl = compId ? `${apiBase}/users?organizationId=${compId}` : `${apiBase}/users`;
-      let res = await fetch(usersUrl, { headers: requestHeaders }).catch(() => null);
-      if (!res?.ok) res = await fetch(compId ? `/api/v1/users?organizationId=${compId}` : `/api/v1/users`, { headers: requestHeaders }).catch(() => null);
+      const res = await apiFetch(compId ? `/users?organizationId=${compId}` : `/users`).catch(() => null);
 
       if (res?.ok) {
         const data = await res.json();
@@ -412,16 +405,16 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
         } catch (_) {}
       }
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       const compId = currentUser?.companyId || '';
-      fetch(`${apiBase}/users/${uId}/verify-role`, {
+      apiFetch(`/users/${uId}/verify-role`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-organization-id': compId, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ assignedRole: newRole, organizationId: compId }),
       }).catch(() => null);
 
       invalidateUserDirectoryCache();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('das_crm_users_updated'));
+      }
       await loadWorkspaceUsers();
       showToast(`✓ Role updated to ${newRole.replace('_', ' ')} for ${targetUser.name}`);
     } catch (err) { console.error('Role update error:', err); }

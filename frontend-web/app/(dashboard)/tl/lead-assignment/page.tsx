@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
@@ -40,7 +40,7 @@ export default function TeamLeaderLeadAssignmentPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [selectedRepId, setSelectedRepId] = useState<string>('');
-  const [filterView, setFilterView] = useState<'UNASSIGNED' | 'ALL'>('UNASSIGNED');
+  const [filterView, setFilterView] = useState<'PENDING' | 'DISTRIBUTED' | 'ALL'>('PENDING');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,16 +51,22 @@ export default function TeamLeaderLeadAssignmentPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const myId = currentUser?.id;
+  const myName = (currentUser?.name || '').trim().toLowerCase();
+
+  // Helper: Is this lead in the Team Leader's unallocated pool waiting to be distributed to sales reps?
+  const isTLPoolLead = useCallback((l: LeadItem) => {
+    // 1. Assigned to Team Leader directly
+    if (myId && l.ownerId === myId) return true;
+    if (myName && l.currentAssignee && l.currentAssignee.toLowerCase().includes(myName)) return true;
+    // 2. Unassigned entirely
+    if (!l.ownerId || l.currentAssignee === 'Unassigned' || !l.currentAssignee) return true;
+    return false;
+  }, [myId, myName]);
 
   // Load leads and team members
-  const fetchData = React.useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
 
     try {
       const [leadsRes, usersRes] = await Promise.allSettled([
@@ -78,9 +84,9 @@ export default function TeamLeaderLeadAssignmentPage() {
           email: l.email || '—',
           phone: l.phone || '—',
           status: l.status?.name || l.status || 'New',
-          source: l.source?.name || l.source || 'Direct',
+          source: l.source?.name || l.source || (l.customFields?.platform || l.customFields?.sourcePlatform || 'Direct'),
           ownerId: l.ownerId || l.owner?.id,
-          currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+          currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.customFields?.assignedRep || l.customFields?.assignedRepName || 'Unassigned'),
           score: l.score || 75,
           value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
           createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN') : 'Recent',
@@ -91,23 +97,37 @@ export default function TeamLeaderLeadAssignmentPage() {
       if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
         const usersData = await usersRes.value.json();
         if (Array.isArray(usersData)) {
-          // Filter to sales reps under this organization
-          const reps = usersData
-            .filter((u: any) => {
+          // Filter specifically to Sales Representatives assigned under this Team Leader
+          let repsList = usersData.filter((u: any) => {
+            const r = (u.role?.name || u.role || '').toUpperCase();
+            const isSales = r.includes('SALES') || r.includes('EXEC') || r.includes('REP');
+            if (!isSales) return false;
+            if (myId && u.managerId === myId) return true;
+            return false;
+          });
+
+          // Fallback: If no reps have managerId configured yet, show all sales reps in organization
+          if (repsList.length === 0) {
+            repsList = usersData.filter((u: any) => {
               const r = (u.role?.name || u.role || '').toUpperCase();
-              return r.includes('SALES') || r.includes('EXEC') || r.includes('REP');
-            })
-            .map((u: any) => {
-              const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
-              const count = loadedLeads.filter(l => l.ownerId === u.id || l.currentAssignee?.toLowerCase().includes(fullName.toLowerCase())).length;
-              return {
-                id: u.id,
-                name: fullName,
-                email: u.email,
-                role: 'Sales Representative',
-                leadsCount: count,
-              };
+              return (r.includes('SALES') || r.includes('EXEC') || r.includes('REP')) && u.id !== myId;
             });
+          }
+
+          const reps: TeamMember[] = repsList.map((u: any) => {
+            const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
+            const count = loadedLeads.filter(
+              l => l.ownerId === u.id || l.currentAssignee?.toLowerCase().includes(fullName.toLowerCase())
+            ).length;
+            return {
+              id: u.id,
+              name: fullName,
+              email: u.email,
+              role: 'Sales Representative',
+              leadsCount: count,
+            };
+          });
+
           setTeamMembers(reps);
           if (reps.length > 0 && !selectedRepId) {
             setSelectedRepId(reps[0].id);
@@ -119,7 +139,7 @@ export default function TeamLeaderLeadAssignmentPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiBase, selectedRepId]);
+  }, [myId, selectedRepId]);
 
   useEffect(() => {
     fetchData();
@@ -148,12 +168,17 @@ export default function TeamLeaderLeadAssignmentPage() {
     }
   }, [fetchData]);
 
-  // Filtered Leads
+  // Derived lead groupings
+  const poolLeads = useMemo(() => leads.filter(isTLPoolLead), [leads, isTLPoolLead]);
+  const distributedLeads = useMemo(() => leads.filter(l => !isTLPoolLead(l)), [leads, isTLPoolLead]);
+
+  // Filtered Leads according to active tab & search query
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
-      if (filterView === 'UNASSIGNED') {
-        const isUnassigned = !l.ownerId || l.currentAssignee === 'Unassigned' || !l.currentAssignee;
-        if (!isUnassigned) return false;
+      if (filterView === 'PENDING') {
+        if (!isTLPoolLead(l)) return false;
+      } else if (filterView === 'DISTRIBUTED') {
+        if (isTLPoolLead(l)) return false;
       }
       if (search.trim()) {
         const q = search.toLowerCase().trim();
@@ -167,7 +192,7 @@ export default function TeamLeaderLeadAssignmentPage() {
       }
       return true;
     });
-  }, [leads, filterView, search]);
+  }, [leads, filterView, search, isTLPoolLead]);
 
   const toggleSelectLead = (id: string) => {
     setSelectedLeadIds((prev) =>
@@ -183,7 +208,7 @@ export default function TeamLeaderLeadAssignmentPage() {
     }
   };
 
-  // Execute Lead Distribution
+  // Execute Lead Distribution to designated Sales Representative
   const handleAssignLeads = async (leadIdsToAssign: string[], targetRepId: string) => {
     if (leadIdsToAssign.length === 0) {
       showToast('⚠️ Please select at least one lead to assign.');
@@ -209,32 +234,25 @@ export default function TeamLeaderLeadAssignmentPage() {
 
       if (res.ok) {
         showToast(`✅ Successfully distributed ${leadIdsToAssign.length} lead(s) to ${repName}!`);
-        setLeads((prev) =>
-          prev.map((l) =>
-            leadIdsToAssign.includes(l.id)
-              ? { ...l, ownerId: targetRepId, currentAssignee: repName }
-              : l
-          )
-        );
-        setTeamMembers((prev) =>
-          prev.map((m) =>
-            m.id === targetRepId
-              ? { ...m, leadsCount: m.leadsCount + leadIdsToAssign.length }
-              : m
-          )
-        );
-        setSelectedLeadIds([]);
       } else {
         showToast(`✅ Allocated ${leadIdsToAssign.length} lead(s) to ${repName}.`);
-        setLeads((prev) =>
-          prev.map((l) =>
-            leadIdsToAssign.includes(l.id)
-              ? { ...l, ownerId: targetRepId, currentAssignee: repName }
-              : l
-          )
-        );
-        setSelectedLeadIds([]);
       }
+
+      setLeads((prev) =>
+        prev.map((l) =>
+          leadIdsToAssign.includes(l.id)
+            ? { ...l, ownerId: targetRepId, currentAssignee: repName }
+            : l
+        )
+      );
+      setTeamMembers((prev) =>
+        prev.map((m) =>
+          m.id === targetRepId
+            ? { ...m, leadsCount: m.leadsCount + leadIdsToAssign.length }
+            : m
+        )
+      );
+      setSelectedLeadIds([]);
 
       // Purge all stale dashboard caches and notify all open tabs/dashboards
       if (typeof window !== 'undefined') {
@@ -267,9 +285,6 @@ export default function TeamLeaderLeadAssignmentPage() {
     }
   };
 
-  const unassignedCount = leads.filter((l) => !l.ownerId || l.currentAssignee === 'Unassigned').length;
-  const assignedCount = leads.length - unassignedCount;
-
   return (
     <RoleGuard
       allowedRoles={['TEAM_LEADER']}
@@ -293,9 +308,9 @@ export default function TeamLeaderLeadAssignmentPage() {
           }
         />
 
-        {/* Toast Notification */}
+        {/* Global Toast */}
         {toastMessage && (
-          <div className="bg-indigo-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between shadow-lg animate-in fade-in duration-200">
+          <div className="fixed top-16 right-6 z-50 p-4 rounded-xl shadow-2xl bg-indigo-950 border border-indigo-500/50 text-white font-bold text-xs animate-slide-in flex items-center justify-between">
             <span>{toastMessage}</span>
             <button onClick={() => setToastMessage(null)} className="hover:opacity-75 ml-4">✕</button>
           </div>
@@ -325,10 +340,10 @@ export default function TeamLeaderLeadAssignmentPage() {
               {/* Quick Summary Badges */}
               <div className="flex items-center gap-3">
                 <div className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold">
-                  ⚡ {unassignedCount} Unassigned in Pool
+                  ⚡ {poolLeads.length} In Your Pool (Pending Distribution)
                 </div>
                 <div className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
-                  ✓ {assignedCount} Distributed to Reps
+                  ✓ {distributedLeads.length} Distributed to Reps
                 </div>
               </div>
             </div>
@@ -340,7 +355,7 @@ export default function TeamLeaderLeadAssignmentPage() {
               <Users size={14} className="text-indigo-400" /> Sales Representatives Workload Balancer
             </h3>
             {teamMembers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No sales representatives found in your organization.</p>
+              <p className="text-xs text-muted-foreground">No sales representatives assigned under you in your organization.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
                 {teamMembers.map((rep) => (
@@ -359,7 +374,7 @@ export default function TeamLeaderLeadAssignmentPage() {
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span>Active Leads:</span>
-                      <strong className="text-indigo-400 font-black">{rep.leadsCount}</strong>
+                      <span className="font-extrabold text-foreground">{rep.leadsCount}</span>
                     </div>
                   </div>
                 ))}
@@ -372,14 +387,24 @@ export default function TeamLeaderLeadAssignmentPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex gap-1 bg-secondary/60 p-1 rounded-xl border border-border text-xs">
                 <button
-                  onClick={() => setFilterView('UNASSIGNED')}
+                  onClick={() => setFilterView('PENDING')}
                   className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                    filterView === 'UNASSIGNED'
+                    filterView === 'PENDING'
                       ? 'bg-indigo-600 text-white shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  Unassigned Queue ({unassignedCount})
+                  Pending Distribution ({poolLeads.length})
+                </button>
+                <button
+                  onClick={() => setFilterView('DISTRIBUTED')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                    filterView === 'DISTRIBUTED'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Distributed to Reps ({distributedLeads.length})
                 </button>
                 <button
                   onClick={() => setFilterView('ALL')}
@@ -425,7 +450,7 @@ export default function TeamLeaderLeadAssignmentPage() {
               <button
                 onClick={() => handleAssignLeads(selectedLeadIds, selectedRepId)}
                 disabled={isSubmitting || selectedLeadIds.length === 0}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all"
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
               >
                 <Send size={13} /> Distribute Leads
               </button>
@@ -460,7 +485,11 @@ export default function TeamLeaderLeadAssignmentPage() {
                       <td colSpan={7} className="p-8 text-center text-muted-foreground">
                         <Target size={28} className="mx-auto mb-2 text-muted-foreground/60" />
                         <p className="font-bold text-sm">No leads in this queue</p>
-                        <p className="text-xs mt-0.5">All incoming leads have been successfully allocated to your sales representatives.</p>
+                        <p className="text-xs mt-0.5">
+                          {filterView === 'PENDING'
+                            ? 'All incoming leads have been successfully allocated to your sales representatives.'
+                            : 'No matching leads found.'}
+                        </p>
                       </td>
                     </tr>
                   ) : (
@@ -507,7 +536,7 @@ export default function TeamLeaderLeadAssignmentPage() {
                           <td className="p-3">
                             <span
                               className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                lead.currentAssignee === 'Unassigned'
+                                isTLPoolLead(lead)
                                   ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                                   : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                               }`}
