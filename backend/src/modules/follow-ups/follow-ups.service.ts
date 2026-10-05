@@ -756,7 +756,7 @@ export class FollowUpsService {
             ...base,
             isCompleted: false,
             status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] },
-            dueAt: { gte: now, lte: todayEnd },
+            dueAt: { gte: todayStart, lte: todayEnd },
           },
         }),
         this.prisma.task.count({

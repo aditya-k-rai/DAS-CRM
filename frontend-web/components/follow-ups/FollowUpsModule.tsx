@@ -404,17 +404,9 @@ export default function FollowUpsModule() {
     let leadEmail = item.lead?.email || item.leadEmail || item.email || '';
     let companyName = typeof item.lead?.company === 'string' ? item.lead.company : item.lead?.company?.name || '';
 
-    // 3. Resolve Owner / Rep
+    // 3. Resolve Owner / Rep (Task assignee takes precedence as the direct outreach representative)
     let leadOwnerName = '';
-    if (item.lead?.owner) {
-      if (typeof item.lead.owner === 'string' && item.lead.owner !== '—') leadOwnerName = item.lead.owner;
-      else if (item.lead.owner.name && item.lead.owner.name !== '—') leadOwnerName = item.lead.owner.name;
-      else {
-        const full = `${item.lead.owner.firstName || ''} ${item.lead.owner.lastName || ''}`.trim();
-        if (full && full !== '—') leadOwnerName = full;
-      }
-    }
-    if (!leadOwnerName && item.assignee) {
+    if (item.assignee) {
       if (typeof item.assignee === 'string' && item.assignee !== '—') leadOwnerName = item.assignee;
       else if (item.assignee.name && item.assignee.name !== '—') leadOwnerName = item.assignee.name;
       else {
@@ -422,7 +414,15 @@ export default function FollowUpsModule() {
         if (full && full !== '—') leadOwnerName = full;
       }
     }
-    let leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
+    if (!leadOwnerName && item.lead?.owner) {
+      if (typeof item.lead.owner === 'string' && item.lead.owner !== '—') leadOwnerName = item.lead.owner;
+      else if (item.lead.owner.name && item.lead.owner.name !== '—') leadOwnerName = item.lead.owner.name;
+      else {
+        const full = `${item.lead.owner.firstName || ''} ${item.lead.owner.lastName || ''}`.trim();
+        if (full && full !== '—') leadOwnerName = full;
+      }
+    }
+    let leadOwnerRole = item.assignee?.role?.name || item.assignee?.role || item.lead?.owner?.role?.name || item.lead?.owner?.role || 'SALES_REP';
 
     // 4. Resolve Creator
     let createdByName = item.createdByName;
@@ -547,15 +547,30 @@ export default function FollowUpsModule() {
     };
   };
 
+  const getTaskDedupKey = (task: any): string => {
+    if (!task) return '';
+    const leadId = String(task.leadId || task.lead?.id || '').trim();
+    const phone = String(task.lead?.phone || task.leadPhone || task.phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const date = String(task.dueAt || task.scheduledDate || '').split('T')[0];
+    const type = String(task.followUpType || 'CALL').toUpperCase();
+    if ((leadId || phone) && date) {
+      return `${leadId || phone}_${date}_${type}`;
+    }
+    return String(task.id || '');
+  };
+
   const mergeServerAndLocal = (serverItems: any[], localItems: any[]) => {
     const mergedMap = new Map<string, any>();
+    const seenDedupKeys = new Set<string>();
     const deletedData = getDeletedLeadIdentifiers();
 
     (serverItems || []).forEach(item => {
       if (item && item.id && !isTaskFromDeletedLead(item, deletedData)) {
         const norm = normalizeFollowUpItem(item);
         if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
-          mergedMap.set(String(item.id), norm);
+          const key = getTaskDedupKey(norm);
+          if (key) seenDedupKeys.add(key);
+          mergedMap.set(String(norm.id), norm);
         }
       }
     });
@@ -563,9 +578,12 @@ export default function FollowUpsModule() {
     (localItems || []).forEach(item => {
       if (item && item.id && !isTaskFromDeletedLead(item, deletedData)) {
         const idStr = String(item.id);
-        if (!mergedMap.has(idStr)) {
-          const norm = normalizeFollowUpItem(item);
-          if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
+        const norm = normalizeFollowUpItem(item);
+        if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
+          const key = getTaskDedupKey(norm);
+          // Only add local item if no matching server item exists by ID or by lead + date
+          if (!mergedMap.has(idStr) && (!key || !seenDedupKeys.has(key))) {
+            if (key) seenDedupKeys.add(key);
             mergedMap.set(idStr, norm);
           }
         }
@@ -598,12 +616,17 @@ export default function FollowUpsModule() {
         if (status === 'COMPLETED' || item.isCompleted) {
           completedCount++;
           if (itemDateStr === todayStr) completedTodayCount++;
-        } else if (status === 'OVERDUE' || (itemDate && itemDate < now)) {
-          overdueCount++;
-        } else if ((itemDateStr === todayStr && itemDate && itemDate >= now) || status === 'DUE') {
-          todayCount++;
-        } else if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
-          upcomingCount++;
+        } else {
+          // All active uncompleted follow-ups
+          if (itemDateStr === todayStr || status === 'DUE') {
+            todayCount++;
+          }
+          if (status === 'OVERDUE' || (itemDate && itemDate < now)) {
+            overdueCount++;
+          }
+          if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
+            upcomingCount++;
+          }
         }
 
         if ((item.priority || '').toUpperCase() === 'HIGH') highP++;
@@ -612,10 +635,11 @@ export default function FollowUpsModule() {
       });
 
       if (serverSummary && typeof serverSummary === 'object' && typeof serverSummary.total === 'number') {
+        const finalToday = serverSummary.today !== undefined ? serverSummary.today : todayCount;
         const finalOverdue = Math.max(serverSummary.overdue ?? 0, overdueCount);
         setSummary({
           total: Math.max(serverSummary.total ?? 0, allItems.length),
-          today: serverSummary.today ?? todayCount,
+          today: finalToday,
           upcoming: serverSummary.upcoming ?? upcomingCount,
           overdue: finalOverdue,
           completed: serverSummary.completed ?? completedCount,
@@ -673,10 +697,10 @@ export default function FollowUpsModule() {
         const item = normalizeFollowUpItem(rawItem);
         if (!item) return;
         const idStr = String(item.id);
-        const exists = dueNow.some(i => String(i.id) === idStr) ||
-          upcomingToday.some(i => String(i.id) === idStr) ||
-          completedToday.some(i => String(i.id) === idStr) ||
-          missedToday.some(i => String(i.id) === idStr);
+        const itemKey = getTaskDedupKey(item);
+        const exists = [dueNow, upcomingToday, completedToday, missedToday].some(list =>
+          list.some(i => String(i.id) === idStr || (itemKey && getTaskDedupKey(i) === itemKey))
+        );
 
         if (!exists) {
           if (item.computedStatus === 'COMPLETED' || item.isCompleted) {
@@ -1741,11 +1765,12 @@ function FollowUpCard({
     : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Lead Contact');
   const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '—';
   const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : '—';
-  const leadOwnerName = (item.lead?.owner?.name && item.lead.owner.name !== '—') 
-    ? item.lead.owner.name 
-    : (item.assignee?.name && item.assignee.name !== '—') 
+  const leadOwnerName = (item.assignee?.name && item.assignee.name !== '—') 
     ? item.assignee.name 
-    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Assigned Rep');
+    : (item.assignee?.firstName ? `${item.assignee.firstName} ${item.assignee.lastName || ''}`.trim() : '') ||
+    (item.lead?.owner?.name && item.lead.owner.name !== '—'
+      ? item.lead.owner.name
+      : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Assigned Rep'));
   const creatorName = item.createdByName || item.createdBy?.name || 'Admin';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
 
@@ -1789,7 +1814,7 @@ function FollowUpCard({
       {/* Purpose note banner */}
       {item.purpose && (
         <p className="text-[11px] text-slate-300 break-words line-clamp-2 bg-slate-950/60 px-2.5 py-1.5 rounded-md border border-slate-800/50 font-sans leading-relaxed">
-          {item.purpose}
+          {String(item.purpose).replace(/^Call Funnel:\s*/i, '')}
         </p>
       )}
 
@@ -1919,12 +1944,13 @@ function FollowUpDetails({
   const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '—';
   const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : '—';
   const companyName = item.lead?.company?.name || (typeof item.lead?.company === 'string' ? item.lead.company : '');
-  const leadOwnerName = (item.lead?.owner?.name && item.lead.owner.name !== '—') 
-    ? item.lead.owner.name 
-    : (item.assignee?.name && item.assignee.name !== '—') 
+  const leadOwnerName = (item.assignee?.name && item.assignee.name !== '—') 
     ? item.assignee.name 
-    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Assigned Rep');
-  const leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
+    : (item.assignee?.firstName ? `${item.assignee.firstName} ${item.assignee.lastName || ''}`.trim() : '') ||
+    (item.lead?.owner?.name && item.lead.owner.name !== '—' 
+      ? item.lead.owner.name 
+      : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Assigned Rep'));
+  const leadOwnerRole = item.assignee?.role?.name || item.assignee?.role || item.lead?.owner?.role?.name || item.lead?.owner?.role || 'SALES_REP';
   const creatorName = item.createdByName || item.createdBy?.name || 'Admin';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
 
