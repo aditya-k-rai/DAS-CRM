@@ -169,6 +169,45 @@ export function getProductCoverImage(imgSrc?: string): string {
   return imgSrc;
 }
 
+/**
+ * Ensures any uploaded product image is converted to 1:1 aspect ratio
+ * and scaled/cropped to exactly 1080x1080p resolution.
+ */
+export function processImageTo1080pSquare(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1080;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        // Center square crop
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(0, 0, 1080, 1080);
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, 1080, 1080);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        resolve(dataUrl);
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const INITIAL_PRODUCTS: ProductItemWeb[] = [
   {
     id: 'p-colour-tribe-jackets',
@@ -616,26 +655,24 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     return matchCat && matchSubCat && matchSearch;
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setImageUploadError('');
 
-    Array.from(files).forEach((file) => {
-      // 1MB limit check (1,048,576 bytes)
-      if (file.size > 1024 * 1024) {
-        setImageUploadError(`⚠️ "${file.name}" exceeds 1MB limit. Please upload images under 1MB.`);
-        return;
+    for (const file of Array.from(files)) {
+      if (file.size > 5 * 1024 * 1024) {
+        setImageUploadError(`⚠️ "${file.name}" exceeds 5MB limit. Please upload images under 5MB.`);
+        continue;
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setNewProdImages(prev => [...prev, event.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+      try {
+        const squareDataUrl = await processImageTo1080pSquare(file);
+        setNewProdImages(prev => [...prev, squareDataUrl]);
+      } catch {
+        setImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
+      }
+    }
   };
 
   const handleRemoveImage = (indexToRemove: number) => {
@@ -852,24 +889,24 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditProdVolumeDiscounts(JSON.parse(JSON.stringify(tiers)));
   };
 
-  const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setEditImageUploadError('');
 
-    Array.from(files).forEach((file) => {
-      if (file.size > 1024 * 1024) {
-        setEditImageUploadError(`⚠️ "${file.name}" exceeds 1MB limit. Please upload images under 1MB.`);
-        return;
+    for (const file of Array.from(files)) {
+      if (file.size > 5 * 1024 * 1024) {
+        setEditImageUploadError(`⚠️ "${file.name}" exceeds 5MB limit. Please upload images under 5MB.`);
+        continue;
       }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setEditProdImages(prev => [...prev, event.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+
+      try {
+        const squareDataUrl = await processImageTo1080pSquare(file);
+        setEditProdImages(prev => [...prev, squareDataUrl]);
+      } catch {
+        setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
+      }
+    }
   };
 
   const handleRemoveEditImage = (indexToRemove: number) => {
@@ -1693,13 +1730,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     className="p-4 rounded-2xl flex flex-col justify-between hover:border-indigo-500/60 hover:shadow-xl hover:shadow-indigo-500/10 transition-all cursor-pointer group relative overflow-hidden bg-slate-900/60 border border-slate-800/80"
                   >
                     <div className="space-y-3">
-                      {/* 1. Cover Image */}
+                      {/* 1. Cover Image (Strict 1:1 Aspect Ratio 1080x1080p) */}
                       {cardConfig.showImage && (
-                        <div className="relative h-44 w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
+                        <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 shadow-inner">
                           <img
                             src={getProductCoverImage(p.coverImage)}
                             alt={p.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full aspect-square object-cover group-hover:scale-105 transition-transform duration-300"
                             onError={(e) => {
                               const target = e.currentTarget;
                               target.onerror = null;
@@ -1707,11 +1744,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                             }}
                           />
                           {p.images && p.images.length > 1 && (
-                            <span className="absolute top-2 right-2 bg-indigo-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shadow border border-indigo-400/30">
+                            <span className="absolute top-2.5 right-2.5 bg-indigo-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow border border-indigo-400/30">
                               +{p.images.length - 1} Photos
                             </span>
                           )}
-                          <span className="absolute bottom-2 left-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-sm text-emerald-400 border border-emerald-500/30">
+                          <span className="absolute bottom-2.5 left-2.5 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-sm text-emerald-400 border border-emerald-500/30">
                             {p.stock && p.stock > 0 ? 'Active' : 'Out of Stock'}
                           </span>
                         </div>
@@ -1920,7 +1957,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                           <img
                             src={getProductCoverImage(p.coverImage)}
                             alt={p.name}
-                            className="w-11 h-11 rounded-xl object-cover border border-slate-800"
+                            className="w-12 h-12 aspect-square rounded-xl object-cover border border-slate-800"
                             onError={(e) => {
                               const target = e.currentTarget;
                               target.onerror = null;
@@ -2048,7 +2085,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <img
                   src={getProductCoverImage(inspectorProduct.coverImage)}
                   alt={inspectorProduct.name}
-                  className="w-12 h-12 rounded-xl object-cover border border-slate-700"
+                  className="w-14 h-14 aspect-square rounded-xl object-cover border border-slate-700"
                   onError={(e) => {
                     const target = e.currentTarget;
                     target.onerror = null;
@@ -2070,14 +2107,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             {/* Multi-Image Gallery */}
             {inspectorProduct.images && inspectorProduct.images.length > 0 && (
               <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Product Gallery ({inspectorProduct.images.length} Images)</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Product Gallery ({inspectorProduct.images.length} Images - 1080x1080p 1:1)</span>
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {inspectorProduct.images.map((imgUri, idx) => (
                     <img
                       key={idx}
                       src={getProductCoverImage(imgUri)}
                       alt={`Product view ${idx + 1}`}
-                      className="w-20 h-20 rounded-xl object-cover border border-slate-700 flex-shrink-0 hover:scale-105 transition-transform"
+                      className="w-24 h-24 aspect-square rounded-xl object-cover border border-slate-700 flex-shrink-0 hover:scale-105 transition-transform"
                       onError={(e) => {
                         const target = e.currentTarget;
                         target.onerror = null;
@@ -2635,7 +2672,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="block text-slate-300 font-bold">Product Images (2 or more required)</label>
-                    <p className="text-[10px] text-slate-400">Under 1MB each • 1080 × 1080 px (Square recommended)</p>
+                    <p className="text-[10px] text-indigo-400 font-medium">Strict 1:1 Square (1080 × 1080 px) • Auto-scaled to square</p>
                   </div>
                   <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
                     newProdImages.length >= 2
@@ -2653,9 +2690,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 )}
 
                 <div className="flex items-center gap-3">
-                  <label className="cursor-pointer flex-1 flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-700 bg-slate-950 hover:bg-slate-900 transition-colors">
-                    <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Product Images</span>
-                    <span className="text-[10px] text-slate-500 mt-0.5">Select multiple images (Max 1MB each)</span>
+                  <label className="cursor-pointer flex-1 flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-indigo-500/40 bg-slate-950 hover:bg-slate-900 transition-colors">
+                    <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Product Images (1:1 1080x1080)</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Select multiple images (Auto-converted to 1080x1080p square)</span>
                     <input
                       type="file"
                       multiple
@@ -2673,7 +2710,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <img
                         src={uri}
                         alt={`Upload preview ${idx + 1}`}
-                        className="w-16 h-16 rounded-lg object-cover border border-slate-700"
+                        className="w-16 h-16 aspect-square rounded-xl object-cover border border-slate-700 shadow-sm"
                       />
                       <button
                         type="button"
@@ -2885,7 +2922,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     <img
                       src={DEFAULT_PRODUCT_FALLBACK_IMAGE}
                       alt="Preview"
-                      className="w-20 h-20 rounded-xl object-cover border border-slate-700 flex-shrink-0"
+                      className="w-20 h-20 aspect-square rounded-xl object-cover border border-slate-700 flex-shrink-0"
                     />
                   )}
                   <div className="flex-1 min-w-0 space-y-1.5">
@@ -4088,7 +4125,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="block text-slate-300 font-bold">Product Images (2 or more required)</label>
-                    <p className="text-[10px] text-slate-400">Under 1MB each • Square recommended</p>
+                    <p className="text-[10px] text-indigo-400 font-medium">Strict 1:1 Square (1080 × 1080 px) • Auto-scaled to square</p>
                   </div>
                   <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
                     editProdImages.length >= 2
@@ -4105,8 +4142,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   </p>
                 )}
 
-                <label className="cursor-pointer flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-700 bg-slate-950 hover:bg-slate-900 transition-colors">
-                  <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Additional Images</span>
+                <label className="cursor-pointer flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-indigo-500/40 bg-slate-950 hover:bg-slate-900 transition-colors">
+                  <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Additional Images (1:1 1080x1080)</span>
                   <input
                     type="file"
                     multiple
@@ -4122,7 +4159,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <img
                         src={uri}
                         alt={`Preview ${idx + 1}`}
-                        className="w-16 h-16 rounded-lg object-cover border border-slate-700"
+                        className="w-16 h-16 aspect-square rounded-xl object-cover border border-slate-700 shadow-sm"
                       />
                       <button
                         type="button"

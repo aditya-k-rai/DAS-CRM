@@ -1499,9 +1499,28 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
     const reader = new FileReader();
     reader.onload = (e) => {
-      if (e.target?.result) {
-        onSuccess(e.target.result as string);
-      }
+      const result = e.target?.result as string;
+      if (!result) return;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1080;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          onSuccess(result);
+          return;
+        }
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 1080, 1080);
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, 1080, 1080);
+        onSuccess(canvas.toDataURL('image/jpeg', 0.92));
+      };
+      img.onerror = () => onSuccess(result);
+      img.src = result;
     };
     reader.readAsDataURL(file);
   };
@@ -1864,7 +1883,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             <img
                               src={it.imageUrl}
                               alt="Prod"
-                              className="w-4 h-4 sm:w-5 sm:h-5 rounded border border-slate-200 object-cover flex-shrink-0 mt-0.5"
+                              className="w-4 h-4 sm:w-5 sm:h-5 aspect-square rounded border border-slate-200 object-cover flex-shrink-0 mt-0.5"
                               onError={(e) => {
                                 const target = e.currentTarget;
                                 target.onerror = null;
@@ -3108,7 +3127,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-2">
                             <div className="flex items-center justify-between">
                               <label className="text-[10.5px] font-bold text-sky-300 flex items-center gap-1">
-                                <Upload size={12} /> Product Image File Upload (Direct device upload)
+                                <Upload size={12} /> Product Image File Upload (Strict 1:1 Square 1080 × 1080 px)
                               </label>
                               {item.imageUrl && (
                                 <button
@@ -3122,7 +3141,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             </div>
                             <div className="flex items-center gap-3">
                               <label className="cursor-pointer bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all">
-                                <Upload size={13} /> 📁 Pick &amp; Upload Image File
+                                <Upload size={13} /> 📁 Pick &amp; Upload Image File (1080x1080)
                                 <input
                                   type="file"
                                   accept="image/*"
@@ -3141,7 +3160,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                                   <img
                                     src={item.imageUrl}
                                     alt="Prod preview"
-                                    className="w-6 h-6 rounded object-cover border border-slate-700"
+                                    className="w-6 h-6 aspect-square rounded object-cover border border-slate-700"
                                     onError={(e) => {
                                       const target = e.currentTarget;
                                       target.onerror = null;

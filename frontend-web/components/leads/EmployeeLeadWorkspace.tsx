@@ -2711,7 +2711,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                     <img
                                       src={prod.coverImage || prod.imageUrl || '/products/puff-jackets.jpg'}
                                       alt={prod.name}
-                                      className="w-10 h-10 rounded-lg object-cover border border-slate-800 flex-shrink-0"
+                                      className="w-11 h-11 aspect-square rounded-xl object-cover border border-slate-800 flex-shrink-0"
                                       onError={(e) => {
                                         const target = e.currentTarget;
                                         target.onerror = null;
