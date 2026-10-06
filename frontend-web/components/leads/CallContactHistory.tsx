@@ -361,15 +361,31 @@ export function CallContactHistory({
               <div className="absolute left-[18px] top-6 bottom-2 w-0.5 bg-gradient-to-b from-slate-700 to-transparent pointer-events-none" />
 
               {items.map((attempt, idx) => {
-                const typeMeta = (attempt?.type && TYPE_META[attempt.type]) || TYPE_META.CALL_OUT;
-                
                 // Intelligently detect if this outreach record represents a scheduled meeting / visit
                 const isMeeting =
                   attempt?.outcome === 'MEETING_SCHEDULED' ||
                   attempt?.scheduledType === 'MEETING' ||
-                  Boolean(attempt?.notes && /meeting|visit|in-person/i.test(attempt.notes));
+                  Boolean(attempt?.notes && /meeting|visit|in-person|walkthrough/i.test(attempt.notes)) ||
+                  Boolean(attempt?.sentMessage && /meeting|visit|in-person|walkthrough/i.test(attempt.sentMessage));
 
-                const isFollowUpAction = attempt?.type?.startsWith('FOLLOWUP_') || attempt?.outcome?.startsWith('FOLLOW_UP_');
+                // Fallback resolution for followUpDate and followUpTime if missing from direct attempt object
+                const resolvedFollowUpDate = attempt?.followUpDate || (() => {
+                  const match = (attempt?.notes || attempt?.sentMessage || '').match(/(?:Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+|due:\s*|on\s+)(\d{4}-\d{2}-\d{2})/i);
+                  return match ? match[1] : undefined;
+                })();
+
+                const resolvedFollowUpTime = attempt?.followUpTime || (() => {
+                  const match = (attempt?.notes || attempt?.sentMessage || '').match(/(?:at\s+|time:\s*)(\d{1,2}:\d{2}(?:\s*[AP]M)?)/i);
+                  return match ? match[1] : undefined;
+                })();
+
+                const isFollowUpAction = attempt?.type?.startsWith('FOLLOWUP_') || attempt?.outcome?.startsWith('FOLLOW_UP_') || isMeeting || Boolean(resolvedFollowUpDate);
+
+                const isScheduledTouchpoint = Boolean(resolvedFollowUpDate) || isMeeting || attempt?.type === 'FOLLOWUP_SCHEDULED' || attempt?.outcome === 'FOLLOW_UP_SCHEDULED';
+
+                const typeMeta = isScheduledTouchpoint && (attempt?.type === 'WHATSAPP' || attempt?.type === 'CALL_OUT' || !attempt?.type || attempt?.type === 'FOLLOWUP_SCHEDULED')
+                  ? TYPE_META.FOLLOWUP_SCHEDULED
+                  : (attempt?.type && TYPE_META[attempt.type]) || TYPE_META.CALL_OUT;
 
                 const outcomeMeta = isMeeting
                   ? OUTCOME_META.MEETING_SCHEDULED
@@ -637,7 +653,7 @@ export function CallContactHistory({
                           )}
 
                           {/* Follow-up OR Meeting scheduled (Differentiated with distinct styling & label) */}
-                          {attempt.followUpDate && (
+                          {resolvedFollowUpDate && (
                             isMeeting ? (
                               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-purple-500/12 border border-purple-500/35">
                                 <Calendar size={15} className="text-purple-400 flex-shrink-0" />
@@ -647,12 +663,12 @@ export function CallContactHistory({
                                   </p>
                                   <p className="text-xs font-extrabold text-purple-200 mt-0.5">
                                     {(() => {
-                                      const d = new Date(attempt.followUpDate);
+                                      const d = new Date(resolvedFollowUpDate);
                                       return !isNaN(d.getTime())
                                         ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                                        : attempt.followUpDate;
+                                        : resolvedFollowUpDate;
                                     })()}
-                                    {attempt.followUpTime && <span className="ml-2 font-black text-white">at {attempt.followUpTime}</span>}
+                                    {resolvedFollowUpTime && <span className="ml-2 font-black text-white">at {resolvedFollowUpTime}</span>}
                                   </p>
                                 </div>
                               </div>
@@ -674,12 +690,12 @@ export function CallContactHistory({
 
                                 <p className="text-xs font-extrabold text-sky-300">
                                   {(() => {
-                                    const d = new Date(attempt.followUpDate);
+                                    const d = new Date(resolvedFollowUpDate);
                                     return !isNaN(d.getTime())
                                       ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                                      : attempt.followUpDate;
+                                      : resolvedFollowUpDate;
                                   })()}
-                                  {attempt.followUpTime && <span className="ml-2 font-black text-white">at {attempt.followUpTime}</span>}
+                                  {resolvedFollowUpTime && <span className="ml-2 font-black text-white">at {resolvedFollowUpTime}</span>}
                                 </p>
 
                                 {attempt.isRescheduled && (

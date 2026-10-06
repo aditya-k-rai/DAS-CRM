@@ -330,31 +330,36 @@ export default function FollowUpsModule() {
                 for (const att of hist) {
                   if (att.followUpDate) {
                     const matchedLead = Array.isArray(leadsDir) ? leadsDir.find((l: any) => String(l.id) === leadIdKey || l.phone === att.phone) : null;
-                    const leadName = matchedLead?.name || (matchedLead ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim() : '') || 'Rahul Kapoor';
-                    const leadPhone = matchedLead?.phone || '+91 98000 10008';
+                    const leadName = matchedLead?.name || (matchedLead ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim() : '') || 'Lead Contact';
+                    const leadPhone = matchedLead?.phone || att.phone || '';
+                    const isMeeting = att.outcome === 'MEETING_SCHEDULED' || att.scheduledType === 'MEETING' || /meeting|visit|in-person/i.test(att.notes || '');
                     const exists = filtered.some((f: any) => (f.leadId === leadIdKey || f.lead?.id === leadIdKey) && (f.dueAt?.includes(att.followUpDate) || f.scheduledDate === att.followUpDate));
                     if (!exists) {
                       filtered.push({
                         id: `synth_${att.id || leadIdKey}_${att.followUpDate}`,
-                        title: `📞 Callback: ${leadName} (${leadPhone})`,
+                        title: isMeeting ? `🏢 In-Person / Virtual Visit: ${leadName}${leadPhone ? ` (${leadPhone})` : ''}` : `📞 Callback: ${leadName}${leadPhone ? ` (${leadPhone})` : ''}`,
                         leadId: leadIdKey,
                         lead: {
                           id: leadIdKey,
                           firstName: leadName.split(' ')[0] || leadName,
                           lastName: leadName.split(' ').slice(1).join(' ') || '',
-                          email: matchedLead?.email || 'rahul.kapoor@example.com',
+                          email: matchedLead?.email || '',
                           phone: leadPhone,
-                          owner: { firstName: att.by || 'Sachin Puri' },
+                          owner: { firstName: att.by || 'Sales Rep' },
+                          status: {
+                            name: isMeeting ? 'Meeting Scheduled' : (matchedLead?.status || 'Active'),
+                            color: isMeeting ? '#a855f7' : '#38bdf8',
+                          },
                         },
                         scheduledDate: att.followUpDate,
-                        scheduledTime: att.followUpTime || '10:30',
-                        dueAt: `${att.followUpDate}T${att.followUpTime || '10:30'}:00`,
-                        followUpType: 'CALL',
+                        scheduledTime: att.followUpTime || '11:30',
+                        dueAt: `${att.followUpDate}T${att.followUpTime || '11:30'}:00`,
+                        followUpType: isMeeting ? 'MEETING' : (att.scheduledType || 'CALL'),
                         priority: 'HIGH',
                         status: 'PENDING',
-                        purpose: att.notes || 'Talked: Busy, Scheduled Callback',
+                        purpose: att.notes || (isMeeting ? 'Meeting / Visit Scheduled' : 'Follow-up Scheduled'),
                         isCompleted: false,
-                        assignee: { firstName: att.by || 'Sachin Puri' },
+                        assignee: { firstName: att.by || 'Sales Rep' },
                       });
                     }
                   }
@@ -437,6 +442,15 @@ export default function FollowUpsModule() {
     if (!createdByName) createdByName = 'Admin';
     const createdByRole = item.createdByRole || item.createdBy?.role?.name || item.createdBy?.role || 'ADMIN';
 
+    // 4b. Resolve Lead Status
+    let leadStatusName = '';
+    if (item.lead?.status) {
+      if (typeof item.lead.status === 'string') leadStatusName = item.lead.status;
+      else if (item.lead.status.name) leadStatusName = item.lead.status.name;
+    }
+    if (!leadStatusName && item.leadStatus) leadStatusName = item.leadStatus;
+    if (!leadStatusName && item.statusName) leadStatusName = item.statusName;
+
     // 5. Check local caches for enrichment
     if (typeof window !== 'undefined') {
       try {
@@ -461,6 +475,10 @@ export default function FollowUpsModule() {
                 if (!companyName || companyName === '—' || companyName === 'Enterprise Client') companyName = matched.company || matched.companyName || '';
                 if (!leadOwnerName || leadOwnerName === '—') leadOwnerName = matched.assignedRepName || matched.owner || matched.assignedRep || leadOwnerName;
                 if (matched.assignedRepRole) leadOwnerRole = matched.assignedRepRole;
+                if (!leadStatusName || leadStatusName === 'Active' || leadStatusName === 'Active Prospect') {
+                  const mStatus = typeof matched.status === 'string' ? matched.status : matched.status?.name || matched.stage;
+                  if (mStatus) leadStatusName = mStatus;
+                }
                 break;
               }
             }
@@ -533,6 +551,7 @@ export default function FollowUpsModule() {
       cancelledBy: item.cancelledBy,
       cancelledReason: item.cancelledReason,
 
+      leadStatus: leadStatusName || (cleanType === 'MEETING' ? 'Meeting Scheduled' : 'Follow-up Scheduled'),
       lead: {
         id: candidateId || item.lead?.id || '',
         name: leadName || 'Lead Contact',
@@ -542,7 +561,10 @@ export default function FollowUpsModule() {
         email: leadEmail || '—',
         owner: { name: leadOwnerName || 'Unassigned', role: leadOwnerRole },
         company: { name: companyName || '' },
-        status: item.lead?.status ? (typeof item.lead.status === 'string' ? { name: item.lead.status, color: '#a855f7' } : item.lead.status) : { name: 'Active', color: '#a855f7' },
+        status: {
+          name: leadStatusName || (cleanType === 'MEETING' ? 'Meeting Scheduled' : 'Follow-up Scheduled'),
+          color: (cleanType === 'MEETING' || (leadStatusName && leadStatusName.toLowerCase().includes('meeting'))) ? '#a855f7' : '#38bdf8',
+        },
       },
     };
   };
@@ -882,7 +904,14 @@ export default function FollowUpsModule() {
     try {
       bc = new BroadcastChannel('das_crm_lead_sync');
       bc.onmessage = (event) => {
-        if (event.data?.type === 'LEADS_DELETED' || event.data?.type === 'LEAD_DELETED' || event.data?.type === 'FOLLOWUP_UPDATED') {
+        if (
+          event.data?.type === 'LEADS_DELETED' ||
+          event.data?.type === 'LEAD_DELETED' ||
+          event.data?.type === 'FOLLOWUP_UPDATED' ||
+          event.data?.type === 'FOLLOWUP_CREATED' ||
+          event.data?.type === 'LEAD_STATUS_CHANGED' ||
+          event.data?.type === 'LEAD_UPDATED'
+        ) {
           refreshAll();
         }
       };
@@ -1932,6 +1961,9 @@ function FollowUpCard({
   const creatorName = item.createdByName || item.createdBy?.name || 'Admin';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
 
+  const cleanFollowUpType = (item.followUpType || '').toUpperCase();
+  const resolvedLeadStatus = item.lead?.status?.name || (typeof item.lead?.status === 'string' ? item.lead.status : (item.leadStatus || (cleanFollowUpType === 'MEETING' ? 'Meeting Scheduled' : '')));
+
   const cardTitle = (item.title || '')
     .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${resolvedLeadName} ${item.lead?.company?.name ? `(${item.lead?.company?.name})` : (leadPhone && leadPhone !== '—' ? `(${leadPhone})` : '')}`.trim())
     .replace(/\(—\)/g, item.lead?.company?.name ? `(${item.lead?.company?.name})` : '');
@@ -1964,9 +1996,24 @@ function FollowUpCard({
           </div>
         </div>
 
-        <span className={cn('text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-wider shrink-0', getStatusBadge(item.computedStatus || item.status))}>
-          {item.computedStatus || item.status}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {resolvedLeadStatus && (
+            <span
+              className={cn(
+                'text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-wider flex items-center gap-1',
+                resolvedLeadStatus.toLowerCase().includes('meeting')
+                  ? 'bg-purple-500/15 text-purple-300 border-purple-500/35'
+                  : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+              )}
+            >
+              {resolvedLeadStatus.toLowerCase().includes('meeting') && <span>🏢</span>}
+              {resolvedLeadStatus}
+            </span>
+          )}
+          <span className={cn('text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-wider shrink-0', getStatusBadge(item.computedStatus || item.status))}>
+            {item.computedStatus || item.status}
+          </span>
+        </div>
       </div>
 
       {/* Purpose note banner */}
@@ -2111,6 +2158,9 @@ function FollowUpDetails({
   const leadOwnerRole = item.assignee?.role?.name || item.assignee?.role || item.lead?.owner?.role?.name || item.lead?.owner?.role || 'SALES_REP';
   const creatorName = item.createdByName || item.createdBy?.name || 'Admin';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
+
+  const detailFollowUpType = (item.followUpType || '').toUpperCase();
+  const resolvedLeadStatus = item.lead?.status?.name || (typeof item.lead?.status === 'string' ? item.lead.status : (item.leadStatus || (detailFollowUpType === 'MEETING' ? 'Meeting Scheduled' : 'Active Prospect')));
 
   const scheduledDateFormatted = item.dueAt
     ? new Date(item.dueAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
@@ -2346,7 +2396,7 @@ function FollowUpDetails({
                   <h4 className="font-bold text-white text-xs">{leadOwnerName}</h4>
                   <p className="text-[10px] text-slate-400 flex items-center gap-1">
                     <Building2 size={10} className="text-slate-500" />
-                    <span>Lead Status: <strong className="text-indigo-300">{item.lead?.status?.name || 'Active Prospect'}</strong></span>
+                    <span>Lead Status: <strong className="text-indigo-300">{resolvedLeadStatus}</strong></span>
                   </p>
                 </div>
               </div>
@@ -2369,9 +2419,15 @@ function FollowUpDetails({
                 <ExternalLink size={11} />
               </button>
             </div>
-            {item.lead?.status?.name && (
-              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                {item.lead.status.name}
+            {resolvedLeadStatus && (
+              <span className={cn(
+                "text-[10px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1",
+                resolvedLeadStatus.toLowerCase().includes('meeting')
+                  ? "bg-purple-500/20 text-purple-300 border-purple-500/35"
+                  : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+              )}>
+                {resolvedLeadStatus.toLowerCase().includes('meeting') && <span>🏢</span>}
+                {resolvedLeadStatus}
               </span>
             )}
           </div>

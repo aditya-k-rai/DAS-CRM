@@ -244,6 +244,9 @@ function mapServerActivitiesToContactHistory(
           ? meta.productInterest.trim()
           : undefined;
 
+        const fuDate = meta.followUpDate || ((act.description || '').match(/(?:Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+|due:\s*)(\d{4}-\d{2}-\d{2})/i)?.[1]);
+        const fuTime = meta.followUpTime || ((act.description || '').match(/(?:at\s+|time:\s*)(\d{1,2}:\d{2}(?:\s*[AP]M)?)/i)?.[1]);
+
         attempts.push({
           id: act.id,
           type: cType,
@@ -255,8 +258,8 @@ function mapServerActivitiesToContactHistory(
           durationSeconds: durSecs,
           notes: act.description || meta.notes || (isMeeting ? 'Meeting / Visit Scheduled' : 'Outbound phone call'),
           productInterest: trimmedProduct,
-          followUpDate: meta.followUpDate,
-          followUpTime: meta.followUpTime,
+          followUpDate: fuDate,
+          followUpTime: fuTime,
           audioRecordingAvailable: Boolean(meta.audioRecordingAvailable || durSecs > 10),
         });
         seenIds.add(act.id);
@@ -272,16 +275,60 @@ function mapServerActivitiesToContactHistory(
           sentMessage: meta.subject || meta.notes,
         });
         seenIds.add(act.id);
-      } else if (typeStr === 'NOTE' && (metaType === 'WHATSAPP' || channel === 'WHATSAPP' || (act.description && act.description.toLowerCase().includes('whatsapp')))) {
+      } else if (
+        (typeStr === 'NOTE' && (metaType === 'WHATSAPP' || channel === 'WHATSAPP' || (act.description && act.description.toLowerCase().includes('whatsapp')))) ||
+        typeStr === 'WHATSAPP' ||
+        metaType === 'WHATSAPP' ||
+        channel === 'WHATSAPP'
+      ) {
+        const desc = act.description || '';
+        const schedMatch = desc.match(/\[Scheduled\s+(MEETING|FOLLOWUP|CALL)\s+for\s+([\d-]+)(?:\s+at\s+([^\]\n]+))?\]/i);
+        const schedType = meta.scheduledType || (schedMatch ? schedMatch[1].toUpperCase() : undefined);
+        const fuDate = meta.followUpDate || (schedMatch ? schedMatch[2] : undefined);
+        const fuTime = meta.followUpTime || (schedMatch ? schedMatch[3] : undefined);
+        const isScheduled = Boolean(fuDate || meta.outcome === 'MEETING_SCHEDULED' || meta.outcome === 'FOLLOW_UP_SCHEDULED' || schedMatch || metaType === 'FOLLOWUP_SCHEDULED');
+        const isMeeting = schedType === 'MEETING' || meta.outcome === 'MEETING_SCHEDULED' || /meeting|visit/i.test(desc);
+
+        // Normalize display notes for clean timeline card appearance matching Call Contact History
+        const rawNote = meta.notes || act.description || 'WhatsApp communication';
+        let displayNote = rawNote;
+        if (rawNote.includes('WhatsApp Direct (') && rawNote.includes('): Status →')) {
+          const matchTitle = rawNote.match(/WhatsApp Direct \(([^)]+)\)/);
+          displayNote = matchTitle ? `WhatsApp Direct (${matchTitle[1]})` : 'WhatsApp Direct (Custom Lead Message)';
+        }
+
         attempts.push({
           id: act.id,
-          type: 'WHATSAPP',
-          outcome: (meta.outcome || 'WA_SENT') as ContactOutcome,
+          type: isScheduled ? 'FOLLOWUP_SCHEDULED' : 'WHATSAPP',
+          outcome: isMeeting ? 'MEETING_SCHEDULED' : (isScheduled ? 'FOLLOW_UP_SCHEDULED' : ((meta.outcome || 'WA_SENT') as ContactOutcome)),
+          scheduledType: isMeeting ? 'MEETING' : (schedType as any),
           by: userName,
           byRole: cleanRole,
           timestamp: actTime,
-          notes: act.description || 'WhatsApp communication',
-          sentMessage: meta.sentMessage || act.description,
+          notes: displayNote,
+          sentMessage: meta.sentMessage || undefined,
+          followUpDate: fuDate,
+          followUpTime: fuTime,
+        });
+        seenIds.add(act.id);
+      } else if (typeStr === 'MEETING' || metaType === 'MEETING') {
+        const desc = act.description || '';
+        const schedMatch = desc.match(/\[Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+([\d-]+)(?:\s+at\s+([^\]\n]+))?\]/i);
+        const fuDate = meta.followUpDate || (schedMatch ? schedMatch[1] : undefined);
+        const fuTime = meta.followUpTime || (schedMatch ? schedMatch[2] : undefined);
+
+        attempts.push({
+          id: act.id,
+          type: 'FOLLOWUP_SCHEDULED',
+          outcome: 'MEETING_SCHEDULED',
+          scheduledType: 'MEETING',
+          by: userName,
+          byRole: cleanRole,
+          timestamp: actTime,
+          notes: meta.notes || act.description || 'Meeting Scheduled',
+          sentMessage: meta.sentMessage || undefined,
+          followUpDate: fuDate,
+          followUpTime: fuTime,
         });
         seenIds.add(act.id);
       } else if (
@@ -660,6 +707,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     requirement: string;
     source: string;
     allocationTrail: AllocationEvent[];
+    nextFollowUp?: string;
+    followUpDate?: string;
+    followUpTime?: string;
+    lastActivityAt?: string;
   }>(() => {
     const norm = normalizeLead(leadData || { id: leadId });
     return {
@@ -2396,6 +2447,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       ? `🏢 In-Person / Virtual Visit: ${resolvedLeadName}${compText ? ` (${compText})` : (lead.phone ? ` (${lead.phone})` : '')}`
       : `💬 WhatsApp Follow-up: ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`;
 
+    const updatedStatus = effectiveIsMeeting ? 'Meeting Scheduled' : (selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT' ? selectedTargetStatus : lead.status);
+
     const followUpPayload = {
       title: followUpTitle,
       followUpType: effectiveIsMeeting ? 'MEETING' : 'WHATSAPP',
@@ -2404,6 +2457,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       leadName: resolvedLeadName,
       leadPhone: lead.phone,
       leadEmail: lead.email,
+      leadStatus: updatedStatus,
       scheduledDate: meetingScheduledDate,
       scheduledTime: meetingScheduledTime,
       dueAt: dueAtIso,
@@ -2444,6 +2498,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           ...followUpPayload,
           createdAt: new Date().toISOString(),
           status: 'PENDING',
+          leadStatus: updatedStatus,
           createdById: currentUser?.id || 'admin_user',
           createdByName: currentUser?.name || 'Sales Rep',
           createdByRole: currentUser?.role || 'SALES_REP',
@@ -2469,7 +2524,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               role: 'SALES_REP',
             },
             company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
-            status: { name: selectedTargetStatus || lead.status || 'Active', color: '#3b82f6' },
+            status: { name: updatedStatus, color: effectiveIsMeeting ? '#a855f7' : '#38bdf8' },
           },
         };
 
@@ -2482,7 +2537,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
 
     // 4. Update Lead nextFollowUp in state and caches
-    const updatedStatus = effectiveIsMeeting ? 'Meeting Scheduled' : (selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT' ? selectedTargetStatus : lead.status);
     setLead(prev => ({
       ...prev,
       status: updatedStatus,
@@ -2523,7 +2577,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         }
 
         window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: effectiveLeadId, status: updatedStatus } }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: effectiveLeadId, status: updatedStatus });
+          bc.postMessage({ type: 'FOLLOWUP_UPDATED', leadId: effectiveLeadId });
+        } catch (_) {}
       } catch (_) {}
+    }
+
+    if (updatedStatus !== lead.status) {
+      apiFetch(`/leads/${effectiveLeadId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          statusId: updatedStatus,
+          notes: `Touchpoint Scheduled via WhatsApp Direct: ${effectiveIsMeeting ? 'Meeting Scheduled' : 'Follow-up Scheduled'} for ${meetingScheduledDate} at ${meetingScheduledTime}`,
+        }),
+      }).catch(() => {});
     }
 
     if (opts?.showToast) {
@@ -2790,24 +2859,32 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       whatsappTemplateEngine.incrementUsage(selectedWaTemplateId);
     }
 
-    // 3. Determine status update
-    const shouldUpdateStatus = Boolean(selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT');
-    const newStatus = shouldUpdateStatus ? selectedTargetStatus : lead.status;
+    // 3. Determine status update (matching Call Funnel behavior)
+    const isScheduled = isScheduleActive || selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING' || customTemplateCategory === 'FOLLOWUP' || directScheduleType === 'MEETING' || Boolean(meetingScheduledDate);
+    const isMeeting = directScheduleType === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'MEETING') || selectedTargetStatus === 'Meeting Scheduled';
+
+    const shouldUpdateStatus = Boolean(selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT') || (isScheduled && isMeeting);
+    const effectiveTargetStatus = (selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT')
+      ? selectedTargetStatus
+      : (isScheduled && isMeeting ? 'Meeting Scheduled' : (isScheduled ? 'Follow-up Scheduled' : lead.status));
+    const newStatus = shouldUpdateStatus ? effectiveTargetStatus : lead.status;
 
     // 4. Record contact attempt
     const newContactAttempt: ContactAttempt = {
       id: `attempt_wa_${Date.now()}`,
-      type: 'WHATSAPP',
-      outcome: 'WA_SENT',
+      type: isScheduled ? 'FOLLOWUP_SCHEDULED' : 'WHATSAPP',
+      outcome: isScheduled ? (isMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED') : 'WA_SENT',
+      scheduledType: isScheduled ? (isMeeting ? 'MEETING' : 'CALL') : undefined,
       by: currentUser?.name || lead.owner || 'Sales Rep',
       byRole: cleanRole,
       timestamp: new Date().toISOString(),
-      notes: `Template: "${effectiveTitle}" • Target Status: ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${waDirectNotes ? ` • Notes: ${waDirectNotes}` : ''}`,
+      notes: waDirectNotes ? `WhatsApp Direct (${effectiveTitle}): ${waDirectNotes}` : `WhatsApp Direct (${effectiveTitle})`,
       sentMessage: finalMsg,
+      followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : undefined,
+      followUpTime: isScheduled && meetingScheduledTime ? meetingScheduledTime : undefined,
     };
 
     // 4b. Sync Scheduled Meeting or Follow-up to CRM Follow-up Section (Like Call Funnel)
-    const isScheduled = isScheduleActive || selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING' || customTemplateCategory === 'FOLLOWUP';
     if (isScheduled && meetingScheduledDate) {
       const syncRes = syncScheduledFollowUpTask();
       if (syncRes) {
@@ -2815,6 +2892,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         newContactAttempt.followUpTime = meetingScheduledTime;
         newContactAttempt.scheduledType = syncRes.effectiveScheduledType;
         newContactAttempt.outcome = syncRes.effectiveIsMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED';
+        newContactAttempt.type = 'FOLLOWUP_SCHEDULED';
       }
     }
 
@@ -2828,30 +2906,82 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       } catch (_) {}
     }
 
-    // 5. Update lead status if selected status differs from current status
-    if (shouldUpdateStatus && selectedTargetStatus !== lead.status) {
-      setLead(prev => ({ ...prev, status: selectedTargetStatus }));
+    // 5. Update lead status if selected status differs from current status (matching Call Funnel)
+    const effectiveLeadId = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
+      ? lead.id
+      : (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('das_crm_active_lead') || '{}').id || lead.id || '1') : (lead.id || '1'));
+
+    if (shouldUpdateStatus && effectiveTargetStatus !== lead.status) {
+      setLead(prev => ({
+        ...prev,
+        status: effectiveTargetStatus,
+        nextFollowUp: (isScheduled && meetingScheduledDate) ? `${meetingScheduledDate}T${meetingScheduledTime || '11:30'}:00` : prev.nextFollowUp,
+        followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : prev.followUpDate,
+        followUpTime: isScheduled && meetingScheduledTime ? meetingScheduledTime : prev.followUpTime,
+      }));
 
       if (typeof window !== 'undefined') {
         try {
-          const updatedLead = { ...lead, status: selectedTargetStatus, lastActivityAt: new Date().toISOString() };
+          clearAllDashboardCaches();
+          const updatedLead = {
+            ...lead,
+            id: effectiveLeadId,
+            status: effectiveTargetStatus,
+            lastActivityAt: new Date().toISOString(),
+            nextFollowUp: (isScheduled && meetingScheduledDate) ? `${meetingScheduledDate}T${meetingScheduledTime || '11:30'}:00` : lead.nextFollowUp,
+            followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : lead.followUpDate,
+            followUpTime: isScheduled && meetingScheduledTime ? meetingScheduledTime : lead.followUpTime,
+          };
           sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+          sessionStorage.setItem(`das_crm_lead_${effectiveLeadId}`, JSON.stringify(updatedLead));
           sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
 
           const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
           if (allLeadsRaw) {
             const allLeads = JSON.parse(allLeadsRaw);
             const updatedAll = allLeads.map((item: any) =>
-              String(item.id) === String(lead.id) ? { ...item, status: selectedTargetStatus, lastActivityAt: new Date().toISOString() } : item
+              String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+                ? { ...item, status: effectiveTargetStatus, stage: effectiveTargetStatus, lastActivityAt: new Date().toISOString() }
+                : item
             );
             localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
           }
+
+          const dirLeadsRaw = localStorage.getItem('das_crm_lead_directory_cache');
+          if (dirLeadsRaw) {
+            const dirLeads = JSON.parse(dirLeadsRaw);
+            const updatedDir = dirLeads.map((item: any) =>
+              String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+                ? { ...item, status: effectiveTargetStatus, stage: effectiveTargetStatus, lastActivityAt: new Date().toISOString() }
+                : item
+            );
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
+          }
+        } catch (_) {}
+
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: effectiveLeadId, status: effectiveTargetStatus } }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: effectiveLeadId, status: effectiveTargetStatus });
+          bc.postMessage({ type: 'FOLLOWUP_UPDATED', leadId: effectiveLeadId });
         } catch (_) {}
       }
 
-      apiFetch(`/leads/${lead.id}`, {
+      // Synchronize Status using dedicated backend status controller endpoint (matching Call Funnel)
+      apiFetch(`/leads/${effectiveLeadId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: selectedTargetStatus, lastActivityAt: new Date().toISOString() }),
+        body: JSON.stringify({
+          statusId: effectiveTargetStatus,
+          notes: `WhatsApp Direct Outreach: ${effectiveTitle}. Notes: ${waDirectNotes || 'Status updated via WhatsApp Direct'}`,
+        }),
+      }).catch(() => {});
+
+      apiFetch(`/leads/${effectiveLeadId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: effectiveTargetStatus,
+          lastActivityAt: new Date().toISOString(),
+        }),
       }).catch(() => {});
     }
 
@@ -2859,22 +2989,23 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     apiFetch('/activities', {
       method: 'POST',
       body: JSON.stringify({
-        activityType: 'NOTE',
-        leadId: lead.id,
-        notes: `WhatsApp Direct (${effectiveTitle}): Status → ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${isScheduled ? ` [Scheduled ${directScheduleType} for ${meetingScheduledDate} at ${meetingScheduledTime}]` : ''}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
+        activityType: isScheduled ? (isMeeting ? 'MEETING' : 'NOTE') : 'NOTE',
+        leadId: effectiveLeadId,
+        notes: `WhatsApp Direct (${effectiveTitle}): Status → ${effectiveTargetStatus}${isScheduled ? ` [Scheduled ${directScheduleType} for ${meetingScheduledDate} at ${meetingScheduledTime}]` : ''}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
+        outcome: newContactAttempt.outcome,
         metadata: {
           channel: 'WHATSAPP',
-          type: 'WHATSAPP',
-          outcome: newContactAttempt.outcome || 'WA_SENT',
+          type: newContactAttempt.type,
+          outcome: newContactAttempt.outcome,
           scheduledType: newContactAttempt.scheduledType,
           followUpDate: newContactAttempt.followUpDate,
           followUpTime: newContactAttempt.followUpTime,
           templateId: isCustomTemplateMode ? 'custom' : selectedWaTemplateId,
           template: effectiveTitle,
           status: newStatus,
-          targetStatus: selectedTargetStatus,
+          targetStatus: effectiveTargetStatus,
           sentMessage: finalMsg,
-          notes: waDirectNotes,
+          notes: newContactAttempt.notes,
           by: currentUser?.name || lead.owner,
           byRole: cleanRole,
         },
