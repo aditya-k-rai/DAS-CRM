@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import {
   MessageCircle, Plus, Search, Edit2, Copy, Trash2,
@@ -8,18 +8,14 @@ import {
   CheckCircle2, Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// ── Types (from Android WhatsAppTemplatesScreen + whatsappTemplateEngine) ──
-type TemplateCategory = 'OUTREACH' | 'PROPOSAL' | 'FOLLOWUP' | 'PROMOTION';
-
-interface WhatsAppTemplate {
-  id: string;
-  title: string;
-  category: TemplateCategory;
-  text: string;
-  isDefault?: boolean;
-  usageCount?: number;
-}
+import {
+  whatsappTemplateEngine,
+  type WhatsAppTemplate,
+  type TemplateCategory,
+  DEFAULT_TEMPLATES,
+  UPDATE_EVENT_NAME,
+  SYNC_CHANNEL_NAME,
+} from '@/lib/whatsappTemplateEngine';
 
 // ── Category styles ───────────────────────────────────────
 const CAT_STYLES: Record<TemplateCategory, { bg: string; text: string; border: string; emoji: string; label: string }> = {
@@ -28,14 +24,6 @@ const CAT_STYLES: Record<TemplateCategory, { bg: string; text: string; border: s
   FOLLOWUP:  { bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/30',   emoji: '⏰', label: 'Follow-up' },
   PROMOTION: { bg: 'bg-rose-500/15',    text: 'text-rose-400',    border: 'border-rose-500/30',    emoji: '🎉', label: 'Promotion' },
 };
-
-// ── Default templates (mirrors whatsappTemplateEngine.ts DEFAULT_TEMPLATES) ──
-const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
-  { id: 'tpl_1', title: '🌱 Initial Lead Outreach',       category: 'OUTREACH',  isDefault: true, usageCount: 0, text: "Hi {name}! I got to know that you inquired about our solution for {company}. Let's connect for a quick 5-minute call today!" },
-  { id: 'tpl_2', title: '📄 GST Commercial Proposal',     category: 'PROPOSAL',  isDefault: true, usageCount: 0, text: "Hello {name}, please find our official commercial quote for {product} attached with 18% GST tax breakdown totaling {value}. Looking forward to your confirmation!" },
-  { id: 'tpl_3', title: '⏰ SLA 15-Min Follow-Up',        category: 'FOLLOWUP',  isDefault: true, usageCount: 0, text: "Hi {name}, just following up regarding our recent discussion for {company}. Do you have 5 minutes for a quick call today?" },
-  { id: 'tpl_4', title: '🎉 Seasonal Discount Offer',     category: 'PROMOTION', isDefault: true, usageCount: 0, text: "Exciting news {name}! Get a special discount on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!" },
-];
 
 // ── Placeholder variables & Catalog Products ──
 const PLACEHOLDERS = ['{name}', '{company}', '{value}', '{product}', '{price}', '{catalog_link}'];
@@ -224,9 +212,10 @@ function SendModal({ template, vars, onClose }: { template: WhatsAppTemplate; va
 
   const handleSend = () => {
     if (!phone.replace(/\D/g, '')) return;
-    const cleaned = phone.replace(/\D/g, '');
-    const url = `https://wa.me/${cleaned}?text=${encodeURIComponent(finalMsg)}`;
-    window.open(url, '_blank');
+    const cleaned = whatsappTemplateEngine.cleanPhone(phone);
+    if (!cleaned) return;
+    whatsappTemplateEngine.incrementUsage(template.id);
+    whatsappTemplateEngine.openDirectWhatsApp(cleaned, finalMsg, vars.name);
     onClose();
   };
 
@@ -280,11 +269,33 @@ function SendModal({ template, vars, onClose }: { template: WhatsAppTemplate; va
 
 // ── Main Page ─────────────────────────────────────────────
 export default function WhatsAppTemplatesPage() {
-  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(() => whatsappTemplateEngine.getTemplates());
   const [activeCategory, setActiveCategory] = useState<TemplateCategory | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
   const [editModal, setEditModal] = useState<{ open: boolean; template: WhatsAppTemplate | null }>({ open: false, template: null });
   const [sendModal, setSendModal] = useState<WhatsAppTemplate | null>(null);
+
+  // Sync templates on mount and across tabs
+  useEffect(() => {
+    const handleSync = () => {
+      setTemplates(whatsappTemplateEngine.getTemplates());
+    };
+
+    window.addEventListener(UPDATE_EVENT_NAME, handleSync);
+    window.addEventListener('storage', handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel(SYNC_CHANNEL_NAME);
+      bc.onmessage = () => handleSync();
+    } catch (_) {}
+
+    return () => {
+      window.removeEventListener(UPDATE_EVENT_NAME, handleSync);
+      window.removeEventListener('storage', handleSync);
+      if (bc) bc.close();
+    };
+  }, []);
 
   // Live sandbox vars (mirrors Android WhatsAppTemplatesScreen variable sandbox)
   const [sandboxName, setSandboxName] = useState('Client Name');
@@ -303,19 +314,29 @@ export default function WhatsAppTemplatesPage() {
   const handleSave = (t: WhatsAppTemplate) => {
     setTemplates((prev) => {
       const idx = prev.findIndex(x => x.id === t.id);
-      if (idx >= 0) { const copy = [...prev]; copy[idx] = t; return copy; }
-      return [t, ...prev];
+      const copy = idx >= 0 ? [...prev] : [t, ...prev];
+      if (idx >= 0) copy[idx] = t;
+      whatsappTemplateEngine.saveTemplates(copy);
+      return copy;
     });
   };
 
   const handleDuplicate = (t: WhatsAppTemplate) => {
     const dup: WhatsAppTemplate = { ...t, id: `tpl_dup_${Date.now()}`, title: `${t.title} (Copy)`, isDefault: false, usageCount: 0 };
-    setTemplates((prev) => [dup, ...prev]);
+    setTemplates((prev) => {
+      const copy = [dup, ...prev];
+      whatsappTemplateEngine.saveTemplates(copy);
+      return copy;
+    });
   };
 
   const handleDelete = (id: string) => {
     if (!confirm('Remove this template?')) return;
-    setTemplates((prev) => prev.filter(t => t.id !== id));
+    setTemplates((prev) => {
+      const copy = prev.filter(t => t.id !== id);
+      whatsappTemplateEngine.saveTemplates(copy);
+      return copy;
+    });
   };
 
   const totalUsage = templates.reduce((s, t) => s + (t.usageCount ?? 0), 0);
