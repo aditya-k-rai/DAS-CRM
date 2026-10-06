@@ -156,6 +156,9 @@ export const DEFAULT_BRANDS = [
 
 const INITIAL_PRODUCTS: ProductItemWeb[] = [];
 
+const STORAGE_CATEGORIES_KEY = 'das_crm_product_categories';
+const STORAGE_SUBCATEGORIES_KEY = 'das_crm_product_subcategories';
+
 export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const { currentUser } = useAuth();
   const roleStr = (currentUser?.role || '').toUpperCase();
@@ -164,13 +167,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const canManage = isUserAdmin || isManager;
 
   const [products, setProducts] = useState<ProductItemWeb[]>(INITIAL_PRODUCTS);
-  const [categories, setCategories] = useState<string[]>(['All', 'Software & Cloud', 'Automation & APIs', 'Infrastructure', 'Services']);
-  const [subCategories, setSubCategories] = useState<Record<string, string[]>>({
-    'Software & Cloud': ['Enterprise Licenses', 'AI Add-ons', 'SaaS Subscriptions'],
-    'Automation & APIs': ['Messaging Gateways', 'Workflow Engines'],
-    'Infrastructure': ['Cloud Storage', 'Telemetry Nodes'],
-    'Services': ['Onboarding', 'Training'],
-  });
+  const [categories, setCategories] = useState<string[]>(['All']);
+  const [subCategories, setSubCategories] = useState<Record<string, string[]>>({});
 
   const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
   const [createBrandOpen, setCreateBrandOpen] = useState(false);
@@ -194,8 +192,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [editConfirmProduct, setEditConfirmProduct] = useState<ProductItemWeb | null>(null);
   const [editProdName, setEditProdName] = useState('');
   const [editProdSku, setEditProdSku] = useState('');
-  const [editProdCategory, setEditProdCategory] = useState('Software & Cloud');
-  const [editProdSubCategory, setEditProdSubCategory] = useState('Enterprise Licenses');
+  const [editProdCategory, setEditProdCategory] = useState('');
+  const [editProdSubCategory, setEditProdSubCategory] = useState('');
   const [editProdBrand, setEditProdBrand] = useState('Generic / Unbranded');
   const [editProdColor, setEditProdColor] = useState('');
   const [editProdUnit, setEditProdUnit] = useState('Pieces (Pcs)');
@@ -261,12 +259,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
-            setProducts(data.map((p: any) => ({
+            const mapped = data.map((p: any) => ({
               id: p.id,
               name: p.name,
               sku: p.sku || 'SKU-001',
-              category: p.category || 'General',
-              subCategory: p.subCategory || 'Standard',
+              category: p.category || '',
+              subCategory: p.subCategory || '',
               brand: p.brand || 'Generic / Unbranded',
               color: p.color || '',
               unit: p.unit || 'Pieces (Pcs)',
@@ -277,13 +275,42 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               sold: p.sold || 0,
               taxRate: p.taxRate || 18,
               isActive: p.isActive !== false,
-              coverImage: p.imageUrl || (p.images && p.images[0]) || p.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+              coverImage: p.imageUrl || (p.images && p.images[0]) || p.coverImage || '',
               images: p.images || (p.imageUrl ? [p.imageUrl] : []),
               overview: p.description || p.overview || '',
               specs: p.features || p.specs || [],
               features: p.features || [],
               volumeDiscounts: p.volumeDiscounts || [],
-            })));
+            }));
+            setProducts(mapped);
+
+            // Sync user categories and dynamic categories from database
+            let storedCats: string[] = [];
+            try {
+              const c = localStorage.getItem(STORAGE_CATEGORIES_KEY);
+              if (c) storedCats = JSON.parse(c);
+            } catch {}
+
+            let storedSubs: Record<string, string[]> = {};
+            try {
+              const s = localStorage.getItem(STORAGE_SUBCATEGORIES_KEY);
+              if (s) storedSubs = JSON.parse(s);
+            } catch {}
+
+            const dynamicCats = data.map((p: any) => p.category).filter(Boolean) as string[];
+            const allCats = Array.from(new Set(['All', ...storedCats, ...dynamicCats]));
+            setCategories(allCats);
+
+            const allSubs: Record<string, string[]> = { ...storedSubs };
+            data.forEach((p: any) => {
+              if (p.category && p.subCategory) {
+                if (!allSubs[p.category]) allSubs[p.category] = [];
+                if (!allSubs[p.category].includes(p.subCategory)) {
+                  allSubs[p.category].push(p.subCategory);
+                }
+              }
+            });
+            setSubCategories(allSubs);
           }
         }
       } catch (e) {
@@ -316,8 +343,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [newProdName, setNewProdName] = useState('');
   const [newProdSku, setNewProdSku] = useState('');
-  const [newProdCategory, setNewProdCategory] = useState('Software & Cloud');
-  const [newProdSubCategory, setNewProdSubCategory] = useState('Enterprise Licenses');
+  const [newProdCategory, setNewProdCategory] = useState('');
+  const [newProdSubCategory, setNewProdSubCategory] = useState('');
   const [newProdBrand, setNewProdBrand] = useState('Generic / Unbranded');
   const [newProdColor, setNewProdColor] = useState('');
   const [newProdUnit, setNewProdUnit] = useState('Pieces (Pcs)');
@@ -325,12 +352,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [newProdStock, setNewProdStock] = useState('100');
   const [newProdGst, setNewProdGst] = useState('18');
   const [newProdDescription, setNewProdDescription] = useState('');
-  const [newProdFeatures, setNewProdFeatures] = useState<string[]>(['Gold Plated', 'Waterproof']);
+  const [newProdFeatures, setNewProdFeatures] = useState<string[]>([]);
   const [featureTagInput, setFeatureTagInput] = useState('');
-  const [newProdImages, setNewProdImages] = useState<string[]>([
-    'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
-  ]);
+  const [newProdImages, setNewProdImages] = useState<string[]>([]);
   const [imageUploadError, setImageUploadError] = useState('');
 
   // New Category / Sub-Category Modal State
@@ -338,7 +362,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [createSubCategoryOpen, setCreateSubCategoryOpen] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newSubCatName, setNewSubCatName] = useState('');
-  const [parentCatForSub, setParentCatForSub] = useState('Software & Cloud');
+  const [parentCatForSub, setParentCatForSub] = useState('');
 
   const filtered = products.filter(p => {
     const matchCat = selectedCategory === 'All' || p.category === selectedCategory;
@@ -396,22 +420,60 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       return;
     }
 
-    if (newProdImages.length < 2) {
-      alert('⚠️ Image Requirement: Please upload at least 2 images for the product (under 1MB each, 1080×1080px recommended).');
-      return;
-    }
-
     const priceNum = parseFloat(newProdPrice) || 0;
     const finalSku = newProdSku.trim()
       ? newProdSku.trim().toUpperCase()
       : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
 
+    const finalCat = newProdCategory.trim() || 'General';
+    const finalSubCat = newProdSubCategory.trim() || 'Standard';
+
+    let createdId = Date.now().toString();
+
+    // Post to API with real database persistence
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const res = await fetch(`${apiBase}/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: newProdName.trim(),
+          sku: finalSku,
+          category: finalCat,
+          subCategory: finalSubCat,
+          brand: newProdBrand.trim() || 'Generic / Unbranded',
+          color: newProdColor.trim(),
+          unit: newProdUnit,
+          price: priceNum,
+          stock: parseInt(newProdStock) || 100,
+          taxRate: parseInt(newProdGst) || 18,
+          description: newProdDescription.trim(),
+          features: newProdFeatures,
+          imageUrl: newProdImages[0] || '',
+          images: newProdImages,
+        }),
+      });
+
+      if (res.ok) {
+        const savedData = await res.json();
+        if (savedData && savedData.id) {
+          createdId = savedData.id;
+        }
+      }
+    } catch (err) {
+      console.warn('API create product fallback to local state:', err);
+    }
+
     const newProd: ProductItemWeb = {
-      id: Date.now().toString(),
+      id: createdId,
       name: newProdName.trim(),
       sku: finalSku,
-      category: newProdCategory,
-      subCategory: newProdSubCategory,
+      category: finalCat,
+      subCategory: finalSubCat,
       brand: newProdBrand.trim() || 'Generic / Unbranded',
       color: newProdColor.trim(),
       unit: newProdUnit,
@@ -422,9 +484,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       sold: 0,
       taxRate: parseInt(newProdGst) || 18,
       isActive: true,
-      coverImage: newProdImages[0] || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+      coverImage: newProdImages[0] || '',
       images: newProdImages,
-      overview: newProdDescription.trim() || 'Newly created product item in DAS CRM Catalog.',
+      overview: newProdDescription.trim() || 'Product item in DAS CRM Catalog.',
       specs: newProdFeatures.length > 0 ? newProdFeatures : ['Standard Specification'],
       features: newProdFeatures,
       volumeDiscounts: [
@@ -433,46 +495,39 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       ],
     };
 
-    // Try posting to API
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      await fetch(`${apiBase}/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: newProd.name,
-          sku: newProd.sku,
-          category: newProd.category,
-          subCategory: newProd.subCategory,
-          brand: newProd.brand,
-          color: newProd.color,
-          unit: newProd.unit,
-          price: newProd.price,
-          stock: newProd.stock,
-          taxRate: newProd.taxRate,
-          description: newProd.overview,
-          features: newProd.features,
-          imageUrl: newProd.coverImage,
-          images: newProd.images,
-        }),
+    setProducts(prev => [newProd, ...prev]);
+
+    // Update taxonomy state if new category/subcategory
+    if (finalCat && !categories.includes(finalCat)) {
+      const nextCats = [...categories, finalCat];
+      setCategories(nextCats);
+      try {
+        localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(nextCats.filter(c => c !== 'All')));
+      } catch {}
+    }
+    if (finalCat && finalSubCat) {
+      setSubCategories(prev => {
+        const existing = prev[finalCat] || [];
+        if (!existing.includes(finalSubCat)) {
+          const next = { ...prev, [finalCat]: [...existing, finalSubCat] };
+          try {
+            localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(next));
+          } catch {}
+          return next;
+        }
+        return prev;
       });
-    } catch (err) {
-      console.warn('API create product fallback to local state:', err);
     }
 
-    setProducts(prev => [newProd, ...prev]);
     setCreateProductOpen(false);
     setNewProdName('');
     setNewProdSku('');
     setNewProdPrice('');
     setNewProdColor('');
     setNewProdDescription('');
-    setNewProdFeatures(['Gold Plated', 'Waterproof']);
-    alert(`✅ Product "${newProd.name}" (${newProd.sku}) added successfully to catalog!`);
+    setNewProdFeatures([]);
+    setNewProdImages([]);
+    alert(`✅ Product "${newProd.name}" (${newProd.sku}) created and saved to database!`);
   };
 
   // ─── Helpers: Dynamic Product Count by Taxonomy ──────────────────────────
@@ -500,8 +555,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditingProduct(product);
     setEditProdName(product.name);
     setEditProdSku(product.sku);
-    setEditProdCategory(product.category || 'Software & Cloud');
-    setEditProdSubCategory(product.subCategory || 'Enterprise Licenses');
+    setEditProdCategory(product.category || '');
+    setEditProdSubCategory(product.subCategory || '');
     setEditProdBrand(product.brand || 'Generic / Unbranded');
     setEditProdColor(product.color || '');
     setEditProdUnit(product.unit || 'Pieces (Pcs)');
@@ -558,10 +613,6 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       alert('Please fill out Product Name and Unit Price.');
       return;
     }
-    if (editProdImages.length < 2) {
-      alert('⚠️ Image Requirement: Please provide at least 2 images for the product (under 1MB each).');
-      return;
-    }
 
     const priceNum = parseFloat(editProdPrice) || 0;
     const finalSku = editProdSku.trim()
@@ -572,8 +623,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       ...editingProduct,
       name: editProdName.trim(),
       sku: finalSku,
-      category: editProdCategory,
-      subCategory: editProdSubCategory,
+      category: editProdCategory.trim() || 'General',
+      subCategory: editProdSubCategory.trim() || 'Standard',
       brand: editProdBrand.trim() || 'Generic / Unbranded',
       color: editProdColor.trim(),
       unit: editProdUnit,
@@ -689,9 +740,21 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     if (!newCatName.trim()) return;
     const trimmed = newCatName.trim();
     if (!categories.includes(trimmed)) {
-      setCategories(prev => [...prev, trimmed]);
-      setSubCategories(prev => ({ ...prev, [trimmed]: [] }));
+      const nextCats = [...categories, trimmed];
+      setCategories(nextCats);
+      try {
+        localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(nextCats.filter(c => c !== 'All')));
+      } catch {}
+      setSubCategories(prev => {
+        const nextSubs = { ...prev, [trimmed]: [] };
+        try {
+          localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(nextSubs));
+        } catch {}
+        return nextSubs;
+      });
     }
+    setNewProdCategory(trimmed);
+    setParentCatForSub(trimmed);
     setCreateCategoryOpen(false);
     setNewCatName('');
     alert(`✅ Category "${trimmed}" added!`);
@@ -716,7 +779,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       return;
     }
 
-    setCategories(prev => prev.map(c => c === oldName ? trimmed : c));
+    const nextCats = categories.map(c => c === oldName ? trimmed : c);
+    setCategories(nextCats);
+    try {
+      localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(nextCats.filter(c => c !== 'All')));
+    } catch {}
+
     setSubCategories(prev => {
       const updated = { ...prev };
       if (updated[oldName]) {
@@ -725,6 +793,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       } else {
         updated[trimmed] = [];
       }
+      try {
+        localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(updated));
+      } catch {}
       return updated;
     });
 
@@ -750,10 +821,18 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     if (!deleteCategoryModal) return;
     const { name, productCount } = deleteCategoryModal;
 
-    setCategories(prev => prev.filter(c => c !== name));
+    const nextCats = categories.filter(c => c !== name);
+    setCategories(nextCats);
+    try {
+      localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(nextCats.filter(c => c !== 'All')));
+    } catch {}
+
     setSubCategories(prev => {
       const updated = { ...prev };
       delete updated[name];
+      try {
+        localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(updated));
+      } catch {}
       return updated;
     });
 
@@ -773,13 +852,21 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     }
     if (!newSubCatName.trim()) return;
     const trimmed = newSubCatName.trim();
+    const targetCat = parentCatForSub || categories.find(c => c !== 'All') || 'General';
+
     setSubCategories(prev => {
-      const existing = prev[parentCatForSub] || [];
-      return { ...prev, [parentCatForSub]: [...existing, trimmed] };
+      const existing = prev[targetCat] || [];
+      const nextSubs = { ...prev, [targetCat]: Array.from(new Set([...existing, trimmed])) };
+      try {
+        localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(nextSubs));
+      } catch {}
+      return nextSubs;
     });
+
+    setNewProdSubCategory(trimmed);
     setCreateSubCategoryOpen(false);
     setNewSubCatName('');
-    alert(`✅ Sub-Category "${trimmed}" added under "${parentCatForSub}"!`);
+    alert(`✅ Sub-Category "${trimmed}" added under "${targetCat}"!`);
   };
 
   const handleOpenEditSubCategory = (parentCat: string, subCat: string) => {
@@ -802,10 +889,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
     setSubCategories(prev => {
       const list = prev[parentCat] || [];
-      return {
+      const nextSubs = {
         ...prev,
         [parentCat]: list.map(s => s === oldSubName ? trimmed : s),
       };
+      try {
+        localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(nextSubs));
+      } catch {}
+      return nextSubs;
     });
 
     // Cascade update to all associated products
@@ -831,10 +922,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
     setSubCategories(prev => {
       const list = prev[parentCat] || [];
-      return {
+      const nextSubs = {
         ...prev,
         [parentCat]: list.filter(s => s !== subName),
       };
+      try {
+        localStorage.setItem(STORAGE_SUBCATEGORIES_KEY, JSON.stringify(nextSubs));
+      } catch {}
+      return nextSubs;
     });
 
     // Cascade update: reassign associated products to 'General'
@@ -1831,20 +1926,46 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       + Add Category
                     </button>
                   </div>
-                  <select
-                    className="crm-input w-full"
-                    value={newProdCategory}
-                    onChange={e => {
-                      const newCat = e.target.value;
-                      setNewProdCategory(newCat);
-                      const availableSubs = subCategories[newCat] || ['General'];
-                      setNewProdSubCategory(availableSubs[0] || 'General');
-                    }}
-                  >
-                    {categories.filter(c => c !== 'All').map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  {categories.filter(c => c !== 'All').length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        className="crm-input w-full text-xs"
+                        value={newProdCategory}
+                        onChange={e => {
+                          const newCat = e.target.value;
+                          setNewProdCategory(newCat);
+                          const availableSubs = subCategories[newCat] || [];
+                          setNewProdSubCategory(availableSubs[0] || '');
+                        }}
+                      >
+                        <option value="">-- Select category --</option>
+                        {categories.filter(c => c !== 'All').map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        className="crm-input w-full text-xs"
+                        placeholder="Or enter new custom category..."
+                        value={newProdCategory}
+                        onChange={e => {
+                          setNewProdCategory(e.target.value);
+                          setParentCatForSub(e.target.value);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className="crm-input w-full text-xs font-semibold"
+                      placeholder="e.g. Electronics, Hardware, Services..."
+                      value={newProdCategory}
+                      onChange={e => {
+                        setNewProdCategory(e.target.value);
+                        setParentCatForSub(e.target.value);
+                      }}
+                    />
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -1860,18 +1981,35 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       + Add Sub-Category
                     </button>
                   </div>
-                  <select
-                    className="crm-input w-full font-semibold"
-                    value={newProdSubCategory}
-                    onChange={e => setNewProdSubCategory(e.target.value)}
-                  >
-                    {(subCategories[newProdCategory] && subCategories[newProdCategory].length > 0
-                      ? subCategories[newProdCategory]
-                      : ['General', 'Standard']
-                    ).map(sc => (
-                      <option key={sc} value={sc}>{sc}</option>
-                    ))}
-                  </select>
+                  {newProdCategory && subCategories[newProdCategory] && subCategories[newProdCategory].length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        className="crm-input w-full text-xs font-semibold"
+                        value={newProdSubCategory}
+                        onChange={e => setNewProdSubCategory(e.target.value)}
+                      >
+                        <option value="">-- Select sub-category --</option>
+                        {subCategories[newProdCategory].map(sc => (
+                          <option key={sc} value={sc}>{sc}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        className="crm-input w-full text-xs"
+                        placeholder="Or enter custom sub-category..."
+                        value={newProdSubCategory}
+                        onChange={e => setNewProdSubCategory(e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className="crm-input w-full text-xs font-semibold"
+                      placeholder="e.g. Standard, Pro, Add-on..."
+                      value={newProdSubCategory}
+                      onChange={e => setNewProdSubCategory(e.target.value)}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -3161,20 +3299,46 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       + Add Category
                     </button>
                   </div>
-                  <select
-                    className="crm-input w-full"
-                    value={editProdCategory}
-                    onChange={e => {
-                      const newCat = e.target.value;
-                      setEditProdCategory(newCat);
-                      const availableSubs = subCategories[newCat] || ['General'];
-                      setEditProdSubCategory(availableSubs[0] || 'General');
-                    }}
-                  >
-                    {categories.filter(c => c !== 'All').map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  {categories.filter(c => c !== 'All').length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        className="crm-input w-full text-xs"
+                        value={editProdCategory}
+                        onChange={e => {
+                          const newCat = e.target.value;
+                          setEditProdCategory(newCat);
+                          const availableSubs = subCategories[newCat] || [];
+                          setEditProdSubCategory(availableSubs[0] || '');
+                        }}
+                      >
+                        <option value="">-- Select category --</option>
+                        {categories.filter(c => c !== 'All').map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        className="crm-input w-full text-xs"
+                        placeholder="Or enter new custom category..."
+                        value={editProdCategory}
+                        onChange={e => {
+                          setEditProdCategory(e.target.value);
+                          setParentCatForSub(e.target.value);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className="crm-input w-full text-xs font-semibold"
+                      placeholder="e.g. Electronics, Hardware, Services..."
+                      value={editProdCategory}
+                      onChange={e => {
+                        setEditProdCategory(e.target.value);
+                        setParentCatForSub(e.target.value);
+                      }}
+                    />
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -3190,18 +3354,35 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       + Add Sub-Category
                     </button>
                   </div>
-                  <select
-                    className="crm-input w-full"
-                    value={editProdSubCategory}
-                    onChange={e => setEditProdSubCategory(e.target.value)}
-                  >
-                    {(subCategories[editProdCategory] && subCategories[editProdCategory].length > 0
-                      ? subCategories[editProdCategory]
-                      : ['General']
-                    ).map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
+                  {editProdCategory && subCategories[editProdCategory] && subCategories[editProdCategory].length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        className="crm-input w-full text-xs font-semibold"
+                        value={editProdSubCategory}
+                        onChange={e => setEditProdSubCategory(e.target.value)}
+                      >
+                        <option value="">-- Select sub-category --</option>
+                        {subCategories[editProdCategory].map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        className="crm-input w-full text-xs"
+                        placeholder="Or enter custom sub-category..."
+                        value={editProdSubCategory}
+                        onChange={e => setEditProdSubCategory(e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className="crm-input w-full text-xs font-semibold"
+                      placeholder="e.g. Standard, Pro, Add-on..."
+                      value={editProdSubCategory}
+                      onChange={e => setEditProdSubCategory(e.target.value)}
+                    />
+                  )}
                 </div>
               </div>
 

@@ -176,31 +176,46 @@ export class ProductsService {
       }).catch(() => []);
 
       if (dbProducts && dbProducts.length > 0) {
-        return dbProducts.map((p) => ({
-          id: p.id,
-          name: p.name,
-          sku: (p as any).sku || 'SKU-' + p.id.substring(0, 6).toUpperCase(),
-          category: (p as any).category || 'Software',
-          subCategory: (p as any).subCategory || 'General',
-          brand: (p as any).brand || '',
-          color: (p as any).color || '',
-          unit: p.unit || 'Pieces',
-          description: p.description || 'No description provided.',
-          price: p.price ? Number(p.price) : 0,
-          minPrice: (p as any).minPrice ? Number((p as any).minPrice) : Number(p.price) || 0,
-          maxPrice: (p as any).maxPrice ? Number((p as any).maxPrice) : Number(p.price) || 0,
-          currency: '₹',
-          stock: (p as any).stock || 0,
-          minOrderQty: (p as any).minOrderQty || 1,
-          taxRate: p.taxRate ? Number(p.taxRate) : 18,
-          imageUrl: (p as any).imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
-          images: (p as any).images || ((p as any).imageUrl ? [(p as any).imageUrl] : []),
-          features: (p as any).features || [],
-          isActive: p.isActive,
-          status: 'ACTIVE' as const,
-          createdAt: p.createdAt?.toISOString(),
-          updatedAt: p.updatedAt?.toISOString(),
-        }));
+        return dbProducts.map((p) => {
+          let meta: any = {};
+          let actualDescription = p.description || '';
+          if (p.description && p.description.trim().startsWith('{')) {
+            try {
+              meta = JSON.parse(p.description);
+              if (meta && typeof meta === 'object') {
+                actualDescription = meta.description ?? '';
+              }
+            } catch (_) {}
+          }
+
+          const primaryImg = meta.imageUrl || (meta.images && meta.images[0]) || (p as any).imageUrl || '';
+
+          return {
+            id: p.id,
+            name: p.name,
+            sku: meta.sku || (p as any).sku || 'SKU-' + p.id.substring(0, 6).toUpperCase(),
+            category: meta.category || (p as any).category || '',
+            subCategory: meta.subCategory || (p as any).subCategory || '',
+            brand: meta.brand || (p as any).brand || '',
+            color: meta.color || (p as any).color || '',
+            unit: p.unit || 'Pieces (Pcs)',
+            description: actualDescription,
+            price: p.price ? Number(p.price) : 0,
+            minPrice: meta.minPrice !== undefined ? Number(meta.minPrice) : (p.price ? Number(p.price) : 0),
+            maxPrice: meta.maxPrice !== undefined ? Number(meta.maxPrice) : (p.price ? Number(p.price) : 0),
+            currency: meta.currency || '₹',
+            stock: meta.stock !== undefined ? Number(meta.stock) : 100,
+            minOrderQty: meta.minOrderQty !== undefined ? Number(meta.minOrderQty) : 1,
+            taxRate: p.taxRate ? Number(p.taxRate) : 18,
+            imageUrl: primaryImg,
+            images: meta.images && meta.images.length > 0 ? meta.images : (primaryImg ? [primaryImg] : []),
+            features: meta.features || (p as any).features || [],
+            isActive: p.isActive,
+            status: 'ACTIVE' as const,
+            createdAt: p.createdAt?.toISOString(),
+            updatedAt: p.updatedAt?.toISOString(),
+          };
+        });
       }
     } catch (e) {
       console.warn('[ProductsService] DB query failed:', e.message);
@@ -218,26 +233,38 @@ export class ProductsService {
 
       if (dbProduct) {
         if (!dbProduct.isActive) throw new NotFoundException(`Product "${id}" has been deleted or deactivated.`);
+        let meta: any = {};
+        let actualDescription = dbProduct.description || '';
+        if (dbProduct.description && dbProduct.description.trim().startsWith('{')) {
+          try {
+            meta = JSON.parse(dbProduct.description);
+            if (meta && typeof meta === 'object') {
+              actualDescription = meta.description ?? '';
+            }
+          } catch (_) {}
+        }
+        const primaryImg = meta.imageUrl || (meta.images && meta.images[0]) || (dbProduct as any).imageUrl || '';
+
         return {
           id: dbProduct.id,
           name: dbProduct.name,
-          sku: (dbProduct as any).sku || '',
-          category: (dbProduct as any).category || 'Software',
-          subCategory: (dbProduct as any).subCategory || 'General',
-          brand: (dbProduct as any).brand || '',
-          color: (dbProduct as any).color || '',
-          unit: dbProduct.unit || 'Pieces',
-          description: dbProduct.description || '',
+          sku: meta.sku || (dbProduct as any).sku || 'SKU-' + dbProduct.id.substring(0, 6).toUpperCase(),
+          category: meta.category || (dbProduct as any).category || '',
+          subCategory: meta.subCategory || (dbProduct as any).subCategory || '',
+          brand: meta.brand || (dbProduct as any).brand || '',
+          color: meta.color || (dbProduct as any).color || '',
+          unit: dbProduct.unit || 'Pieces (Pcs)',
+          description: actualDescription,
           price: Number(dbProduct.price),
-          minPrice: Number((dbProduct as any).minPrice || dbProduct.price),
-          maxPrice: Number((dbProduct as any).maxPrice || dbProduct.price),
-          currency: '₹',
-          stock: (dbProduct as any).stock || 0,
-          minOrderQty: (dbProduct as any).minOrderQty || 1,
+          minPrice: meta.minPrice !== undefined ? Number(meta.minPrice) : Number(dbProduct.price),
+          maxPrice: meta.maxPrice !== undefined ? Number(meta.maxPrice) : Number(dbProduct.price),
+          currency: meta.currency || '₹',
+          stock: meta.stock !== undefined ? Number(meta.stock) : 100,
+          minOrderQty: meta.minOrderQty !== undefined ? Number(meta.minOrderQty) : 1,
           taxRate: Number(dbProduct.taxRate),
-          imageUrl: (dbProduct as any).imageUrl || '',
-          images: (dbProduct as any).images || ((dbProduct as any).imageUrl ? [(dbProduct as any).imageUrl] : []),
-          features: (dbProduct as any).features || [],
+          imageUrl: primaryImg,
+          images: meta.images && meta.images.length > 0 ? meta.images : (primaryImg ? [primaryImg] : []),
+          features: meta.features || (dbProduct as any).features || [],
           isActive: dbProduct.isActive,
           status: dbProduct.isActive ? 'ACTIVE' : 'DISCONTINUED',
         };
@@ -260,25 +287,38 @@ export class ProductsService {
     }
     const price = dto.price ?? dto.minPrice ?? 0;
     const generatedSku = dto.sku?.trim() ? dto.sku.trim() : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
-    const finalUnit = dto.unit?.trim() || 'Pieces';
+    const finalUnit = dto.unit?.trim() || 'Pieces (Pcs)';
     const primaryImg = (dto.images && dto.images.length > 0)
       ? dto.images[0]
-      : (dto.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80');
+      : (dto.imageUrl || '');
+
+    const metadata = {
+      description: dto.description || '',
+      sku: generatedSku,
+      category: dto.category || '',
+      subCategory: dto.subCategory || '',
+      brand: dto.brand || '',
+      color: dto.color || '',
+      stock: dto.stock !== undefined ? Number(dto.stock) : 100,
+      minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : 1,
+      currency: dto.currency || '₹',
+      imageUrl: primaryImg,
+      images: dto.images && dto.images.length > 0 ? dto.images : (primaryImg ? [primaryImg] : []),
+      features: dto.features || [],
+    };
+    const storedDescription = JSON.stringify(metadata);
 
     try {
       const dbProduct = await this.prisma.product.create({
         data: {
           organizationId,
           name: dto.name || 'New Product',
-          description: dto.description || 'No description provided.',
+          description: storedDescription,
           price: price,
           unit: finalUnit,
           taxRate: dto.taxRate ?? 18,
           isActive: true,
         },
-      }).catch((e) => {
-        console.warn('[ProductsService] DB product create error:', e.message);
-        return null;
       });
 
       if (dbProduct) {
@@ -286,29 +326,29 @@ export class ProductsService {
           id: dbProduct.id,
           name: dbProduct.name,
           sku: generatedSku,
-          category: dto.category || 'Software',
-          subCategory: dto.subCategory || 'General',
-          brand: dto.brand || '',
-          color: dto.color || '',
+          category: metadata.category,
+          subCategory: metadata.subCategory,
+          brand: metadata.brand,
+          color: metadata.color,
           unit: finalUnit,
-          description: dbProduct.description || '',
+          description: dto.description || '',
           price: Number(dbProduct.price),
           minPrice: dto.minPrice ?? Number(dbProduct.price),
           maxPrice: dto.maxPrice ?? Number(dbProduct.price),
-          currency: dto.currency || '₹',
-          stock: dto.stock ?? 100,
-          minOrderQty: dto.minOrderQty ?? 1,
+          currency: metadata.currency,
+          stock: metadata.stock,
+          minOrderQty: metadata.minOrderQty,
           taxRate: Number(dbProduct.taxRate),
           imageUrl: primaryImg,
-          images: dto.images && dto.images.length > 0 ? dto.images : [primaryImg],
-          features: dto.features || [],
+          images: metadata.images,
+          features: metadata.features,
           isActive: true,
           status: 'ACTIVE',
           createdAt: dbProduct.createdAt?.toISOString(),
         };
       }
     } catch (e) {
-      console.warn('[ProductsService] DB create failed, using fallback:', e.message);
+      console.warn('[ProductsService] DB product create error:', e.message);
     }
 
     // Fallback in-memory creation
@@ -316,22 +356,22 @@ export class ProductsService {
       id: 'p-' + Date.now(),
       name: dto.name || 'New Product',
       sku: generatedSku,
-      category: dto.category || 'Software',
-      subCategory: dto.subCategory || 'General',
-      brand: dto.brand || '',
-      color: dto.color || '',
+      category: metadata.category,
+      subCategory: metadata.subCategory,
+      brand: metadata.brand,
+      color: metadata.color,
       unit: finalUnit,
       description: dto.description || 'No description provided.',
       price: price,
       minPrice: dto.minPrice ?? price,
       maxPrice: dto.maxPrice ?? price,
       currency: dto.currency || '₹',
-      stock: dto.stock ?? 100,
-      minOrderQty: dto.minOrderQty ?? 1,
+      stock: metadata.stock,
+      minOrderQty: metadata.minOrderQty,
       taxRate: dto.taxRate ?? 18,
       imageUrl: primaryImg,
-      images: dto.images && dto.images.length > 0 ? dto.images : [primaryImg],
-      features: dto.features || [],
+      images: metadata.images,
+      features: metadata.features,
       isActive: true,
       status: 'ACTIVE',
       createdAt: new Date().toISOString(),
@@ -346,26 +386,50 @@ export class ProductsService {
       where: { id, organizationId },
     }).catch(() => null);
 
-    if (!existing) {
-      const idx = this.fallbackProducts.findIndex((p) => p.id === id);
-      if (idx === -1) throw new NotFoundException(`Product "${id}" not found.`);
-      this.fallbackProducts[idx] = { ...this.fallbackProducts[idx], ...dto };
-      return this.fallbackProducts[idx];
+    if (existing) {
+      let meta: any = {};
+      let prevDesc = existing.description || '';
+      if (existing.description && existing.description.trim().startsWith('{')) {
+        try {
+          meta = JSON.parse(existing.description);
+          prevDesc = meta.description ?? '';
+        } catch (_) {}
+      }
+
+      const updatedMeta = {
+        description: dto.description !== undefined ? dto.description : prevDesc,
+        sku: dto.sku !== undefined ? dto.sku : (meta.sku || 'SKU-' + existing.id.substring(0, 6).toUpperCase()),
+        category: dto.category !== undefined ? dto.category : (meta.category || ''),
+        subCategory: dto.subCategory !== undefined ? dto.subCategory : (meta.subCategory || ''),
+        brand: dto.brand !== undefined ? dto.brand : (meta.brand || ''),
+        color: dto.color !== undefined ? dto.color : (meta.color || ''),
+        stock: dto.stock !== undefined ? Number(dto.stock) : (meta.stock ?? 100),
+        minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : (meta.minOrderQty ?? 1),
+        currency: dto.currency || meta.currency || '₹',
+        imageUrl: dto.imageUrl || (dto.images && dto.images[0]) || meta.imageUrl || '',
+        images: dto.images !== undefined ? dto.images : (meta.images || []),
+        features: dto.features !== undefined ? dto.features : (meta.features || []),
+      };
+
+      await this.prisma.product.update({
+        where: { id },
+        data: {
+          ...(dto.name && { name: dto.name }),
+          description: JSON.stringify(updatedMeta),
+          ...(dto.price !== undefined && { price: dto.price }),
+          ...(dto.unit !== undefined && { unit: dto.unit }),
+          ...(dto.taxRate !== undefined && { taxRate: dto.taxRate }),
+          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        },
+      });
+
+      return this.getProductById(organizationId, id);
     }
 
-    await this.prisma.product.update({
-      where: { id },
-      data: {
-        ...(dto.name && { name: dto.name }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.price !== undefined && { price: dto.price }),
-        ...(dto.unit !== undefined && { unit: dto.unit }),
-        ...(dto.taxRate !== undefined && { taxRate: dto.taxRate }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      },
-    });
-
-    return this.getProductById(organizationId, id);
+    const idx = this.fallbackProducts.findIndex((p) => p.id === id);
+    if (idx === -1) throw new NotFoundException(`Product "${id}" not found.`);
+    this.fallbackProducts[idx] = { ...this.fallbackProducts[idx], ...dto };
+    return this.fallbackProducts[idx];
   }
 
   // ─── DELETE PRODUCT — ADMIN ONLY — HARD REMOVES FROM DB + MEMORY ─────────────
