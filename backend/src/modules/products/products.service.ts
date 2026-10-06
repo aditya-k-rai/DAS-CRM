@@ -6,6 +6,13 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+export interface VolumeDiscountTier {
+  tier: string;
+  minQty: number;
+  discountPct: number;
+  finalPrice: number;
+}
+
 export interface ProductItemDto {
   id: string;
   name: string;
@@ -26,6 +33,8 @@ export interface ProductItemDto {
   imageUrl: string;
   images?: string[];
   features: string[];
+  volumeDiscounts?: VolumeDiscountTier[];
+  sharedCount?: number;
   isActive: boolean;
   status: 'ACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'DELETED';
   createdAt?: string;
@@ -51,6 +60,8 @@ export interface CreateProductDto {
   imageUrl?: string;
   images?: string[];
   features?: string[];
+  volumeDiscounts?: VolumeDiscountTier[];
+  sharedCount?: number;
 }
 
 export interface UpdateProductDto extends Partial<CreateProductDto> {
@@ -210,6 +221,8 @@ export class ProductsService {
             imageUrl: primaryImg,
             images: meta.images && meta.images.length > 0 ? meta.images : (primaryImg ? [primaryImg] : []),
             features: meta.features || (p as any).features || [],
+            volumeDiscounts: meta.volumeDiscounts || [],
+            sharedCount: Number(meta.sharedCount) || 0,
             isActive: p.isActive,
             status: 'ACTIVE' as const,
             createdAt: p.createdAt?.toISOString(),
@@ -265,6 +278,8 @@ export class ProductsService {
           imageUrl: primaryImg,
           images: meta.images && meta.images.length > 0 ? meta.images : (primaryImg ? [primaryImg] : []),
           features: meta.features || (dbProduct as any).features || [],
+          volumeDiscounts: meta.volumeDiscounts || [],
+          sharedCount: Number(meta.sharedCount) || 0,
           isActive: dbProduct.isActive,
           status: dbProduct.isActive ? 'ACTIVE' : 'DISCONTINUED',
         };
@@ -305,6 +320,8 @@ export class ProductsService {
       imageUrl: primaryImg,
       images: dto.images && dto.images.length > 0 ? dto.images : (primaryImg ? [primaryImg] : []),
       features: dto.features || [],
+      volumeDiscounts: dto.volumeDiscounts || [],
+      sharedCount: Number(dto.sharedCount) || 0,
     };
     const storedDescription = JSON.stringify(metadata);
 
@@ -342,6 +359,8 @@ export class ProductsService {
           imageUrl: primaryImg,
           images: metadata.images,
           features: metadata.features,
+          volumeDiscounts: metadata.volumeDiscounts,
+          sharedCount: metadata.sharedCount,
           isActive: true,
           status: 'ACTIVE',
           createdAt: dbProduct.createdAt?.toISOString(),
@@ -372,6 +391,8 @@ export class ProductsService {
       imageUrl: primaryImg,
       images: metadata.images,
       features: metadata.features,
+      volumeDiscounts: metadata.volumeDiscounts,
+      sharedCount: metadata.sharedCount,
       isActive: true,
       status: 'ACTIVE',
       createdAt: new Date().toISOString(),
@@ -409,6 +430,8 @@ export class ProductsService {
         imageUrl: dto.imageUrl || (dto.images && dto.images[0]) || meta.imageUrl || '',
         images: dto.images !== undefined ? dto.images : (meta.images || []),
         features: dto.features !== undefined ? dto.features : (meta.features || []),
+        volumeDiscounts: dto.volumeDiscounts !== undefined ? dto.volumeDiscounts : (meta.volumeDiscounts || []),
+        sharedCount: dto.sharedCount !== undefined ? Number(dto.sharedCount) : (Number(meta.sharedCount) || 0),
       };
 
       await this.prisma.product.update({
@@ -430,6 +453,45 @@ export class ProductsService {
     if (idx === -1) throw new NotFoundException(`Product "${id}" not found.`);
     this.fallbackProducts[idx] = { ...this.fallbackProducts[idx], ...dto };
     return this.fallbackProducts[idx];
+  }
+
+  // ─── INCREMENT PRODUCT SHARE COUNT ──────────────────────────────────────────
+  async incrementShareCount(organizationId: string, id: string): Promise<{ success: boolean; sharedCount: number }> {
+    const existing = await this.prisma.product.findFirst({
+      where: { id, organizationId },
+    }).catch(() => null);
+
+    if (existing) {
+      let meta: any = {};
+      let prevDesc = existing.description || '';
+      if (existing.description && existing.description.trim().startsWith('{')) {
+        try {
+          meta = JSON.parse(existing.description);
+          prevDesc = meta.description ?? '';
+        } catch (_) {}
+      }
+
+      const currentCount = Number(meta.sharedCount) || 0;
+      const newCount = currentCount + 1;
+      meta.sharedCount = newCount;
+
+      await this.prisma.product.update({
+        where: { id },
+        data: {
+          description: JSON.stringify(meta),
+        },
+      });
+
+      return { success: true, sharedCount: newCount };
+    }
+
+    const idx = this.fallbackProducts.findIndex((p) => p.id === id);
+    if (idx !== -1) {
+      this.fallbackProducts[idx].sharedCount = (this.fallbackProducts[idx].sharedCount || 0) + 1;
+      return { success: true, sharedCount: this.fallbackProducts[idx].sharedCount };
+    }
+
+    return { success: false, sharedCount: 0 };
   }
 
   // ─── DELETE PRODUCT — ADMIN ONLY — HARD REMOVES FROM DB + MEMORY ─────────────

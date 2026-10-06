@@ -103,4 +103,16 @@ export class ProductsController {
     // Pass the authenticated user to the service for role-based access control
     return this.productsService.deleteProduct(user?.organizationId, id, user);
   }
+
+  // ─── INCREMENT SHARE COUNT ──────────────────────────────────────────────────
+  @Post(':id/increment-share')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Increment product share count' })
+  @ApiParam({ name: 'id', description: 'Product ID (cuid)' })
+  async incrementShareCount(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ): Promise<{ success: boolean; sharedCount: number }> {
+    return this.productsService.incrementShareCount(user?.organizationId, id);
+  }
 }

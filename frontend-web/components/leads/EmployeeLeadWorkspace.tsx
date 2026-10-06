@@ -1376,9 +1376,69 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     showSyncNotification(`✓ ${docTypeLabel} #${docNo} shared via ${sharingMediumLabel}! Lead status auto-advanced to Negotiation.`);
   };
 
-  // Product Selection for Interested
-  const [selectedProduct, setSelectedProduct] = useState<string>('DAS CRM Enterprise Suite');
+  // Product Selection for Interested — Synced from Catalog Database
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(false);
+  const [selectedProduct, setSelectedProduct] = useState<string>('');
+  const [selectedProductObj, setSelectedProductObj] = useState<any | null>(null);
+  const [selectedProductQuantity, setSelectedProductQuantity] = useState<number>(1);
   const [customProductInput, setCustomProductInput] = useState<string>('');
+
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      setIsLoadingCatalog(true);
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${apiBase}/products`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setCatalogProducts(data);
+            setSelectedProductObj(data[0]);
+            setSelectedProduct(data[0].name);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not sync catalog products in lead workspace:', err);
+      } finally {
+        setIsLoadingCatalog(false);
+      }
+    };
+    fetchCatalog();
+  }, []);
+
+  const calculateLeadProductPricing = () => {
+    if (customProductInput.trim() || !selectedProductObj) {
+      return {
+        unitPrice: 0,
+        basePrice: 0,
+        totalPrice: 0,
+        appliedTier: null as any,
+        savedAmount: 0,
+        unitName: selectedProductObj?.unit || 'Units',
+      };
+    }
+    const basePrice = Number(selectedProductObj.price) || 0;
+    const unitName = selectedProductObj.unit || 'Units';
+    const qty = Math.max(1, selectedProductQuantity || 1);
+    let appliedTier: any = null;
+
+    if (Array.isArray(selectedProductObj.volumeDiscounts) && selectedProductObj.volumeDiscounts.length > 0) {
+      const sortedTiers = [...selectedProductObj.volumeDiscounts].sort(
+        (a: any, b: any) => (Number(b.minQty) || 0) - (Number(a.minQty) || 0)
+      );
+      appliedTier = sortedTiers.find((t: any) => qty >= (Number(t.minQty) || 0));
+    }
+
+    const unitPrice = appliedTier && appliedTier.finalPrice !== undefined ? Number(appliedTier.finalPrice) : basePrice;
+    const totalPrice = unitPrice * qty;
+    const savedAmount = Math.max(0, (basePrice - unitPrice) * qty);
+
+    return { unitPrice, basePrice, totalPrice, appliedTier, savedAmount, unitName };
+  };
 
   // 15-Day Date Grid & Time Scheduling
   const [funnelScheduledDate, setFunnelScheduledDate] = useState<string>(() => {
@@ -1424,7 +1484,30 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       if (talkedSubOption === 'INTERESTED') {
         outcomeId = 'talked_interested';
         contactOutcome = 'INTERESTED_MORE_INFO';
-        productInterestLogged = customProductInput.trim() || selectedProduct;
+        const pricing = calculateLeadProductPricing();
+        if (customProductInput.trim()) {
+          productInterestLogged = `${customProductInput.trim()} (Qty: ${selectedProductQuantity})`;
+        } else if (selectedProductObj) {
+          const discountNote =
+            pricing.appliedTier && pricing.appliedTier.discountPct > 0
+              ? ` [${pricing.appliedTier.discountPct}% Vol. Discount]`
+              : '';
+          productInterestLogged = `${selectedProductObj.name} (Qty: ${selectedProductQuantity} ${pricing.unitName} · ₹${pricing.totalPrice.toLocaleString('en-IN')}${discountNote})`;
+          // Increment product share count in background
+          if (selectedProductObj.id) {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+            const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+            fetch(`${apiBase}/products/${selectedProductObj.id}/increment-share`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            }).catch(() => {});
+          }
+        } else {
+          productInterestLogged = selectedProduct || 'Product Interest';
+        }
         autoQueueFollowUp = true;
         dispositionSummaryTitle = `Talked: Interested in ${productInterestLogged}`;
       } else if (talkedSubOption === 'SAID_WILL_VISIT') {
@@ -2490,57 +2573,163 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       })}
                     </div>
 
-                    {/* Sub-Option A: INTERESTED -> Product Catalogue Selection */}
-                    {talkedSubOption === 'INTERESTED' && (
-                      <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-2.5 animate-in fade-in duration-150">
-                        <label className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
-                          <Package size={13} className="text-emerald-400" /> Select Interested Product / Catalogue Shared:
-                        </label>
-                        <div className="space-y-1.5">
-                          {[
-                            { name: 'DAS CRM Enterprise Suite', tier: '₹49,999 / yr' },
-                            { name: 'AI Lead Scoring Engine Pro', tier: '₹14,999 / mo' },
-                            { name: 'WhatsApp Automation Bot Engine', tier: '₹8,999 / mo' },
-                            { name: 'Cloud Telemetry License', tier: '₹4,999 / mo' },
-                            { name: 'Custom ERP Integration Package', tier: '₹75,000 one-time' },
-                          ].map((prod) => {
-                            const isProdSelected = selectedProduct === prod.name && !customProductInput.trim();
-                            return (
-                              <div
-                                key={prod.name}
-                                onClick={() => {
-                                  setSelectedProduct(prod.name);
-                                  setCustomProductInput('');
-                                }}
-                                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
-                                  isProdSelected
-                                    ? 'bg-emerald-500/25 border-emerald-400 text-white'
-                                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                                }`}
-                              >
-                                <span className="text-xs font-bold">{prod.name}</span>
-                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
-                                  {prod.tier}
+                    {/* Sub-Option A: INTERESTED -> Synced Product Catalog & Quantity Setting */}
+                    {talkedSubOption === 'INTERESTED' && (() => {
+                      const pricing = calculateLeadProductPricing();
+                      return (
+                        <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-3 animate-in fade-in duration-150">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                              <Package size={13} className="text-emerald-400" /> Select Interested Product / Catalogue Shared:
+                            </label>
+                            <span className="text-[10px] text-slate-400 font-semibold">
+                              {catalogProducts.length} Products Synced
+                            </span>
+                          </div>
+
+                          {/* Synced Products List */}
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {isLoadingCatalog && (
+                              <div className="p-3 text-center text-xs text-slate-400 italic">
+                                Syncing catalog products from database...
+                              </div>
+                            )}
+
+                            {!isLoadingCatalog && catalogProducts.length === 0 && (
+                              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-center space-y-1">
+                                <p className="text-xs text-slate-300 font-semibold">No catalog products found in database.</p>
+                                <p className="text-[10px] text-slate-400">You can create products in Products Catalog or enter a custom product below.</p>
+                              </div>
+                            )}
+
+                            {catalogProducts.map((prod) => {
+                              const isProdSelected = (selectedProductObj?.id === prod.id || selectedProduct === prod.name) && !customProductInput.trim();
+                              return (
+                                <div
+                                  key={prod.id || prod.name}
+                                  onClick={() => {
+                                    setSelectedProductObj(prod);
+                                    setSelectedProduct(prod.name);
+                                    setCustomProductInput('');
+                                  }}
+                                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                    isProdSelected
+                                      ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-md shadow-emerald-500/10'
+                                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                                  }`}
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-xs font-bold text-white">{prod.name}</span>
+                                      {prod.sku && (
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                                          {prod.sku}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 flex-wrap">
+                                      {prod.category && <span>📁 {prod.category}</span>}
+                                      {prod.subCategory && <span>• {prod.subCategory}</span>}
+                                      {prod.stock !== undefined && prod.stock !== null && <span>• {prod.stock} in stock</span>}
+                                      {prod.sharedCount ? (
+                                        <span className="text-cyan-400 font-semibold">• Shared {prod.sharedCount} times</span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <span className="text-xs font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 block">
+                                      ₹{Number(prod.price).toLocaleString('en-IN')} / {prod.unit || 'Unit'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 🔢 Interactive Quantity & Live Tier Pricing */}
+                          {(selectedProductObj || customProductInput.trim()) && (
+                            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                  <span>📦</span> Required Quantity:
+                                </span>
+                                <span className="text-[11px] font-bold text-indigo-400">
+                                  Unit: {pricing.unitName}
                                 </span>
                               </div>
-                            );
-                          })}
-                        </div>
 
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                            Or Enter Other Custom Product / Service Name:
-                          </label>
-                          <input
-                            type="text"
-                            className="crm-input text-xs h-8"
-                            placeholder="e.g. Healthcare Multi-Branch Module..."
-                            value={customProductInput}
-                            onChange={(e) => setCustomProductInput(e.target.value)}
-                          />
+                              <div className="flex items-center gap-2.5">
+                                {/* Quantity Stepper */}
+                                <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-inner">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedProductQuantity(prev => Math.max(1, prev - 1))}
+                                    className="px-3 py-1.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={selectedProductQuantity}
+                                    onChange={e => setSelectedProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-14 text-center bg-transparent text-xs font-extrabold text-white focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedProductQuantity(prev => prev + 1)}
+                                    className="px-3 py-1.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                {/* Live Price Calculation Display */}
+                                {selectedProductObj && !customProductInput.trim() && (
+                                  <div className="flex-1 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-[10px] text-slate-400 block font-medium">Estimated Total Value:</span>
+                                      <span className="text-xs font-black text-emerald-400">
+                                        ₹{pricing.totalPrice.toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+                                    {pricing.appliedTier && pricing.appliedTier.discountPct > 0 ? (
+                                      <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded">
+                                        🎉 {pricing.appliedTier.discountPct}% Tier Off
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        Base: ₹{pricing.basePrice.toLocaleString('en-IN')}/{pricing.unitName}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {pricing.appliedTier && pricing.appliedTier.discountPct > 0 && (
+                                <p className="text-[11px] text-amber-400 font-medium">
+                                  Tier Applied: <strong className="text-white">{pricing.appliedTier.tier}</strong> (₹{pricing.appliedTier.finalPrice.toLocaleString('en-IN')}/{pricing.unitName}) • Saved ₹{pricing.savedAmount.toLocaleString('en-IN')}!
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Custom Product / Service Entry */}
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                              Or Enter Other Custom Product / Service Name:
+                            </label>
+                            <input
+                              type="text"
+                              className="crm-input text-xs h-8"
+                              placeholder="e.g. Healthcare Multi-Branch Custom License..."
+                              value={customProductInput}
+                              onChange={(e) => setCustomProductInput(e.target.value)}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Sub-Option B: SAID HE WILL VISIT -> 15-Day Date & Time Meeting Scheduler */}
                     {talkedSubOption === 'SAID_WILL_VISIT' && (

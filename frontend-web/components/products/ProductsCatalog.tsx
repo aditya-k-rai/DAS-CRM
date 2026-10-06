@@ -25,6 +25,7 @@ import {
   Settings,
   AlertCircle,
   Info,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -115,7 +116,8 @@ interface ProductItemWeb {
   price: number;
   stock: number | null;
   minOrderQty: number;
-  rating: number;
+  rating?: number;
+  sharedCount: number;
   sold: number;
   taxRate: number;
   isActive: boolean;
@@ -272,6 +274,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               stock: p.stock !== undefined ? p.stock : 100,
               minOrderQty: p.minOrderQty || 1,
               rating: p.rating || 5.0,
+              sharedCount: Number(p.sharedCount) || 0,
               sold: p.sold || 0,
               taxRate: p.taxRate || 18,
               isActive: p.isActive !== false,
@@ -280,7 +283,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               overview: p.description || p.overview || '',
               specs: p.features || p.specs || [],
               features: p.features || [],
-              volumeDiscounts: p.volumeDiscounts || [],
+              volumeDiscounts: Array.isArray(p.volumeDiscounts) && p.volumeDiscounts.length > 0 ? p.volumeDiscounts : [
+                { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: Number(p.price) || 0 },
+                { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round((Number(p.price) || 0) * 0.85) },
+              ],
             }));
             setProducts(mapped);
 
@@ -356,6 +362,100 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [featureTagInput, setFeatureTagInput] = useState('');
   const [newProdImages, setNewProdImages] = useState<string[]>([]);
   const [imageUploadError, setImageUploadError] = useState('');
+
+  // ─── Volume Discount Tier Pricing State ──────────────────────────────────
+  const [newProdVolumeDiscounts, setNewProdVolumeDiscounts] = useState<
+    { tier: string; minQty: number; discountPct: number; finalPrice: number }[]
+  >([
+    { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 0 },
+    { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 0 },
+  ]);
+  const [editProdVolumeDiscounts, setEditProdVolumeDiscounts] = useState<
+    { tier: string; minQty: number; discountPct: number; finalPrice: number }[]
+  >([]);
+
+  const calculateTierFinalPrice = (basePrice: number, discountPct: number) => {
+    if (!basePrice || isNaN(basePrice)) return 0;
+    const pct = Math.max(0, Math.min(100, discountPct || 0));
+    return Math.round(basePrice * (1 - pct / 100));
+  };
+
+  const handleNewProdPriceChange = (val: string) => {
+    setNewProdPrice(val);
+    const p = parseFloat(val) || 0;
+    setNewProdVolumeDiscounts(prev =>
+      prev.map(t => ({
+        ...t,
+        finalPrice: calculateTierFinalPrice(p, t.discountPct),
+      }))
+    );
+  };
+
+  const handleEditProdPriceChange = (val: string) => {
+    setEditProdPrice(val);
+    const p = parseFloat(val) || 0;
+    setEditProdVolumeDiscounts(prev =>
+      prev.map(t => ({
+        ...t,
+        finalPrice: calculateTierFinalPrice(p, t.discountPct),
+      }))
+    );
+  };
+
+  const handleAddDiscountTier = (isEdit: boolean) => {
+    const currentTiers = isEdit ? editProdVolumeDiscounts : newProdVolumeDiscounts;
+    const currentBasePrice = parseFloat(isEdit ? editProdPrice : newProdPrice) || 0;
+    const lastTier = currentTiers[currentTiers.length - 1];
+    const nextMin = lastTier ? (lastTier.minQty >= 10 ? lastTier.minQty + 15 : 10) : 1;
+    const nextPct = lastTier ? Math.min(60, lastTier.discountPct + 10) : 0;
+    const newTier = {
+      tier: `${nextMin}+ Units`,
+      minQty: nextMin,
+      discountPct: nextPct,
+      finalPrice: calculateTierFinalPrice(currentBasePrice, nextPct),
+    };
+    if (isEdit) {
+      setEditProdVolumeDiscounts([...currentTiers, newTier]);
+    } else {
+      setNewProdVolumeDiscounts([...currentTiers, newTier]);
+    }
+  };
+
+  const handleUpdateDiscountTier = (
+    isEdit: boolean,
+    index: number,
+    field: 'tier' | 'minQty' | 'discountPct' | 'finalPrice',
+    value: any
+  ) => {
+    const setter = isEdit ? setEditProdVolumeDiscounts : setNewProdVolumeDiscounts;
+    const currentBasePrice = parseFloat(isEdit ? editProdPrice : newProdPrice) || 0;
+    setter(prev => {
+      const next = [...prev];
+      const item = { ...next[index] };
+      if (field === 'minQty') {
+        const q = Math.max(1, parseInt(value) || 1);
+        item.minQty = q;
+        if (item.tier.includes('Units') || !item.tier) {
+          item.tier = `${q}+ Units`;
+        }
+      } else if (field === 'discountPct') {
+        const pct = Math.max(0, Math.min(100, parseFloat(value) || 0));
+        item.discountPct = pct;
+        item.finalPrice = calculateTierFinalPrice(currentBasePrice, pct);
+      } else if (field === 'finalPrice') {
+        item.finalPrice = Math.max(0, parseFloat(value) || 0);
+      } else {
+        item.tier = value;
+      }
+      next[index] = item;
+      return next;
+    });
+  };
+
+  const handleRemoveDiscountTier = (isEdit: boolean, index: number) => {
+    const setter = isEdit ? setEditProdVolumeDiscounts : setNewProdVolumeDiscounts;
+    setter(prev => prev.filter((_, idx) => idx !== index));
+  };
 
   // New Category / Sub-Category Modal State
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
@@ -455,6 +555,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           features: newProdFeatures,
           imageUrl: newProdImages[0] || '',
           images: newProdImages,
+          volumeDiscounts: newProdVolumeDiscounts,
         }),
       });
 
@@ -481,6 +582,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       stock: parseInt(newProdStock) || 100,
       minOrderQty: 1,
       rating: 5.0,
+      sharedCount: 0,
       sold: 0,
       taxRate: parseInt(newProdGst) || 18,
       isActive: true,
@@ -489,7 +591,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       overview: newProdDescription.trim() || 'Product item in DAS CRM Catalog.',
       specs: newProdFeatures.length > 0 ? newProdFeatures : ['Standard Specification'],
       features: newProdFeatures,
-      volumeDiscounts: [
+      volumeDiscounts: newProdVolumeDiscounts.length > 0 ? newProdVolumeDiscounts : [
         { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: priceNum },
         { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round(priceNum * 0.85) },
       ],
@@ -527,6 +629,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setNewProdDescription('');
     setNewProdFeatures([]);
     setNewProdImages([]);
+    setNewProdVolumeDiscounts([
+      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 0 },
+      { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 0 },
+    ]);
     alert(`✅ Product "${newProd.name}" (${newProd.sku}) created and saved to database!`);
   };
 
@@ -568,6 +674,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditFeatureTagInput('');
     setEditProdImages(product.images && product.images.length > 0 ? product.images : (product.coverImage ? [product.coverImage] : []));
     setEditImageUploadError('');
+    const tiers = Array.isArray(product.volumeDiscounts) && product.volumeDiscounts.length > 0
+      ? product.volumeDiscounts
+      : [
+          { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: product.price },
+          { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round(product.price * 0.85) },
+        ];
+    setEditProdVolumeDiscounts(JSON.parse(JSON.stringify(tiers)));
   };
 
   const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -636,6 +749,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       overview: editProdDescription.trim(),
       features: editProdFeatures,
       specs: editProdFeatures.length > 0 ? editProdFeatures : ['Standard Specification'],
+      volumeDiscounts: editProdVolumeDiscounts,
     };
 
     setEditConfirmProduct(stagedProduct);
@@ -670,6 +784,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           features: updated.features,
           imageUrl: updated.coverImage,
           images: updated.images,
+          volumeDiscounts: updated.volumeDiscounts,
         }),
       });
     } catch (err) {
@@ -1561,7 +1676,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   <th>Colour &amp; Features</th>
                   <th>Tax</th>
                   <th>Stock</th>
-                  <th>Rating</th>
+                  <th>Times Shared</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -1664,9 +1779,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <span className="text-xs font-bold text-slate-200">{p.stock ? `${p.stock} units` : 'Unlimited'}</span>
                     </td>
                     <td>
-                      <div className="flex items-center gap-1">
-                        <Star size={12} className="text-amber-400 fill-amber-400" />
-                        <span className="text-xs font-bold text-white">{p.rating}</span>
+                      <div className="flex items-center gap-1.5">
+                        <Share2 size={12} className="text-cyan-400" />
+                        <span className="text-xs font-bold text-slate-200">{p.sharedCount ? `${p.sharedCount} times` : '0 times'}</span>
                       </div>
                     </td>
                     <td>
@@ -1747,14 +1862,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             )}
 
             {/* Key Specs Matrix */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase">Brand</span>
-                <p className="text-xs font-bold text-amber-300 mt-0.5">{inspectorProduct.brand || 'Generic / Unbranded'}</p>
+                <p className="text-xs font-bold text-amber-300 mt-0.5 truncate">{inspectorProduct.brand || 'Generic / Unbranded'}</p>
               </div>
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase">Colour</span>
-                <p className="text-xs font-bold text-slate-200 mt-0.5">{inspectorProduct.color || 'Standard / None'}</p>
+                <p className="text-xs font-bold text-slate-200 mt-0.5 truncate">{inspectorProduct.color || 'Standard / None'}</p>
               </div>
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase">Unit Type</span>
@@ -1763,6 +1878,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase">SKU Code</span>
                 <p className="text-xs font-bold font-mono text-slate-300 mt-0.5">{inspectorProduct.sku}</p>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Times Shared</span>
+                <p className="text-xs font-bold text-cyan-400 mt-0.5 flex items-center gap-1">
+                  <Share2 size={12} /> {inspectorProduct.sharedCount || 0} times
+                </p>
               </div>
             </div>
 
@@ -1806,7 +1927,21 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
             {/* Volume Discount Tier Pricing Table */}
             <div className="space-y-2">
-              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">📊 Volume Discount Tier Pricing</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">📊 Volume Discount Tier Pricing</h4>
+                {canManage && (
+                  <button
+                    onClick={() => {
+                      const prodToEdit = inspectorProduct;
+                      setInspectorProduct(null);
+                      handleOpenEditProduct(prodToEdit);
+                    }}
+                    className="text-[11px] text-indigo-400 hover:underline font-bold flex items-center gap-1"
+                  >
+                    <Edit2 size={11} /> Edit Discounts
+                  </button>
+                )}
+              </div>
               <div className="border border-slate-800 rounded-xl overflow-hidden">
                 <table className="w-full text-xs text-left">
                   <thead className="bg-slate-950 text-slate-400 font-bold border-b border-slate-800">
@@ -1817,7 +1952,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {inspectorProduct.volumeDiscounts.map((tier, idx) => (
+                    {(inspectorProduct.volumeDiscounts && inspectorProduct.volumeDiscounts.length > 0
+                      ? inspectorProduct.volumeDiscounts
+                      : [
+                          { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: inspectorProduct.price },
+                          { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round(inspectorProduct.price * 0.85) },
+                        ]
+                    ).map((tier, idx) => (
                       <tr key={idx} className="hover:bg-slate-950/40">
                         <td className="p-2.5 font-bold text-white">{tier.tier}</td>
                         <td className="p-2.5 text-amber-400 font-semibold">{tier.discountPct}% OFF</td>
@@ -1908,7 +2049,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     className="crm-input w-full font-bold text-emerald-400"
                     placeholder="49999"
                     value={newProdPrice}
-                    onChange={e => setNewProdPrice(e.target.value)}
+                    onChange={e => handleNewProdPriceChange(e.target.value)}
                   />
                 </div>
               </div>
@@ -2161,6 +2302,103 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       </span>
                     ))
                   )}
+                </div>
+              </div>
+
+              {/* 📊 Volume Discount Tier Pricing Configuration */}
+              <div className="space-y-2.5 p-3.5 rounded-xl bg-slate-950 border border-indigo-500/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                      📊 Volume Discount Tier Pricing
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-semibold">(Editable Tiers)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddDiscountTier(false)}
+                    className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all"
+                  >
+                    <Plus size={12} /> Add Tier
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Configure volume discounts for bulk purchases. Final price auto-calculates from unit price and discount %.
+                </p>
+
+                <div className="border border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-900 text-slate-400 font-bold border-b border-slate-800">
+                      <tr>
+                        <th className="p-2">Quantity Tier</th>
+                        <th className="p-2 w-20">Min Qty</th>
+                        <th className="p-2 w-24">Discount %</th>
+                        <th className="p-2 w-32">Final Tier Price</th>
+                        <th className="p-2 w-10 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80 bg-slate-950/60">
+                      {newProdVolumeDiscounts.map((tier, idx) => (
+                        <tr key={idx} className="hover:bg-slate-900/50">
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              className="crm-input w-full text-xs py-1 font-semibold"
+                              value={tier.tier}
+                              onChange={e => handleUpdateDiscountTier(false, idx, 'tier', e.target.value)}
+                              placeholder="e.g. 10+ Units"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="number"
+                              min="1"
+                              className="crm-input w-full text-xs py-1"
+                              value={tier.minQty}
+                              onChange={e => handleUpdateDiscountTier(false, idx, 'minQty', e.target.value)}
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                className="crm-input w-full text-xs py-1 pr-5 font-bold text-amber-400"
+                                value={tier.discountPct}
+                                onChange={e => handleUpdateDiscountTier(false, idx, 'discountPct', e.target.value)}
+                              />
+                              <span className="absolute right-2 top-1 text-[11px] text-slate-400 font-bold">%</span>
+                            </div>
+                          </td>
+                          <td className="p-1.5">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1 text-[11px] text-slate-400 font-bold">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                className="crm-input w-full text-xs py-1 pl-5 font-extrabold text-emerald-400"
+                                value={tier.finalPrice}
+                                onChange={e => handleUpdateDiscountTier(false, idx, 'finalPrice', e.target.value)}
+                              />
+                            </div>
+                          </td>
+                          <td className="p-1.5 text-center">
+                            {newProdVolumeDiscounts.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDiscountTier(false, idx)}
+                                className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+                                title="Remove Tier"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -3281,7 +3519,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     type="number"
                     className="crm-input w-full font-bold text-emerald-400"
                     value={editProdPrice}
-                    onChange={e => setEditProdPrice(e.target.value)}
+                    onChange={e => handleEditProdPriceChange(e.target.value)}
                   />
                 </div>
               </div>
@@ -3517,6 +3755,103 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       </span>
                     ))
                   )}
+                </div>
+              </div>
+
+              {/* 📊 Volume Discount Tier Pricing Configuration (Edit Modal) */}
+              <div className="space-y-2.5 p-3.5 rounded-xl bg-slate-950 border border-indigo-500/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                      📊 Volume Discount Tier Pricing
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-semibold">(Editable Tiers)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddDiscountTier(true)}
+                    className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all"
+                  >
+                    <Plus size={12} /> Add Tier
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Configure volume discounts for bulk purchases. Final price auto-calculates from unit price and discount %.
+                </p>
+
+                <div className="border border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-900 text-slate-400 font-bold border-b border-slate-800">
+                      <tr>
+                        <th className="p-2">Quantity Tier</th>
+                        <th className="p-2 w-20">Min Qty</th>
+                        <th className="p-2 w-24">Discount %</th>
+                        <th className="p-2 w-32">Final Tier Price</th>
+                        <th className="p-2 w-10 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80 bg-slate-950/60">
+                      {editProdVolumeDiscounts.map((tier, idx) => (
+                        <tr key={idx} className="hover:bg-slate-900/50">
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              className="crm-input w-full text-xs py-1 font-semibold"
+                              value={tier.tier}
+                              onChange={e => handleUpdateDiscountTier(true, idx, 'tier', e.target.value)}
+                              placeholder="e.g. 10+ Units"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="number"
+                              min="1"
+                              className="crm-input w-full text-xs py-1"
+                              value={tier.minQty}
+                              onChange={e => handleUpdateDiscountTier(true, idx, 'minQty', e.target.value)}
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                className="crm-input w-full text-xs py-1 pr-5 font-bold text-amber-400"
+                                value={tier.discountPct}
+                                onChange={e => handleUpdateDiscountTier(true, idx, 'discountPct', e.target.value)}
+                              />
+                              <span className="absolute right-2 top-1 text-[11px] text-slate-400 font-bold">%</span>
+                            </div>
+                          </td>
+                          <td className="p-1.5">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1 text-[11px] text-slate-400 font-bold">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                className="crm-input w-full text-xs py-1 pl-5 font-extrabold text-emerald-400"
+                                value={tier.finalPrice}
+                                onChange={e => handleUpdateDiscountTier(true, idx, 'finalPrice', e.target.value)}
+                              />
+                            </div>
+                          </td>
+                          <td className="p-1.5 text-center">
+                            {editProdVolumeDiscounts.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDiscountTier(true, idx)}
+                                className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+                                title="Remove Tier"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
