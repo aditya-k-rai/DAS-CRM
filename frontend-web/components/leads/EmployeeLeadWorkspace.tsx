@@ -2141,7 +2141,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     return DEFAULT_SAMPLE_INVOICES;
   });
 
-  // ── 3. Meeting Date & Time Scheduler state ("like call one") ──
+  // ── 3. Meeting & Follow-up Scheduler state ("like call funnel") ──
   const [meetingScheduledDate, setMeetingScheduledDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -2150,6 +2150,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [meetingScheduledTime, setMeetingScheduledTime] = useState<string>('11:30 AM');
   const [enableMeetingPreAlert5Min, setEnableMeetingPreAlert5Min] = useState<boolean>(true);
   const [showMeetingScheduler, setShowMeetingScheduler] = useState<boolean>(false);
+  const [directScheduleType, setDirectScheduleType] = useState<'MEETING' | 'FOLLOWUP' | 'CALL'>('MEETING');
+  const [enableDirectSchedule, setEnableDirectSchedule] = useState<boolean>(false);
 
   // Fetch live products and quotations from backend API on mount
   useEffect(() => {
@@ -2302,6 +2304,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     return `Hi ${lead.name || 'Client'}, looking forward to our scheduled live walkthrough for ${lead.company || 'DAS CRM'} on ${formattedDate} at ${timeStr}!\n\nLet me know if you would like me to share a Google Meet / Zoom link or adjust the timing.`;
   };
 
+  const generateFollowUpMessage = (dateStr: string, timeStr: string) => {
+    const formattedDate = formatMeetingDateDisplay(dateStr);
+    return `Hi ${lead.name || 'Client'}, following up regarding our discussion for ${lead.company || 'your requirement'}. I have scheduled our next follow-up touchpoint for ${formattedDate} at ${timeStr}.\n\nPlease let me know if you would like to connect earlier or need any additional details!`;
+  };
+
   const generateProposalMessage = (quantities: Record<string, number>) => {
     const selectedEntries = Object.entries(quantities).filter(([_, q]) => q > 0);
     if (selectedEntries.length === 0) {
@@ -2339,12 +2346,191 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
   const handleUpdateMeetingDate = (isoDate: string) => {
     setMeetingScheduledDate(isoDate);
-    setWaDirectMessage(generateMeetingMessage(isoDate, meetingScheduledTime));
+    if (directScheduleType === 'FOLLOWUP' || (isCustomTemplateMode && customTemplateCategory === 'FOLLOWUP')) {
+      setWaDirectMessage(generateFollowUpMessage(isoDate, meetingScheduledTime));
+    } else if (directScheduleType === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'MEETING')) {
+      setWaDirectMessage(generateMeetingMessage(isoDate, meetingScheduledTime));
+    }
   };
 
   const handleUpdateMeetingTime = (slot: string) => {
     setMeetingScheduledTime(slot);
-    setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, slot));
+    if (directScheduleType === 'FOLLOWUP' || (isCustomTemplateMode && customTemplateCategory === 'FOLLOWUP')) {
+      setWaDirectMessage(generateFollowUpMessage(meetingScheduledDate, slot));
+    } else if (directScheduleType === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'MEETING')) {
+      setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, slot));
+    }
+  };
+
+  const syncScheduledFollowUpTask = (opts?: { showToast?: boolean }) => {
+    if (!meetingScheduledDate) return null;
+
+    const effectiveIsMeeting = directScheduleType === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'MEETING') || selectedTargetStatus === 'Meeting Scheduled';
+    const effectiveScheduledType: 'MEETING' | 'CALL' = effectiveIsMeeting ? 'MEETING' : 'CALL';
+
+    const effectiveLeadId = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
+      ? lead.id
+      : (lead.id || '1');
+
+    const resolvedLeadName = (!lead.name || lead.name.includes('Lead Prospect') || lead.name === 'Prospect' || lead.name === '—')
+      ? ((lead as any).firstName ? `${(lead as any).firstName} ${(lead as any).lastName || ''}`.trim() : 'Lead Contact')
+      : lead.name;
+    const compText = typeof lead.company === 'string' ? lead.company : ((lead as any)?.company?.name || '');
+
+    const cleanTime = meetingScheduledTime.includes(':') && !meetingScheduledTime.includes('M')
+      ? meetingScheduledTime
+      : (meetingScheduledTime.includes('10:00') ? '10:00' :
+         meetingScheduledTime.includes('11:30') ? '11:30' :
+         meetingScheduledTime.includes('02:30') ? '14:30' :
+         meetingScheduledTime.includes('04:00') ? '16:00' :
+         meetingScheduledTime.includes('06:00') ? '18:00' : '11:30');
+
+    const dueAtIso = `${meetingScheduledDate}T${cleanTime}:00`;
+    const repName = lead.owner || (lead as any).assignedRep || currentUser?.name || 'Sales Rep';
+
+    const effectiveTitle = isCustomTemplateMode
+      ? (customTemplateTitle.trim() || 'Custom WhatsApp Message')
+      : waDirectTemplateTitle;
+
+    const followUpTitle = effectiveIsMeeting
+      ? `🏢 In-Person / Virtual Visit: ${resolvedLeadName}${compText ? ` (${compText})` : (lead.phone ? ` (${lead.phone})` : '')}`
+      : `💬 WhatsApp Follow-up: ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`;
+
+    const followUpPayload = {
+      title: followUpTitle,
+      followUpType: effectiveIsMeeting ? 'MEETING' : 'WHATSAPP',
+      scheduledType: effectiveScheduledType,
+      leadId: effectiveLeadId,
+      leadName: resolvedLeadName,
+      leadPhone: lead.phone,
+      leadEmail: lead.email,
+      scheduledDate: meetingScheduledDate,
+      scheduledTime: meetingScheduledTime,
+      dueAt: dueAtIso,
+      priority: 'HIGH',
+      purpose: waDirectNotes || `WhatsApp Direct (${effectiveTitle})`,
+      notes: `${effectiveIsMeeting ? 'Walkthrough demo' : 'Follow-up callback'} scheduled via Direct WhatsApp (${effectiveTitle}) for ${formatMeetingDateDisplay(meetingScheduledDate)} at ${meetingScheduledTime}. Pre-alert: ${enableMeetingPreAlert5Min ? '5 min before' : 'None'}`,
+      reminderMinutes: enableMeetingPreAlert5Min ? 5 : 0,
+    };
+
+    // 1. Push to Backend /follow-ups API (Backend FollowUpsModule)
+    apiFetch('/follow-ups', {
+      method: 'POST',
+      body: JSON.stringify(followUpPayload),
+    }).catch((e) => console.warn('Follow-up create sync notice:', e));
+
+    // 2. Push to Backend /tasks API
+    apiFetch('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        leadId: effectiveLeadId,
+        title: followUpTitle,
+        status: 'PENDING',
+        priority: 'HIGH',
+        dueAt: dueAtIso,
+        scheduledDate: meetingScheduledDate,
+        reminderMinutes: enableMeetingPreAlert5Min ? 5 : 0,
+        notes: followUpPayload.notes,
+      }),
+    }).catch(() => {});
+
+    // 3. LocalStorage das_crm_followup_tasks_cache update
+    let newTaskItem: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedTasks = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
+        newTaskItem = {
+          id: `task_wa_${Date.now()}`,
+          ...followUpPayload,
+          createdAt: new Date().toISOString(),
+          status: 'PENDING',
+          createdById: currentUser?.id || 'admin_user',
+          createdByName: currentUser?.name || 'Sales Rep',
+          createdByRole: currentUser?.role || 'SALES_REP',
+          createdBy: {
+            id: currentUser?.id,
+            name: currentUser?.name || 'Sales Rep',
+            role: currentUser?.role || 'SALES_REP',
+          },
+          assignee: {
+            id: currentUser?.id,
+            name: String(repName),
+            role: 'SALES_REP',
+          },
+          lead: {
+            id: lead.id,
+            name: lead.name,
+            firstName: lead.name?.split(' ')[0] || 'Lead',
+            lastName: lead.name?.split(' ').slice(1).join(' ') || '',
+            phone: lead.phone,
+            email: lead.email,
+            owner: {
+              name: String(repName),
+              role: 'SALES_REP',
+            },
+            company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
+            status: { name: selectedTargetStatus || lead.status || 'Active', color: '#3b82f6' },
+          },
+        };
+
+        const updatedTasks = [newTaskItem, ...(Array.isArray(cachedTasks) ? cachedTasks : [])];
+        localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updatedTasks.slice(0, 100)));
+        window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
+        window.dispatchEvent(new CustomEvent('das_crm_followup_created', { detail: followUpPayload }));
+        window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: newTaskItem }));
+      } catch (_) {}
+    }
+
+    // 4. Update Lead nextFollowUp in state and caches
+    const updatedStatus = effectiveIsMeeting ? 'Meeting Scheduled' : (selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT' ? selectedTargetStatus : lead.status);
+    setLead(prev => ({
+      ...prev,
+      status: updatedStatus,
+      nextFollowUp: dueAtIso,
+      followUpDate: meetingScheduledDate,
+      followUpTime: meetingScheduledTime,
+    }));
+
+    if (typeof window !== 'undefined') {
+      try {
+        const updatedLeadRecord = {
+          ...lead,
+          status: updatedStatus,
+          nextFollowUp: dueAtIso,
+          followUpDate: meetingScheduledDate,
+          followUpTime: meetingScheduledTime,
+          lastActivityAt: new Date().toISOString(),
+        };
+        sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLeadRecord));
+        sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLeadRecord));
+
+        const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+        if (allLeadsRaw) {
+          const allLeads = JSON.parse(allLeadsRaw);
+          const updatedAll = allLeads.map((item: any) =>
+            String(item.id) === String(lead.id) ? { ...item, ...updatedLeadRecord } : item
+          );
+          localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
+        }
+
+        const dirLeadsRaw = localStorage.getItem('das_crm_lead_directory_cache');
+        if (dirLeadsRaw) {
+          const dirLeads = JSON.parse(dirLeadsRaw);
+          const updatedDir = dirLeads.map((item: any) =>
+            String(item.id) === String(lead.id) ? { ...item, ...updatedLeadRecord } : item
+          );
+          localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
+        }
+
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: effectiveLeadId, status: updatedStatus } }));
+      } catch (_) {}
+    }
+
+    if (opts?.showToast) {
+      showSyncNotification(`✓ Synced ${effectiveIsMeeting ? 'Meeting / Demo' : 'Follow-up'} to Follow-ups section for ${formatMeetingDateDisplay(meetingScheduledDate)} at ${meetingScheduledTime}!`);
+    }
+
+    return { followUpPayload, newTaskItem, dueAtIso, effectiveScheduledType, effectiveIsMeeting };
   };
 
   const handleToggleProductSelection = (productId: string) => {
@@ -2426,7 +2612,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         return;
       } else if (tpl.category === 'MEETING') {
         setShowMeetingScheduler(true);
+        setDirectScheduleType('MEETING');
         setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+        return;
+      } else if (tpl.category === 'FOLLOWUP') {
+        setShowMeetingScheduler(true);
+        setDirectScheduleType('FOLLOWUP');
+        setWaDirectMessage(generateFollowUpMessage(meetingScheduledDate, meetingScheduledTime));
         return;
       } else {
         setShowMeetingScheduler(false);
@@ -2467,11 +2659,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     } else if (cat === 'MEETING') {
       setSelectedTargetStatus('Meeting Scheduled');
       setShowMeetingScheduler(true);
+      setDirectScheduleType('MEETING');
       setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+    } else if (cat === 'FOLLOWUP') {
+      setSelectedTargetStatus('Contacted');
+      setShowMeetingScheduler(true);
+      setDirectScheduleType('FOLLOWUP');
+      setWaDirectMessage(generateFollowUpMessage(meetingScheduledDate, meetingScheduledTime));
     } else if (cat === 'PROMOTION') {
       setSelectedTargetStatus('Negotiation');
       setShowMeetingScheduler(false);
-    } else if (cat === 'OUTREACH' || cat === 'FOLLOWUP') {
+    } else if (cat === 'OUTREACH') {
       setSelectedTargetStatus('Contacted');
       setShowMeetingScheduler(false);
     }
@@ -2501,7 +2699,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     } else if (statusKey === 'Meeting Scheduled') {
       setCustomTemplateCategory('MEETING');
       setShowMeetingScheduler(true);
+      setDirectScheduleType('MEETING');
       setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+    } else if (statusKey === 'Follow-up') {
+      setCustomTemplateCategory('FOLLOWUP');
+      setShowMeetingScheduler(true);
+      setDirectScheduleType('FOLLOWUP');
+      setWaDirectMessage(generateFollowUpMessage(meetingScheduledDate, meetingScheduledTime));
     } else {
       setShowMeetingScheduler(false);
     }
@@ -2602,6 +2806,18 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       sentMessage: finalMsg,
     };
 
+    // 4b. Sync Scheduled Meeting or Follow-up to CRM Follow-up Section (Like Call Funnel)
+    const isScheduled = isScheduleActive || selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING' || customTemplateCategory === 'FOLLOWUP';
+    if (isScheduled && meetingScheduledDate) {
+      const syncRes = syncScheduledFollowUpTask();
+      if (syncRes) {
+        newContactAttempt.followUpDate = meetingScheduledDate;
+        newContactAttempt.followUpTime = meetingScheduledTime;
+        newContactAttempt.scheduledType = syncRes.effectiveScheduledType;
+        newContactAttempt.outcome = syncRes.effectiveIsMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED';
+      }
+    }
+
     setContactHistory(prev => [newContactAttempt, ...prev]);
 
     // Persist contact attempt to local & session storage
@@ -2645,11 +2861,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       body: JSON.stringify({
         activityType: 'NOTE',
         leadId: lead.id,
-        notes: `WhatsApp Direct (${effectiveTitle}): Status → ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
+        notes: `WhatsApp Direct (${effectiveTitle}): Status → ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${isScheduled ? ` [Scheduled ${directScheduleType} for ${meetingScheduledDate} at ${meetingScheduledTime}]` : ''}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
         metadata: {
           channel: 'WHATSAPP',
           type: 'WHATSAPP',
-          outcome: 'WA_SENT',
+          outcome: newContactAttempt.outcome || 'WA_SENT',
+          scheduledType: newContactAttempt.scheduledType,
+          followUpDate: newContactAttempt.followUpDate,
+          followUpTime: newContactAttempt.followUpTime,
           templateId: isCustomTemplateMode ? 'custom' : selectedWaTemplateId,
           template: effectiveTitle,
           status: newStatus,
@@ -2661,25 +2880,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         },
       }),
     }).catch(() => {});
-
-    // 6b. If meeting was scheduled, auto-queue task in CRM with reminder
-    if (selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING') {
-      const cleanTime = meetingScheduledTime.includes(':') && !meetingScheduledTime.includes('M') ? meetingScheduledTime : '11:30';
-      const dueAtIso = `${meetingScheduledDate}T${cleanTime}:00`;
-      apiFetch('/tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-          leadId: lead.id,
-          title: `Scheduled Walkthrough / Demo with ${lead.name || 'Client'} (${lead.company || 'DAS CRM'})`,
-          status: 'PENDING',
-          priority: 'HIGH',
-          dueAt: dueAtIso,
-          scheduledDate: meetingScheduledDate,
-          reminderMinutes: enableMeetingPreAlert5Min ? 5 : 0,
-          notes: `Walkthrough demo scheduled via Direct WhatsApp for ${meetingScheduledDate} at ${meetingScheduledTime}. Pre-alert: ${enableMeetingPreAlert5Min ? '5 min before' : 'None'}`,
-        }),
-      }).catch(() => {});
-    }
 
     // 7. Record SyncedActivityLog
     const newLog: SyncedActivityLog = {
@@ -2909,10 +3109,18 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     selectedTargetStatus === 'Negotiation';
 
   const isMeetingActive =
-    showMeetingScheduler ||
     (isCustomTemplateMode && customTemplateCategory === 'MEETING') ||
     (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'MEETING') ||
-    selectedTargetStatus === 'Meeting Scheduled';
+    selectedTargetStatus === 'Meeting Scheduled' ||
+    (showMeetingScheduler && directScheduleType === 'MEETING');
+
+  const isFollowUpActive =
+    (isCustomTemplateMode && customTemplateCategory === 'FOLLOWUP') ||
+    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'FOLLOWUP') ||
+    selectedTargetStatus === 'Follow-up' ||
+    (showMeetingScheduler && (directScheduleType === 'FOLLOWUP' || directScheduleType === 'CALL'));
+
+  const isScheduleActive = isMeetingActive || isFollowUpActive || enableDirectSchedule || showMeetingScheduler;
 
   return (
     <div className="space-y-6">
@@ -4677,35 +4885,89 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               </div>
             )}
 
-            {/* C. If Meeting mode is active: Inline 15-Day Date & Time Meeting Scheduler ("like the call one") */}
-            {isMeetingActive && (
-              <div className="p-4 rounded-2xl bg-gradient-to-b from-indigo-950/40 via-slate-900 to-slate-950 border border-indigo-500/50 space-y-3 shadow-xl animate-in fade-in duration-200">
+            {/* C. Unified 15-Day Date & Time Scheduler for Meeting, Follow-up & other scheduled touchpoints (Like Call Funnel) */}
+            {isScheduleActive && (
+              <div className={`p-4 rounded-2xl bg-gradient-to-b space-y-3 shadow-xl animate-in fade-in duration-200 border ${
+                isMeetingActive || directScheduleType === 'MEETING'
+                  ? 'from-indigo-950/40 via-slate-900 to-slate-950 border-indigo-500/50'
+                  : 'from-amber-950/30 via-slate-900 to-slate-950 border-amber-500/50'
+              }`}>
                 <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-                      <CalendarCheck size={16} />
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                      isMeetingActive || directScheduleType === 'MEETING'
+                        ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
+                        : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    }`}>
+                      {isMeetingActive || directScheduleType === 'MEETING' ? <CalendarCheck size={16} /> : <Clock size={16} />}
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>Schedule Walkthrough / Demo Meeting</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                          Like Call Section
+                        <span>
+                          {isMeetingActive || directScheduleType === 'MEETING'
+                            ? 'Schedule Walkthrough / Demo Meeting'
+                            : 'Schedule Follow-up Touchpoint / Callback'}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                          isMeetingActive || directScheduleType === 'MEETING'
+                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        }`}>
+                          {isMeetingActive || directScheduleType === 'MEETING' ? '🤝 Meeting Funnel' : '📞 Follow-up Funnel'}
                         </span>
                       </h4>
                       <p className="text-[11px] text-slate-400">
-                        Select date and time — automatically synchronizes WhatsApp invitation &amp; CRM task alert.
+                        Works like the call funnel. Automatically synchronizes WhatsApp invitation &amp; CRM Follow-ups section.
                       </p>
                     </div>
                   </div>
-                  <div className="text-[11px] font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-1 rounded-xl border border-indigo-500/30">
-                    📅 {formatMeetingDateDisplay(meetingScheduledDate)} at {meetingScheduledTime}
+
+                  {/* Schedule Mode Switcher & Time Display */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDirectScheduleType('MEETING');
+                          setSelectedTargetStatus('Meeting Scheduled');
+                          setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+                        }}
+                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                          directScheduleType === 'MEETING' || isMeetingActive
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        🤝 Meeting
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDirectScheduleType('FOLLOWUP');
+                          setSelectedTargetStatus('Contacted');
+                          setWaDirectMessage(generateFollowUpMessage(meetingScheduledDate, meetingScheduledTime));
+                        }}
+                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                          directScheduleType === 'FOLLOWUP' || isFollowUpActive
+                            ? 'bg-amber-600 text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        📞 Follow-up
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-1 rounded-xl border border-indigo-500/30">
+                      📅 {formatMeetingDateDisplay(meetingScheduledDate)} at {meetingScheduledTime}
+                    </div>
                   </div>
                 </div>
 
                 {/* 15-Day Date Horizontal Chips */}
                 <div>
-                  <label className="text-[11px] font-bold text-indigo-300 block mb-1.5">
-                    Select Expected Visit / Demo Date (Next 15 Days):
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1.5 flex items-center justify-between">
+                    <span>Select Scheduled Date (Next 15 Days):</span>
+                    <span className="text-[10px] text-slate-400">Synced to Today&apos;s Agenda &amp; Calendar</span>
                   </label>
                   <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
                     {Array.from({ length: 15 }, (_, i) => {
@@ -4772,19 +5034,54 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                   </div>
                 </div>
 
-                {/* Pre-alert toggle */}
-                <label className="flex items-center gap-2 pt-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={enableMeetingPreAlert5Min}
-                    onChange={(e) => setEnableMeetingPreAlert5Min(e.target.checked)}
-                    className="rounded border-slate-700 text-indigo-500 focus:ring-indigo-500/30"
-                  />
-                  <span className="text-xs text-indigo-200 flex items-center gap-1.5 font-medium">
-                    <Bell size={13} className="text-indigo-400" />
-                    Pre-alert notification (5 mins before scheduled meeting)
-                  </span>
-                </label>
+                {/* Pre-alert toggle & Quick Sync action */}
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-800/60">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableMeetingPreAlert5Min}
+                      onChange={(e) => setEnableMeetingPreAlert5Min(e.target.checked)}
+                      className="rounded border-slate-700 text-indigo-500 focus:ring-indigo-500/30"
+                    />
+                    <span className="text-xs text-indigo-200 flex items-center gap-1.5 font-medium">
+                      <Bell size={13} className="text-indigo-400" />
+                      Pre-alert notification (5 mins before scheduled touchpoint)
+                    </span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => syncScheduledFollowUpTask({ showToast: true })}
+                    className="px-3 py-1 rounded-xl bg-indigo-600/25 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/40 text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>💾 Sync to Follow-ups Section Now</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Schedule Toggle for any other mode (Proposal, Invoice, Outreach, Promotion) */}
+            {!isMeetingActive && !isFollowUpActive && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
+                <span className="text-slate-300 flex items-center gap-2">
+                  <Calendar size={14} className="text-indigo-400" />
+                  <span>Schedule Next Follow-up / Meeting for this lead:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !enableDirectSchedule;
+                    setEnableDirectSchedule(next);
+                    setShowMeetingScheduler(next);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                    enableDirectSchedule || showMeetingScheduler
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-indigo-500'
+                  }`}
+                >
+                  {enableDirectSchedule || showMeetingScheduler ? '✓ Scheduler Active' : '+ Schedule Follow-up / Meeting'}
+                </button>
               </div>
             )}
 
@@ -4901,7 +5198,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               onClick={handleSendWaDirect}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
             >
-              <Send size={15} /> Send WhatsApp Direct &amp; Update Lead Status to &quot;{STATUS_OPTIONS.find(s => s.key === selectedTargetStatus)?.label || selectedTargetStatus}&quot; →
+              <Send size={15} />
+              <span>
+                Send WhatsApp Direct &amp; Update Lead Status to &quot;{STATUS_OPTIONS.find(s => s.key === selectedTargetStatus)?.label || selectedTargetStatus}&quot;
+                {isScheduleActive && ` (Syncs Scheduled ${directScheduleType === 'MEETING' || isMeetingActive ? 'Meeting' : 'Follow-up'} to CRM)`} →
+              </span>
             </button>
           </div>
 
