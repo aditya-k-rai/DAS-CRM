@@ -1400,8 +1400,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         price: 999,
         stock: 100,
         sharedCount: 12,
-        imageUrl: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
-        coverImage: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+        imageUrl: '/products/puff-jackets.jpg',
+        coverImage: '/products/puff-jackets.jpg',
         volumeDiscounts: [
           { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
           { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
@@ -1433,7 +1433,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       price: 999,
       stock: 100,
       sharedCount: 12,
-      imageUrl: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+      imageUrl: '/products/puff-jackets.jpg',
+      coverImage: '/products/puff-jackets.jpg',
       volumeDiscounts: [
         { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
         { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
@@ -2706,9 +2707,20 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                       : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                                   }`}
                                 >
-                                  <div className="min-w-0 pr-2">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="text-xs font-bold text-white">{prod.name}</span>
+                                  <div className="flex items-center gap-3 min-w-0 pr-2">
+                                    <img
+                                      src={prod.coverImage || prod.imageUrl || '/products/puff-jackets.jpg'}
+                                      alt={prod.name}
+                                      className="w-10 h-10 rounded-lg object-cover border border-slate-800 flex-shrink-0"
+                                      onError={(e) => {
+                                        const target = e.currentTarget;
+                                        target.onerror = null;
+                                        target.src = '/products/puff-jackets.jpg';
+                                      }}
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-bold text-white">{prod.name}</span>
                                       {prod.sku && (
                                         <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                                           {prod.sku}
@@ -2724,12 +2736,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                       ) : null}
                                     </div>
                                   </div>
-                                  <div className="text-right flex-shrink-0">
-                                    <span className="text-xs font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 block">
-                                      ₹{Number(prod.price).toLocaleString('en-IN')} / {prod.unit || 'Unit'}
-                                    </span>
-                                  </div>
                                 </div>
+                                <div className="text-right flex-shrink-0">
+                                  <span className="text-xs font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 block">
+                                    ₹{Number(prod.price).toLocaleString('en-IN')} / {prod.unit || 'Unit'}
+                                  </span>
+                                </div>
+                              </div>
                               );
                             })}
                           </div>

@@ -180,7 +180,7 @@ const DEFAULT_CATALOG_PRODUCTS: any[] = [
     price: 999,
     tax: 18,
     unit: 'Pieces (Pcs)',
-    image: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+    image: '/products/puff-jackets.jpg',
   },
   { id: 'cat-1', name: 'Executive Desktop Workstation', desc: 'Intel i7 14th Gen, 32GB RAM, 1TB NVMe, RTX 4060', hsn: '84713010', price: 85000, tax: 18, unit: 'Nos', image: '' },
   { id: 'cat-2', name: 'Enterprise Cloud Firewall Gateway', desc: 'Dual 10Gbps SFP+ with Unified Threat Management', hsn: '85176290', price: 125000, tax: 18, unit: 'Nos', image: '' },
@@ -1861,7 +1861,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                       <td className="py-1.5 px-1.5 sm:px-2">
                         <div className="flex items-start gap-1.5 sm:gap-2">
                           {it.showImage && it.imageUrl && (
-                            <img src={it.imageUrl} alt="Prod" className="w-4 h-4 sm:w-5 sm:h-5 rounded border border-slate-200 object-cover flex-shrink-0 mt-0.5" />
+                            <img
+                              src={it.imageUrl}
+                              alt="Prod"
+                              className="w-4 h-4 sm:w-5 sm:h-5 rounded border border-slate-200 object-cover flex-shrink-0 mt-0.5"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                target.onerror = null;
+                                target.src = '/products/puff-jackets.jpg';
+                              }}
+                            />
                           )}
                           <div className="space-y-0.5">
                             <span className="font-bold text-slate-900 leading-snug block text-[10px] sm:text-[10.5px] break-words">{it.productName}</span>
@@ -3129,7 +3138,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                               </label>
                               {item.imageUrl ? (
                                 <div className="flex items-center gap-2 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
-                                  <img src={item.imageUrl} alt="Prod preview" className="w-6 h-6 rounded object-cover border border-slate-700" />
+                                  <img
+                                    src={item.imageUrl}
+                                    alt="Prod preview"
+                                    className="w-6 h-6 rounded object-cover border border-slate-700"
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      target.onerror = null;
+                                      target.src = '/products/puff-jackets.jpg';
+                                    }}
+                                  />
                                   <span className="text-[10px] text-emerald-400 font-bold">✓ Image Loaded</span>
                                 </div>
                               ) : (

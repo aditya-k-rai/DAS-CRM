@@ -160,6 +160,15 @@ export const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_cache';
 const STORAGE_CATEGORIES_KEY = 'das_crm_product_categories';
 const STORAGE_SUBCATEGORIES_KEY = 'das_crm_product_subcategories';
 
+export const DEFAULT_PRODUCT_FALLBACK_IMAGE = '/products/puff-jackets.jpg';
+
+export function getProductCoverImage(imgSrc?: string): string {
+  if (!imgSrc || typeof imgSrc !== 'string' || !imgSrc.trim() || imgSrc.includes('images.unsplash.com')) {
+    return DEFAULT_PRODUCT_FALLBACK_IMAGE;
+  }
+  return imgSrc;
+}
+
 export const INITIAL_PRODUCTS: ProductItemWeb[] = [
   {
     id: 'p-colour-tribe-jackets',
@@ -178,10 +187,8 @@ export const INITIAL_PRODUCTS: ProductItemWeb[] = [
     sold: 0,
     taxRate: 18,
     isActive: true,
-    coverImage: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
-    images: [
-      'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
-    ],
+    coverImage: DEFAULT_PRODUCT_FALLBACK_IMAGE,
+    images: [DEFAULT_PRODUCT_FALLBACK_IMAGE],
     overview: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
     specs: ['Padded', 'Lightweight', 'Thermal Insulation'],
     features: ['Padded', 'Lightweight', 'Thermal Insulation'],
@@ -205,7 +212,23 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         const cached = localStorage.getItem(STORAGE_PRODUCTS_KEY);
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sanitized = parsed.map((p: any) => {
+              const fixedCover = getProductCoverImage(p.coverImage || p.imageUrl);
+              const fixedImages = Array.isArray(p.images) && p.images.length > 0
+                ? p.images.map((im: string) => getProductCoverImage(im))
+                : [fixedCover];
+              return {
+                ...p,
+                coverImage: fixedCover,
+                images: fixedImages,
+              };
+            });
+            try {
+              localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(sanitized));
+            } catch (_) {}
+            return sanitized;
+          }
         }
       } catch (_) {}
     }
@@ -353,8 +376,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               sold: p.sold || 0,
               taxRate: p.taxRate || 18,
               isActive: p.isActive !== false,
-              coverImage: p.imageUrl || (p.images && p.images[0]) || p.coverImage || 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
-              images: p.images || (p.imageUrl ? [p.imageUrl] : ['https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80']),
+              coverImage: getProductCoverImage(p.imageUrl || (p.images && p.images[0]) || p.coverImage),
+              images: (p.images && p.images.length > 0)
+                ? p.images.map((im: string) => getProductCoverImage(im))
+                : [getProductCoverImage(p.imageUrl || p.coverImage)],
               overview: p.description || p.overview || '',
               specs: p.features || p.specs || [],
               features: p.features || [],
@@ -644,14 +669,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     const finalCat = newProdCategory.trim() || 'General';
     const finalSubCat = newProdSubCategory.trim() || 'Standard';
 
-    // Fallback cover image if no images were uploaded (e.g. fashion/jacket or high quality product default)
+    // Fallback cover image if no images were uploaded (local high quality asset)
     let fallbackCover = newProdImages[0] || '';
-    if (!fallbackCover) {
-      if (finalCat.toLowerCase().includes('jacket') || finalCat.toLowerCase().includes('cloth') || finalCat.toLowerCase().includes('wear')) {
-        fallbackCover = 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80';
-      } else {
-        fallbackCover = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80';
-      }
+    if (!fallbackCover || fallbackCover.includes('images.unsplash.com')) {
+      fallbackCover = DEFAULT_PRODUCT_FALLBACK_IMAGE;
     }
     const finalImages = newProdImages.length > 0 ? newProdImages : [fallbackCover];
 
@@ -1676,9 +1697,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       {cardConfig.showImage && (
                         <div className="relative h-44 w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
                           <img
-                            src={p.coverImage}
+                            src={getProductCoverImage(p.coverImage)}
                             alt={p.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.onerror = null;
+                              target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                            }}
                           />
                           {p.images && p.images.length > 1 && (
                             <span className="absolute top-2 right-2 bg-indigo-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shadow border border-indigo-400/30">
@@ -1891,7 +1917,16 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     <td>
                       <div className="flex items-center gap-3">
                         <div className="relative flex-shrink-0">
-                          <img src={p.coverImage} alt={p.name} className="w-11 h-11 rounded-xl object-cover border border-slate-800" />
+                          <img
+                            src={getProductCoverImage(p.coverImage)}
+                            alt={p.name}
+                            className="w-11 h-11 rounded-xl object-cover border border-slate-800"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.onerror = null;
+                              target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                            }}
+                          />
                           {p.images && p.images.length > 1 && (
                             <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1 rounded-full shadow" title={`${p.images.length} images`}>
                               +{p.images.length - 1}
@@ -2010,7 +2045,16 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-3">
-                <img src={inspectorProduct.coverImage} alt={inspectorProduct.name} className="w-12 h-12 rounded-xl object-cover border border-slate-700" />
+                <img
+                  src={getProductCoverImage(inspectorProduct.coverImage)}
+                  alt={inspectorProduct.name}
+                  className="w-12 h-12 rounded-xl object-cover border border-slate-700"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.onerror = null;
+                    target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                  }}
+                />
                 <div>
                   <h3 className="text-lg font-extrabold text-white">{inspectorProduct.name}</h3>
                   <p className="text-xs text-slate-400 font-mono">
@@ -2031,9 +2075,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   {inspectorProduct.images.map((imgUri, idx) => (
                     <img
                       key={idx}
-                      src={imgUri}
+                      src={getProductCoverImage(imgUri)}
                       alt={`Product view ${idx + 1}`}
                       className="w-20 h-20 rounded-xl object-cover border border-slate-700 flex-shrink-0 hover:scale-105 transition-transform"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.onerror = null;
+                        target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                      }}
                     />
                   ))}
                 </div>
@@ -2834,7 +2883,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <div className="flex items-start gap-3.5">
                   {tempConfig.showImage && (
                     <img
-                      src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=400&q=80"
+                      src={DEFAULT_PRODUCT_FALLBACK_IMAGE}
                       alt="Preview"
                       className="w-20 h-20 rounded-xl object-cover border border-slate-700 flex-shrink-0"
                     />

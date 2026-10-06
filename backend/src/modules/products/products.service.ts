@@ -122,9 +122,9 @@ export class ProductsService {
       stock: 100,
       minOrderQty: 1,
       taxRate: 18,
-      imageUrl: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+      imageUrl: '/products/puff-jackets.jpg',
       images: [
-        'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+        '/products/puff-jackets.jpg',
       ],
       features: ['Padded', 'Lightweight', 'Thermal Insulation'],
       volumeDiscounts: [
@@ -244,7 +244,7 @@ export class ProductsService {
             } catch (_) {}
           }
 
-          const primaryImg = meta.imageUrl || (meta.images && meta.images[0]) || (p as any).imageUrl || 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80';
+          const primaryImg = meta.imageUrl || (meta.images && meta.images[0]) || (p as any).imageUrl || '/products/puff-jackets.jpg';
 
           return {
             id: p.id,
@@ -365,12 +365,8 @@ export class ProductsService {
     let primaryImg = (dto.images && dto.images.length > 0)
       ? dto.images[0]
       : (dto.imageUrl || '');
-    if (!primaryImg) {
-      if ((dto.category || '').toLowerCase().includes('jacket') || (dto.name || '').toLowerCase().includes('jacket')) {
-        primaryImg = 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80';
-      } else {
-        primaryImg = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80';
-      }
+    if (!primaryImg || primaryImg.includes('images.unsplash.com')) {
+      primaryImg = '/products/puff-jackets.jpg';
     }
 
     const metadata = {
