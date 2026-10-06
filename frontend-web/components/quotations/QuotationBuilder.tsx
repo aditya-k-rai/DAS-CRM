@@ -6,9 +6,11 @@ import {
   Maximize2, Columns, ZoomIn, ZoomOut, Sliders, Truck, AlignLeft, Hash,
   ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
   Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User,
-  Mail, MessageSquare, Share2, Upload, FileDown, SlidersHorizontal, CheckCircle2
+  Mail, MessageSquare, Share2, Upload, FileDown, SlidersHorizontal, CheckCircle2,
+  CloudUpload, Lock, CheckCircle
 } from 'lucide-react';
 import { exportQuotationAsDocx } from '../../lib/exportDocx';
+import { uploadFileToGoogleDrive } from '../../lib/googleDriveService';
 
 // ─── Interfaces & Section Layout Definitions ──────────────────
 export type SectionId = 'HEADER' | 'PARTY_INFO' | 'ITEMS_TABLE' | 'SUMMARY_AND_BANK' | 'FOOTER_TERMS';
@@ -36,6 +38,7 @@ export interface SavedQuoteRecord {
   savedAt: string;
   totalAmount: number;
   status: 'DRAFT' | 'GENERATED_SENT' | 'SENT';
+  pdfUrl?: string;
   sentVia?: 'EMAIL' | 'WHATSAPP_DIRECT' | 'WHATSAPP_CLOUD';
   sentToLead?: string;
   itemsCount: number;
@@ -52,6 +55,10 @@ export interface SavedQuoteRecord {
     gstType?: 'CGST_SGST' | 'IGST' | 'CGST_UTGST' | 'EXEMPT';
     docDate: string;
     validUntilDate: string;
+    companyDetails?: CompanyDetails;
+    partyDetails?: PartyDetails;
+    termsText?: string;
+    pdfUrl?: string;
   };
 }
 
@@ -135,18 +142,18 @@ export const DEFAULT_TERMS_TEMPLATES: TermsTemplate[] = [
 const INITIAL_COMPANIES: CompanyDetails[] = [
   {
     id: 'comp-1',
-    name: 'Your Company',
+    name: 'Adorable Trading',
     logoUrl: '',
     address: 'Registered Business Address',
-    email: 'contact@company.com',
-    phone: '+91 00000 00000',
+    email: 'contact@adorabletrading.com',
+    phone: '+91 98765 43210',
     gstNo: '',
     panNo: '',
-    bankName: '',
-    accountNo: '',
-    ifscCode: '',
-    branch: '',
-    upiId: '',
+    bankName: 'HDFC Bank',
+    accountNo: '50200012345678',
+    ifscCode: 'HDFC0001234',
+    branch: 'Corporate Hub',
+    upiId: 'adorable@hdfc',
   },
 ];
 
@@ -164,7 +171,12 @@ const INITIAL_PARTIES: PartyDetails[] = [
   },
 ];
 
-const CATALOG_PRODUCTS: any[] = [];
+const DEFAULT_CATALOG_PRODUCTS: any[] = [
+  { id: 'cat-1', name: 'Executive Desktop Workstation', desc: 'Intel i7 14th Gen, 32GB RAM, 1TB NVMe, RTX 4060', hsn: '84713010', price: 85000, tax: 18, unit: 'Nos', image: '' },
+  { id: 'cat-2', name: 'Enterprise Cloud Firewall Gateway', desc: 'Dual 10Gbps SFP+ with Unified Threat Management', hsn: '85176290', price: 125000, tax: 18, unit: 'Nos', image: '' },
+  { id: 'cat-3', name: 'High-Density Rackmount Server 2U', desc: 'Dual Xeon Gold, 128GB ECC, Redundant PSU', hsn: '84714900', price: 295000, tax: 18, unit: 'Nos', image: '' },
+  { id: 'cat-4', name: 'Annual Software License & Support (AMC)', desc: '24/7 Enterprise SLA with onsite dispatch', hsn: '998313', price: 45000, tax: 18, unit: 'Yr', image: '' },
+];
 
 // ─── Helper: Number to Words (Indian Rupee Spectro Format) ────
 function numberToWordsINR(amount: number): string {
@@ -196,6 +208,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   // Document Type Flow
   const [docType, setDocType] = useState<DocumentType>('QUOTATION');
 
+  // Currently editing quote ID (null for new quote)
+  const [currentEditingQuoteId, setCurrentEditingQuoteId] = useState<string | null>(null);
+
+  // Synced Catalog Products from Database (/products)
+  const [catalogProducts, setCatalogProducts] = useState<any[]>(DEFAULT_CATALOG_PRODUCTS);
+
+  // Firebase Storage Saving Telemetry State
+  const [isSavingFirebase, setIsSavingFirebase] = useState<boolean>(false);
+  const [firebaseSaveSuccess, setFirebaseSaveSuccess] = useState<boolean>(false);
+
   // Recent Saved Quotes History Engine & Drawer
   const [savedQuotes, setSavedQuotes] = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState<boolean>(false);
@@ -209,6 +231,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
   }, [externalOpenHistory, onExternalOpenHistoryHandled]);
 
+  // Fetch Quotes & Drafts with Firebase PDF links from Database
   useEffect(() => {
     const fetchSavedQuotes = async () => {
       try {
@@ -221,32 +244,45 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            setSavedQuotes(data.map((q: any) => ({
-              id: q.id,
-              docNo: q.quoteNumber || q.id,
-              docType: (q.docType || 'QUOTATION') as DocumentType,
-              partyName: q.clientName || 'Client',
-              companyName: q.clientCompany || 'Company',
-              savedAt: q.createdAt ? new Date(q.createdAt).toLocaleString('en-IN') : 'Recently',
-              totalAmount: Number(q.totalAmount || 0),
-              status: q.status === 'SENT' ? 'GENERATED_SENT' : 'DRAFT',
-              sentVia: q.sentVia || q.payload?.sentVia,
-              sentToLead: q.sentToLead || (q.clientName && q.clientName !== 'Client' ? q.clientName : undefined),
-              createdByName: q.createdByName,
-              createdByRole: q.createdByRole,
-              itemsCount: q.itemsCount || (q.items ? q.items.length : 0),
-              payload: q.payload || {
-                items: q.items || [],
-                customColumns: [],
-                sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
-                sectionGap: 10,
-                pdfTopPadding: 32,
-                pdfBottomPadding: 28,
-                globalGstRate: 18,
-                docDate: new Date().toISOString().split('T')[0],
-                validUntilDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-              },
-            })));
+            setSavedQuotes(data.map((q: any) => {
+              let parsedNotes: any = {};
+              try {
+                if (q.notes && (q.notes.startsWith('{') || q.notes.startsWith('['))) {
+                  parsedNotes = JSON.parse(q.notes);
+                }
+              } catch (_) {}
+
+              const resolvedPdf = q.pdfUrl || q.payload?.pdfUrl || parsedNotes.pdfUrl || parsedNotes.payload?.pdfUrl;
+
+              return {
+                id: q.id,
+                docNo: q.quoteNumber || q.id,
+                docType: (q.docType || parsedNotes.docType || 'QUOTATION') as DocumentType,
+                partyName: q.clientName || parsedNotes.partyName || 'Client',
+                companyName: q.clientCompany || parsedNotes.companyName || 'Company',
+                savedAt: q.createdAt ? new Date(q.createdAt).toLocaleString('en-IN') : 'Recently',
+                totalAmount: Number(q.totalAmount || 0),
+                status: (q.status === 'SENT' || q.status === 'GENERATED_SENT') ? 'GENERATED_SENT' : 'DRAFT',
+                pdfUrl: resolvedPdf,
+                sentVia: q.sentVia || q.payload?.sentVia || parsedNotes.sentVia,
+                sentToLead: q.sentToLead || (q.clientName && q.clientName !== 'Client' ? q.clientName : undefined),
+                createdByName: q.createdByName || parsedNotes.createdByName,
+                createdByRole: q.createdByRole || parsedNotes.createdByRole,
+                itemsCount: q.itemsCount || (q.items ? q.items.length : 0),
+                payload: q.payload || parsedNotes.payload || {
+                  items: q.items || [],
+                  customColumns: [],
+                  sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
+                  sectionGap: 10,
+                  pdfTopPadding: 32,
+                  pdfBottomPadding: 28,
+                  globalGstRate: 18,
+                  docDate: new Date().toISOString().split('T')[0],
+                  validUntilDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+                  pdfUrl: resolvedPdf,
+                },
+              };
+            }));
           }
         }
       } catch (e) {
@@ -374,91 +410,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     setCustomColumns(prev => prev.filter(c => c.id !== id));
   };
 
-  const handleSaveCurrentDraft = () => {
-    const now = new Date();
-    const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-    
-    const newRecord: SavedQuoteRecord = {
-      id: `sq-${Date.now()}`,
-      docNo,
-      docType,
-      partyName: activeParty?.name || 'Client Party',
-      companyName: activeCompany?.name || 'Seller Company',
-      savedAt: formattedDate,
-      totalAmount: grandTotal,
-      status: 'DRAFT',
-      itemsCount: items.length,
-      createdByName: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.name || 'Authorized Signatory') : 'Authorized Signatory',
-      createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Admin') : 'Admin',
-      payload: {
-        items: JSON.parse(JSON.stringify(items)),
-        customColumns: JSON.parse(JSON.stringify(customColumns)),
-        sectionOrder: [...sectionOrder],
-        sectionGap,
-        pdfTopPadding,
-        pdfBottomPadding,
-        globalGstRate,
-        gstType,
-        docDate,
-        validUntilDate,
-      }
-    };
-
-    setSavedQuotes(prev => [newRecord, ...prev]);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
-
-    // Asynchronously persist to backend database
-    (async () => {
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/quotations`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            quoteNumber: newRecord.docNo,
-            docType: newRecord.docType,
-            partyName: newRecord.partyName,
-            companyName: newRecord.companyName,
-            totalAmount: newRecord.totalAmount,
-            status: newRecord.status,
-            items: newRecord.payload.items,
-            payload: newRecord.payload,
-          }),
-        });
-        if (res.ok) {
-          const savedData = await res.json();
-          if (savedData?.id) {
-            setSavedQuotes(prev => prev.map(q => q.id === newRecord.id ? { ...q, id: savedData.id } : q));
-          }
-        }
-      } catch (e) {
-        console.warn('Backend quote save error:', e);
-      }
-    })();
-  };
-
-  const handleLoadSavedQuote = (record: SavedQuoteRecord) => {
-    setDocNo(record.docNo);
-    setDocType(record.docType);
-    if (record.payload) {
-      if (record.payload.items) setItems(JSON.parse(JSON.stringify(record.payload.items)));
-      if (record.payload.customColumns) setCustomColumns(JSON.parse(JSON.stringify(record.payload.customColumns)));
-      if (record.payload.sectionOrder) setSectionOrder([...record.payload.sectionOrder]);
-      if (record.payload.sectionGap) setSectionGap(record.payload.sectionGap);
-      if (record.payload.pdfTopPadding) setPdfTopPadding(record.payload.pdfTopPadding);
-      if (record.payload.pdfBottomPadding) setPdfBottomPadding(record.payload.pdfBottomPadding);
-      if (record.payload.globalGstRate) setGlobalGstRate(record.payload.globalGstRate);
-      if (record.payload.gstType) setGstType(record.payload.gstType);
-      if (record.payload.docDate) setDocDate(record.payload.docDate);
-      if (record.payload.validUntilDate) setValidUntilDate(record.payload.validUntilDate);
-    }
-    setHistoryDrawerOpen(false);
-  };
+  // (Database Save Draft, Firebase Storage Sync, and Load Quote functions are implemented below with full financial & validation context)
 
   const handleDirectSendQuote = (record: SavedQuoteRecord, channel: 'EMAIL' | 'WHATSAPP_DIRECT' | 'WHATSAPP_CLOUD') => {
     if (channel === 'WHATSAPP_CLOUD') {
@@ -603,6 +555,139 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         }
       } catch (e) {}
     }
+  }, []);
+
+  // 📦 Sync Active Products directly from Product Section Database (/products)
+  useEffect(() => {
+    const fetchCatalogProducts = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/products`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setCatalogProducts(data.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              desc: p.description || '',
+              hsn: p.sku || '998313',
+              price: Number(p.price || 0),
+              tax: Number(p.taxRate || 18),
+              unit: p.unit || 'Nos',
+              image: p.imageUrl || '',
+            })));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to sync products from backend catalog:', e);
+      }
+    };
+    fetchCatalogProducts();
+  }, []);
+
+  // 🏢 Sync Companies (Seller) from Database (/companies)
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/companies`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : json?.items || [];
+          if (list.length > 0) {
+            const mapped: CompanyDetails[] = list.map((c: any) => ({
+              id: c.id,
+              name: c.name || 'Adorable Trading',
+              logoUrl: c.customFields?.logoUrl || c.logoUrl || '',
+              address: c.customFields?.address || (c.city ? `${c.city}, ${c.country || 'India'}` : 'Registered Business Address'),
+              email: c.customFields?.email || c.website || 'contact@company.com',
+              phone: c.phone || '+91 98765 43210',
+              gstNo: c.customFields?.gstNo || '',
+              panNo: c.customFields?.panNo || '',
+              bankName: c.customFields?.bankName || 'HDFC Bank',
+              accountNo: c.customFields?.accountNo || '50200012345678',
+              ifscCode: c.customFields?.ifscCode || 'HDFC0001234',
+              branch: c.customFields?.branch || 'Corporate Hub',
+              upiId: c.customFields?.upiId || 'company@upi',
+            }));
+            setCompanies(mapped);
+            if (mapped[0]?.id) setSelectedCompanyId(mapped[0].id);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load companies from backend:', e);
+      }
+    };
+    fetchCompanies();
+  }, []);
+
+  // 👤 Sync Buyer / Client Parties from Database (/contacts & /leads)
+  useEffect(() => {
+    const fetchBuyers = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const [contactsRes, leadsRes] = await Promise.allSettled([
+          fetch(`${apiBase}/contacts`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }),
+          fetch(`${apiBase}/leads`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }),
+        ]);
+
+        const fetchedParties: PartyDetails[] = [];
+        if (contactsRes.status === 'fulfilled' && contactsRes.value.ok) {
+          const cJson = await contactsRes.value.json();
+          const cList = Array.isArray(cJson) ? cJson : cJson?.items || [];
+          cList.forEach((c: any) => {
+            const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.company?.name || 'Contact';
+            fetchedParties.push({
+              id: `contact-${c.id}`,
+              name: fullName,
+              contactPerson: fullName,
+              email: c.email || '',
+              phone: c.phone || '',
+              address: c.company?.name ? `${c.company.name}, Registered Office` : 'Billed To Address',
+              shippingAddress: '',
+              gstNo: c.customFields?.gstNo || '',
+              panNo: c.customFields?.panNo || '',
+            });
+          });
+        }
+
+        if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
+          const lJson = await leadsRes.value.json();
+          const lList = Array.isArray(lJson) ? lJson : lJson?.items || [];
+          lList.forEach((l: any) => {
+            const leadName = l.name || [l.firstName, l.lastName].filter(Boolean).join(' ') || l.company || 'Lead Client';
+            if (!fetchedParties.some(p => p.name === leadName || (l.phone && p.phone === l.phone))) {
+              fetchedParties.push({
+                id: `lead-${l.id}`,
+                name: leadName,
+                contactPerson: leadName,
+                email: l.email || '',
+                phone: l.phone || '',
+                address: l.address || l.company || 'Billed To Address',
+                shippingAddress: '',
+                gstNo: l.gstNumber || l.customFields?.gstNo || '',
+                panNo: l.panNumber || l.customFields?.panNo || '',
+              });
+            }
+          });
+        }
+
+        if (fetchedParties.length > 0) {
+          setParties(fetchedParties);
+          setSelectedPartyId(fetchedParties[0].id);
+        }
+      } catch (err) {
+        console.warn('Failed to load buyers from backend:', err);
+      }
+    };
+    fetchBuyers();
   }, []);
 
   // Overall Discount & Terms
@@ -795,11 +880,35 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const effectiveGstTaxTotal = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTaxTotal;
   const grandTotal = Math.round(finalTaxable + effectiveGstTaxTotal);
 
+  // ── Validation: Buyer, Seller & Product Selection Flags ──
+  const hasSeller = Boolean(
+    activeCompany &&
+    activeCompany.name &&
+    activeCompany.name.trim().length > 0 &&
+    activeCompany.name !== 'Your Company'
+  );
+
+  const hasBuyer = Boolean(
+    activeParty &&
+    activeParty.name &&
+    activeParty.name.trim().length > 0 &&
+    activeParty.name !== 'Client / Party Name'
+  );
+
+  const hasProduct = Boolean(
+    items &&
+    items.length > 0 &&
+    items.some(it => it.productName && it.productName.trim().length > 0 && (Number(it.qty) > 0 || Number(it.unitPrice) >= 0))
+  );
+
+  // Crucial: Save & Save Draft options are strictly clickable only after selecting/entering Buyer, Seller and Product
+  const isReadyToSave = hasSeller && hasBuyer && hasProduct;
+
   // ── 8-Step Completion Checkers & Progress Flags ──
   const isStep1Done = Boolean(docNo?.trim() && docDate?.trim() && (!showValidUntil || (validUntilDate && validUntilDate.trim() !== '')));
-  const isStep2Done = Boolean(activeCompany?.name?.trim() && activeCompany?.gstNo?.trim());
-  const isStep3Done = Boolean(activeParty?.name?.trim());
-  const isStep4Done = Boolean(items.length > 0 && items.every(it => it.productName?.trim() && it.qty > 0 && it.unitPrice > 0));
+  const isStep2Done = hasSeller;
+  const isStep3Done = hasBuyer;
+  const isStep4Done = hasProduct;
   const isStep5Done = Boolean(termsText && termsText.trim().length > 0);
   const isStep6Done = Boolean(gstType);
   const isStep7Done = Boolean(pdfMargin > 0 && pdfTopPadding > 0);
@@ -874,6 +983,447 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     subtotal, totalItemDiscounts, overallDiscAmount, effectiveGstTaxTotal, grandTotal, gstTaxTotal,
   ]);
 
+  // 📄 Generate High-Fidelity Vector A4 PDF Blob using jsPDF
+  const generateQuotationPdfBlob = async (): Promise<Blob> => {
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210;
+    const H = 297;
+    const margin = 12;
+
+    // Navy Blue Top Brand Accent Bar (#002060)
+    doc.setFillColor(0, 32, 96);
+    doc.rect(0, 0, W, 3.5, 'F');
+
+    // Header Box
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, 8, W - 2 * margin, 32, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, 8, W - 2 * margin, 32, 2, 2, 'D');
+
+    // Company Name
+    doc.setTextColor(0, 32, 96);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(activeCompany?.name || 'Company', margin + 5, 17);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(activeCompany?.address || 'Registered Address', margin + 5, 22);
+    doc.text(`Email: ${activeCompany?.email || ''} | Phone: ${activeCompany?.phone || ''}`, margin + 5, 27);
+    doc.text(`GSTIN: ${activeCompany?.gstNo || 'N/A'} | PAN: ${activeCompany?.panNo || 'N/A'}`, margin + 5, 32);
+
+    // Doc Title & Meta (Right Aligned)
+    doc.setTextColor(0, 32, 96);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12.5);
+    doc.text(getDocTitle(), W - margin - 5, 17, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Doc #: ${docNo}`, W - margin - 5, 23, { align: 'right' });
+    doc.text(`Date: ${docDate}`, W - margin - 5, 28, { align: 'right' });
+    if (showValidUntil && validUntilDate) {
+      doc.text(`Valid Until: ${validUntilDate}`, W - margin - 5, 33, { align: 'right' });
+    }
+
+    // Buyer Info Card
+    let currentY = 44;
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, currentY, W - 2 * margin, 24, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, currentY, W - 2 * margin, 24, 2, 2, 'D');
+
+    doc.setTextColor(0, 32, 96);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('BILLED TO / BUYER:', margin + 5, currentY + 6);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text(activeParty?.name || 'Client Name', margin + 5, currentY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(activeParty?.address || 'Client Address', margin + 5, currentY + 17);
+    doc.text(`Contact: ${activeParty?.phone || ''} | ${activeParty?.email || ''} | GSTIN: ${activeParty?.gstNo || 'N/A'}`, margin + 5, currentY + 22);
+
+    // Line Items Table Header
+    currentY += 28;
+    doc.setFillColor(0, 32, 96);
+    doc.rect(margin, currentY, W - 2 * margin, 7, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('#', margin + 3, currentY + 4.8);
+    doc.text('Item Description', margin + 12, currentY + 4.8);
+    doc.text('HSN', margin + 95, currentY + 4.8);
+    doc.text('Qty', margin + 115, currentY + 4.8, { align: 'right' });
+    doc.text('Rate (₹)', margin + 140, currentY + 4.8, { align: 'right' });
+    doc.text('GST %', margin + 158, currentY + 4.8, { align: 'right' });
+    doc.text('Total (₹)', W - margin - 3, currentY + 4.8, { align: 'right' });
+
+    // Rows
+    currentY += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+
+    items.forEach((it, idx) => {
+      if (currentY > 230) return;
+      const rowBg = idx % 2 === 0 ? 255 : 248;
+      doc.setFillColor(rowBg, rowBg, rowBg);
+      doc.rect(margin, currentY, W - 2 * margin, 7, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, currentY + 7, W - margin, currentY + 7);
+
+      doc.text(String(idx + 1), margin + 3, currentY + 4.8);
+      const itemTitle = it.productName.length > 40 ? it.productName.substring(0, 38) + '...' : it.productName;
+      doc.text(itemTitle, margin + 12, currentY + 4.8);
+      doc.text(it.hsnCode || '—', margin + 95, currentY + 4.8);
+      doc.text(`${it.qty} ${it.unit || ''}`.trim(), margin + 115, currentY + 4.8, { align: 'right' });
+      doc.text(it.unitPrice.toLocaleString('en-IN'), margin + 140, currentY + 4.8, { align: 'right' });
+      doc.text(`${it.taxRate}%`, margin + 158, currentY + 4.8, { align: 'right' });
+      doc.text(it.total.toLocaleString('en-IN'), W - margin - 3, currentY + 4.8, { align: 'right' });
+      currentY += 7;
+    });
+
+    // Financial Totals Box
+    currentY += 4;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, currentY, W - margin, currentY);
+
+    const totalsX = W - margin - 70;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Subtotal:', totalsX, currentY + 6);
+    doc.text(`₹${subtotal.toLocaleString('en-IN')}`, W - margin - 3, currentY + 6, { align: 'right' });
+
+    doc.text('Taxable Base:', totalsX, currentY + 11);
+    doc.text(`₹${finalTaxable.toLocaleString('en-IN')}`, W - margin - 3, currentY + 11, { align: 'right' });
+
+    doc.text(`GST Tax (${globalGstRate}%):`, totalsX, currentY + 16);
+    doc.text(`₹${effectiveGstTaxTotal.toLocaleString('en-IN')}`, W - margin - 3, currentY + 16, { align: 'right' });
+
+    doc.setFillColor(0, 32, 96);
+    doc.rect(totalsX - 2, currentY + 19, 72, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Grand Total:', totalsX + 2, currentY + 24.5);
+    doc.text(`₹${grandTotal.toLocaleString('en-IN')}`, W - margin - 3, currentY + 24.5, { align: 'right' });
+
+    // Bank Info
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text('Bank & Settlement Details:', margin, currentY + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Bank: ${activeCompany?.bankName || 'HDFC Bank'} | A/C: ${activeCompany?.accountNo || '50200012345678'}`, margin, currentY + 11);
+    doc.text(`IFSC: ${activeCompany?.ifscCode || 'HDFC0001234'} | UPI: ${activeCompany?.upiId || 'company@upi'}`, margin, currentY + 16);
+    doc.text(`Amount in Words: ${numberToWordsINR(grandTotal)}`, margin, currentY + 22);
+
+    // Terms & Conditions
+    currentY += 32;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(0, 32, 96);
+    doc.text('Terms & Conditions:', margin, currentY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    const termsLines = doc.splitTextToSize(termsText || '1. Goods once sold will not be taken back.', W - 2 * margin);
+    doc.text(termsLines.slice(0, 4), margin, currentY + 4);
+
+    // Footer bar
+    doc.setFillColor(248, 250, 252);
+    doc.rect(0, H - 10, W, 10, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.line(0, H - 10, W, H - 10);
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(7.5);
+    doc.text('Generated by DAS CRM — Official Quotation & Invoice Engine', margin, H - 4);
+    doc.text('www.dascrm.com', W - margin, H - 4, { align: 'right' });
+
+    return doc.output('blob');
+  };
+
+  // ☁️ SAVE TO FIREBASE STORAGE & SYNC TO DATABASE
+  const handleSaveToFirebase = async () => {
+    if (!isReadyToSave) {
+      const missingList: string[] = [];
+      if (!hasSeller) missingList.push('Seller Company');
+      if (!hasBuyer) missingList.push('Buyer / Client Party');
+      if (!hasProduct) missingList.push('At least 1 Product Line Item');
+      alert(`⚠️ Action Locked: Please select/enter ${missingList.join(', ')} before saving to Firebase.`);
+      return;
+    }
+
+    setIsSavingFirebase(true);
+    try {
+      const pdfBlob = await generateQuotationPdfBlob();
+      const driveResult = await uploadFileToGoogleDrive(
+        pdfBlob,
+        `${docNo}.pdf`,
+        {
+          companyName: activeCompany?.name || 'Adorable Trading',
+          category: 'QUOTATIONS',
+          customFileName: docNo,
+        }
+      );
+
+      const pdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl;
+
+      const now = new Date();
+      const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+
+      const recordPayload = {
+        items: JSON.parse(JSON.stringify(items)),
+        customColumns: JSON.parse(JSON.stringify(customColumns)),
+        sectionOrder: [...sectionOrder],
+        sectionGap,
+        pdfTopPadding,
+        pdfBottomPadding,
+        globalGstRate,
+        gstType,
+        docDate,
+        validUntilDate,
+        companyDetails: activeCompany,
+        partyDetails: activeParty,
+        termsText,
+        pdfUrl,
+      };
+
+      const quoteRecord: SavedQuoteRecord = {
+        id: currentEditingQuoteId || `sq-${Date.now()}`,
+        docNo,
+        docType,
+        partyName: activeParty?.name || 'Client Party',
+        companyName: activeCompany?.name || 'Seller Company',
+        savedAt: formattedDate,
+        totalAmount: grandTotal,
+        status: 'GENERATED_SENT',
+        pdfUrl,
+        itemsCount: items.length,
+        createdByName: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.name || 'Authorized Signatory') : 'Authorized Signatory',
+        createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Admin') : 'Admin',
+        payload: recordPayload,
+      };
+
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+      if (currentEditingQuoteId && !currentEditingQuoteId.startsWith('sq-')) {
+        await fetch(`${apiBase}/quotations/${currentEditingQuoteId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            quoteNumber: docNo,
+            docType,
+            partyName: quoteRecord.partyName,
+            companyName: quoteRecord.companyName,
+            totalAmount: grandTotal,
+            status: 'SENT',
+            items,
+            payload: recordPayload,
+          }),
+        });
+        setSavedQuotes(prev => prev.map(q => q.id === currentEditingQuoteId ? quoteRecord : q));
+      } else {
+        const res = await fetch(`${apiBase}/quotations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            quoteNumber: docNo,
+            docType,
+            partyName: quoteRecord.partyName,
+            companyName: quoteRecord.companyName,
+            totalAmount: grandTotal,
+            status: 'SENT',
+            items,
+            payload: recordPayload,
+          }),
+        });
+        if (res.ok) {
+          const savedData = await res.json();
+          if (savedData?.id) {
+            quoteRecord.id = savedData.id;
+          }
+        }
+        setSavedQuotes(prev => [quoteRecord, ...prev.filter(q => q.id !== quoteRecord.id)]);
+        setCurrentEditingQuoteId(quoteRecord.id);
+      }
+
+      setFirebaseSaveSuccess(true);
+      setTimeout(() => setFirebaseSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Save to Firebase Storage failed:', err);
+      alert('Failed to save to Firebase: ' + (err as Error).message);
+    } finally {
+      setIsSavingFirebase(false);
+    }
+  };
+
+  // 💾 SAVE DRAFT TO DATABASE (GATED BY isReadyToSave & PERSISTED FOR CONTINUOUS EDITING)
+  const handleSaveCurrentDraft = async () => {
+    if (!isReadyToSave) {
+      const missingList: string[] = [];
+      if (!hasSeller) missingList.push('Seller Company');
+      if (!hasBuyer) missingList.push('Buyer / Client Party');
+      if (!hasProduct) missingList.push('At least 1 Product Line Item');
+      alert(`⚠️ Action Locked: Please select/enter ${missingList.join(', ')} before saving a draft.`);
+      return;
+    }
+
+    const now = new Date();
+    const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+
+    const recordPayload = {
+      items: JSON.parse(JSON.stringify(items)),
+      customColumns: JSON.parse(JSON.stringify(customColumns)),
+      sectionOrder: [...sectionOrder],
+      sectionGap,
+      pdfTopPadding,
+      pdfBottomPadding,
+      globalGstRate,
+      gstType,
+      docDate,
+      validUntilDate,
+      companyDetails: activeCompany,
+      partyDetails: activeParty,
+      termsText,
+    };
+
+    const draftRecord: SavedQuoteRecord = {
+      id: currentEditingQuoteId || `sq-${Date.now()}`,
+      docNo,
+      docType,
+      partyName: activeParty?.name || 'Client Party',
+      companyName: activeCompany?.name || 'Seller Company',
+      savedAt: formattedDate,
+      totalAmount: grandTotal,
+      status: 'DRAFT',
+      itemsCount: items.length,
+      createdByName: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.name || 'Authorized Signatory') : 'Authorized Signatory',
+      createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Admin') : 'Admin',
+      payload: recordPayload,
+    };
+
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2500);
+
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+      if (currentEditingQuoteId && !currentEditingQuoteId.startsWith('sq-')) {
+        await fetch(`${apiBase}/quotations/${currentEditingQuoteId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            quoteNumber: docNo,
+            docType,
+            partyName: draftRecord.partyName,
+            companyName: draftRecord.companyName,
+            totalAmount: grandTotal,
+            status: 'DRAFT',
+            items,
+            payload: recordPayload,
+          }),
+        });
+        setSavedQuotes(prev => prev.map(q => q.id === currentEditingQuoteId ? draftRecord : q));
+      } else {
+        const res = await fetch(`${apiBase}/quotations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            quoteNumber: docNo,
+            docType,
+            partyName: draftRecord.partyName,
+            companyName: draftRecord.companyName,
+            totalAmount: grandTotal,
+            status: 'DRAFT',
+            items,
+            payload: recordPayload,
+          }),
+        });
+        if (res.ok) {
+          const savedData = await res.json();
+          if (savedData?.id) {
+            draftRecord.id = savedData.id;
+          }
+        }
+        setSavedQuotes(prev => [draftRecord, ...prev.filter(q => q.id !== draftRecord.id)]);
+        setCurrentEditingQuoteId(draftRecord.id);
+      }
+    } catch (e) {
+      console.warn('Backend quote draft save error:', e);
+    }
+  };
+
+  // 📂 LOAD QUOTE OR DRAFT BACK INTO BUILDER FOR FULL EDITING
+  const handleLoadSavedQuote = (record: SavedQuoteRecord) => {
+    setCurrentEditingQuoteId(record.id);
+    setDocNo(record.docNo);
+    setDocType(record.docType);
+    if (record.payload) {
+      if (record.payload.items) setItems(JSON.parse(JSON.stringify(record.payload.items)));
+      if (record.payload.customColumns) setCustomColumns(JSON.parse(JSON.stringify(record.payload.customColumns)));
+      if (record.payload.sectionOrder) setSectionOrder([...record.payload.sectionOrder]);
+      if (record.payload.sectionGap) setSectionGap(record.payload.sectionGap);
+      if (record.payload.pdfTopPadding) setPdfTopPadding(record.payload.pdfTopPadding);
+      if (record.payload.pdfBottomPadding) setPdfBottomPadding(record.payload.pdfBottomPadding);
+      if (record.payload.globalGstRate) setGlobalGstRate(record.payload.globalGstRate);
+      if (record.payload.gstType) setGstType(record.payload.gstType);
+      if (record.payload.docDate) setDocDate(record.payload.docDate);
+      if (record.payload.validUntilDate) setValidUntilDate(record.payload.validUntilDate);
+      if (record.payload.termsText) setTermsText(record.payload.termsText);
+      if (record.payload.companyDetails) {
+        setCompanies(prev => {
+          const found = prev.find(c => c.name === record.payload.companyDetails!.name || c.id === record.payload.companyDetails!.id);
+          if (found) {
+            setSelectedCompanyId(found.id);
+            return prev;
+          }
+          return [record.payload.companyDetails!, ...prev];
+        });
+        setSelectedCompanyId(record.payload.companyDetails.id);
+      }
+      if (record.payload.partyDetails) {
+        setParties(prev => {
+          const found = prev.find(p => p.name === record.payload.partyDetails!.name || p.id === record.payload.partyDetails!.id);
+          if (found) {
+            setSelectedPartyId(found.id);
+            return prev;
+          }
+          return [record.payload.partyDetails!, ...prev];
+        });
+        setSelectedPartyId(record.payload.partyDetails.id);
+      }
+    }
+    setHistoryDrawerOpen(false);
+  };
+
   const handleImageFileUpload = (file: File, onSuccess: (dataUrl: string) => void) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
@@ -889,7 +1439,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     reader.readAsDataURL(file);
   };
 
-  const handleSaveNewCompany = () => {
+  // 🏢 SAVE / UPDATE SELLER COMPANY IN DATABASE (/companies)
+  const handleSaveNewCompany = async () => {
     if (!newComp.name || !newComp.name.trim()) {
       alert('Company Name is required.');
       return;
@@ -903,45 +1454,107 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       return;
     }
 
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
     if (editingCompanyId) {
-      setCompanies(prev =>
-        prev.map(c =>
-          c.id === editingCompanyId
-            ? {
-                ...c,
-                name: newComp.name!.trim(),
-                logoUrl: newComp.logoUrl || c.logoUrl,
-                address: newComp.address || c.address || 'Address',
-                email: newComp.email!.trim(),
-                phone: newComp.phone!.trim(),
-                gstNo: newComp.gstNo || c.gstNo || 'GSTIN',
-                panNo: newComp.panNo || c.panNo || 'PAN',
-                bankName: newComp.bankName || c.bankName || 'Bank',
-                accountNo: newComp.accountNo || c.accountNo || 'A/C',
-                ifscCode: newComp.ifscCode || c.ifscCode || 'IFSC',
-                branch: newComp.branch || c.branch || 'Branch',
-                upiId: newComp.upiId || c.upiId || 'upi@bank',
-              }
-            : c
-        )
-      );
+      const updatedCompany: CompanyDetails = {
+        id: editingCompanyId,
+        name: newComp.name.trim(),
+        logoUrl: newComp.logoUrl || activeCompany?.logoUrl || '',
+        address: newComp.address || activeCompany?.address || 'Address',
+        email: newComp.email.trim(),
+        phone: newComp.phone.trim(),
+        gstNo: newComp.gstNo || activeCompany?.gstNo || '',
+        panNo: newComp.panNo || activeCompany?.panNo || '',
+        bankName: newComp.bankName || activeCompany?.bankName || 'Bank',
+        accountNo: newComp.accountNo || activeCompany?.accountNo || '',
+        ifscCode: newComp.ifscCode || activeCompany?.ifscCode || '',
+        branch: newComp.branch || activeCompany?.branch || '',
+        upiId: newComp.upiId || activeCompany?.upiId || '',
+      };
+
+      setCompanies(prev => prev.map(c => c.id === editingCompanyId ? updatedCompany : c));
+
+      if (!editingCompanyId.startsWith('comp-')) {
+        try {
+          await fetch(`${apiBase}/companies/${editingCompanyId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              name: updatedCompany.name,
+              phone: updatedCompany.phone,
+              customFields: {
+                email: updatedCompany.email,
+                address: updatedCompany.address,
+                gstNo: updatedCompany.gstNo,
+                panNo: updatedCompany.panNo,
+                bankName: updatedCompany.bankName,
+                accountNo: updatedCompany.accountNo,
+                ifscCode: updatedCompany.ifscCode,
+                branch: updatedCompany.branch,
+                upiId: updatedCompany.upiId,
+                logoUrl: updatedCompany.logoUrl,
+              },
+            }),
+          });
+        } catch (err) {
+          console.warn('Backend company update failed:', err);
+        }
+      }
     } else {
+      let savedId = `comp-${Date.now()}`;
+      try {
+        const res = await fetch(`${apiBase}/companies`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            name: newComp.name.trim(),
+            phone: newComp.phone.trim(),
+            customFields: {
+              email: newComp.email.trim(),
+              address: newComp.address || 'Address',
+              gstNo: newComp.gstNo || '',
+              panNo: newComp.panNo || '',
+              bankName: newComp.bankName || 'Bank',
+              accountNo: newComp.accountNo || '',
+              ifscCode: newComp.ifscCode || '',
+              branch: newComp.branch || '',
+              upiId: newComp.upiId || '',
+              logoUrl: newComp.logoUrl || '',
+            },
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.id) savedId = json.id;
+        }
+      } catch (err) {
+        console.warn('Backend company create failed:', err);
+      }
+
       const comp: CompanyDetails = {
-        id: `comp-${Date.now()}`,
+        id: savedId,
         name: newComp.name.trim(),
         logoUrl: newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
         address: newComp.address || 'Address',
         email: newComp.email.trim(),
         phone: newComp.phone.trim(),
-        gstNo: newComp.gstNo || 'GSTIN',
-        panNo: newComp.panNo || 'PAN',
+        gstNo: newComp.gstNo || '',
+        panNo: newComp.panNo || '',
         bankName: newComp.bankName || 'Bank',
-        accountNo: newComp.accountNo || 'A/C',
-        ifscCode: newComp.ifscCode || 'IFSC',
-        branch: newComp.branch || 'Branch',
-        upiId: newComp.upiId || 'upi@bank',
+        accountNo: newComp.accountNo || '',
+        ifscCode: newComp.ifscCode || '',
+        branch: newComp.branch || '',
+        upiId: newComp.upiId || '',
       };
-      setCompanies([comp, ...companies]);
+      setCompanies(prev => [comp, ...prev]);
       setSelectedCompanyId(comp.id);
     }
     setCompanyModalOpen(false);
@@ -949,7 +1562,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     setNewComp({});
   };
 
-  const handleSaveNewParty = () => {
+  // 👤 SAVE / UPDATE BUYER (CLIENT) IN DATABASE (/contacts)
+  const handleSaveNewParty = async () => {
     if (!newParty.name || !newParty.name.trim()) {
       alert('Client Party Name is required.');
       return;
@@ -963,37 +1577,78 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       return;
     }
 
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
     if (editingPartyId) {
-      setParties(prev =>
-        prev.map(p =>
-          p.id === editingPartyId
-            ? {
-                ...p,
-                name: newParty.name!.trim(),
-                contactPerson: newParty.contactPerson ?? p.contactPerson,
-                email: newParty.email!.trim(),
-                phone: newParty.phone!.trim(),
-                address: newParty.address || p.address || 'Address',
-                shippingAddress: newParty.shippingAddress ?? p.shippingAddress,
-                gstNo: newParty.gstNo || p.gstNo || 'GSTIN',
-                panNo: newParty.panNo || p.panNo || 'PAN',
-              }
-            : p
-        )
-      );
+      const updatedParty: PartyDetails = {
+        id: editingPartyId,
+        name: newParty.name.trim(),
+        contactPerson: newParty.contactPerson ?? activeParty?.contactPerson,
+        email: newParty.email.trim(),
+        phone: newParty.phone.trim(),
+        address: newParty.address || activeParty?.address || 'Address',
+        shippingAddress: newParty.shippingAddress ?? activeParty?.shippingAddress,
+        gstNo: newParty.gstNo || activeParty?.gstNo || '',
+        panNo: newParty.panNo || activeParty?.panNo || '',
+      };
+
+      setParties(prev => prev.map(p => p.id === editingPartyId ? updatedParty : p));
+
+      if (editingPartyId.startsWith('contact-')) {
+        const cleanId = editingPartyId.replace('contact-', '');
+        try {
+          await fetch(`${apiBase}/contacts/${cleanId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              firstName: updatedParty.name,
+              email: updatedParty.email,
+              phone: updatedParty.phone,
+            }),
+          });
+        } catch (err) {
+          console.warn('Backend contact update failed:', err);
+        }
+      }
     } else {
+      let savedId = `party-${Date.now()}`;
+      try {
+        const res = await fetch(`${apiBase}/contacts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            firstName: newParty.name.trim(),
+            email: newParty.email.trim(),
+            phone: newParty.phone.trim(),
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.id) savedId = `contact-${json.id}`;
+        }
+      } catch (err) {
+        console.warn('Backend contact create failed:', err);
+      }
+
       const party: PartyDetails = {
-        id: `party-${Date.now()}`,
+        id: savedId,
         name: newParty.name.trim(),
         contactPerson: newParty.contactPerson,
         email: newParty.email.trim(),
         phone: newParty.phone.trim(),
         address: newParty.address || 'Address',
         shippingAddress: newParty.shippingAddress,
-        gstNo: newParty.gstNo || 'GSTIN',
-        panNo: newParty.panNo || 'PAN',
+        gstNo: newParty.gstNo || '',
+        panNo: newParty.panNo || '',
       };
-      setParties([party, ...parties]);
+      setParties(prev => [party, ...prev]);
       setSelectedPartyId(party.id);
     }
     setPartyModalOpen(false);
@@ -1392,19 +2047,63 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 {isCompiling ? 'Compiling PDF...' : compileSuccess ? '✓ PDF Compiled' : 'Refresh & Compile'}
               </button>
 
+              {/* 💾 SAVE DRAFT BUTTON (Gated: Strictly clickable after selecting Buyer, Seller & Product) */}
               <button
                 type="button"
                 onClick={handleSaveCurrentDraft}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
+                disabled={!isReadyToSave}
+                title={
+                  !isReadyToSave
+                    ? `Locked: Select ${[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(', ')} to enable Save Draft`
+                    : currentEditingQuoteId
+                    ? 'Update this draft in database'
+                    : 'Save draft to database'
+                }
+                className={`px-3 py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                  !isReadyToSave
+                    ? 'opacity-40 cursor-not-allowed bg-slate-900/60 border-slate-800 text-slate-500 pointer-events-none'
+                    : savedSuccess
+                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 shadow'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 active:scale-95 cursor-pointer'
+                }`}
               >
                 {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <RefreshCw size={14} />}
-                {savedSuccess ? 'Draft Saved' : 'Save Draft'}
+                {savedSuccess ? 'Draft Saved' : currentEditingQuoteId ? 'Update Draft' : 'Save Draft'}
+              </button>
+
+              {/* ☁️ SAVE & ARCHIVE TO FIREBASE STORAGE (Gated: Clickable only after Buyer, Seller & Product) */}
+              <button
+                type="button"
+                onClick={handleSaveToFirebase}
+                disabled={!isReadyToSave || isSavingFirebase}
+                title={
+                  !isReadyToSave
+                    ? `Locked: Select ${[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(', ')} to save to Firebase`
+                    : 'Generate official PDF, upload to Firebase Storage vault and sync database'
+                }
+                className={`px-3.5 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
+                  !isReadyToSave
+                    ? 'opacity-40 cursor-not-allowed bg-slate-900/60 border-slate-800 text-slate-500 pointer-events-none'
+                    : firebaseSaveSuccess
+                    ? 'bg-emerald-600 text-white border-emerald-400/40 shadow-emerald-600/30'
+                    : isSavingFirebase
+                    ? 'bg-indigo-900/60 text-indigo-300 border-indigo-500/40 cursor-wait'
+                    : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white border-sky-400/30 shadow-indigo-600/25 active:scale-95 cursor-pointer'
+                }`}
+              >
+                {isSavingFirebase ? (
+                  <><RefreshCw size={13} className="animate-spin" /> Archiving to Firebase...</>
+                ) : firebaseSaveSuccess ? (
+                  <><Check size={13} className="text-emerald-300" /> Synced to Firebase!</>
+                ) : (
+                  <><CloudUpload size={13} /> Save &amp; Sync (Firebase)</>
+                )}
               </button>
 
               <button
                 type="button"
                 onClick={() => setHistoryDrawerOpen(true)}
-                className="px-3.5 py-2 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 text-xs font-extrabold rounded-xl border border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+                className="px-3.5 py-2 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 text-xs font-extrabold rounded-xl border border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer"
               >
                 <History size={14} className="text-indigo-400" /> All Quotes ({savedQuotes.length})
               </button>
@@ -1415,7 +2114,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   handleCompilePdf();
                   setTimeout(() => window.print(), 100);
                 }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer"
               >
                 <Download size={14} /> Print / Export PDF (A4)
               </button>
@@ -1444,6 +2143,42 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Action Bar Sub-strip: Locked Status or Active Draft Editing Tag */}
+        <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+          {!isReadyToSave ? (
+            <div className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+              <Lock size={12} className="text-amber-400" />
+              <span>
+                Save &amp; Save Draft Locked: Select{' '}
+                <strong className="text-amber-300">
+                  {[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(' • ')}
+                </strong>{' '}
+                to enable.
+              </span>
+            </div>
+          ) : (
+            <div className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+              <CheckCircle size={12} className="text-emerald-400" />
+              <span>Buyer, Seller &amp; Products Selected — Ready to Save Draft &amp; Archive to Firebase</span>
+            </div>
+          )}
+
+          {currentEditingQuoteId && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                <Edit2 size={11} /> Editing Draft #{docNo}
+              </span>
+              <button
+                type="button"
+                onClick={handleNewQuoteReset}
+                className="text-[10.5px] font-bold text-slate-400 hover:text-white underline cursor-pointer"
+              >
+                + New Blank Quote
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Bottom Row: Document Type Flow Selector Pills */}
@@ -2228,7 +2963,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         <div className="flex items-center gap-2 min-w-0">
                           <select
                             onChange={e => {
-                              const picked = CATALOG_PRODUCTS.find(p => p.name === e.target.value);
+                              const picked = catalogProducts.find(p => p.name === e.target.value);
                               if (picked) {
                                 updateLineItem(item.id, {
                                   productName: picked.name,
@@ -2241,11 +2976,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                                 });
                               }
                             }}
-                            className="bg-slate-900 border border-slate-800 text-[11px] sm:text-xs text-indigo-300 rounded-lg px-2 py-1 truncate max-w-[140px] sm:max-w-none"
+                            className="bg-slate-900 border border-slate-800 text-[11px] sm:text-xs text-indigo-300 rounded-lg px-2 py-1 truncate max-w-[140px] sm:max-w-none cursor-pointer"
                           >
                             <option value="">Quick Pick Catalog Product...</option>
-                            {CATALOG_PRODUCTS.map(p => (
-                              <option key={p.name} value={p.name} suppressHydrationWarning>
+                            {catalogProducts.map(p => (
+                              <option key={p.id || p.name} value={p.name} suppressHydrationWarning>
                                 {p.name} (₹{p.price.toLocaleString('en-IN')})
                               </option>
                             ))}
@@ -2253,7 +2988,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
                           <button
                             onClick={() => removeLineItem(item.id)}
-                            className="text-rose-400 hover:text-rose-300 p-1 flex-shrink-0"
+                            className="text-rose-400 hover:text-rose-300 p-1 flex-shrink-0 cursor-pointer"
                             title="Remove Line Item"
                           >
                             <Trash2 size={14} />
@@ -2265,11 +3000,12 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                       <div className="space-y-2">
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                           <div className="sm:col-span-7">
-                            <label className="block text-[10px] font-bold text-slate-400 mb-1">Product Title</label>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-1">Product Title (Custom or Catalog)</label>
                             <input
                               type="text"
                               value={item.productName}
                               onChange={e => updateLineItem(item.id, { productName: e.target.value })}
+                              placeholder="Enter product title or select from catalog above..."
                               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold"
                             />
                           </div>
@@ -3594,6 +4330,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             }`}>
                               {isSent ? 'GENERATED & SENT' : 'DRAFT'}
                             </span>
+                            {record.pdfUrl && (
+                              <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <CloudUpload size={10} /> Firebase Synced
+                              </span>
+                            )}
                           </div>
 
                           {/* 👤 BUYER & 🏢 SELLER DISPLAY */}
@@ -3668,6 +4409,17 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
                         {/* Direct Channel Send & Load Controls */}
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {record.pdfUrl && (
+                            <a
+                              href={record.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                              title="Open vector PDF uploaded to Firebase Storage"
+                            >
+                              <FileText size={12} /> View PDF
+                            </a>
+                          )}
                           <button
                             onClick={() => handleDirectSendQuote(record, 'EMAIL')}
                             className="px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
@@ -3684,10 +4436,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           </button>
 
                           <button
-                            onClick={() => handleLoadSavedQuote(record)}
+                            onClick={() => {
+                              handleLoadSavedQuote(record);
+                              setHistoryDrawerOpen(false);
+                            }}
                             className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer transition-all"
+                            title="Load this quote or draft into editor"
                           >
-                            <FolderOpen size={12} /> Load
+                            <FolderOpen size={12} /> {record.status === 'DRAFT' ? 'Edit Draft' : 'Edit / Re-use'}
                           </button>
                           <button
                             onClick={async () => {
