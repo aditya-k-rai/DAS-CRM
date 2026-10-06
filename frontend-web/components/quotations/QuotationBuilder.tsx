@@ -1359,6 +1359,21 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     const now = new Date();
     const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
 
+    let draftPdfUrl = '';
+    try {
+      const pdfBlob = await generateQuotationPdfBlob();
+      const driveResult = await uploadFileToGoogleDrive(
+        pdfBlob,
+        `${docNo}-draft.pdf`,
+        {
+          companyName: activeCompany?.name || 'Adorable Trading',
+          category: 'QUOTATIONS',
+          customFileName: `${docNo}-draft`,
+        }
+      );
+      draftPdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl || '';
+    } catch (_) {}
+
     const recordPayload = {
       items: JSON.parse(JSON.stringify(items)),
       customColumns: JSON.parse(JSON.stringify(customColumns)),
@@ -1373,6 +1388,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       companyDetails: activeCompany,
       partyDetails: activeParty,
       termsText,
+      pdfUrl: draftPdfUrl,
     };
 
     const draftRecord: SavedQuoteRecord = {
@@ -1384,6 +1400,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       savedAt: formattedDate,
       totalAmount: grandTotal,
       status: 'DRAFT',
+      pdfUrl: draftPdfUrl,
       itemsCount: items.length,
       createdByName: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.name || 'Authorized Signatory') : 'Authorized Signatory',
       createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Admin') : 'Admin',
@@ -1411,6 +1428,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             companyName: draftRecord.companyName,
             totalAmount: grandTotal,
             status: 'DRAFT',
+            pdfUrl: draftPdfUrl,
             items,
             payload: recordPayload,
           }),
@@ -1430,6 +1448,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             companyName: draftRecord.companyName,
             totalAmount: grandTotal,
             status: 'DRAFT',
+            pdfUrl: draftPdfUrl,
             items,
             payload: recordPayload,
           }),

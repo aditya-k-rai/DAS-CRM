@@ -5,6 +5,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CloudStorageService } from '../firestore/cloud-storage.service';
+import { FirestoreService } from '../firestore/firestore.service';
 
 export interface VolumeDiscountTier {
   tier: string;
@@ -101,7 +103,11 @@ export const DEFAULT_CARD_DISPLAY_CONFIG: ProductCardDisplayConfig = {
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudStorageService: CloudStorageService,
+    private firestoreService: FirestoreService,
+  ) {}
 
   // ─── In-Memory Fallback Store (Preloaded with standard catalog products) ───
   private fallbackProducts: ProductItemDto[] = [
@@ -354,19 +360,84 @@ export class ProductsService {
     return fallback;
   }
 
+  /**
+   * Upload an image (base64 dataUrl or binary Buffer) directly to Firebase Cloud Storage.
+   * Records metadata in Firestore and returns the permanent Firebase Storage download URL.
+   */
+  async uploadImageToFirebase(dataUrlOrBuffer: string | Buffer, filenamePrefix: string = 'product'): Promise<string> {
+    try {
+      let buffer: Buffer;
+      let mimeType = 'image/jpeg';
+
+      if (Buffer.isBuffer(dataUrlOrBuffer)) {
+        buffer = dataUrlOrBuffer;
+      } else if (typeof dataUrlOrBuffer === 'string') {
+        if (!dataUrlOrBuffer.startsWith('data:')) {
+          // Already a remote/external URL or public path
+          return dataUrlOrBuffer;
+        }
+        const matches = dataUrlOrBuffer.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          mimeType = matches[1];
+          buffer = Buffer.from(matches[2], 'base64');
+        } else {
+          return dataUrlOrBuffer;
+        }
+      } else {
+        return '';
+      }
+
+      const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+      const cleanPath = `products/${filenamePrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+
+      const { gcsDownloadUrl } = await this.cloudStorageService.uploadBuffer(buffer, cleanPath, mimeType);
+
+      // Register file metadata in Firestore
+      try {
+        const firestore = this.firestoreService.getFirestore();
+        if (firestore) {
+          await firestore.collection('product_images').add({
+            fileName: `${filenamePrefix}.${ext}`,
+            path: cleanPath,
+            url: gcsDownloadUrl,
+            mimeType,
+            sizeBytes: buffer.length,
+            uploadedAt: new Date().toISOString(),
+          });
+        }
+      } catch (_) {}
+
+      return gcsDownloadUrl;
+    } catch (err) {
+      console.warn('[ProductsService] Failed to upload image to Firebase Cloud Storage, keeping original:', err);
+      return typeof dataUrlOrBuffer === 'string' ? dataUrlOrBuffer : '';
+    }
+  }
+
   // ─── CREATE PRODUCT (Admin & Manager) ─────────────────────────────────────────
   async createProduct(organizationId: string, dto: CreateProductDto): Promise<ProductItemDto> {
     const orgId = organizationId || 'org_default';
     const price = dto.price ?? dto.minPrice ?? 0;
     const generatedSku = dto.sku?.trim() ? dto.sku.trim() : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
     const finalUnit = dto.unit?.trim() || 'Pieces (Pcs)';
-    
-    // Provide fallback image if user uploaded 0 images
+
+    // Upload images to Firebase Cloud Storage if they are base64
     let primaryImg = (dto.images && dto.images.length > 0)
       ? dto.images[0]
       : (dto.imageUrl || '');
     if (!primaryImg || primaryImg.includes('images.unsplash.com')) {
       primaryImg = '/products/puff-jackets.jpg';
+    } else if (primaryImg.startsWith('data:')) {
+      primaryImg = await this.uploadImageToFirebase(primaryImg, 'product-cover');
+    }
+
+    let processedImages: string[] = [];
+    if (dto.images && Array.isArray(dto.images) && dto.images.length > 0) {
+      processedImages = await Promise.all(
+        dto.images.map((im) => (im.startsWith('data:') ? this.uploadImageToFirebase(im, 'product-gallery') : Promise.resolve(im)))
+      );
+    } else {
+      processedImages = [primaryImg];
     }
 
     const metadata = {
@@ -380,7 +451,7 @@ export class ProductsService {
       minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : 1,
       currency: dto.currency || '₹',
       imageUrl: primaryImg,
-      images: dto.images && dto.images.length > 0 ? dto.images : [primaryImg],
+      images: processedImages,
       features: dto.features || [],
       volumeDiscounts: dto.volumeDiscounts || [],
       sharedCount: Number(dto.sharedCount) || 0,
@@ -475,9 +546,40 @@ export class ProductsService {
 
   // ─── UPDATE PRODUCT (Admin & Manager) ─────────────────────────────────────────
   async updateProduct(organizationId: string, id: string, dto: UpdateProductDto): Promise<ProductItemDto> {
-    const orgId = organizationId || 'org_default';
+    let resolvedOrgId = organizationId;
+    if (!resolvedOrgId || resolvedOrgId === 'org_default') {
+      const firstOrg = await this.prisma.organization.findFirst({ select: { id: true } }).catch(() => null);
+      if (firstOrg) {
+        resolvedOrgId = firstOrg.id;
+      } else {
+        resolvedOrgId = 'org_default';
+      }
+    }
+
+    // Upload updated images to Firebase Cloud Storage if they are base64
+    let primaryImageUrl = dto.imageUrl;
+    if (primaryImageUrl && primaryImageUrl.startsWith('data:')) {
+      primaryImageUrl = await this.uploadImageToFirebase(primaryImageUrl, 'product-cover');
+    }
+
+    let processedImages: string[] | undefined = undefined;
+    if (Array.isArray(dto.images) && dto.images.length > 0) {
+      processedImages = await Promise.all(
+        dto.images.map((im) => (im.startsWith('data:') ? this.uploadImageToFirebase(im, 'product-gallery') : Promise.resolve(im)))
+      );
+      if (!primaryImageUrl && processedImages.length > 0) {
+        primaryImageUrl = processedImages[0];
+      }
+    }
+
+    // 1. Look up existing in Prisma database (Supabase)
     const existing = await this.prisma.product.findFirst({
-      where: { id, organizationId: orgId },
+      where: {
+        OR: [
+          { id },
+          { id, organizationId: resolvedOrgId },
+        ],
+      },
     }).catch(() => null);
 
     if (existing) {
@@ -500,15 +602,15 @@ export class ProductsService {
         stock: dto.stock !== undefined ? Number(dto.stock) : (meta.stock ?? 100),
         minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : (meta.minOrderQty ?? 1),
         currency: dto.currency || meta.currency || '₹',
-        imageUrl: dto.imageUrl || (dto.images && dto.images[0]) || meta.imageUrl || '',
-        images: dto.images !== undefined ? dto.images : (meta.images || []),
+        imageUrl: primaryImageUrl !== undefined ? primaryImageUrl : (meta.imageUrl || ''),
+        images: processedImages !== undefined ? processedImages : (meta.images || []),
         features: dto.features !== undefined ? dto.features : (meta.features || []),
         volumeDiscounts: dto.volumeDiscounts !== undefined ? dto.volumeDiscounts : (meta.volumeDiscounts || []),
         sharedCount: dto.sharedCount !== undefined ? Number(dto.sharedCount) : (Number(meta.sharedCount) || 0),
       };
 
       await this.prisma.product.update({
-        where: { id },
+        where: { id: existing.id },
         data: {
           ...(dto.name && { name: dto.name }),
           description: JSON.stringify(updatedMeta),
@@ -519,13 +621,113 @@ export class ProductsService {
         },
       });
 
-      return this.getProductById(orgId, id);
+      // Update in-memory fallback list
+      const fIdx = this.fallbackProducts.findIndex((p) => p.id === id || p.id === existing.id);
+      if (fIdx !== -1) {
+        this.fallbackProducts[fIdx] = {
+          ...this.fallbackProducts[fIdx],
+          ...dto,
+          imageUrl: updatedMeta.imageUrl,
+          images: updatedMeta.images,
+        };
+      }
+
+      return this.getProductById(resolvedOrgId, existing.id);
+    }
+
+    // 2. Product not yet in Supabase (e.g. preloaded fallback 'p-colour-tribe-jackets')
+    // Persist into Supabase so it becomes a permanent DB record!
+    const fallbackItem = this.fallbackProducts.find((p) => p.id === id);
+    const generatedSku = dto.sku?.trim() || fallbackItem?.sku || ('DAS-' + Math.floor(100000 + Math.random() * 900000));
+    const finalName = dto.name || fallbackItem?.name || 'Updated Product';
+    const finalUnit = dto.unit || fallbackItem?.unit || 'Pieces (Pcs)';
+    const finalPrice = dto.price ?? fallbackItem?.price ?? 999;
+    const finalTax = dto.taxRate ?? fallbackItem?.taxRate ?? 18;
+
+    const metadata = {
+      description: dto.description !== undefined ? dto.description : (fallbackItem?.description || ''),
+      sku: generatedSku,
+      category: dto.category || fallbackItem?.category || 'General',
+      subCategory: dto.subCategory || fallbackItem?.subCategory || 'Standard',
+      brand: dto.brand || fallbackItem?.brand || 'Generic / Unbranded',
+      color: dto.color !== undefined ? dto.color : (fallbackItem?.color || ''),
+      stock: dto.stock !== undefined ? Number(dto.stock) : (fallbackItem?.stock ?? 100),
+      minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : (fallbackItem?.minOrderQty ?? 1),
+      currency: dto.currency || fallbackItem?.currency || '₹',
+      imageUrl: primaryImageUrl || fallbackItem?.imageUrl || '/products/puff-jackets.jpg',
+      images: processedImages && processedImages.length > 0
+        ? processedImages
+        : (fallbackItem?.images || [primaryImageUrl || '/products/puff-jackets.jpg']),
+      features: dto.features || fallbackItem?.features || [],
+      volumeDiscounts: dto.volumeDiscounts || fallbackItem?.volumeDiscounts || [],
+      sharedCount: dto.sharedCount !== undefined ? Number(dto.sharedCount) : (fallbackItem?.sharedCount || 0),
+    };
+
+    try {
+      const createdInDb = await this.prisma.product.create({
+        data: {
+          organizationId: resolvedOrgId,
+          name: finalName,
+          price: finalPrice,
+          unit: finalUnit,
+          taxRate: finalTax,
+          description: JSON.stringify(metadata),
+          isActive: dto.isActive !== undefined ? dto.isActive : true,
+        },
+      });
+
+      const resultItem: ProductItemDto = {
+        id: createdInDb.id,
+        name: createdInDb.name,
+        sku: generatedSku,
+        category: metadata.category,
+        subCategory: metadata.subCategory,
+        brand: metadata.brand,
+        color: metadata.color,
+        unit: createdInDb.unit,
+        description: metadata.description,
+        price: Number(createdInDb.price),
+        minPrice: Number(createdInDb.price),
+        maxPrice: Number(createdInDb.price),
+        currency: metadata.currency,
+        stock: metadata.stock,
+        minOrderQty: metadata.minOrderQty,
+        taxRate: Number(createdInDb.taxRate),
+        imageUrl: metadata.imageUrl,
+        images: metadata.images,
+        features: metadata.features,
+        volumeDiscounts: metadata.volumeDiscounts,
+        sharedCount: metadata.sharedCount,
+        isActive: createdInDb.isActive,
+        status: 'ACTIVE',
+        createdAt: createdInDb.createdAt?.toISOString(),
+        updatedAt: createdInDb.updatedAt?.toISOString(),
+      };
+
+      const idx = this.fallbackProducts.findIndex((p) => p.id === id);
+      if (idx !== -1) {
+        this.fallbackProducts[idx] = resultItem;
+      } else {
+        this.fallbackProducts.unshift(resultItem);
+      }
+
+      return resultItem;
+    } catch (dbErr) {
+      console.warn('[ProductsService] Could not persist to DB, updating in-memory:', dbErr);
     }
 
     const idx = this.fallbackProducts.findIndex((p) => p.id === id);
-    if (idx === -1) throw new NotFoundException(`Product "${id}" not found.`);
-    this.fallbackProducts[idx] = { ...this.fallbackProducts[idx], ...dto };
-    return this.fallbackProducts[idx];
+    if (idx !== -1) {
+      this.fallbackProducts[idx] = {
+        ...this.fallbackProducts[idx],
+        ...dto,
+        imageUrl: metadata.imageUrl,
+        images: metadata.images,
+      };
+      return this.fallbackProducts[idx];
+    }
+
+    throw new NotFoundException(`Product "${id}" could not be updated.`);
   }
 
   // ─── INCREMENT PRODUCT SHARE COUNT ──────────────────────────────────────────

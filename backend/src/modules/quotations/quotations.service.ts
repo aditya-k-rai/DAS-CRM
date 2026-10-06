@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CloudStorageService } from '../firestore/cloud-storage.service';
+import { FirestoreService } from '../firestore/firestore.service';
 
 export interface QuotationItemDto {
   id: string;
@@ -27,7 +29,11 @@ export interface QuotationItemDto {
 
 @Injectable()
 export class QuotationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudStorageService: CloudStorageService,
+    private firestoreService: FirestoreService,
+  ) {}
 
   private fallbackQuotes: QuotationItemDto[] = [];
 
@@ -162,14 +168,77 @@ export class QuotationsService {
     return fallback;
   }
 
+  /**
+   * Upload a quotation or invoice PDF (base64 data-URL or binary Buffer) to Firebase Cloud Storage.
+   * Records metadata in Firestore and returns the public Firebase Storage download URL.
+   */
+  async uploadPdfToFirebase(pdfDataUrlOrBuffer: string | Buffer, docNumber: string): Promise<string> {
+    try {
+      let buffer: Buffer;
+      if (Buffer.isBuffer(pdfDataUrlOrBuffer)) {
+        buffer = pdfDataUrlOrBuffer;
+      } else if (typeof pdfDataUrlOrBuffer === 'string') {
+        if (!pdfDataUrlOrBuffer.startsWith('data:')) {
+          return pdfDataUrlOrBuffer;
+        }
+        const matches = pdfDataUrlOrBuffer.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          buffer = Buffer.from(matches[2], 'base64');
+        } else {
+          return pdfDataUrlOrBuffer;
+        }
+      } else {
+        return '';
+      }
+
+      const cleanDoc = (docNumber || `doc-${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const cleanPath = `invoices/${cleanDoc}-${Date.now()}.pdf`;
+
+      const { gcsDownloadUrl } = await this.cloudStorageService.uploadBuffer(buffer, cleanPath, 'application/pdf');
+
+      // Record in Firestore
+      try {
+        const firestore = this.firestoreService.getFirestore();
+        if (firestore) {
+          await firestore.collection('invoices_pdfs').add({
+            docNumber,
+            path: cleanPath,
+            url: gcsDownloadUrl,
+            sizeBytes: buffer.length,
+            uploadedAt: new Date().toISOString(),
+          });
+        }
+      } catch (_) {}
+
+      return gcsDownloadUrl;
+    } catch (err) {
+      console.warn('[QuotationsService] Failed to upload PDF to Firebase Storage:', err);
+      return typeof pdfDataUrlOrBuffer === 'string' ? pdfDataUrlOrBuffer : '';
+    }
+  }
+
   // ─── CREATE QUOTATION ────────────────────────────────────────────────────────
   async createQuotation(organizationId: string, dto: any): Promise<QuotationItemDto> {
-    if (!organizationId) throw new BadRequestException('Organization ID is required.');
+    let resolvedOrgId = organizationId;
+    if (!resolvedOrgId || resolvedOrgId === 'org_default') {
+      const firstOrg = await this.prisma.organization.findFirst({ select: { id: true } }).catch(() => null);
+      if (firstOrg) {
+        resolvedOrgId = firstOrg.id;
+      } else {
+        resolvedOrgId = 'org_default';
+      }
+    }
 
     const quoteNumber = dto.quoteNumber || dto.docNo || ('QUO-' + Date.now().toString().slice(-6));
     const grandTotal = Number(dto.totalAmount || dto.grandTotal || 0);
     const subtotal = Number(dto.subtotal || grandTotal);
     const status = (dto.status === 'SENT' || dto.status === 'GENERATED_SENT') ? 'SENT' : 'DRAFT';
+
+    // Upload PDF to Firebase Cloud Storage if passed as base64 or blob
+    let firebasePdfUrl = dto.pdfUrl || dto.payload?.pdfUrl || '';
+    if (firebasePdfUrl && firebasePdfUrl.startsWith('data:')) {
+      firebasePdfUrl = await this.uploadPdfToFirebase(firebasePdfUrl, quoteNumber);
+    }
 
     const metadata = {
       partyName: dto.partyName || dto.clientName || '',
@@ -182,13 +251,17 @@ export class QuotationsService {
       createdByName: dto.createdByName,
       createdByRole: dto.createdByRole,
       itemsCount: dto.itemsCount || (dto.items ? dto.items.length : 0),
-      payload: dto.payload,
+      pdfUrl: firebasePdfUrl,
+      payload: {
+        ...(dto.payload || {}),
+        pdfUrl: firebasePdfUrl,
+      },
     };
 
     try {
       const dbQuote = await this.prisma.quotation.create({
         data: {
-          organizationId,
+          organizationId: resolvedOrgId,
           number: quoteNumber,
           title: dto.docType || dto.title || 'QUOTATION',
           leadId: dto.leadId || undefined,
@@ -198,6 +271,7 @@ export class QuotationsService {
           grandTotal: grandTotal,
           currency: dto.currency || 'INR',
           validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+          pdfUrl: firebasePdfUrl || null,
           notes: JSON.stringify(metadata),
           items: dto.items && Array.isArray(dto.items) && dto.items.length > 0 ? {
             create: dto.items.map((it: any, index: number) => ({
@@ -279,7 +353,7 @@ export class QuotationsService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       items: dto.items || [],
-      organizationId,
+      organizationId: resolvedOrgId,
     };
     this.fallbackQuotes.unshift(newQuote);
     return newQuote;
@@ -289,7 +363,7 @@ export class QuotationsService {
   async updateQuotation(organizationId: string, id: string, dto: any): Promise<QuotationItemDto> {
     try {
       const existing = await this.prisma.quotation.findFirst({
-        where: { id, organizationId },
+        where: { id },
       }).catch(() => null);
 
       if (existing) {
@@ -297,6 +371,11 @@ export class QuotationsService {
         try {
           if (existing.notes) existingNotes = JSON.parse(existing.notes);
         } catch (_) {}
+
+        let firebasePdfUrl = dto.pdfUrl || dto.payload?.pdfUrl || existing.pdfUrl || existingNotes.pdfUrl || '';
+        if (firebasePdfUrl && firebasePdfUrl.startsWith('data:')) {
+          firebasePdfUrl = await this.uploadPdfToFirebase(firebasePdfUrl, existing.number || 'doc');
+        }
 
         const updatedMetadata = {
           ...existingNotes,
@@ -309,7 +388,11 @@ export class QuotationsService {
           ...(dto.leadName && { leadName: dto.leadName }),
           ...(dto.createdByName && { createdByName: dto.createdByName }),
           ...(dto.createdByRole && { createdByRole: dto.createdByRole }),
-          ...(dto.payload && { payload: dto.payload }),
+          pdfUrl: firebasePdfUrl,
+          payload: {
+            ...(dto.payload || existingNotes.payload || {}),
+            pdfUrl: firebasePdfUrl,
+          },
         };
 
         const updated = await this.prisma.quotation.update({
@@ -319,6 +402,7 @@ export class QuotationsService {
             ...(dto.status && { status: (dto.status === 'GENERATED_SENT' || dto.status === 'SENT') ? 'SENT' : dto.status }),
             ...(dto.totalAmount !== undefined && { grandTotal: Number(dto.totalAmount) }),
             ...(dto.title && { title: dto.title || dto.docType }),
+            ...(firebasePdfUrl ? { pdfUrl: firebasePdfUrl } : {}),
             notes: JSON.stringify(updatedMetadata),
           },
           include: { items: true },

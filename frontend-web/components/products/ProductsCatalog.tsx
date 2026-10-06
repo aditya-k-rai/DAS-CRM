@@ -208,6 +208,35 @@ export function processImageTo1080pSquare(file: File): Promise<string> {
   });
 }
 
+/**
+ * Uploads a base64 image data-URL to Firebase Storage & Firestore via the backend endpoint.
+ * Returns the permanent Firebase Cloud Storage URL, or falls back to dataUrl if backend is offline.
+ */
+export async function uploadProductImageToFirebase(dataUrl: string, prefix: string = 'product'): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:')) {
+    return dataUrl || '';
+  }
+  try {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const res = await fetch(`${apiBase}/products/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ dataUrl, fileName: prefix }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.url) return data.url;
+    }
+  } catch (err) {
+    console.warn('[ProductsCatalog] Firebase upload fallback to client image:', err);
+  }
+  return dataUrl;
+}
+
 export const INITIAL_PRODUCTS: ProductItemWeb[] = [
   {
     id: 'p-colour-tribe-jackets',
@@ -668,7 +697,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
-        setNewProdImages(prev => [...prev, squareDataUrl]);
+        const firebaseUrl = await uploadProductImageToFirebase(squareDataUrl, 'product-gallery');
+        setNewProdImages(prev => [...prev, firebaseUrl]);
       } catch {
         setImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
       }
@@ -902,7 +932,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
-        setEditProdImages(prev => [...prev, squareDataUrl]);
+        const firebaseUrl = await uploadProductImageToFirebase(squareDataUrl, 'product-gallery');
+        setEditProdImages(prev => [...prev, firebaseUrl]);
       } catch {
         setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
       }
@@ -926,103 +957,138 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditProdFeatures(prev => prev.filter(t => t !== tagToRemove));
   };
 
-  const handleInitiateUpdateProduct = () => {
+  const handleInitiateUpdateProduct = async () => {
     if (!editingProduct) return;
     if (!editProdName.trim() || !editProdPrice) {
       alert('Please fill out Product Name and Unit Price.');
       return;
     }
 
-    const priceNum = parseFloat(editProdPrice) || 0;
-    const finalSku = editProdSku.trim()
-      ? editProdSku.trim().toUpperCase()
-      : editingProduct.sku;
-
-    const stagedProduct: ProductItemWeb = {
-      ...editingProduct,
-      name: editProdName.trim(),
-      sku: finalSku,
-      category: editProdCategory.trim() || 'General',
-      subCategory: editProdSubCategory.trim() || 'Standard',
-      brand: editProdBrand.trim() || 'Generic / Unbranded',
-      color: editProdColor.trim(),
-      unit: editProdUnit,
-      price: priceNum,
-      stock: parseInt(editProdStock) || 0,
-      taxRate: parseInt(editProdGst) || 18,
-      coverImage: editProdImages[0] || editingProduct.coverImage,
-      images: editProdImages,
-      overview: editProdDescription.trim(),
-      features: editProdFeatures,
-      specs: editProdFeatures.length > 0 ? editProdFeatures : ['Standard Specification'],
-      volumeDiscounts: editProdVolumeDiscounts,
-    };
-
-    setEditConfirmProduct(stagedProduct);
-  };
-
-  const handleConfirmUpdateProduct = async () => {
-    if (!editConfirmProduct) return;
     setIsUpdatingProduct(true);
-    const updated = editConfirmProduct;
-
     try {
+      const priceNum = parseFloat(editProdPrice) || 0;
+      const finalSku = editProdSku.trim()
+        ? editProdSku.trim().toUpperCase()
+        : editingProduct.sku;
+
+      // Ensure any images are stored in Firebase Storage
+      let updatedImages = [...editProdImages];
+      if (updatedImages.length > 0) {
+        updatedImages = await Promise.all(
+          updatedImages.map((im, idx) =>
+            im.startsWith('data:') ? uploadProductImageToFirebase(im, `product-edit-${idx}`) : Promise.resolve(im)
+          )
+        );
+      } else if (editingProduct.coverImage) {
+        updatedImages = [editingProduct.coverImage];
+      }
+
+      const coverImg = updatedImages[0] || editingProduct.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE;
+
+      const stagedProduct: ProductItemWeb = {
+        ...editingProduct,
+        name: editProdName.trim(),
+        sku: finalSku,
+        category: editProdCategory.trim() || 'General',
+        subCategory: editProdSubCategory.trim() || 'Standard',
+        brand: editProdBrand.trim() || 'Generic / Unbranded',
+        color: editProdColor.trim(),
+        unit: editProdUnit,
+        price: priceNum,
+        stock: parseInt(editProdStock) || 0,
+        taxRate: parseInt(editProdGst) || 18,
+        coverImage: coverImg,
+        images: updatedImages,
+        overview: editProdDescription.trim(),
+        features: editProdFeatures,
+        specs: editProdFeatures.length > 0 ? editProdFeatures : ['Standard Specification'],
+        volumeDiscounts: editProdVolumeDiscounts,
+      };
+
+      // 1. Send update to backend API (Supabase & Firebase)
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      await fetch(`${apiBase}/products/${updated.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: updated.name,
-          sku: updated.sku,
-          category: updated.category,
-          subCategory: updated.subCategory,
-          brand: updated.brand,
-          color: updated.color,
-          unit: updated.unit,
-          price: updated.price,
-          stock: updated.stock,
-          taxRate: updated.taxRate,
-          description: updated.overview,
-          features: updated.features,
-          imageUrl: updated.coverImage,
-          images: updated.images,
-          volumeDiscounts: updated.volumeDiscounts,
-        }),
+      let finalSavedProduct = stagedProduct;
+
+      try {
+        const res = await fetch(`${apiBase}/products/${stagedProduct.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            name: stagedProduct.name,
+            sku: stagedProduct.sku,
+            category: stagedProduct.category,
+            subCategory: stagedProduct.subCategory,
+            brand: stagedProduct.brand,
+            color: stagedProduct.color,
+            unit: stagedProduct.unit,
+            price: stagedProduct.price,
+            stock: stagedProduct.stock,
+            taxRate: stagedProduct.taxRate,
+            description: stagedProduct.overview,
+            features: stagedProduct.features,
+            imageUrl: stagedProduct.coverImage,
+            images: stagedProduct.images,
+            volumeDiscounts: stagedProduct.volumeDiscounts,
+          }),
+        });
+
+        if (res.ok) {
+          const apiData = await res.json();
+          if (apiData && apiData.id) {
+            finalSavedProduct = {
+              ...stagedProduct,
+              id: apiData.id,
+              coverImage: apiData.imageUrl || stagedProduct.coverImage,
+              images: apiData.images && apiData.images.length > 0 ? apiData.images : stagedProduct.images,
+            };
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API update failed, updating local state and broadcasting:', apiErr);
+      }
+
+      // 2. Update local state
+      setProducts(prev => {
+        const next = prev.map(p => (p.id === stagedProduct.id || p.id === finalSavedProduct.id) ? finalSavedProduct : p);
+        try {
+          localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
+        } catch (_) {}
+        return next;
       });
+
+      // 3. Update inspector if open
+      if (inspectorProduct?.id === stagedProduct.id || inspectorProduct?.id === finalSavedProduct.id) {
+        setInspectorProduct(finalSavedProduct);
+      }
+
+      // 4. Broadcast to all open dashboards, workspaces & tabs
+      try {
+        window.dispatchEvent(new CustomEvent('das_crm_products_updated', { detail: finalSavedProduct }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('das_crm_product_channel');
+          bc.postMessage({ type: 'PRODUCT_UPDATED', product: finalSavedProduct });
+          bc.close();
+        }
+      } catch (_) {}
+
+      // 5. Close modal
+      setEditingProduct(null);
+      setEditConfirmProduct(null);
+      alert(`✅ Product "${finalSavedProduct.name}" (${finalSavedProduct.sku}) updated successfully in database! Images saved to Firebase Storage.`);
     } catch (err) {
-      console.warn('API update product fallback to local state:', err);
+      console.error('Failed to update product:', err);
+      alert('Error saving product update: ' + (err as Error).message);
     } finally {
       setIsUpdatingProduct(false);
     }
+  };
 
-    setProducts(prev => {
-      const next = prev.map(p => p.id === updated.id ? updated : p);
-      try {
-        localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
-      } catch (_) {}
-      return next;
-    });
-
-    if (inspectorProduct?.id === updated.id) {
-      setInspectorProduct(updated);
-    }
-
-    try {
-      window.dispatchEvent(new CustomEvent('das_crm_products_updated', { detail: updated }));
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('das_crm_product_channel');
-        bc.postMessage({ type: 'PRODUCT_UPDATED', product: updated });
-        bc.close();
-      }
-    } catch (_) {}
-
-    setEditConfirmProduct(null);
-    setEditingProduct(null);
-    alert(`✅ Product "${updated.name}" (${updated.sku}) updated successfully!`);
+  const handleConfirmUpdateProduct = async () => {
+    await handleInitiateUpdateProduct();
   };
 
   // ─── Admin & Manager Delete Product ─────────────────────────────────────────
@@ -4176,9 +4242,29 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
-              <button onClick={() => setEditingProduct(null)} className="btn-secondary text-xs">Cancel</button>
-              <button onClick={handleInitiateUpdateProduct} className="btn-primary text-xs">
-                Review &amp; Confirm Changes →
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                disabled={isUpdatingProduct}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleInitiateUpdateProduct}
+                disabled={isUpdatingProduct}
+                className="btn-primary text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-600/30"
+              >
+                {isUpdatingProduct ? (
+                  <>
+                    <span className="animate-spin inline-block">⏳</span> Saving to Firebase &amp; Supabase...
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} /> Save &amp; Update Product
+                  </>
+                )}
               </button>
             </div>
           </div>

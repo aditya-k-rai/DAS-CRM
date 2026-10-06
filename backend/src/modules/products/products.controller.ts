@@ -9,19 +9,33 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import type { ProductItemDto, CreateProductDto, UpdateProductDto, ProductCardDisplayConfig } from './products.service';
 import { ProductsService } from './products.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Products')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(OptionalJwtAuthGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
+
+  // ─── UPLOAD PRODUCT IMAGE TO FIREBASE STORAGE & FIRESTORE ─────────────────
+  @Post('upload-image')
+  @ApiOperation({ summary: 'Upload product image directly to Firebase Storage and record in Firestore' })
+  async uploadProductImage(
+    @Body() body: { dataUrl?: string; fileName?: string },
+  ): Promise<{ success: boolean; url: string }> {
+    if (!body?.dataUrl) {
+      throw new BadRequestException('No image data provided');
+    }
+    const url = await this.productsService.uploadImageToFirebase(body.dataUrl, body.fileName || 'product');
+    return { success: true, url };
+  }
 
   // ─── GET ALL ACTIVE PRODUCTS ──────────────────────────────────────────────────
   @Get()

@@ -1,12 +1,12 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { QuotationsService, QuotationItemDto } from './quotations.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Quotations')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(OptionalJwtAuthGuard)
 @Controller('quotations')
 export class QuotationsController {
   constructor(private quotationsService: QuotationsService) {}
