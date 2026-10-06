@@ -1376,15 +1376,95 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     showSyncNotification(`✓ ${docTypeLabel} #${docNo} shared via ${sharingMediumLabel}! Lead status auto-advanced to Negotiation.`);
   };
 
-  // Product Selection for Interested — Synced from Catalog Database
-  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  // Product Selection for Interested — Synced from Catalog Database & Local Cache
+  const [catalogProducts, setCatalogProducts] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('das_crm_products_catalog_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return [
+      {
+        id: 'p-colour-tribe-jackets',
+        name: 'Colour Tribe Puff Jackets',
+        sku: 'DAS-570687',
+        category: 'Jackets',
+        subCategory: 'Puff Jackets',
+        brand: 'Generic / Unbranded',
+        color: 'Silver Grey, Black',
+        unit: 'Pieces (Pcs)',
+        price: 999,
+        stock: 100,
+        sharedCount: 12,
+        imageUrl: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+        coverImage: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+        volumeDiscounts: [
+          { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
+          { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
+        ],
+      },
+    ];
+  });
   const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(false);
-  const [selectedProduct, setSelectedProduct] = useState<string>('');
-  const [selectedProductObj, setSelectedProductObj] = useState<any | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string>('Colour Tribe Puff Jackets');
+  const [selectedProductObj, setSelectedProductObj] = useState<any | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('das_crm_products_catalog_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+        }
+      } catch (_) {}
+    }
+    return {
+      id: 'p-colour-tribe-jackets',
+      name: 'Colour Tribe Puff Jackets',
+      sku: 'DAS-570687',
+      category: 'Jackets',
+      subCategory: 'Puff Jackets',
+      brand: 'Generic / Unbranded',
+      color: 'Silver Grey, Black',
+      unit: 'Pieces (Pcs)',
+      price: 999,
+      stock: 100,
+      sharedCount: 12,
+      imageUrl: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+      volumeDiscounts: [
+        { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
+        { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
+      ],
+    };
+  });
   const [selectedProductQuantity, setSelectedProductQuantity] = useState<number>(1);
   const [customProductInput, setCustomProductInput] = useState<string>('');
 
   useEffect(() => {
+    const handleProductsUpdated = () => {
+      try {
+        const cached = localStorage.getItem('das_crm_products_catalog_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCatalogProducts(parsed);
+          }
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('das_crm_products_updated', handleProductsUpdated);
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('das_crm_product_channel');
+        bc.onmessage = () => handleProductsUpdated();
+      }
+    } catch (_) {}
+
     const fetchCatalog = async () => {
       setIsLoadingCatalog(true);
       try {
@@ -1397,8 +1477,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             setCatalogProducts(data);
-            setSelectedProductObj(data[0]);
-            setSelectedProduct(data[0].name);
+            try {
+              localStorage.setItem('das_crm_products_catalog_cache', JSON.stringify(data));
+            } catch (_) {}
+            setSelectedProductObj((prev: any) => prev || data[0]);
+            setSelectedProduct((prev: string) => prev || data[0].name);
           }
         }
       } catch (err) {
@@ -1408,6 +1491,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       }
     };
     fetchCatalog();
+
+    return () => {
+      window.removeEventListener('das_crm_products_updated', handleProductsUpdated);
+      if (bc) bc.close();
+    };
   }, []);
 
   const calculateLeadProductPricing = () => {

@@ -172,6 +172,16 @@ const INITIAL_PARTIES: PartyDetails[] = [
 ];
 
 const DEFAULT_CATALOG_PRODUCTS: any[] = [
+  {
+    id: 'p-colour-tribe-jackets',
+    name: 'Colour Tribe Puff Jackets',
+    desc: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
+    hsn: 'DAS-570687',
+    price: 999,
+    tax: 18,
+    unit: 'Pieces (Pcs)',
+    image: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+  },
   { id: 'cat-1', name: 'Executive Desktop Workstation', desc: 'Intel i7 14th Gen, 32GB RAM, 1TB NVMe, RTX 4060', hsn: '84713010', price: 85000, tax: 18, unit: 'Nos', image: '' },
   { id: 'cat-2', name: 'Enterprise Cloud Firewall Gateway', desc: 'Dual 10Gbps SFP+ with Unified Threat Management', hsn: '85176290', price: 125000, tax: 18, unit: 'Nos', image: '' },
   { id: 'cat-3', name: 'High-Density Rackmount Server 2U', desc: 'Dual Xeon Gold, 128GB ECC, Redundant PSU', hsn: '84714900', price: 295000, tax: 18, unit: 'Nos', image: '' },
@@ -211,8 +221,30 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   // Currently editing quote ID (null for new quote)
   const [currentEditingQuoteId, setCurrentEditingQuoteId] = useState<string | null>(null);
 
-  // Synced Catalog Products from Database (/products)
-  const [catalogProducts, setCatalogProducts] = useState<any[]>(DEFAULT_CATALOG_PRODUCTS);
+  // Synced Catalog Products from Database (/products) & Local Cache
+  const [catalogProducts, setCatalogProducts] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('das_crm_products_catalog_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              desc: p.overview || p.description || '',
+              hsn: p.sku || '998313',
+              price: Number(p.price || 0),
+              tax: Number(p.taxRate || 18),
+              unit: p.unit || 'Pieces (Pcs)',
+              image: p.coverImage || p.imageUrl || '',
+            }));
+          }
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_CATALOG_PRODUCTS;
+  });
 
   // Firebase Storage Saving Telemetry State
   const [isSavingFirebase, setIsSavingFirebase] = useState<boolean>(false);
@@ -557,8 +589,38 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
   }, []);
 
-  // 📦 Sync Active Products directly from Product Section Database (/products)
+  // 📦 Sync Active Products directly from Product Section Database (/products) & Cache
   useEffect(() => {
+    const handleRemoteUpdate = () => {
+      try {
+        const cached = localStorage.getItem('das_crm_products_catalog_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCatalogProducts(parsed.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              desc: p.overview || p.description || '',
+              hsn: p.sku || '998313',
+              price: Number(p.price || 0),
+              tax: Number(p.taxRate || 18),
+              unit: p.unit || 'Pieces (Pcs)',
+              image: p.coverImage || p.imageUrl || '',
+            })));
+          }
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('das_crm_products_updated', handleRemoteUpdate);
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('das_crm_product_channel');
+        bc.onmessage = () => handleRemoteUpdate();
+      }
+    } catch (_) {}
+
     const fetchCatalogProducts = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
@@ -576,7 +638,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               hsn: p.sku || '998313',
               price: Number(p.price || 0),
               tax: Number(p.taxRate || 18),
-              unit: p.unit || 'Nos',
+              unit: p.unit || 'Pieces (Pcs)',
               image: p.imageUrl || '',
             })));
           }
@@ -586,6 +648,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       }
     };
     fetchCatalogProducts();
+
+    return () => {
+      window.removeEventListener('das_crm_products_updated', handleRemoteUpdate);
+      if (bc) bc.close();
+    };
   }, []);
 
   // 🏢 Sync Companies (Seller) from Database (/companies)

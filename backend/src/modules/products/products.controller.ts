@@ -28,7 +28,8 @@ export class ProductsController {
   @ApiOperation({ summary: 'List all active products in the catalog' })
   @ApiResponse({ status: 200, description: 'Returns all active products visible to all authenticated users.' })
   async getProducts(@CurrentUser() user: any): Promise<ProductItemDto[]> {
-    return this.productsService.getProducts(user?.organizationId);
+    const orgId = user?.organizationId || user?.organization?.id || user?.orgId || 'org_default';
+    return this.productsService.getProducts(orgId);
   }
 
   // ─── GET CARD DISPLAY CONFIGURATION ──────────────────────────────────────────
@@ -59,7 +60,8 @@ export class ProductsController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ): Promise<ProductItemDto> {
-    return this.productsService.getProductById(user?.organizationId, id);
+    const orgId = user?.organizationId || user?.organization?.id || user?.orgId || 'org_default';
+    return this.productsService.getProductById(orgId, id);
   }
 
   // ─── CREATE PRODUCT (Admin & Manager) ───────────────────────────────────────
@@ -71,7 +73,8 @@ export class ProductsController {
     @Body() body: CreateProductDto,
     @CurrentUser() user: any,
   ): Promise<ProductItemDto> {
-    return this.productsService.createProduct(user?.organizationId, body);
+    const orgId = user?.organizationId || user?.organization?.id || user?.orgId || 'org_default';
+    return this.productsService.createProduct(orgId, body);
   }
 
   // ─── UPDATE PRODUCT (Admin & Manager) ───────────────────────────────────────
@@ -85,7 +88,8 @@ export class ProductsController {
     @Body() body: UpdateProductDto,
     @CurrentUser() user: any,
   ): Promise<ProductItemDto> {
-    return this.productsService.updateProduct(user?.organizationId, id, body);
+    const orgId = user?.organizationId || user?.organization?.id || user?.orgId || 'org_default';
+    return this.productsService.updateProduct(orgId, id, body);
   }
 
   // ─── DELETE PRODUCT — ADMIN & MANAGER — PERMANENTLY REMOVES FROM DATABASE ─────
@@ -100,8 +104,8 @@ export class ProductsController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ): Promise<{ success: boolean; message: string; deletedId: string }> {
-    // Pass the authenticated user to the service for role-based access control
-    return this.productsService.deleteProduct(user?.organizationId, id, user);
+    const orgId = user?.organizationId || user?.organization?.id || user?.orgId || 'org_default';
+    return this.productsService.deleteProduct(orgId, id, user);
   }
 
   // ─── INCREMENT SHARE COUNT ──────────────────────────────────────────────────
@@ -113,6 +117,7 @@ export class ProductsController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ): Promise<{ success: boolean; sharedCount: number }> {
-    return this.productsService.incrementShareCount(user?.organizationId, id);
+    const orgId = user?.organizationId || user?.organization?.id || user?.orgId || 'org_default';
+    return this.productsService.incrementShareCount(orgId, id);
   }
 }

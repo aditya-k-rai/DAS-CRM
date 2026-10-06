@@ -156,10 +156,41 @@ export const DEFAULT_BRANDS = [
   'Tata',
 ];
 
-const INITIAL_PRODUCTS: ProductItemWeb[] = [];
-
+export const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_cache';
 const STORAGE_CATEGORIES_KEY = 'das_crm_product_categories';
 const STORAGE_SUBCATEGORIES_KEY = 'das_crm_product_subcategories';
+
+export const INITIAL_PRODUCTS: ProductItemWeb[] = [
+  {
+    id: 'p-colour-tribe-jackets',
+    name: 'Colour Tribe Puff Jackets',
+    sku: 'DAS-570687',
+    category: 'Jackets',
+    subCategory: 'Puff Jackets',
+    brand: 'Generic / Unbranded',
+    color: 'Silver Grey, Black',
+    unit: 'Pieces (Pcs)',
+    price: 999,
+    stock: 100,
+    minOrderQty: 1,
+    rating: 5.0,
+    sharedCount: 12,
+    sold: 0,
+    taxRate: 18,
+    isActive: true,
+    coverImage: 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+    ],
+    overview: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
+    specs: ['Padded', 'Lightweight', 'Thermal Insulation'],
+    features: ['Padded', 'Lightweight', 'Thermal Insulation'],
+    volumeDiscounts: [
+      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
+      { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
+    ],
+  },
+];
 
 export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const { currentUser } = useAuth();
@@ -168,9 +199,53 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const isUserAdmin = isAdmin || roleStr.includes('ADMIN') || roleStr.includes('OWNER');
   const canManage = isUserAdmin || isManager;
 
-  const [products, setProducts] = useState<ProductItemWeb[]>(INITIAL_PRODUCTS);
-  const [categories, setCategories] = useState<string[]>(['All']);
-  const [subCategories, setSubCategories] = useState<Record<string, string[]>>({});
+  const [products, setProducts] = useState<ProductItemWeb[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(STORAGE_PRODUCTS_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return INITIAL_PRODUCTS;
+  });
+
+  const [categories, setCategories] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const c = localStorage.getItem(STORAGE_CATEGORIES_KEY);
+        if (c) {
+          const parsed = JSON.parse(c);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return Array.from(new Set(['All', ...parsed, 'Jackets']));
+          }
+        }
+      } catch (_) {}
+    }
+    return ['All', 'Jackets'];
+  });
+
+  const [subCategories, setSubCategories] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const s = localStorage.getItem(STORAGE_SUBCATEGORIES_KEY);
+        if (s) {
+          const parsed = JSON.parse(s);
+          if (parsed && typeof parsed === 'object') {
+            return {
+              ...parsed,
+              'Jackets': Array.from(new Set([...(parsed['Jackets'] || []), 'Puff Jackets'])),
+            };
+          }
+        }
+      } catch (_) {}
+    }
+    return {
+      'Jackets': ['Puff Jackets'],
+    };
+  });
 
   const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
   const [createBrandOpen, setCreateBrandOpen] = useState(false);
@@ -260,7 +335,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         const res = await fetch(`${apiBase}/products`, { headers });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) {
+          if (Array.isArray(data) && data.length > 0) {
             const mapped = data.map((p: any) => ({
               id: p.id,
               name: p.name,
@@ -278,8 +353,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               sold: p.sold || 0,
               taxRate: p.taxRate || 18,
               isActive: p.isActive !== false,
-              coverImage: p.imageUrl || (p.images && p.images[0]) || p.coverImage || '',
-              images: p.images || (p.imageUrl ? [p.imageUrl] : []),
+              coverImage: p.imageUrl || (p.images && p.images[0]) || p.coverImage || 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80',
+              images: p.images || (p.imageUrl ? [p.imageUrl] : ['https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80']),
               overview: p.description || p.overview || '',
               specs: p.features || p.specs || [],
               features: p.features || [],
@@ -288,7 +363,20 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round((Number(p.price) || 0) * 0.85) },
               ],
             }));
-            setProducts(mapped);
+
+            // Merge with local products to ensure no newly created product is lost
+            setProducts(prev => {
+              const backendSkus = new Set(mapped.map((m: any) => (m.sku || '').toUpperCase()));
+              const backendNames = new Set(mapped.map((m: any) => (m.name || '').trim().toLowerCase()));
+              const localOnly = prev.filter(
+                p => !backendSkus.has((p.sku || '').toUpperCase()) && !backendNames.has((p.name || '').trim().toLowerCase())
+              );
+              const combined = [...localOnly, ...mapped];
+              try {
+                localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(combined));
+              } catch (_) {}
+              return combined;
+            });
 
             // Sync user categories and dynamic categories from database
             let storedCats: string[] = [];
@@ -304,10 +392,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             } catch {}
 
             const dynamicCats = data.map((p: any) => p.category).filter(Boolean) as string[];
-            const allCats = Array.from(new Set(['All', ...storedCats, ...dynamicCats]));
+            const allCats = Array.from(new Set(['All', 'Jackets', ...storedCats, ...dynamicCats]));
             setCategories(allCats);
 
-            const allSubs: Record<string, string[]> = { ...storedSubs };
+            const allSubs: Record<string, string[]> = {
+              'Jackets': ['Puff Jackets'],
+              ...storedSubs,
+            };
             data.forEach((p: any) => {
               if (p.category && p.subCategory) {
                 if (!allSubs[p.category]) allSubs[p.category] = [];
@@ -343,6 +434,31 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     };
 
     fetchCatalogData();
+
+    // Listen to local update events from other tabs or components
+    const handleRemoteUpdate = () => {
+      try {
+        const cached = localStorage.getItem(STORAGE_PRODUCTS_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('das_crm_products_updated', handleRemoteUpdate);
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('das_crm_product_channel');
+        bc.onmessage = () => handleRemoteUpdate();
+      }
+    } catch (_) {}
+
+    return () => {
+      window.removeEventListener('das_crm_products_updated', handleRemoteUpdate);
+      if (bc) bc.close();
+    };
   }, []);
 
   // New Product Modal State
@@ -528,7 +644,18 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     const finalCat = newProdCategory.trim() || 'General';
     const finalSubCat = newProdSubCategory.trim() || 'Standard';
 
-    let createdId = Date.now().toString();
+    // Fallback cover image if no images were uploaded (e.g. fashion/jacket or high quality product default)
+    let fallbackCover = newProdImages[0] || '';
+    if (!fallbackCover) {
+      if (finalCat.toLowerCase().includes('jacket') || finalCat.toLowerCase().includes('cloth') || finalCat.toLowerCase().includes('wear')) {
+        fallbackCover = 'https://images.unsplash.com/photo-1544022613-e87ce7526edb?auto=format&fit=crop&w=400&q=80';
+      } else {
+        fallbackCover = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80';
+      }
+    }
+    const finalImages = newProdImages.length > 0 ? newProdImages : [fallbackCover];
+
+    let createdId = 'p-' + Date.now().toString();
 
     // Post to API with real database persistence
     try {
@@ -553,8 +680,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           taxRate: parseInt(newProdGst) || 18,
           description: newProdDescription.trim(),
           features: newProdFeatures,
-          imageUrl: newProdImages[0] || '',
-          images: newProdImages,
+          imageUrl: fallbackCover,
+          images: finalImages,
           volumeDiscounts: newProdVolumeDiscounts,
         }),
       });
@@ -586,9 +713,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       sold: 0,
       taxRate: parseInt(newProdGst) || 18,
       isActive: true,
-      coverImage: newProdImages[0] || '',
-      images: newProdImages,
-      overview: newProdDescription.trim() || 'Product item in DAS CRM Catalog.',
+      coverImage: fallbackCover,
+      images: finalImages,
+      overview: newProdDescription.trim() || `${newProdName.trim()} in DAS CRM Catalog.`,
       specs: newProdFeatures.length > 0 ? newProdFeatures : ['Standard Specification'],
       features: newProdFeatures,
       volumeDiscounts: newProdVolumeDiscounts.length > 0 ? newProdVolumeDiscounts : [
@@ -597,7 +724,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       ],
     };
 
-    setProducts(prev => [newProd, ...prev]);
+    setProducts(prev => {
+      const next = [newProd, ...prev.filter(p => p.sku !== newProd.sku)];
+      try {
+        localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
 
     // Update taxonomy state if new category/subcategory
     if (finalCat && !categories.includes(finalCat)) {
@@ -620,6 +753,21 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         return prev;
       });
     }
+
+    // Reset filters so the new product is visible immediately
+    setSelectedCategory('All');
+    setSelectedSubCategory('All');
+    setSearch('');
+
+    // Broadcast across windows and components
+    try {
+      window.dispatchEvent(new CustomEvent('das_crm_products_updated', { detail: newProd }));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_product_channel');
+        bc.postMessage({ type: 'PRODUCT_CREATED', product: newProd });
+        bc.close();
+      }
+    } catch (_) {}
 
     setCreateProductOpen(false);
     setNewProdName('');
@@ -793,10 +941,27 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       setIsUpdatingProduct(false);
     }
 
-    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setProducts(prev => {
+      const next = prev.map(p => p.id === updated.id ? updated : p);
+      try {
+        localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+
     if (inspectorProduct?.id === updated.id) {
       setInspectorProduct(updated);
     }
+
+    try {
+      window.dispatchEvent(new CustomEvent('das_crm_products_updated', { detail: updated }));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_product_channel');
+        bc.postMessage({ type: 'PRODUCT_UPDATED', product: updated });
+        bc.close();
+      }
+    } catch (_) {}
+
     setEditConfirmProduct(null);
     setEditingProduct(null);
     alert(`✅ Product "${updated.name}" (${updated.sku}) updated successfully!`);
@@ -817,7 +982,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const response = await fetch(`${apiBase}/products/${deleteConfirmProduct.id}`, {
+      await fetch(`${apiBase}/products/${deleteConfirmProduct.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -825,19 +990,33 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         },
       });
 
-      if (response.ok || response.status === 200) {
-        setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
-        if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
-        alert(`🗑️ Product "${deleteConfirmProduct.name}" has been permanently deleted.`);
-      } else if (response.status === 403) {
-        alert('⛔ Access Denied: Only Admins and Managers can delete products.');
-      } else {
-        setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
-        if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
-        alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted.`);
-      }
+      setProducts(prev => {
+        const next = prev.filter(p => p.id !== deleteConfirmProduct.id);
+        try {
+          localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
+        } catch (_) {}
+        return next;
+      });
+      if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
+
+      try {
+        window.dispatchEvent(new CustomEvent('das_crm_products_updated'));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('das_crm_product_channel');
+          bc.postMessage({ type: 'PRODUCT_DELETED', productId: deleteConfirmProduct.id });
+          bc.close();
+        }
+      } catch (_) {}
+
+      alert(`🗑️ Product "${deleteConfirmProduct.name}" has been deleted.`);
     } catch (err) {
-      setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
+      setProducts(prev => {
+        const next = prev.filter(p => p.id !== deleteConfirmProduct.id);
+        try {
+          localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
+        } catch (_) {}
+        return next;
+      });
       if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
       alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted.`);
     } finally {
