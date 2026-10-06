@@ -6,7 +6,7 @@ import {
   Clock, AlertCircle, User, Building2, MapPin, Tag, FileText, Bot,
   PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check, Wifi, WifiOff,
   Calendar, CalendarCheck, Package, Bell, BellRing, ArrowRight, Flame,
-  Receipt, Search, ExternalLink, X
+  Receipt, Search, ExternalLink, X, Plus, Minus, ShoppingCart, SlidersHorizontal, Eye
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
@@ -46,6 +46,138 @@ export interface SyncedActivityLog {
   notes?: string;
   timestamp: string;
   user: string;
+}
+
+export interface ProposalCatalogProduct {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  sku?: string;
+  coverImage?: string;
+  description?: string;
+  unit?: string;
+}
+
+export interface AvailableInvoiceItem {
+  id: string;
+  quoteNumber: string;
+  docType: string;
+  date: string;
+  buyerCompany: string;
+  buyerName: string;
+  totalAmount: number;
+  taxRate?: number;
+  itemsSummary: string;
+  status: string;
+  pdfUrl?: string;
+}
+
+export const DEFAULT_PROPOSAL_PRODUCTS: ProposalCatalogProduct[] = [
+  {
+    id: 'p-colour-tribe-jackets',
+    name: 'Colour Tribe Puff Jackets',
+    category: 'Jackets & Apparel',
+    price: 999,
+    sku: 'DAS-570687',
+    coverImage: '/products/puff-jackets.jpg',
+    unit: 'Pcs',
+    description: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
+  },
+  {
+    id: 'p-das-crm-enterprise',
+    name: 'DAS CRM Enterprise License (Annual)',
+    category: 'Software & SaaS',
+    price: 12499,
+    sku: 'DAS-CRM-ENT',
+    unit: 'License',
+    description: 'Full CRM suite with unlimited sales reps, team leader dashboard, and auto-lead distribution.',
+  },
+  {
+    id: 'p-wa-cloud-suite',
+    name: 'WhatsApp Business Cloud API Suite',
+    category: 'Communications',
+    price: 4999,
+    sku: 'DAS-WA-API',
+    unit: 'Monthly',
+    description: 'Official Meta WhatsApp Business Cloud API integration with AI humanize and instant templates.',
+  },
+  {
+    id: 'p-auto-dialer-pack',
+    name: 'SIM & Cloud Auto-Dialer Module',
+    category: 'Dialer & Telephony',
+    price: 7500,
+    sku: 'DAS-DIAL-MOD',
+    unit: 'License',
+    description: 'Automated disposition logger, audio recording vault, and call funnel tracking engine.',
+  },
+  {
+    id: 'p-gst-billing-module',
+    name: 'Multi-Store Inventory & GST Billing',
+    category: 'Billing & Accounting',
+    price: 8999,
+    sku: 'DAS-GST-INV',
+    unit: 'Yearly',
+    description: 'Compliant 18% GST tax invoices, quotations, proforma generators, and payment gateway sync.',
+  },
+  {
+    id: 'p-onboarding-training',
+    name: 'Executive Onboarding & Team Training',
+    category: 'Professional Services',
+    price: 3500,
+    sku: 'DAS-SRV-TRN',
+    unit: 'Session',
+    description: 'Dedicated 1-on-1 CRM onboarding, workflow tailoring, and telecaller training sessions.',
+  },
+];
+
+export const DEFAULT_SAMPLE_INVOICES: AvailableInvoiceItem[] = [
+  {
+    id: 'inv-101',
+    quoteNumber: 'INV-2026-0042',
+    docType: 'TAX_INVOICE',
+    date: '2026-10-06',
+    buyerCompany: 'Client Enterprise',
+    buyerName: 'Rahul Kapoor',
+    totalAmount: 45000,
+    taxRate: 18,
+    itemsSummary: 'DAS CRM Enterprise License + WhatsApp API Suite',
+    status: 'GENERATED',
+  },
+  {
+    id: 'inv-102',
+    quoteNumber: 'PI-2026-0118',
+    docType: 'PROFORMA_INVOICE',
+    date: '2026-10-05',
+    buyerCompany: 'Global Traders Pvt Ltd',
+    buyerName: 'Amit Shah',
+    totalAmount: 24999,
+    taxRate: 18,
+    itemsSummary: 'Cloud Telephony Dialer + Lead Allocation Engine',
+    status: 'SHARED',
+  },
+  {
+    id: 'inv-103',
+    quoteNumber: 'EST-2026-0089',
+    docType: 'QUOTATION',
+    date: '2026-10-04',
+    buyerCompany: 'Modern Retailers',
+    buyerName: 'Priya Sharma',
+    totalAmount: 18500,
+    taxRate: 18,
+    itemsSummary: 'Colour Tribe Puff Jackets (20 Pcs Commercial Batch)',
+    status: 'DRAFT',
+  },
+];
+
+function formatMeetingDateDisplay(isoDate: string): string {
+  try {
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  } catch (_) {
+    return isoDate;
+  }
 }
 
 interface LeadWorkspaceProps {
@@ -1396,27 +1528,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         }
       } catch (_) {}
     }
-    return [
-      {
-        id: 'p-colour-tribe-jackets',
-        name: 'Colour Tribe Puff Jackets',
-        sku: 'DAS-570687',
-        category: 'Jackets',
-        subCategory: 'Puff Jackets',
-        brand: 'Generic / Unbranded',
-        color: 'Silver Grey, Black',
-        unit: 'Pieces (Pcs)',
-        price: 999,
-        stock: 100,
-        sharedCount: 12,
-        imageUrl: '/products/puff-jackets.jpg',
-        coverImage: '/products/puff-jackets.jpg',
-        volumeDiscounts: [
-          { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
-          { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
-        ],
-      },
-    ];
+    return DEFAULT_PROPOSAL_PRODUCTS;
   });
   const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = useState<string>('Colour Tribe Puff Jackets');
@@ -1992,6 +2104,149 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [customTemplateCategory, setCustomTemplateCategory] = useState<TemplateCategory>('OUTREACH');
   const [saveCustomToLibrary, setSaveCustomToLibrary] = useState<boolean>(true);
 
+  // ── 1. Products Slider state (Proposal) ──
+  const [showProductSlider, setShowProductSlider] = useState<boolean>(false);
+  const [productSearchQuery, setProductSearchQuery] = useState<string>('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<string>('ALL');
+  const [selectedProductQuantities, setSelectedProductQuantities] = useState<Record<string, number>>({});
+
+  // ── 2. Invoices Slider state (Invoice) ──
+  const [showInvoiceSlider, setShowInvoiceSlider] = useState<boolean>(false);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState<string>('');
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<string>('ALL');
+  const [selectedInvoice, setSelectedInvoice] = useState<AvailableInvoiceItem | null>(null);
+  const [availableInvoices, setAvailableInvoices] = useState<AvailableInvoiceItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('das_crm_saved_quotes');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((q: any) => ({
+              id: q.id || `inv_${Date.now()}`,
+              quoteNumber: q.quoteNumber || q.id || 'INV-2026',
+              docType: q.docType || 'TAX_INVOICE',
+              date: q.date || q.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+              buyerCompany: q.buyerCompany || q.clientCompany || 'Client Organization',
+              buyerName: q.buyerName || q.clientName || 'Client',
+              totalAmount: Number(q.totalAmount) || Number(q.total) || 25000,
+              taxRate: q.taxRate || 18,
+              itemsSummary: Array.isArray(q.items) ? q.items.map((it: any) => it.name || it.description).join(', ') : (q.notes || 'Commercial Products & Implementation'),
+              status: q.status || 'GENERATED',
+            }));
+          }
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_SAMPLE_INVOICES;
+  });
+
+  // ── 3. Meeting Date & Time Scheduler state ("like call one") ──
+  const [meetingScheduledDate, setMeetingScheduledDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [meetingScheduledTime, setMeetingScheduledTime] = useState<string>('11:30 AM');
+  const [enableMeetingPreAlert5Min, setEnableMeetingPreAlert5Min] = useState<boolean>(true);
+  const [showMeetingScheduler, setShowMeetingScheduler] = useState<boolean>(false);
+
+  // Fetch live products and quotations from backend API on mount
+  useEffect(() => {
+    apiFetch('/api/products')
+      .then((data: any) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: ProposalCatalogProduct[] = data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category || 'General',
+            price: Number(p.price) || 0,
+            sku: p.sku,
+            coverImage: p.coverImage || p.imageUrl || p.images?.[0] || '/products/puff-jackets.jpg',
+            description: p.description || p.overview,
+            unit: p.unit || 'Units',
+          }));
+          setCatalogProducts(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newOnes = mapped.filter(item => !existingIds.has(item.id));
+            return [...prev, ...newOnes];
+          });
+        }
+      })
+      .catch(() => {});
+
+    apiFetch('/api/quotations')
+      .then((data: any) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: AvailableInvoiceItem[] = data.map((q: any) => ({
+            id: q.id,
+            quoteNumber: q.quoteNumber || q.docNo || `INV-${String(q.id).slice(0, 6)}`,
+            docType: q.docType || 'TAX_INVOICE',
+            date: q.date || q.docDate || q.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+            buyerCompany: q.buyerCompany || q.companyName || q.clientCompany || 'Client',
+            buyerName: q.buyerName || q.partyName || q.clientName || 'Client',
+            totalAmount: Number(q.totalAmount) || Number(q.total) || 0,
+            taxRate: q.taxRate || 18,
+            itemsSummary: Array.isArray(q.items) ? q.items.map((it: any) => it.name || it.description).join(', ') : (q.itemsSummary || 'Commercial Software & Solutions'),
+            status: q.status || 'GENERATED',
+            pdfUrl: q.pdfUrl,
+          }));
+          setAvailableInvoices(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newOnes = mapped.filter(item => !existingIds.has(item.id));
+            return [...prev, ...newOnes];
+          });
+        }
+      })
+      .catch(() => {});
+
+    // Listen to real-time updates from Quotes & Products modules
+    const handleRemoteQuotesSync = () => {
+      try {
+        const raw = localStorage.getItem('das_crm_saved_quotes');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const mapped: AvailableInvoiceItem[] = parsed.map((q: any) => ({
+              id: q.id || `inv_${Date.now()}`,
+              quoteNumber: q.docNo || q.quoteNumber || 'INV-2026',
+              docType: q.docType || 'TAX_INVOICE',
+              date: q.docDate || q.savedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+              buyerCompany: q.companyName || q.partyDetails?.companyName || 'Client Organization',
+              buyerName: q.partyName || q.partyDetails?.contactPerson || 'Client',
+              totalAmount: Number(q.totalAmount) || 0,
+              taxRate: q.payload?.globalGstRate || 18,
+              itemsSummary: Array.isArray(q.payload?.items) ? q.payload.items.map((it: any) => it.description || it.name).join(', ') : 'Commercial Products & Services',
+              status: q.status || 'GENERATED',
+              pdfUrl: q.pdfUrl,
+            }));
+            setAvailableInvoices(mapped);
+          }
+        }
+      } catch (_) {}
+    };
+
+    const handleRemoteProductsSync = () => {
+      try {
+        const raw = localStorage.getItem('das_crm_products_catalog_cache');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCatalogProducts(parsed);
+          }
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('das_crm_quotes_updated', handleRemoteQuotesSync);
+    window.addEventListener('das_crm_products_updated', handleRemoteProductsSync);
+
+    return () => {
+      window.removeEventListener('das_crm_quotes_updated', handleRemoteQuotesSync);
+      window.removeEventListener('das_crm_products_updated', handleRemoteProductsSync);
+    };
+  }, []);
+
   // Real-time synchronization of templates with WhatsApp Templates module & across browser tabs
   useEffect(() => {
     const syncTemplates = () => {
@@ -2042,6 +2297,105 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
   }, [selectedWaTemplateId, waTemplatesList, isCustomTemplateMode, lead.name, lead.company, lead.budget, lead.requirement]);
 
+  const generateMeetingMessage = (dateStr: string, timeStr: string) => {
+    const formattedDate = formatMeetingDateDisplay(dateStr);
+    return `Hi ${lead.name || 'Client'}, looking forward to our scheduled live walkthrough for ${lead.company || 'DAS CRM'} on ${formattedDate} at ${timeStr}!\n\nLet me know if you would like me to share a Google Meet / Zoom link or adjust the timing.`;
+  };
+
+  const generateProposalMessage = (quantities: Record<string, number>) => {
+    const selectedEntries = Object.entries(quantities).filter(([_, q]) => q > 0);
+    if (selectedEntries.length === 0) {
+      return `Hi ${lead.name || 'Client'}, sharing details regarding our discussion for ${lead.company || 'your requirement'}. Please let me know what products you would like to explore!`;
+    }
+
+    let grandTotal = 0;
+    const lines: string[] = [];
+    const imageLines: string[] = [];
+
+    selectedEntries.forEach(([pId, qty]) => {
+      const p = catalogProducts.find(item => item.id === pId);
+      if (p) {
+        const lineTotal = p.price * qty;
+        grandTotal += lineTotal;
+        const unitLabel = p.unit || 'Units';
+        lines.push(`• ${p.name} (Qty: ${qty} ${unitLabel}) @ ₹${p.price.toLocaleString('en-IN')} = ₹${lineTotal.toLocaleString('en-IN')}`);
+
+        const imgUrl = p.coverImage || p.imageUrl || '/products/puff-jackets.jpg';
+        const absoluteImgUrl = typeof window !== 'undefined' && imgUrl.startsWith('/') ? `${window.location.origin}${imgUrl}` : imgUrl;
+        imageLines.push(`  🖼️ ${p.name} Visual: ${absoluteImgUrl}`);
+      }
+    });
+
+    return `Hi ${lead.name || 'Client'}! Please find our customized commercial proposal prepared for ${lead.company || 'your requirement'}:\n\n📦 Selected Products & Specifications:\n${lines.join('\n')}\n\n📎 Attached Product Images:\n${imageLines.join('\n')}\n━━━━━━━━━━━━━━━━━━━━\n💰 Total Proposal Value: ₹${grandTotal.toLocaleString('en-IN')} (incl. 18% GST)\n\nPlease review the attached product specifications & images above, and reply to confirm your commercial order!`;
+  };
+
+  const generateInvoiceMessage = (inv: AvailableInvoiceItem) => {
+    const docLabel = inv.docType.replace(/_/g, ' ');
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const pdfLink = inv.pdfUrl || `${origin}/quotes?doc=${inv.quoteNumber}`;
+
+    return `Hi ${lead.name || 'Client'}! Please find the official ${docLabel} (${inv.quoteNumber}) prepared for ${lead.company || 'your organization'}:\n\n📄 Document: ${docLabel}\n🔢 Invoice Ref: ${inv.quoteNumber}\n💰 Total Amount: ₹${inv.totalAmount.toLocaleString('en-IN')} (incl. 18% GST)\n📅 Issued Date: ${inv.date}\n📦 Items: ${inv.itemsSummary}\n📎 Official Invoice PDF: ${pdfLink}\n\nPlease review the attached official invoice PDF and reply to confirm payment processing!`;
+  };
+
+  const handleUpdateMeetingDate = (isoDate: string) => {
+    setMeetingScheduledDate(isoDate);
+    setWaDirectMessage(generateMeetingMessage(isoDate, meetingScheduledTime));
+  };
+
+  const handleUpdateMeetingTime = (slot: string) => {
+    setMeetingScheduledTime(slot);
+    setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, slot));
+  };
+
+  const handleToggleProductSelection = (productId: string) => {
+    setSelectedProductQuantities(prev => {
+      const copy = { ...prev };
+      if (copy[productId]) {
+        delete copy[productId];
+      } else {
+        copy[productId] = 1;
+      }
+      setWaDirectMessage(generateProposalMessage(copy));
+      return copy;
+    });
+  };
+
+  const handleUpdateProductQuantity = (productId: string, delta: number) => {
+    setSelectedProductQuantities(prev => {
+      const current = prev[productId] || 0;
+      const next = current + delta;
+      const copy = { ...prev };
+      if (next <= 0) {
+        delete copy[productId];
+      } else {
+        copy[productId] = next;
+      }
+      setWaDirectMessage(generateProposalMessage(copy));
+      return copy;
+    });
+  };
+
+  const handleApplyProductsToProposal = () => {
+    const selectedEntries = Object.entries(selectedProductQuantities).filter(([_, q]) => q > 0);
+    if (selectedEntries.length === 0) {
+      showSyncNotification('⚠️ Please select at least 1 product to apply.');
+      return;
+    }
+
+    const proposalMsg = generateProposalMessage(selectedProductQuantities);
+    setWaDirectMessage(proposalMsg);
+    setShowProductSlider(false);
+    showSyncNotification(`✓ Applied ${selectedEntries.length} product(s) with images to Proposal!`);
+  };
+
+  const handleApplyInvoice = (inv: AvailableInvoiceItem) => {
+    setSelectedInvoice(inv);
+    const invoiceMsg = generateInvoiceMessage(inv);
+    setWaDirectMessage(invoiceMsg);
+    setShowInvoiceSlider(false);
+    showSyncNotification(`✓ Attached ${inv.quoteNumber} (₹${inv.totalAmount.toLocaleString('en-IN')}) with PDF to WhatsApp template`);
+  };
+
   const handleSelectWaTemplate = (templateId: string) => {
     setSelectedWaTemplateId(templateId);
     setIsCustomTemplateMode(false);
@@ -2050,6 +2404,32 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       setWaDirectTemplateTitle(tpl.title);
       if (tpl.targetStatus) {
         setSelectedTargetStatus(tpl.targetStatus);
+      }
+      if (tpl.category === 'PROPOSAL') {
+        setShowMeetingScheduler(false);
+        const keys = Object.keys(selectedProductQuantities);
+        if (keys.length === 0 && catalogProducts.length > 0) {
+          const next = { [catalogProducts[0].id]: 1 };
+          setSelectedProductQuantities(next);
+          setWaDirectMessage(generateProposalMessage(next));
+        } else {
+          setWaDirectMessage(generateProposalMessage(selectedProductQuantities));
+        }
+        return;
+      } else if (tpl.category === 'INVOICE') {
+        setShowMeetingScheduler(false);
+        if (!selectedInvoice && availableInvoices.length > 0) {
+          handleApplyInvoice(availableInvoices[0]);
+        } else if (selectedInvoice) {
+          handleApplyInvoice(selectedInvoice);
+        }
+        return;
+      } else if (tpl.category === 'MEETING') {
+        setShowMeetingScheduler(true);
+        setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+        return;
+      } else {
+        setShowMeetingScheduler(false);
       }
       const leadVal = (lead as any).value || lead.budget;
       const interpolated = whatsappTemplateEngine.interpolateTemplate(tpl.text, {
@@ -2065,11 +2445,66 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const handleSelectCustomCategory = (cat: TemplateCategory) => {
     setCustomTemplateCategory(cat);
     // Auto-suggest status based on message type/category
-    if (cat === 'PROPOSAL') setSelectedTargetStatus('Proposal');
-    else if (cat === 'INVOICE') setSelectedTargetStatus('Negotiation');
-    else if (cat === 'MEETING') setSelectedTargetStatus('Meeting Scheduled');
-    else if (cat === 'PROMOTION') setSelectedTargetStatus('Negotiation');
-    else if (cat === 'OUTREACH' || cat === 'FOLLOWUP') setSelectedTargetStatus('Contacted');
+    if (cat === 'PROPOSAL') {
+      setSelectedTargetStatus('Proposal');
+      setShowMeetingScheduler(false);
+      const keys = Object.keys(selectedProductQuantities);
+      if (keys.length === 0 && catalogProducts.length > 0) {
+        const next = { [catalogProducts[0].id]: 1 };
+        setSelectedProductQuantities(next);
+        setWaDirectMessage(generateProposalMessage(next));
+      } else {
+        setWaDirectMessage(generateProposalMessage(selectedProductQuantities));
+      }
+    } else if (cat === 'INVOICE') {
+      setSelectedTargetStatus('Negotiation');
+      setShowMeetingScheduler(false);
+      if (!selectedInvoice && availableInvoices.length > 0) {
+        handleApplyInvoice(availableInvoices[0]);
+      } else if (selectedInvoice) {
+        handleApplyInvoice(selectedInvoice);
+      }
+    } else if (cat === 'MEETING') {
+      setSelectedTargetStatus('Meeting Scheduled');
+      setShowMeetingScheduler(true);
+      setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+    } else if (cat === 'PROMOTION') {
+      setSelectedTargetStatus('Negotiation');
+      setShowMeetingScheduler(false);
+    } else if (cat === 'OUTREACH' || cat === 'FOLLOWUP') {
+      setSelectedTargetStatus('Contacted');
+      setShowMeetingScheduler(false);
+    }
+  };
+
+  const handleSelectTargetStatus = (statusKey: string) => {
+    setSelectedTargetStatus(statusKey);
+    if (statusKey === 'Proposal') {
+      setCustomTemplateCategory('PROPOSAL');
+      setShowMeetingScheduler(false);
+      const keys = Object.keys(selectedProductQuantities);
+      if (keys.length === 0 && catalogProducts.length > 0) {
+        const next = { [catalogProducts[0].id]: 1 };
+        setSelectedProductQuantities(next);
+        setWaDirectMessage(generateProposalMessage(next));
+      } else {
+        setWaDirectMessage(generateProposalMessage(selectedProductQuantities));
+      }
+    } else if (statusKey === 'Negotiation') {
+      setCustomTemplateCategory('INVOICE');
+      setShowMeetingScheduler(false);
+      if (!selectedInvoice && availableInvoices.length > 0) {
+        handleApplyInvoice(availableInvoices[0]);
+      } else if (selectedInvoice) {
+        handleApplyInvoice(selectedInvoice);
+      }
+    } else if (statusKey === 'Meeting Scheduled') {
+      setCustomTemplateCategory('MEETING');
+      setShowMeetingScheduler(true);
+      setWaDirectMessage(generateMeetingMessage(meetingScheduledDate, meetingScheduledTime));
+    } else {
+      setShowMeetingScheduler(false);
+    }
   };
 
   const handleToggleCustomMode = (custom: boolean) => {
@@ -2226,6 +2661,25 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         },
       }),
     }).catch(() => {});
+
+    // 6b. If meeting was scheduled, auto-queue task in CRM with reminder
+    if (selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING') {
+      const cleanTime = meetingScheduledTime.includes(':') && !meetingScheduledTime.includes('M') ? meetingScheduledTime : '11:30';
+      const dueAtIso = `${meetingScheduledDate}T${cleanTime}:00`;
+      apiFetch('/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          leadId: lead.id,
+          title: `Scheduled Walkthrough / Demo with ${lead.name || 'Client'} (${lead.company || 'DAS CRM'})`,
+          status: 'PENDING',
+          priority: 'HIGH',
+          dueAt: dueAtIso,
+          scheduledDate: meetingScheduledDate,
+          reminderMinutes: enableMeetingPreAlert5Min ? 5 : 0,
+          notes: `Walkthrough demo scheduled via Direct WhatsApp for ${meetingScheduledDate} at ${meetingScheduledTime}. Pre-alert: ${enableMeetingPreAlert5Min ? '5 min before' : 'None'}`,
+        }),
+      }).catch(() => {});
+    }
 
     // 7. Record SyncedActivityLog
     const newLog: SyncedActivityLog = {
@@ -2415,6 +2869,50 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id } }));
     }
   };
+
+  // ── COMPUTED HELPERS FOR DIRECT WHATSAPP PROPOSAL, INVOICE & MEETING ──
+  const productCategoriesList = ['ALL', ...Array.from(new Set(catalogProducts.map(p => p.category || 'General')))];
+
+  const filteredCatalogProducts = catalogProducts.filter(p => {
+    const matchesSearch = !productSearchQuery.trim() ||
+      p.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
+      (p.sku && p.sku.toLowerCase().includes(productSearchQuery.toLowerCase())) ||
+      (p.description && p.description.toLowerCase().includes(productSearchQuery.toLowerCase()));
+    const matchesCategory = productCategoryFilter === 'ALL' || p.category === productCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const totalSelectedProductsCount = Object.values(selectedProductQuantities).reduce((acc, q) => acc + q, 0);
+  const proposalGrandTotal = Object.entries(selectedProductQuantities).reduce((acc, [pId, qty]) => {
+    const p = catalogProducts.find(item => item.id === pId);
+    return acc + (p ? p.price * qty : 0);
+  }, 0);
+
+  const filteredAvailableInvoices = availableInvoices.filter(inv => {
+    const matchesSearch = !invoiceSearchQuery.trim() ||
+      inv.quoteNumber.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
+      inv.buyerCompany.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
+      (inv.buyerName && inv.buyerName.toLowerCase().includes(invoiceSearchQuery.toLowerCase())) ||
+      inv.itemsSummary.toLowerCase().includes(invoiceSearchQuery.toLowerCase());
+    const matchesType = invoiceTypeFilter === 'ALL' || inv.docType === invoiceTypeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const isProposalActive =
+    (isCustomTemplateMode && customTemplateCategory === 'PROPOSAL') ||
+    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'PROPOSAL') ||
+    selectedTargetStatus === 'Proposal';
+
+  const isInvoiceActive =
+    (isCustomTemplateMode && customTemplateCategory === 'INVOICE') ||
+    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'INVOICE') ||
+    selectedTargetStatus === 'Negotiation';
+
+  const isMeetingActive =
+    showMeetingScheduler ||
+    (isCustomTemplateMode && customTemplateCategory === 'MEETING') ||
+    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'MEETING') ||
+    selectedTargetStatus === 'Meeting Scheduled';
 
   return (
     <div className="space-y-6">
@@ -3799,6 +4297,497 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               </div>
             )}
 
+            {/* Dynamic Contextual Modules: Proposal Products, Invoices, and Meeting Scheduler */}
+            {/* A. If Proposal mode is active: Inline Product Selector & Image Attachment */}
+            {isProposalActive && (
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/50 space-y-3 shadow-xl animate-in fade-in duration-200">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                      <Package size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>Select Products for Proposal (Synced from Products Catalog)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {totalSelectedProductsCount} Selected
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Products can be many. Details &amp; product images are automatically attached to the WhatsApp template.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowProductSlider(true)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <SlidersHorizontal size={12} />
+                      <span>Full Slider View</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      className="crm-input w-full pl-8 text-xs h-8 bg-slate-900 border-slate-800 focus:border-emerald-500 text-white"
+                      placeholder="Search products by name, SKU, or category..."
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                    />
+                    {productSearchQuery && (
+                      <button
+                        onClick={() => setProductSearchQuery('')}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
+                    {productCategoriesList.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setProductCategoryFilter(cat)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                          productCategoryFilter === cat
+                            ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* In-place Products List (Scrollable) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                  {filteredCatalogProducts.map((prod) => {
+                    const qty = selectedProductQuantities[prod.id] || 0;
+                    const isSelected = qty > 0;
+                    return (
+                      <div
+                        key={prod.id}
+                        onClick={() => handleToggleProductSelection(prod.id)}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-emerald-950/30 border-emerald-500/60 shadow-md ring-1 ring-emerald-500/30'
+                            : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <img
+                            src={prod.coverImage || '/products/puff-jackets.jpg'}
+                            alt={prod.name}
+                            className="w-12 h-12 rounded-lg object-cover border border-slate-800 flex-shrink-0"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.onerror = null;
+                              target.src = '/products/puff-jackets.jpg';
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <h5 className="text-xs font-bold text-white truncate">{prod.name}</h5>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <span className="text-emerald-400 font-extrabold">₹{prod.price.toLocaleString('en-IN')}</span>
+                              <span>•</span>
+                              <span>{prod.unit || 'Unit'}</span>
+                              {prod.sku && <span className="font-mono text-slate-500">• {prod.sku}</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Stepper if selected, else Select button */}
+                        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {isSelected ? (
+                            <div className="flex items-center bg-slate-900 border border-emerald-500/50 rounded-lg overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateProductQuantity(prod.id, -1)}
+                                className="px-2 py-0.5 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800"
+                              >
+                                −
+                              </button>
+                              <span className="w-7 text-center text-xs font-extrabold text-emerald-300">
+                                {qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateProductQuantity(prod.id, 1)}
+                                className="px-2 py-0.5 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProductSelection(prod.id)}
+                              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-emerald-600/30 border border-slate-700 hover:border-emerald-500 text-[10px] font-bold text-slate-300 transition-all flex items-center gap-1"
+                            >
+                              <Plus size={11} className="text-emerald-400" />
+                              <span>Select</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 📎 Attached Product Media & Image Preview Card */}
+                {totalSelectedProductsCount > 0 && (
+                  <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                        <span>📎</span> Attached Product Details &amp; Visuals ({totalSelectedProductsCount} items):
+                      </span>
+                      <span className="text-xs font-black text-emerald-400">
+                        Total: ₹{proposalGrandTotal.toLocaleString('en-IN')} (incl. GST)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {Object.entries(selectedProductQuantities).map(([pId, qty]) => {
+                        const prod = catalogProducts.find(p => p.id === pId);
+                        if (!prod) return null;
+                        return (
+                          <div
+                            key={pId}
+                            className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-900 border border-slate-800"
+                          >
+                            <img
+                              src={prod.coverImage || '/products/puff-jackets.jpg'}
+                              alt={prod.name}
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-700 flex-shrink-0"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                target.onerror = null;
+                                target.src = '/products/puff-jackets.jpg';
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-white truncate">{prod.name}</p>
+                              <p className="text-[10px] text-slate-400">
+                                Qty: <strong className="text-emerald-300">{qty}</strong> × ₹{prod.price.toLocaleString('en-IN')} = <strong className="text-white">₹{(prod.price * qty).toLocaleString('en-IN')}</strong>
+                              </p>
+                              <span className="text-[9px] text-cyan-400 flex items-center gap-1 font-semibold">
+                                <span>🖼️</span> Image attached to message
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateProductQuantity(pId, -qty)}
+                              className="text-slate-400 hover:text-red-400 text-xs p-1"
+                              title="Remove product"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* B. If Invoice mode is active: Inline Invoices Selector & PDF Attachment */}
+            {isInvoiceActive && (
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-950 border border-amber-500/50 space-y-3 shadow-xl animate-in fade-in duration-200">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                      <Receipt size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>Select Invoice from Generated / Saved Invoices</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          {availableInvoices.length} Registered
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Synced from Quotes &amp; Billing. Invoice PDF &amp; payment reference attach with the WhatsApp template.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowInvoiceSlider(true)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <SlidersHorizontal size={12} />
+                    <span>Full Slider View</span>
+                  </button>
+                </div>
+
+                {/* Search & Doc Type Filter */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      className="crm-input w-full pl-8 text-xs h-8 bg-slate-900 border-slate-800 focus:border-amber-500 text-white"
+                      placeholder="Search by invoice number, buyer, or items..."
+                      value={invoiceSearchQuery}
+                      onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                    />
+                    {invoiceSearchQuery && (
+                      <button
+                        onClick={() => setInvoiceSearchQuery('')}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
+                    {[
+                      { key: 'ALL', label: 'All Invoices' },
+                      { key: 'TAX_INVOICE', label: 'Tax Invoices' },
+                      { key: 'PROFORMA_INVOICE', label: 'Proforma' },
+                      { key: 'QUOTATION', label: 'Quotations' },
+                    ].map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setInvoiceTypeFilter(t.key)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                          invoiceTypeFilter === t.key
+                            ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Invoices List (Max-height scrollable) */}
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {filteredAvailableInvoices.map((inv) => {
+                    const isSelected = selectedInvoice?.id === inv.id || selectedInvoice?.quoteNumber === inv.quoteNumber;
+                    return (
+                      <div
+                        key={inv.id}
+                        onClick={() => handleApplyInvoice(inv)}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-amber-950/30 border-amber-400 shadow-md ring-1 ring-amber-400/40 text-white'
+                            : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 font-extrabold flex items-center justify-center text-xs border border-amber-500/20 flex-shrink-0">
+                            📄
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-white text-xs">{inv.quoteNumber}</span>
+                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-slate-900 text-amber-300 border border-slate-800">
+                                {inv.docType.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-[10px] text-slate-400">📅 {inv.date}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-300 truncate">
+                              {inv.buyerCompany} {inv.buyerName ? `• ${inv.buyerName}` : ''}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              📦 {inv.itemsSummary}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-xs font-black text-emerald-400 block">
+                            ₹{inv.totalAmount.toLocaleString('en-IN')}
+                          </span>
+                          <span className={`text-[10px] font-bold ${isSelected ? 'text-amber-300' : 'text-slate-500'}`}>
+                            {isSelected ? '✓ Attached' : 'Click to Attach'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 📎 Attached Invoice PDF Document Preview Card */}
+                {selectedInvoice && (
+                  <div className="p-3 rounded-xl bg-slate-950 border border-amber-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                        <span>📎</span> Attached Document to WhatsApp Dispatch:
+                      </span>
+                      <span className="text-xs font-black text-emerald-400">
+                        ₹{selectedInvoice.totalAmount.toLocaleString('en-IN')} (incl. 18% GST)
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-amber-500/20 flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg">📕</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <strong className="text-white font-mono text-xs">{selectedInvoice.quoteNumber}.pdf</strong>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase font-bold">
+                              {selectedInvoice.docType}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Buyer: {selectedInvoice.buyerCompany} • {selectedInvoice.itemsSummary}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={selectedInvoice.pdfUrl || `/quotes?doc=${selectedInvoice.quoteNumber}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-bold text-amber-400 hover:text-white px-2 py-1 rounded bg-slate-800 border border-slate-700 flex items-center gap-1"
+                        >
+                          <ExternalLink size={11} /> View PDF
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedInvoice(null);
+                            showSyncNotification('Removed invoice attachment');
+                          }}
+                          className="text-slate-400 hover:text-red-400 text-xs px-2 py-1 rounded bg-slate-800 cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* C. If Meeting mode is active: Inline 15-Day Date & Time Meeting Scheduler ("like the call one") */}
+            {isMeetingActive && (
+              <div className="p-4 rounded-2xl bg-gradient-to-b from-indigo-950/40 via-slate-900 to-slate-950 border border-indigo-500/50 space-y-3 shadow-xl animate-in fade-in duration-200">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                      <CalendarCheck size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>Schedule Walkthrough / Demo Meeting</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          Like Call Section
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Select date and time — automatically synchronizes WhatsApp invitation &amp; CRM task alert.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-1 rounded-xl border border-indigo-500/30">
+                    📅 {formatMeetingDateDisplay(meetingScheduledDate)} at {meetingScheduledTime}
+                  </div>
+                </div>
+
+                {/* 15-Day Date Horizontal Chips */}
+                <div>
+                  <label className="text-[11px] font-bold text-indigo-300 block mb-1.5">
+                    Select Expected Visit / Demo Date (Next 15 Days):
+                  </label>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                    {Array.from({ length: 15 }, (_, i) => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + i);
+                      const isoDate = d.toISOString().split('T')[0];
+                      const label =
+                        i === 0
+                          ? 'Today'
+                          : i === 1
+                          ? 'Tomorrow'
+                          : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                      const isSelected = meetingScheduledDate === isoDate;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => handleUpdateMeetingDate(isoDate)}
+                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
+                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-indigo-500 hover:text-white'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Time Slots & Custom Time */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">Time Slot:</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['10:00 AM', '11:30 AM', '02:30 PM', '04:00 PM', '06:00 PM'].map((slot) => {
+                        const isTime = meetingScheduledTime === slot;
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => handleUpdateMeetingTime(slot)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                              isTime
+                                ? 'bg-indigo-500/30 border-indigo-400 text-indigo-200 shadow-sm'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                            }`}
+                          >
+                            {slot}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">Or Custom Time:</label>
+                    <input
+                      type="time"
+                      className="crm-input text-xs h-8 bg-slate-900 border-slate-700 [color-scheme:dark]"
+                      value={meetingScheduledTime.includes(':') && !meetingScheduledTime.includes('M') ? meetingScheduledTime : '11:30'}
+                      onChange={(e) => handleUpdateMeetingTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Pre-alert toggle */}
+                <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableMeetingPreAlert5Min}
+                    onChange={(e) => setEnableMeetingPreAlert5Min(e.target.checked)}
+                    className="rounded border-slate-700 text-indigo-500 focus:ring-indigo-500/30"
+                  />
+                  <span className="text-xs text-indigo-200 flex items-center gap-1.5 font-medium">
+                    <Bell size={13} className="text-indigo-400" />
+                    Pre-alert notification (5 mins before scheduled meeting)
+                  </span>
+                </label>
+              </div>
+            )}
+
             {/* 2. Live Message Preview & Direct Edit */}
             <div>
               <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
@@ -3877,7 +4866,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                     <button
                       key={opt.key}
                       type="button"
-                      onClick={() => setSelectedTargetStatus(opt.key)}
+                      onClick={() => handleSelectTargetStatus(opt.key)}
                       className={`p-2.5 rounded-xl text-xs font-bold border transition-all text-left flex items-center justify-between cursor-pointer ${
                         isSelected
                           ? `${opt.bgClass} ${opt.borderClass} ${opt.textClass} shadow-md ring-1 ring-current`
@@ -3915,6 +4904,432 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               <Send size={15} /> Send WhatsApp Direct &amp; Update Lead Status to &quot;{STATUS_OPTIONS.find(s => s.key === selectedTargetStatus)?.label || selectedTargetStatus}&quot; →
             </button>
           </div>
+
+          {/* ── PRODUCTS SELECTION SLIDER DRAWER ───────────────────────────────────── */}
+          {showProductSlider && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-250">
+                {/* Slider Header */}
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                      <Package size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                        <span>Select Proposal Products</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                          Multi-Product Selection
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Choose any number of products from catalog. Quantities &amp; rates compile into proposal.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSlider(false)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="p-3 border-b border-slate-800 bg-slate-950/40 space-y-2">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      className="crm-input w-full pl-9 text-xs h-9 bg-slate-900 border-slate-800 focus:border-emerald-500 text-white"
+                      placeholder="Search products by name, category, SKU..."
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                    />
+                    {productSearchQuery && (
+                      <button
+                        onClick={() => setProductSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-white text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Pills */}
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    {productCategoriesList.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setProductCategoryFilter(cat)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                          productCategoryFilter === cat
+                            ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Products Scrollable List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                  {filteredCatalogProducts.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 space-y-2">
+                      <Package size={32} className="mx-auto text-slate-600" />
+                      <p className="text-xs font-semibold">No products match your search or filter.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setProductSearchQuery(''); setProductCategoryFilter('ALL'); }}
+                        className="text-xs text-emerald-400 hover:underline cursor-pointer"
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  ) : (
+                    filteredCatalogProducts.map((prod) => {
+                      const qty = selectedProductQuantities[prod.id] || 0;
+                      const isSelected = qty > 0;
+                      return (
+                        <div
+                          key={prod.id}
+                          className={`p-3 rounded-2xl border transition-all ${
+                            isSelected
+                              ? 'bg-emerald-950/20 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
+                              : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <img
+                              src={prod.coverImage || '/products/puff-jackets.jpg'}
+                              alt={prod.name}
+                              className="w-14 h-14 rounded-xl object-cover border border-slate-800 flex-shrink-0"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                target.onerror = null;
+                                target.src = '/products/puff-jackets.jpg';
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="text-xs font-bold text-white truncate">{prod.name}</h4>
+                                <span className="text-xs font-extrabold text-emerald-400 whitespace-nowrap">
+                                  ₹{prod.price.toLocaleString('en-IN')}
+                                  <span className="text-[10px] text-slate-400 font-normal"> /{prod.unit || 'Unit'}</span>
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[10px]">
+                                {prod.category && (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800">
+                                    {prod.category}
+                                  </span>
+                                )}
+                                {prod.sku && (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-900 font-mono text-slate-400 border border-slate-800">
+                                    {prod.sku}
+                                  </span>
+                                )}
+                              </div>
+
+                              {prod.description && (
+                                <p className="text-[11px] text-slate-400 line-clamp-1 mt-1">
+                                  {prod.description}
+                                </p>
+                              )}
+
+                              {/* Quantity Controls and Selection */}
+                              <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800/60">
+                                {isSelected ? (
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex items-center bg-slate-900 border border-emerald-500/40 rounded-xl overflow-hidden shadow-inner">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateProductQuantity(prod.id, -1)}
+                                        className="px-2.5 py-1 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                                      >
+                                        −
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={qty}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 1;
+                                          handleUpdateProductQuantity(prod.id, val - qty);
+                                        }}
+                                        className="w-12 text-center bg-transparent text-xs font-extrabold text-emerald-300 focus:outline-none"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateProductQuantity(prod.id, 1)}
+                                        className="px-2.5 py-1 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                    <span className="text-[11px] font-bold text-emerald-400">
+                                      Line: ₹{(prod.price * qty).toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleProductSelection(prod.id)}
+                                    className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-emerald-600/30 border border-slate-700 hover:border-emerald-500 text-xs font-bold text-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <Plus size={12} className="text-emerald-400" />
+                                    <span>Select Product</span>
+                                  </button>
+                                )}
+
+                                {isSelected && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleProductSelection(prod.id)}
+                                    className="text-[11px] text-slate-400 hover:text-red-400 font-semibold cursor-pointer"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Sticky Bottom Action Bar */}
+                <div className="p-4 border-t border-slate-800 bg-slate-950 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">
+                      Selected: <strong className="text-white">{totalSelectedProductsCount} product(s)</strong>
+                    </span>
+                    <span className="text-emerald-400 font-extrabold text-sm">
+                      Total: ₹{proposalGrandTotal.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowProductSlider(false)}
+                      className="w-1/3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplyProductsToProposal}
+                      disabled={totalSelectedProductsCount === 0}
+                      className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                        totalSelectedProductsCount > 0
+                          ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
+                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Check size={14} />
+                      <span>Apply to Proposal Message ({totalSelectedProductsCount}) →</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── INVOICES SELECTION SLIDER DRAWER ────────────────────────────────────── */}
+          {showInvoiceSlider && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-250">
+                {/* Slider Header */}
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                      <Receipt size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                        <span>Select Invoice / Quotation</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                          {availableInvoices.length} Registered
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Select any invoice to send pricing &amp; payment reference to {lead.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowInvoiceSlider(false)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="p-3 border-b border-slate-800 bg-slate-950/40 space-y-2">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      className="crm-input w-full pl-9 text-xs h-9 bg-slate-900 border-slate-800 focus:border-amber-500 text-white"
+                      placeholder="Search by invoice number, client company, items..."
+                      value={invoiceSearchQuery}
+                      onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                    />
+                    {invoiceSearchQuery && (
+                      <button
+                        onClick={() => setInvoiceSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-white text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Doc Type Filter Pills */}
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    {[
+                      { key: 'ALL', label: 'All Invoices' },
+                      { key: 'TAX_INVOICE', label: 'Tax Invoices' },
+                      { key: 'PROFORMA_INVOICE', label: 'Proforma' },
+                      { key: 'QUOTATION', label: 'Quotations' },
+                    ].map((type) => (
+                      <button
+                        key={type.key}
+                        type="button"
+                        onClick={() => setInvoiceTypeFilter(type.key)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                          invoiceTypeFilter === type.key
+                            ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Invoices Scrollable List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                  {filteredAvailableInvoices.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 space-y-2">
+                      <Receipt size={32} className="mx-auto text-slate-600" />
+                      <p className="text-xs font-semibold">No invoices match your search query or filter.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceSearchQuery(''); setInvoiceTypeFilter('ALL'); }}
+                        className="text-xs text-amber-400 hover:underline cursor-pointer"
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  ) : (
+                    filteredAvailableInvoices.map((inv) => {
+                      const isSelected = selectedInvoice?.id === inv.id;
+                      return (
+                        <div
+                          key={inv.id}
+                          onClick={() => setSelectedInvoice(inv)}
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-950/25 border-amber-400 shadow-md ring-1 ring-amber-400/40 text-white'
+                              : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700 text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-white text-xs">{inv.quoteNumber}</span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 border border-slate-800">
+                                  {inv.docType.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-[10px] text-slate-400">📅 {inv.date}</span>
+                              </div>
+                              <p className="text-xs font-semibold text-slate-200">
+                                {inv.buyerCompany} {inv.buyerName ? `• ${inv.buyerName}` : ''}
+                              </p>
+                              <p className="text-[11px] text-slate-400 line-clamp-1">
+                                📦 {inv.itemsSummary}
+                              </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <span className="text-sm font-black text-emerald-400 block">
+                                ₹{inv.totalAmount.toLocaleString('en-IN')}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">incl. 18% GST</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-400">
+                              Status: <strong className="text-emerald-400 uppercase">{inv.status || 'GENERATED'}</strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApplyInvoice(inv);
+                              }}
+                              className="px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-xs border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>Attach &amp; Apply →</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Sticky Bottom Action Bar */}
+                <div className="p-4 border-t border-slate-800 bg-slate-950 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">
+                      Selected: <strong className="text-white">{selectedInvoice?.quoteNumber || 'None'}</strong>
+                    </span>
+                    {selectedInvoice && (
+                      <span className="text-emerald-400 font-extrabold text-sm">
+                        Amount: ₹{selectedInvoice.totalAmount.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowInvoiceSlider(false)}
+                      className="w-1/3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selectedInvoice}
+                      onClick={() => {
+                        if (selectedInvoice) handleApplyInvoice(selectedInvoice);
+                      }}
+                      className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                        selectedInvoice
+                          ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-500/20'
+                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Check size={14} />
+                      <span>Apply Selected Invoice to Message →</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
