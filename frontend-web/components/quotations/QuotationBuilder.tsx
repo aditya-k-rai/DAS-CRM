@@ -1052,68 +1052,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const optionalCompletedCount = [isStep5Done, isStep6Done, isStep7Done, isStep8Done].filter(Boolean).length;
   const completedStepsCount = coreCompletedCount + optionalCompletedCount;
 
-  // ── Download as Editable Word (.docx) — placed here after all derived state ──
-  const handleDownloadDocx = useCallback(async () => {
-    const _activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
-    const _activeParty = parties.find(p => p.id === selectedPartyId) || parties[0];
-    const _docTitle = (() => {
-      switch (docType) {
-        case 'QUOTATION': return 'ESTIMATE / QUOTATION';
-        case 'PROFORMA_INVOICE': return 'PROFORMA INVOICE';
-        case 'TAX_INVOICE': return 'TAX INVOICE';
-        case 'PAYMENT_RECEIPT': return 'PAYMENT RECEIPT';
-        case 'CREDIT_NOTE': return 'CREDIT NOTE';
-        case 'DELIVERY_CHALLAN': return 'DELIVERY CHALLAN';
-        default: return 'DOCUMENT';
-      }
-    })();
-    const _cgst = gstType === 'EXEMPT' || globalGstRate === 0 ? 0 : gstTaxTotal / 2;
-    setIsExportingDocx(true);
-    try {
-      await exportQuotationAsDocx({
-        docTitle: _docTitle,
-        docNo,
-        docDate,
-        validUntilDate,
-        showValidUntil,
-        company: _activeCompany,
-        party: _activeParty,
-        useSeparateShipping,
-        customShippingAddress,
-        items,
-        customColumns,
-        showGstColumn,
-        showHsnColumn,
-        gstType,
-        globalGstRate,
-        overallDiscountType,
-        overallDiscountVal,
-        termsText,
-        subtotal,
-        totalItemDiscounts,
-        overallDiscAmount,
-        effectiveGstTaxTotal,
-        grandTotal,
-        cgst: _cgst,
-        sgst: _cgst,
-        igst: effectiveGstTaxTotal,
-      });
-      setDocxSuccess(true);
-      setTimeout(() => setDocxSuccess(false), 2500);
-    } catch (err) {
-      console.error('DOCX export failed:', err);
-      alert('Could not generate Word document. Please try again.');
-    } finally {
-      setIsExportingDocx(false);
-    }
-  }, [
-    docType, docNo, docDate, validUntilDate, showValidUntil,
-    companies, selectedCompanyId, parties, selectedPartyId,
-    useSeparateShipping, customShippingAddress,
-    items, customColumns, showGstColumn, showHsnColumn, gstType, globalGstRate,
-    overallDiscountType, overallDiscountVal, termsText,
-    subtotal, totalItemDiscounts, overallDiscAmount, effectiveGstTaxTotal, grandTotal, gstTaxTotal,
-  ]);
+
 
   // 📄 Generate High-Fidelity Vector A4 PDF Blob using jsPDF
   const generateQuotationPdfBlob = async (): Promise<Blob> => {
@@ -1289,14 +1228,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   };
 
   // ☁️ SAVE TO FIREBASE STORAGE & SYNC TO DATABASE
-  const handleSaveToFirebase = async () => {
+  const handleSaveToFirebase = async (isExportTriggered: boolean | unknown = false): Promise<boolean> => {
     if (!isReadyToSave) {
       const missingList: string[] = [];
       if (!hasSeller) missingList.push('Seller Company');
       if (!hasBuyer) missingList.push('Buyer / Client Party');
       if (!hasProduct) missingList.push('At least 1 Product Line Item');
       alert(`⚠️ Action Locked: Please select/enter ${missingList.join(', ')} before saving to Firebase.`);
-      return;
+      return false;
     }
 
     setIsSavingFirebase(true);
@@ -1455,13 +1394,125 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       setFirebaseSaveSuccess(true);
       setTimeout(() => setFirebaseSaveSuccess(false), 3500);
+      return true;
     } catch (err) {
       console.error('Save to Firebase Storage failed:', err);
       alert('Notice: ' + (err as Error).message);
+      return false;
     } finally {
       setIsSavingFirebase(false);
     }
   };
+
+  // 🖨️ PRINT / EXPORT PDF (A4) — Auto-triggers Save & Sync to Firebase, Supabase, and real-time dashboards
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!isReadyToSave) {
+      const missingList: string[] = [];
+      if (!hasSeller) missingList.push('Seller Company');
+      if (!hasBuyer) missingList.push('Buyer / Client Party');
+      if (!hasProduct) missingList.push('At least 1 Product Line Item');
+      alert(`⚠️ Export Locked: Please select/enter ${missingList.join(', ')} before exporting & saving.`);
+      return;
+    }
+
+    setIsExportingPdf(true);
+    handleCompilePdf();
+
+    try {
+      // 1. Auto-trigger Save & Sync (Firebase storage & Supabase database)
+      await handleSaveToFirebase(true);
+
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 3000);
+
+      // 2. Open official Print / Save as PDF modal
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    } catch (err) {
+      console.error('Export auto-save notice:', err);
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  // ── Download as Editable Word (.docx) — auto-saves when document is ready ──
+  const handleDownloadDocx = useCallback(async () => {
+    if (isReadyToSave) {
+      try {
+        await handleSaveToFirebase(true);
+      } catch (err) {
+        console.warn('Auto-save before DOCX export notice:', err);
+      }
+    }
+
+    const _activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
+    const _activeParty = parties.find(p => p.id === selectedPartyId) || parties[0];
+    const _docTitle = (() => {
+      switch (docType) {
+        case 'QUOTATION': return 'ESTIMATE / QUOTATION';
+        case 'PROFORMA_INVOICE': return 'PROFORMA INVOICE';
+        case 'TAX_INVOICE': return 'TAX INVOICE';
+        case 'PAYMENT_RECEIPT': return 'PAYMENT RECEIPT';
+        case 'CREDIT_NOTE': return 'CREDIT NOTE';
+        case 'DELIVERY_CHALLAN': return 'DELIVERY CHALLAN';
+        default: return 'DOCUMENT';
+      }
+    })();
+    const _cgst = gstType === 'EXEMPT' || globalGstRate === 0 ? 0 : gstTaxTotal / 2;
+    setIsExportingDocx(true);
+    try {
+      await exportQuotationAsDocx({
+        docTitle: _docTitle,
+        docNo,
+        docDate,
+        validUntilDate,
+        showValidUntil,
+        company: _activeCompany,
+        party: _activeParty,
+        useSeparateShipping,
+        customShippingAddress,
+        items,
+        customColumns,
+        showGstColumn,
+        showHsnColumn,
+        gstType,
+        globalGstRate,
+        overallDiscountType,
+        overallDiscountVal,
+        termsText,
+        subtotal,
+        totalItemDiscounts,
+        overallDiscAmount,
+        effectiveGstTaxTotal,
+        grandTotal,
+        cgst: _cgst,
+        sgst: _cgst,
+        igst: effectiveGstTaxTotal,
+      });
+      setDocxSuccess(true);
+      setTimeout(() => setDocxSuccess(false), 2500);
+    } catch (err) {
+      console.error('DOCX export failed:', err);
+      alert('Could not generate Word document. Please try again.');
+    } finally {
+      setIsExportingDocx(false);
+    }
+  }, [
+    isReadyToSave, handleSaveToFirebase,
+    docType, docNo, docDate, validUntilDate, showValidUntil,
+    companies, selectedCompanyId, parties, selectedPartyId,
+    useSeparateShipping, customShippingAddress,
+    items, customColumns, showGstColumn, showHsnColumn, gstType, globalGstRate,
+    overallDiscountType, overallDiscountVal, termsText,
+    subtotal, totalItemDiscounts, overallDiscAmount, effectiveGstTaxTotal, grandTotal, gstTaxTotal,
+  ]);
 
   // 💾 SAVE DRAFT TO DATABASE (GATED BY isReadyToSave & PERSISTED FOR CONTINUOUS EDITING)
   const handleSaveCurrentDraft = async () => {
@@ -2348,7 +2399,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               {/* ☁️ SAVE & ARCHIVE TO FIREBASE STORAGE (Gated: Clickable only after Buyer, Seller & Product) */}
               <button
                 type="button"
-                onClick={handleSaveToFirebase}
+                onClick={() => handleSaveToFirebase()}
                 disabled={!isReadyToSave || isSavingFirebase}
                 title={
                   !isReadyToSave
@@ -2384,13 +2435,30 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
               <button
                 type="button"
-                onClick={() => {
-                  handleCompilePdf();
-                  setTimeout(() => window.print(), 100);
-                }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer"
+                onClick={handleExportPdf}
+                disabled={!isReadyToSave || isExportingPdf || isSavingFirebase}
+                title={
+                  !isReadyToSave
+                    ? `Locked: Select ${[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(', ')} to export & save`
+                    : 'Auto-save to Firebase & database, then open Print / Export PDF'
+                }
+                className={`px-4 py-2 text-white text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
+                  !isReadyToSave
+                    ? 'opacity-40 cursor-not-allowed bg-slate-900/60 border-slate-800 text-slate-500 pointer-events-none'
+                    : isExportingPdf || isSavingFirebase
+                    ? 'bg-emerald-700/80 text-emerald-200 border-emerald-500/40 cursor-wait shadow-emerald-700/20'
+                    : exportSuccess
+                    ? 'bg-emerald-500 text-white border-emerald-400 shadow-emerald-500/30'
+                    : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500/40 shadow-emerald-600/20 active:scale-95 cursor-pointer'
+                }`}
               >
-                <Download size={14} /> Print / Export PDF (A4)
+                {isExportingPdf || isSavingFirebase ? (
+                  <><RefreshCw size={14} className="animate-spin text-emerald-200" /> Auto-Saving &amp; Exporting...</>
+                ) : exportSuccess ? (
+                  <><Check size={14} className="text-white" /> Saved &amp; Exporting...</>
+                ) : (
+                  <><Download size={14} /> Print / Export PDF (A4)</>
+                )}
               </button>
 
               {/* ⬇ DOWNLOAD AS EDITABLE WORD (.docx) BUTTON */}
