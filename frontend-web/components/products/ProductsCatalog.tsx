@@ -217,17 +217,38 @@ export async function uploadProductImageToFirebase(dataUrl: string, prefix: stri
     return dataUrl || '';
   }
   try {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+      apiBase = '/api';
+    }
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const res = await fetch(`${apiBase}/products/upload-image`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ dataUrl, fileName: prefix }),
-    });
-    if (res.ok) {
+    let res: Response | null = null;
+    try {
+      res = await fetch(`${apiBase}/products/upload-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ dataUrl, fileName: prefix }),
+      });
+      if (!res.ok && apiBase !== '/api') {
+        res = await fetch('/api/products/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl, fileName: prefix }),
+        });
+      }
+    } catch (_) {
+      try {
+        res = await fetch('/api/products/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl, fileName: prefix }),
+        });
+      } catch {}
+    }
+    if (res && res.ok) {
       const data = await res.json();
       if (data?.url) return data.url;
     }
@@ -275,6 +296,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const canManage = isUserAdmin || isManager;
 
   const [products, setProducts] = useState<ProductItemWeb[]>(() => {
+    let customImagesMap: Record<string, { coverImage: string; images: string[] }> = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const s = localStorage.getItem('das_crm_custom_product_images');
+        if (s) customImagesMap = JSON.parse(s);
+      } catch (_) {}
+    }
+
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem(STORAGE_PRODUCTS_KEY);
@@ -282,9 +311,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
             const sanitized = parsed.map((p: any) => {
-              const fixedCover = getProductCoverImage(p.coverImage || p.imageUrl);
-              const fixedImages = Array.isArray(p.images) && p.images.length > 0
-                ? p.images.map((im: string) => getProductCoverImage(im))
+              const customEntry = customImagesMap[p.id] || (p.sku ? customImagesMap[p.sku] : undefined);
+              const customCover = customEntry?.coverImage || p.coverImage || p.imageUrl;
+              const fixedCover = getProductCoverImage(customCover);
+              const customImages = customEntry?.images || p.images;
+              const fixedImages = Array.isArray(customImages) && customImages.length > 0
+                ? customImages.map((im: string) => getProductCoverImage(im))
                 : [fixedCover];
               return {
                 ...p,
@@ -300,7 +332,18 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         }
       } catch (_) {}
     }
-    return INITIAL_PRODUCTS;
+
+    return INITIAL_PRODUCTS.map(p => {
+      const customEntry = customImagesMap[p.id] || (p.sku ? customImagesMap[p.sku] : undefined);
+      if (customEntry && customEntry.coverImage) {
+        return {
+          ...p,
+          coverImage: customEntry.coverImage,
+          images: customEntry.images && customEntry.images.length > 0 ? customEntry.images : [customEntry.coverImage],
+        };
+      }
+      return p;
+    });
   });
 
   const [categories, setCategories] = useState<string[]>(() => {
@@ -457,14 +500,59 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               ],
             }));
 
-            // Merge with local products to ensure no newly created product is lost
+            // Merge with local products to ensure custom edited images & details are NEVER overwritten by defaults
             setProducts(prev => {
-              const backendSkus = new Set(mapped.map((m: any) => (m.sku || '').toUpperCase()));
-              const backendNames = new Set(mapped.map((m: any) => (m.name || '').trim().toLowerCase()));
+              let customImagesMap: Record<string, { coverImage: string; images: string[] }> = {};
+              try {
+                const s = localStorage.getItem('das_crm_custom_product_images');
+                if (s) customImagesMap = JSON.parse(s);
+              } catch (_) {}
+
+              // Map over incoming remote products and preserve user custom images
+              const mergedRemote = mapped.map((remoteP: any) => {
+                const localMatch = prev.find(
+                  (lp: any) =>
+                    lp.id === remoteP.id ||
+                    (lp.sku && lp.sku.toUpperCase() === (remoteP.sku || '').toUpperCase()) ||
+                    (lp.name && lp.name.trim().toLowerCase() === (remoteP.name || '').trim().toLowerCase())
+                );
+
+                const customImgEntry = customImagesMap[remoteP.id] || (remoteP.sku ? customImagesMap[remoteP.sku] : undefined);
+                let finalCover = remoteP.coverImage;
+                let finalImages = remoteP.images;
+
+                if (customImgEntry && customImgEntry.coverImage) {
+                  finalCover = customImgEntry.coverImage;
+                  finalImages = customImgEntry.images && customImgEntry.images.length > 0 ? customImgEntry.images : [finalCover];
+                } else if (localMatch && localMatch.coverImage && !localMatch.coverImage.includes('puff-jackets.jpg')) {
+                  finalCover = localMatch.coverImage;
+                  finalImages = localMatch.images && localMatch.images.length > 0 ? localMatch.images : [finalCover];
+                }
+
+                if (localMatch) {
+                  return {
+                    ...remoteP,
+                    ...localMatch,
+                    coverImage: finalCover,
+                    images: finalImages,
+                  };
+                }
+
+                return {
+                  ...remoteP,
+                  coverImage: finalCover,
+                  images: finalImages,
+                };
+              });
+
+              // Keep any local-only products not present in remote
+              const remoteIds = new Set(mapped.map((m: any) => m.id));
+              const remoteSkus = new Set(mapped.map((m: any) => (m.sku || '').toUpperCase()));
               const localOnly = prev.filter(
-                p => !backendSkus.has((p.sku || '').toUpperCase()) && !backendNames.has((p.name || '').trim().toLowerCase())
+                (p: any) => !remoteIds.has(p.id) && !remoteSkus.has((p.sku || '').toUpperCase())
               );
-              const combined = [...localOnly, ...mapped];
+
+              const combined = [...mergedRemote, ...localOnly];
               try {
                 localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(combined));
               } catch (_) {}
@@ -1006,37 +1094,58 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       };
 
       // 1. Send update to backend API (Supabase & Firebase)
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+        apiBase = '/api';
+      }
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       let finalSavedProduct = stagedProduct;
 
       try {
-        const res = await fetch(`${apiBase}/products/${stagedProduct.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            name: stagedProduct.name,
-            sku: stagedProduct.sku,
-            category: stagedProduct.category,
-            subCategory: stagedProduct.subCategory,
-            brand: stagedProduct.brand,
-            color: stagedProduct.color,
-            unit: stagedProduct.unit,
-            price: stagedProduct.price,
-            stock: stagedProduct.stock,
-            taxRate: stagedProduct.taxRate,
-            description: stagedProduct.overview,
-            features: stagedProduct.features,
-            imageUrl: stagedProduct.coverImage,
-            images: stagedProduct.images,
-            volumeDiscounts: stagedProduct.volumeDiscounts,
-          }),
-        });
+        let res: Response | null = null;
+        try {
+          res = await fetch(`${apiBase}/products/${stagedProduct.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              name: stagedProduct.name,
+              sku: stagedProduct.sku,
+              category: stagedProduct.category,
+              subCategory: stagedProduct.subCategory,
+              brand: stagedProduct.brand,
+              color: stagedProduct.color,
+              unit: stagedProduct.unit,
+              price: stagedProduct.price,
+              stock: stagedProduct.stock,
+              taxRate: stagedProduct.taxRate,
+              description: stagedProduct.overview,
+              features: stagedProduct.features,
+              imageUrl: stagedProduct.coverImage,
+              images: stagedProduct.images,
+              volumeDiscounts: stagedProduct.volumeDiscounts,
+            }),
+          });
+          if (!res.ok && apiBase !== '/api') {
+            res = await fetch(`/api/products/${stagedProduct.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(stagedProduct),
+            });
+          }
+        } catch (_) {
+          try {
+            res = await fetch(`/api/products/${stagedProduct.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(stagedProduct),
+            });
+          } catch {}
+        }
 
-        if (res.ok) {
+        if (res && res.ok) {
           const apiData = await res.json();
           if (apiData && apiData.id) {
             finalSavedProduct = {
@@ -1051,7 +1160,27 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         console.warn('API update failed, updating local state and broadcasting:', apiErr);
       }
 
-      // 2. Update local state
+      // 2. Update local state and dedicated custom images map
+      try {
+        let customImagesMap: Record<string, { coverImage: string; images: string[] }> = {};
+        const s = localStorage.getItem('das_crm_custom_product_images');
+        if (s) customImagesMap = JSON.parse(s);
+        const finalImgs = finalSavedProduct.images && finalSavedProduct.images.length > 0
+          ? finalSavedProduct.images
+          : [finalSavedProduct.coverImage];
+        customImagesMap[finalSavedProduct.id] = {
+          coverImage: finalSavedProduct.coverImage,
+          images: finalImgs,
+        };
+        if (finalSavedProduct.sku) {
+          customImagesMap[finalSavedProduct.sku] = {
+            coverImage: finalSavedProduct.coverImage,
+            images: finalImgs,
+          };
+        }
+        localStorage.setItem('das_crm_custom_product_images', JSON.stringify(customImagesMap));
+      } catch (_) {}
+
       setProducts(prev => {
         const next = prev.map(p => (p.id === stagedProduct.id || p.id === finalSavedProduct.id) ? finalSavedProduct : p);
         try {

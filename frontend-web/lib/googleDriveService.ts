@@ -299,11 +299,19 @@ export async function uploadFileToGoogleDrive(
       formData.append('leadsData', JSON.stringify(options.leadsData));
     }
 
+    let resolvedApiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    if (typeof window !== 'undefined') {
+      const isHttps = window.location.protocol === 'https:';
+      if (isHttps && resolvedApiBase.startsWith('http://localhost')) {
+        resolvedApiBase = '/api';
+      }
+    }
+
     // Progressive simulated telemetry ticks for super-smooth UI
     const chunkSize = Math.max(32 * 1024, Math.floor(totalBytes / 15));
     let simulatedUploaded = 0;
 
-    const progressInterval = setInterval(() => {
+    let progressInterval: any = setInterval(() => {
       if (simulatedUploaded < totalBytes * 0.9) {
         simulatedUploaded += chunkSize;
         const bounded = Math.min(simulatedUploaded, Math.floor(totalBytes * 0.9));
@@ -322,14 +330,36 @@ export async function uploadFileToGoogleDrive(
       }
     }, 60);
 
-    const res = await fetch(`${apiBase}/drive/upload`, {
-      method: 'POST',
-      body: formData,
-    });
+    let res: Response | null = null;
+    try {
+      res = await fetch(`${resolvedApiBase}/drive/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok && resolvedApiBase !== '/api') {
+        // Fallback to local serverless route
+        res = await fetch('/api/drive/upload', {
+          method: 'POST',
+          body: formData,
+        });
+      }
+    } catch (_) {
+      try {
+        res = await fetch('/api/drive/upload', {
+          method: 'POST',
+          body: formData,
+        });
+      } catch (innerErr) {
+        // Handled below
+      }
+    } finally {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+    }
 
-    clearInterval(progressInterval);
-
-    if (res.ok) {
+    if (res && res.ok) {
       const json = await res.json();
       const driveData = json.data || {};
       const elapsedTotalSec = (Date.now() - startTime) / 1000 || 0.1;

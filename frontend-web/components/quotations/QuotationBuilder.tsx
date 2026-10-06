@@ -263,20 +263,69 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
   }, [externalOpenHistory, onExternalOpenHistoryHandled]);
 
-  // Fetch Quotes & Drafts with Firebase PDF links from Database
+  // Fetch Quotes & Drafts with Firebase PDF links from Database & Local Vault
   useEffect(() => {
+    // 1. Instantly load from local storage cache
+    if (typeof window !== 'undefined') {
+      try {
+        const localSaved = localStorage.getItem('das_crm_saved_quotes');
+        if (localSaved) {
+          const parsed = JSON.parse(localSaved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSavedQuotes(parsed);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Listen to real-time quote updates across windows & lead workspace
+    const handleRemoteQuotesUpdate = (e?: any) => {
+      if (typeof window !== 'undefined') {
+        try {
+          const localSaved = localStorage.getItem('das_crm_saved_quotes');
+          if (localSaved) {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) setSavedQuotes(parsed);
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('das_crm_quotes_updated', handleRemoteQuotesUpdate);
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('das_crm_quote_channel');
+        bc.onmessage = () => handleRemoteQuotesUpdate();
+      }
+    } catch (_) {}
+
+    // 3. Fetch from remote backend / Supabase if available
     const fetchSavedQuotes = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-        if (!token) return;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/quotations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
+        let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+          apiBase = '/api';
+        }
+        
+        let res: Response | null = null;
+        try {
+          res = await fetch(`${apiBase}/quotations`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!res.ok && apiBase !== '/api') {
+            res = await fetch('/api/quotations');
+          }
+        } catch (_) {
+          try {
+            res = await fetch('/api/quotations');
+          } catch {}
+        }
+
+        if (res && res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            setSavedQuotes(data.map((q: any) => {
+            const mapped: SavedQuoteRecord[] = data.map((q: any): SavedQuoteRecord => {
               let parsedNotes: any = {};
               try {
                 if (q.notes && (q.notes.startsWith('{') || q.notes.startsWith('['))) {
@@ -294,7 +343,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 companyName: q.clientCompany || parsedNotes.companyName || 'Company',
                 savedAt: q.createdAt ? new Date(q.createdAt).toLocaleString('en-IN') : 'Recently',
                 totalAmount: Number(q.totalAmount || 0),
-                status: (q.status === 'SENT' || q.status === 'GENERATED_SENT') ? 'GENERATED_SENT' : 'DRAFT',
+                status: ((q.status === 'SENT' || q.status === 'GENERATED_SENT') ? 'GENERATED_SENT' : 'DRAFT') as 'SENT' | 'DRAFT' | 'GENERATED_SENT',
                 pdfUrl: resolvedPdf,
                 sentVia: q.sentVia || q.payload?.sentVia || parsedNotes.sentVia,
                 sentToLead: q.sentToLead || (q.clientName && q.clientName !== 'Client' ? q.clientName : undefined),
@@ -314,14 +363,30 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   pdfUrl: resolvedPdf,
                 },
               };
-            }));
+            });
+
+            setSavedQuotes(prev => {
+              const remoteKeys = new Set(mapped.map((m: any) => m.id || m.docNo));
+              const combined = [...mapped, ...prev.filter(p => !remoteKeys.has(p.id) && !remoteKeys.has(p.docNo))];
+              try {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('das_crm_saved_quotes', JSON.stringify(combined));
+                }
+              } catch (_) {}
+              return combined;
+            });
           }
         }
       } catch (e) {
-        console.warn('Failed to load saved quotes from backend:', e);
+        console.warn('Backend quote sync deferred:', e);
       }
     };
     fetchSavedQuotes();
+
+    return () => {
+      window.removeEventListener('das_crm_quotes_updated', handleRemoteQuotesUpdate);
+      if (bc) bc.close();
+    };
   }, []);
 
   // View Mode & Zoom Scale State (With Auto-responsive scaling for Mobile Viewports)
@@ -1236,18 +1301,25 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
     setIsSavingFirebase(true);
     try {
-      const pdfBlob = await generateQuotationPdfBlob();
-      const driveResult = await uploadFileToGoogleDrive(
-        pdfBlob,
-        `${docNo}.pdf`,
-        {
-          companyName: activeCompany?.name || 'Adorable Trading',
-          category: 'QUOTATIONS',
-          customFileName: docNo,
+      let pdfUrl = '';
+      try {
+        const pdfBlob = await generateQuotationPdfBlob();
+        const driveResult = await uploadFileToGoogleDrive(
+          pdfBlob,
+          `${docNo}.pdf`,
+          {
+            companyName: activeCompany?.name || 'Adorable Trading',
+            category: 'QUOTATIONS',
+            customFileName: docNo,
+          }
+        );
+        pdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl || '';
+        if (!pdfUrl && typeof URL !== 'undefined') {
+          pdfUrl = URL.createObjectURL(pdfBlob);
         }
-      );
-
-      const pdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl;
+      } catch (uploadErr) {
+        console.warn('PDF generation / upload notice:', uploadErr);
+      }
 
       const now = new Date();
       const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
@@ -1285,61 +1357,107 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         payload: recordPayload,
       };
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      // 1. Instantly persist to state and localStorage (never loses user changes)
+      setSavedQuotes(prev => {
+        const next = [quoteRecord, ...prev.filter(q => q.id !== quoteRecord.id && q.docNo !== quoteRecord.docNo)];
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('das_crm_saved_quotes', JSON.stringify(next));
+          }
+        } catch (_) {}
+        return next;
+      });
+      setCurrentEditingQuoteId(quoteRecord.id);
 
-      if (currentEditingQuoteId && !currentEditingQuoteId.startsWith('sq-')) {
-        await fetch(`${apiBase}/quotations/${currentEditingQuoteId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            quoteNumber: docNo,
-            docType,
-            partyName: quoteRecord.partyName,
-            companyName: quoteRecord.companyName,
-            totalAmount: grandTotal,
-            status: 'SENT',
-            items,
-            payload: recordPayload,
-          }),
-        });
-        setSavedQuotes(prev => prev.map(q => q.id === currentEditingQuoteId ? quoteRecord : q));
-      } else {
-        const res = await fetch(`${apiBase}/quotations`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            quoteNumber: docNo,
-            docType,
-            partyName: quoteRecord.partyName,
-            companyName: quoteRecord.companyName,
-            totalAmount: grandTotal,
-            status: 'SENT',
-            items,
-            payload: recordPayload,
-          }),
-        });
-        if (res.ok) {
+      // Broadcast update to all other open tabs, Lead Workspace, and CRM dashboards
+      try {
+        window.dispatchEvent(new CustomEvent('das_crm_quotes_updated', { detail: quoteRecord }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('das_crm_quote_channel');
+          bc.postMessage({ type: 'QUOTE_SAVED', quote: quoteRecord });
+          bc.close();
+        }
+      } catch (_) {}
+
+      // 2. Safely sync to backend / Supabase database without blocking UI or throwing unhandled errors
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+          apiBase = '/api';
+        }
+
+        const isExistingBackendQuote = currentEditingQuoteId && !currentEditingQuoteId.startsWith('sq-');
+        const endpoint = isExistingBackendQuote ? `${apiBase}/quotations/${currentEditingQuoteId}` : `${apiBase}/quotations`;
+
+        let res: Response | null = null;
+        try {
+          res = await fetch(endpoint, {
+            method: isExistingBackendQuote ? 'PUT' : 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              quoteNumber: docNo,
+              docType,
+              partyName: quoteRecord.partyName,
+              companyName: quoteRecord.companyName,
+              totalAmount: grandTotal,
+              status: 'SENT',
+              pdfUrl: quoteRecord.pdfUrl,
+              items,
+              payload: recordPayload,
+            }),
+          });
+        } catch (fetchErr) {
+          // If remote failed and not already using /api, fallback to Next.js serverless route
+          if (apiBase !== '/api') {
+            try {
+              res = await fetch(isExistingBackendQuote ? `/api/quotations/${currentEditingQuoteId}` : '/api/quotations', {
+                method: isExistingBackendQuote ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  quoteNumber: docNo,
+                  docType,
+                  partyName: quoteRecord.partyName,
+                  companyName: quoteRecord.companyName,
+                  totalAmount: grandTotal,
+                  status: 'SENT',
+                  pdfUrl: quoteRecord.pdfUrl,
+                  items,
+                  payload: recordPayload,
+                }),
+              });
+            } catch (_) {}
+          }
+        }
+
+        if (res && res.ok) {
           const savedData = await res.json();
           if (savedData?.id) {
             quoteRecord.id = savedData.id;
+            setSavedQuotes(prev => {
+              const updated = prev.map(q => q.docNo === quoteRecord.docNo ? { ...q, id: savedData.id } : q);
+              try {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('das_crm_saved_quotes', JSON.stringify(updated));
+                }
+              } catch (_) {}
+              return updated;
+            });
+            setCurrentEditingQuoteId(savedData.id);
           }
         }
-        setSavedQuotes(prev => [quoteRecord, ...prev.filter(q => q.id !== quoteRecord.id)]);
-        setCurrentEditingQuoteId(quoteRecord.id);
+      } catch (backendErr) {
+        console.info('Backend database sync notice:', backendErr);
       }
 
       setFirebaseSaveSuccess(true);
-      setTimeout(() => setFirebaseSaveSuccess(false), 3000);
+      setTimeout(() => setFirebaseSaveSuccess(false), 3500);
     } catch (err) {
       console.error('Save to Firebase Storage failed:', err);
-      alert('Failed to save to Firebase: ' + (err as Error).message);
+      alert('Notice: ' + (err as Error).message);
     } finally {
       setIsSavingFirebase(false);
     }
@@ -1372,6 +1490,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         }
       );
       draftPdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl || '';
+      if (!draftPdfUrl && typeof URL !== 'undefined') {
+        draftPdfUrl = URL.createObjectURL(pdfBlob);
+      }
     } catch (_) {}
 
     const recordPayload = {
@@ -1407,16 +1528,46 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       payload: recordPayload,
     };
 
+    // 1. Instantly persist to state and localStorage
+    setSavedQuotes(prev => {
+      const next = [draftRecord, ...prev.filter(q => q.id !== draftRecord.id && q.docNo !== draftRecord.docNo)];
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('das_crm_saved_quotes', JSON.stringify(next));
+        }
+      } catch (_) {}
+      return next;
+    });
+    setCurrentEditingQuoteId(draftRecord.id);
+
+    // Broadcast draft update
+    try {
+      window.dispatchEvent(new CustomEvent('das_crm_quotes_updated', { detail: draftRecord }));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_quote_channel');
+        bc.postMessage({ type: 'QUOTE_SAVED', quote: draftRecord });
+        bc.close();
+      }
+    } catch (_) {}
+
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
 
+    // 2. Safely sync to backend / Supabase database without crashing
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+        apiBase = '/api';
+      }
 
-      if (currentEditingQuoteId && !currentEditingQuoteId.startsWith('sq-')) {
-        await fetch(`${apiBase}/quotations/${currentEditingQuoteId}`, {
-          method: 'PUT',
+      const isExistingBackendQuote = currentEditingQuoteId && !currentEditingQuoteId.startsWith('sq-');
+      const endpoint = isExistingBackendQuote ? `${apiBase}/quotations/${currentEditingQuoteId}` : `${apiBase}/quotations`;
+
+      let res: Response | null = null;
+      try {
+        res = await fetch(endpoint, {
+          method: isExistingBackendQuote ? 'PUT' : 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -1433,37 +1584,46 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             payload: recordPayload,
           }),
         });
-        setSavedQuotes(prev => prev.map(q => q.id === currentEditingQuoteId ? draftRecord : q));
-      } else {
-        const res = await fetch(`${apiBase}/quotations`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            quoteNumber: docNo,
-            docType,
-            partyName: draftRecord.partyName,
-            companyName: draftRecord.companyName,
-            totalAmount: grandTotal,
-            status: 'DRAFT',
-            pdfUrl: draftPdfUrl,
-            items,
-            payload: recordPayload,
-          }),
-        });
-        if (res.ok) {
-          const savedData = await res.json();
-          if (savedData?.id) {
-            draftRecord.id = savedData.id;
-          }
+      } catch (_) {
+        if (apiBase !== '/api') {
+          try {
+            res = await fetch(isExistingBackendQuote ? `/api/quotations/${currentEditingQuoteId}` : '/api/quotations', {
+              method: isExistingBackendQuote ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                quoteNumber: docNo,
+                docType,
+                partyName: draftRecord.partyName,
+                companyName: draftRecord.companyName,
+                totalAmount: grandTotal,
+                status: 'DRAFT',
+                pdfUrl: draftPdfUrl,
+                items,
+                payload: recordPayload,
+              }),
+            });
+          } catch {}
         }
-        setSavedQuotes(prev => [draftRecord, ...prev.filter(q => q.id !== draftRecord.id)]);
-        setCurrentEditingQuoteId(draftRecord.id);
+      }
+
+      if (res && res.ok) {
+        const savedData = await res.json();
+        if (savedData?.id) {
+          draftRecord.id = savedData.id;
+          setSavedQuotes(prev => {
+            const updated = prev.map(q => q.docNo === draftRecord.docNo ? { ...q, id: savedData.id } : q);
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('das_crm_saved_quotes', JSON.stringify(updated));
+              }
+            } catch (_) {}
+            return updated;
+          });
+          setCurrentEditingQuoteId(savedData.id);
+        }
       }
     } catch (e) {
-      console.warn('Backend quote draft save error:', e);
+      console.info('Backend quote draft save notice:', e);
     }
   };
 
