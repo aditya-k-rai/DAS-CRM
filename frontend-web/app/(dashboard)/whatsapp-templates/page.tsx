@@ -12,6 +12,7 @@ import {
   whatsappTemplateEngine,
   type WhatsAppTemplate,
   type TemplateCategory,
+  STATUS_OPTIONS,
   DEFAULT_TEMPLATES,
   UPDATE_EVENT_NAME,
   SYNC_CHANNEL_NAME,
@@ -20,9 +21,11 @@ import {
 // ── Category styles ───────────────────────────────────────
 const CAT_STYLES: Record<TemplateCategory, { bg: string; text: string; border: string; emoji: string; label: string }> = {
   OUTREACH:  { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', emoji: '🌱', label: 'Outreach' },
-  PROPOSAL:  { bg: 'bg-indigo-500/15',  text: 'text-indigo-400',  border: 'border-indigo-500/30',  emoji: '📄', label: 'Proposal' },
+  PROPOSAL:  { bg: 'bg-indigo-500/15',  text: 'text-indigo-400',  border: 'border-indigo-500/30',  emoji: '💼', label: 'Proposal' },
   FOLLOWUP:  { bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/30',   emoji: '⏰', label: 'Follow-up' },
   PROMOTION: { bg: 'bg-rose-500/15',    text: 'text-rose-400',    border: 'border-rose-500/30',    emoji: '🎉', label: 'Promotion' },
+  MEETING:   { bg: 'bg-blue-500/15',    text: 'text-blue-400',    border: 'border-blue-500/30',    emoji: '📅', label: 'Meeting' },
+  INVOICE:   { bg: 'bg-pink-500/15',    text: 'text-pink-400',    border: 'border-pink-500/30',    emoji: '📦', label: 'Invoice' },
 };
 
 // ── Placeholder variables & Catalog Products ──
@@ -51,6 +54,7 @@ function TemplateModal({
 }) {
   const [title, setTitle] = useState(template?.title ?? '');
   const [category, setCategory] = useState<TemplateCategory>(template?.category ?? 'OUTREACH');
+  const [targetStatus, setTargetStatus] = useState<string>(template?.targetStatus ?? 'Contacted');
   const [text, setText] = useState(template?.text ?? '');
   const [selectedCatalogProduct, setSelectedCatalogProduct] = useState('');
 
@@ -62,6 +66,7 @@ function TemplateModal({
       id: template?.id ?? `tpl_${Date.now()}`,
       title: title.trim(),
       category,
+      targetStatus: targetStatus !== 'KEEP_CURRENT' ? targetStatus : undefined,
       text: text.trim(),
       isDefault: template?.isDefault,
       usageCount: template?.usageCount ?? 0,
@@ -100,24 +105,58 @@ function TemplateModal({
 
           {/* Category */}
           <div>
-            <label className="text-muted text-xs font-semibold block mb-1.5">🏷️ Category</label>
-            <div className="grid grid-cols-4 gap-2">
+            <label className="text-muted text-xs font-semibold block mb-1.5">🏷️ Message Type / Category</label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {(Object.keys(CAT_STYLES) as TemplateCategory[]).map((cat) => {
                 const s = CAT_STYLES[cat];
                 return (
                   <button
                     key={cat}
-                    onClick={() => setCategory(cat)}
+                    type="button"
+                    onClick={() => {
+                      setCategory(cat);
+                      if (cat === 'PROPOSAL') setTargetStatus('Proposal');
+                      else if (cat === 'INVOICE') setTargetStatus('Negotiation');
+                      else if (cat === 'MEETING') setTargetStatus('Meeting Scheduled');
+                      else if (cat === 'PROMOTION') setTargetStatus('Negotiation');
+                      else if (cat === 'OUTREACH' || cat === 'FOLLOWUP') setTargetStatus('Contacted');
+                    }}
                     className={cn(
                       'flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-bold transition-all',
-                      category === cat ? `${s.bg} ${s.text} ${s.border}` : 'border-slate-800 text-muted hover:border-slate-600 hover:text-white'
+                      category === cat ? `${s.bg} ${s.text} ${s.border} ring-1 ring-current` : 'border-slate-800 text-muted hover:border-slate-600 hover:text-white'
                     )}
                   >
                     <span className="text-base">{s.emoji}</span>
-                    <span>{s.label}</span>
+                    <span className="text-[10px] leading-tight">{s.label}</span>
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* ⚡ Target Lead Status Selection */}
+          <div>
+            <label className="text-muted text-xs font-semibold block mb-1.5">⚡ Auto-Update Target Lead Status</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {STATUS_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setTargetStatus(opt.key)}
+                  className={cn(
+                    'p-2 rounded-xl text-xs font-bold border transition-all text-left flex items-center justify-between',
+                    targetStatus === opt.key
+                      ? `${opt.bgClass} ${opt.borderClass} ${opt.textClass} ring-1 ring-current shadow-sm`
+                      : 'border-slate-800 text-muted hover:border-slate-700 hover:text-white'
+                  )}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>{opt.badge}</span>
+                    <span className="truncate">{opt.label}</span>
+                  </span>
+                  {targetStatus === opt.key && <span className="text-xs font-extrabold">✓</span>}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -439,6 +478,11 @@ export default function WhatsAppTemplatesPage() {
                               {tpl.isDefault && (
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600 flex-shrink-0">
                                   Default
+                                </span>
+                              )}
+                              {tpl.targetStatus && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex-shrink-0">
+                                  ⚡ Status: {tpl.targetStatus}
                                 </span>
                               )}
                               {(tpl.usageCount ?? 0) > 0 && (

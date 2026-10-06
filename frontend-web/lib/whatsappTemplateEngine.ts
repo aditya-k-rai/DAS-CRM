@@ -10,7 +10,7 @@
  * 5. Direct WhatsApp launching (https://wa.me/... and whatsapp://send)
  */
 
-export type TemplateCategory = 'OUTREACH' | 'PROPOSAL' | 'FOLLOWUP' | 'PROMOTION';
+export type TemplateCategory = 'OUTREACH' | 'PROPOSAL' | 'FOLLOWUP' | 'PROMOTION' | 'MEETING' | 'INVOICE';
 
 export interface WhatsAppTemplate {
   id: string;
@@ -19,6 +19,7 @@ export interface WhatsAppTemplate {
   text: string;
   isDefault?: boolean;
   usageCount?: number;
+  targetStatus?: string; // Target lead status when dispatched (e.g. 'Contacted', 'Proposal', 'Negotiation', 'Meeting Scheduled')
 }
 
 export const STORAGE_KEY = 'das_whatsapp_custom_templates_v1';
@@ -30,6 +31,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     id: 'tpl_1',
     title: '🌱 Initial Lead Outreach',
     category: 'OUTREACH',
+    targetStatus: 'Contacted',
     text: "Hi {name}! I got to know that you inquired about our DAS CRM solution for {company}. Let's connect for a quick 5-minute call today!",
     isDefault: true,
     usageCount: 0,
@@ -38,6 +40,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     id: 'tpl_2',
     title: '💼 Customized Proposal & Pricing Deck',
     category: 'PROPOSAL',
+    targetStatus: 'Proposal',
     text: "Hi {name}, I have prepared the customized CRM proposal of {value} for {company}. Please let me know when you'd like to review the commercial breakdown!",
     isDefault: true,
     usageCount: 0,
@@ -46,15 +49,17 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     id: 'tpl_3',
     title: '⏰ SLA 15-Min Follow-Up Call',
     category: 'FOLLOWUP',
+    targetStatus: 'Contacted',
     text: "Hi {name}, following up regarding our recent discussion for {company}. Do you have 5 minutes for a quick call today?",
     isDefault: true,
     usageCount: 0,
   },
   {
     id: 'tpl_4',
-    title: '🎉 Seasonal Discount & Priority Demo Offer',
-    category: 'PROMOTION',
-    text: "Exciting news {name}! Get a special discount on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!",
+    title: '📅 Meeting Details & Demo Confirmation',
+    category: 'MEETING',
+    targetStatus: 'Meeting Scheduled',
+    text: "Hi {name}, looking forward to our scheduled live walkthrough for {company}! Let me know if you would like me to share a Google Meet / Zoom link or adjust the timing.",
     isDefault: true,
     usageCount: 0,
   },
@@ -62,15 +67,35 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     id: 'tpl_5',
     title: '📄 GST Commercial Proposal Breakdown',
     category: 'PROPOSAL',
+    targetStatus: 'Proposal',
     text: "Hello {name}, please find our official commercial quote for {product} attached with 18% GST tax breakdown totaling {value}. Looking forward to your confirmation!",
     isDefault: true,
     usageCount: 0,
   },
   {
     id: 'tpl_6',
-    title: '🚀 Product Demo & Live Walkthrough Invitation',
+    title: '📦 Product Specs & Proforma Invoice',
+    category: 'INVOICE',
+    targetStatus: 'Negotiation',
+    text: "Hi {name}, here is the complete product specification and proforma invoice for {product} for {company} totaling {value}. Please review and let me know your confirmation!",
+    isDefault: true,
+    usageCount: 0,
+  },
+  {
+    id: 'tpl_7',
+    title: '🚀 Live Walkthrough Invitation',
     category: 'OUTREACH',
+    targetStatus: 'Meeting Scheduled',
     text: "Hi {name}, we would love to give you a customized live walkthrough of our platform for {company}. Reply to confirm your preferred timing!",
+    isDefault: true,
+    usageCount: 0,
+  },
+  {
+    id: 'tpl_8',
+    title: '🎉 Seasonal Discount & Priority Demo Offer',
+    category: 'PROMOTION',
+    targetStatus: 'Negotiation',
+    text: "Exciting news {name}! Get a special discount on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!",
     isDefault: true,
     usageCount: 0,
   },
@@ -81,7 +106,28 @@ export const CATEGORY_EMOJIS: Record<TemplateCategory, string> = {
   PROPOSAL: '💼',
   FOLLOWUP: '⏰',
   PROMOTION: '🎉',
+  MEETING: '📅',
+  INVOICE: '📦',
 };
+
+export const STATUS_OPTIONS: Array<{
+  key: string;
+  label: string;
+  badge: string;
+  color: string;
+  bgClass: string;
+  borderClass: string;
+  textClass: string;
+}> = [
+  { key: 'Contacted', label: 'Connected / Contacted', badge: '📞', color: '#f59e0b', bgClass: 'bg-amber-500/15', borderClass: 'border-amber-500/40', textClass: 'text-amber-400' },
+  { key: 'Proposal', label: 'Proposal Sent (Negotiation)', badge: '📄', color: '#8b5cf6', bgClass: 'bg-purple-500/15', borderClass: 'border-purple-500/40', textClass: 'text-purple-400' },
+  { key: 'Negotiation', label: 'Product / Invoice Sent (Negotiation)', badge: '📦', color: '#ec4899', bgClass: 'bg-pink-500/15', borderClass: 'border-pink-500/40', textClass: 'text-pink-400' },
+  { key: 'Meeting Scheduled', label: 'Meeting Details (Meeting Scheduled)', badge: '📅', color: '#3b82f6', bgClass: 'bg-blue-500/15', borderClass: 'border-blue-500/40', textClass: 'text-blue-400' },
+  { key: 'Qualified', label: 'Qualified (Requirements Gathered)', badge: '🎯', color: '#06b6d4', bgClass: 'bg-cyan-500/15', borderClass: 'border-cyan-500/40', textClass: 'text-cyan-400' },
+  { key: 'Won', label: 'Deal Closed / Payment Cleared (Won)', badge: '🏆', color: '#10b981', bgClass: 'bg-emerald-500/15', borderClass: 'border-emerald-500/40', textClass: 'text-emerald-400' },
+  { key: 'Lost', label: 'Not Interested / Dropped (Lost)', badge: '❌', color: '#ef4444', bgClass: 'bg-rose-500/15', borderClass: 'border-rose-500/40', textClass: 'text-rose-400' },
+  { key: 'KEEP_CURRENT', label: "Keep Current Status (Don't Change)", badge: '⏸️', color: '#64748b', bgClass: 'bg-slate-800', borderClass: 'border-slate-700', textClass: 'text-slate-300' },
+];
 
 class WhatsAppTemplateEngine {
   /** Clean phone string (keep country code; default India 91 prefix if 10 digits) */

@@ -20,6 +20,9 @@ import { apiFetch } from '@/lib/apiClient';
 import {
   whatsappTemplateEngine,
   type WhatsAppTemplate,
+  type TemplateCategory,
+  STATUS_OPTIONS,
+  CATEGORY_EMOJIS,
   UPDATE_EVENT_NAME as WA_UPDATE_EVENT,
   SYNC_CHANNEL_NAME as WA_SYNC_CHANNEL,
 } from '@/lib/whatsappTemplateEngine';
@@ -1974,11 +1977,20 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   });
   const [waDirectTemplateTitle, setWaDirectTemplateTitle] = useState<string>(() => {
     const list = whatsappTemplateEngine.getTemplates();
-    return list[0]?.title || 'Intro Proposal Template';
+    return list[0]?.title || '🌱 Initial Lead Outreach';
   });
   const [waDirectMessage, setWaDirectMessage] = useState<string>('');
-  const [waDirectDisposition, setWaDirectDisposition] = useState<DispositionOption>('Will Talk Later');
+  const [selectedTargetStatus, setSelectedTargetStatus] = useState<string>(() => {
+    const list = whatsappTemplateEngine.getTemplates();
+    return list[0]?.targetStatus || 'Contacted';
+  });
   const [waDirectNotes, setWaDirectNotes] = useState('');
+
+  // Custom template creation & compose mode
+  const [isCustomTemplateMode, setIsCustomTemplateMode] = useState<boolean>(false);
+  const [customTemplateTitle, setCustomTemplateTitle] = useState<string>('');
+  const [customTemplateCategory, setCustomTemplateCategory] = useState<TemplateCategory>('OUTREACH');
+  const [saveCustomToLibrary, setSaveCustomToLibrary] = useState<boolean>(true);
 
   // Real-time synchronization of templates with WhatsApp Templates module & across browser tabs
   useEffect(() => {
@@ -1988,6 +2000,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       if (fresh.length > 0 && !fresh.some(t => t.id === selectedWaTemplateId)) {
         setSelectedWaTemplateId(fresh[0].id);
         setWaDirectTemplateTitle(fresh[0].title);
+        if (fresh[0].targetStatus) {
+          setSelectedTargetStatus(fresh[0].targetStatus);
+        }
       }
     };
 
@@ -2007,11 +2022,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     };
   }, [selectedWaTemplateId]);
 
-  // Live variable interpolation whenever selected template or lead details change
+  // Live variable interpolation whenever selected template or lead details change (in standard mode)
   useEffect(() => {
+    if (isCustomTemplateMode) return;
     const tpl = waTemplatesList.find(t => t.id === selectedWaTemplateId) || waTemplatesList[0];
     if (tpl) {
       setWaDirectTemplateTitle(tpl.title);
+      if (tpl.targetStatus) {
+        setSelectedTargetStatus(tpl.targetStatus);
+      }
       const leadVal = (lead as any).value || lead.budget;
       const interpolated = whatsappTemplateEngine.interpolateTemplate(tpl.text, {
         name: lead.name,
@@ -2021,13 +2040,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       });
       setWaDirectMessage(interpolated);
     }
-  }, [selectedWaTemplateId, waTemplatesList, lead.name, lead.company, lead.budget, lead.requirement]);
+  }, [selectedWaTemplateId, waTemplatesList, isCustomTemplateMode, lead.name, lead.company, lead.budget, lead.requirement]);
 
   const handleSelectWaTemplate = (templateId: string) => {
     setSelectedWaTemplateId(templateId);
+    setIsCustomTemplateMode(false);
     const tpl = waTemplatesList.find(t => t.id === templateId);
     if (tpl) {
       setWaDirectTemplateTitle(tpl.title);
+      if (tpl.targetStatus) {
+        setSelectedTargetStatus(tpl.targetStatus);
+      }
       const leadVal = (lead as any).value || lead.budget;
       const interpolated = whatsappTemplateEngine.interpolateTemplate(tpl.text, {
         name: lead.name,
@@ -2036,6 +2059,40 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         requirement: lead.requirement,
       });
       setWaDirectMessage(interpolated);
+    }
+  };
+
+  const handleSelectCustomCategory = (cat: TemplateCategory) => {
+    setCustomTemplateCategory(cat);
+    // Auto-suggest status based on message type/category
+    if (cat === 'PROPOSAL') setSelectedTargetStatus('Proposal');
+    else if (cat === 'INVOICE') setSelectedTargetStatus('Negotiation');
+    else if (cat === 'MEETING') setSelectedTargetStatus('Meeting Scheduled');
+    else if (cat === 'PROMOTION') setSelectedTargetStatus('Negotiation');
+    else if (cat === 'OUTREACH' || cat === 'FOLLOWUP') setSelectedTargetStatus('Contacted');
+  };
+
+  const handleToggleCustomMode = (custom: boolean) => {
+    setIsCustomTemplateMode(custom);
+    if (custom) {
+      if (!customTemplateTitle) setCustomTemplateTitle('Custom Lead Message');
+      if (!waDirectMessage) {
+        const leadVal = (lead as any).value || lead.budget;
+        setWaDirectMessage(`Hi ${lead.name || 'there'}, sharing details regarding our discussion for ${lead.company || 'your requirement'}.`);
+      }
+    } else {
+      const tpl = waTemplatesList.find(t => t.id === selectedWaTemplateId) || waTemplatesList[0];
+      if (tpl) {
+        setWaDirectTemplateTitle(tpl.title);
+        if (tpl.targetStatus) setSelectedTargetStatus(tpl.targetStatus);
+        const leadVal = (lead as any).value || lead.budget;
+        setWaDirectMessage(whatsappTemplateEngine.interpolateTemplate(tpl.text, {
+          name: lead.name,
+          company: lead.company,
+          value: leadVal,
+          requirement: lead.requirement,
+        }));
+      }
     }
   };
 
@@ -2060,6 +2117,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       ? 'TEAM_LEADER'
       : 'SALES_EXEC';
 
+    const effectiveTitle = isCustomTemplateMode
+      ? (customTemplateTitle.trim() || 'Custom WhatsApp Message')
+      : waDirectTemplateTitle;
+
     // 1. Launch Direct WhatsApp (wa.me / whatsapp://)
     const finalMsg = waDirectMessage.trim() || `Hi ${lead.name}, following up regarding ${lead.company || 'DAS CRM'}.`;
     const launchRes = whatsappTemplateEngine.openDirectWhatsApp(lead.phone, finalMsg, lead.name);
@@ -2069,20 +2130,32 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       return;
     }
 
-    // Increment template usage count
-    whatsappTemplateEngine.incrementUsage(selectedWaTemplateId);
-
-    // 2. Map disposition to lead status if applicable
-    let targetStatus: string | null = null;
-    if (waDirectDisposition === 'Not Interested') {
-      targetStatus = 'Lost';
-    } else if (waDirectDisposition === 'Talked & Enter Response' || waDirectDisposition === 'Interested in Product & Product Shared') {
-      targetStatus = 'Contacted';
-    } else if (waDirectDisposition === 'Will Talk Later' || waDirectDisposition === 'Busy' || waDirectDisposition === 'Not Responding') {
-      if (lead.status === 'New' || !lead.status) targetStatus = 'Contacted';
+    // 2. Save custom template to library if requested
+    if (isCustomTemplateMode && saveCustomToLibrary && customTemplateTitle.trim()) {
+      try {
+        const customTplId = `tpl_${Date.now()}`;
+        whatsappTemplateEngine.upsertTemplate({
+          id: customTplId,
+          title: customTemplateTitle.trim(),
+          category: customTemplateCategory,
+          text: waDirectMessage.trim(),
+          targetStatus: selectedTargetStatus !== 'KEEP_CURRENT' ? selectedTargetStatus : undefined,
+          isDefault: false,
+          usageCount: 1,
+        });
+        setWaTemplatesList(whatsappTemplateEngine.getTemplates());
+        setSelectedWaTemplateId(customTplId);
+      } catch (_) {}
+    } else if (!isCustomTemplateMode) {
+      // Increment template usage count
+      whatsappTemplateEngine.incrementUsage(selectedWaTemplateId);
     }
 
-    // 3. Record contact attempt
+    // 3. Determine status update
+    const shouldUpdateStatus = Boolean(selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT');
+    const newStatus = shouldUpdateStatus ? selectedTargetStatus : lead.status;
+
+    // 4. Record contact attempt
     const newContactAttempt: ContactAttempt = {
       id: `attempt_wa_${Date.now()}`,
       type: 'WHATSAPP',
@@ -2090,13 +2163,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       by: currentUser?.name || lead.owner || 'Sales Rep',
       byRole: cleanRole,
       timestamp: new Date().toISOString(),
-      notes: `Template: "${waDirectTemplateTitle}" • Disposition: ${waDirectDisposition}${waDirectNotes ? ` • Notes: ${waDirectNotes}` : ''}`,
+      notes: `Template: "${effectiveTitle}" • Target Status: ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${waDirectNotes ? ` • Notes: ${waDirectNotes}` : ''}`,
       sentMessage: finalMsg,
     };
 
     setContactHistory(prev => [newContactAttempt, ...prev]);
 
-    // 4. Persist contact attempt to local & session storage
+    // Persist contact attempt to local & session storage
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify([newContactAttempt, ...contactHistory]));
@@ -2104,13 +2177,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       } catch (_) {}
     }
 
-    // 5. Update lead status if disposition mapped to status
-    if (targetStatus && targetStatus !== lead.status) {
-      setLead(prev => ({ ...prev, status: targetStatus! }));
+    // 5. Update lead status if selected status differs from current status
+    if (shouldUpdateStatus && selectedTargetStatus !== lead.status) {
+      setLead(prev => ({ ...prev, status: selectedTargetStatus }));
 
       if (typeof window !== 'undefined') {
         try {
-          const updatedLead = { ...lead, status: targetStatus, lastActivityAt: new Date().toISOString() };
+          const updatedLead = { ...lead, status: selectedTargetStatus, lastActivityAt: new Date().toISOString() };
           sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
           sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
 
@@ -2118,7 +2191,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           if (allLeadsRaw) {
             const allLeads = JSON.parse(allLeadsRaw);
             const updatedAll = allLeads.map((item: any) =>
-              String(item.id) === String(lead.id) ? { ...item, status: targetStatus, lastActivityAt: new Date().toISOString() } : item
+              String(item.id) === String(lead.id) ? { ...item, status: selectedTargetStatus, lastActivityAt: new Date().toISOString() } : item
             );
             localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
           }
@@ -2127,7 +2200,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
       apiFetch(`/leads/${lead.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: targetStatus, lastActivityAt: new Date().toISOString() }),
+        body: JSON.stringify({ status: selectedTargetStatus, lastActivityAt: new Date().toISOString() }),
       }).catch(() => {});
     }
 
@@ -2137,14 +2210,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       body: JSON.stringify({
         activityType: 'NOTE',
         leadId: lead.id,
-        notes: `WhatsApp Direct (${waDirectTemplateTitle}): ${waDirectDisposition}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
+        notes: `WhatsApp Direct (${effectiveTitle}): Status → ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
         metadata: {
           channel: 'WHATSAPP',
           type: 'WHATSAPP',
           outcome: 'WA_SENT',
-          templateId: selectedWaTemplateId,
-          template: waDirectTemplateTitle,
-          disposition: waDirectDisposition,
+          templateId: isCustomTemplateMode ? 'custom' : selectedWaTemplateId,
+          template: effectiveTitle,
+          status: newStatus,
+          targetStatus: selectedTargetStatus,
           sentMessage: finalMsg,
           notes: waDirectNotes,
           by: currentUser?.name || lead.owner,
@@ -2157,24 +2231,25 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const newLog: SyncedActivityLog = {
       id: Date.now().toString(),
       section: 'WA_DIRECT',
-      title: `WhatsApp Direct Dispatched (${waDirectTemplateTitle})`,
-      disposition: waDirectDisposition,
-      notes: `${waDirectDisposition}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
+      title: `WhatsApp Direct Dispatched (${effectiveTitle})`,
+      notes: `Status → ${shouldUpdateStatus ? selectedTargetStatus : 'Kept Current'}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
       timestamp: 'Just now',
       user: currentUser?.name || lead.owner,
     };
 
     setSyncedActivities((prev) => [newLog, ...prev]);
-    showSyncNotification(`✓ WhatsApp Direct Dispatched to ${whatsappTemplateEngine.formatPhoneDisplay(lead.phone)} & Auto-Synced to Lead Center!`);
+    showSyncNotification(`✓ WhatsApp Direct Dispatched! Lead status updated to ${newStatus}`);
     setWaDirectNotes('');
 
     // Clear caches and broadcast updates to all tabs & Lead Center
     clearAllDashboardCaches();
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, disposition: waDirectDisposition, status: targetStatus } }));
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', {
+        detail: { leadId: lead.id, status: newStatus, template: effectiveTitle }
+      }));
       try {
         const bc = new BroadcastChannel('das_crm_lead_sync');
-        bc.postMessage({ type: 'LEAD_UPDATED', leadId: lead.id, disposition: waDirectDisposition, status: targetStatus });
+        bc.postMessage({ type: 'LEAD_UPDATED', leadId: lead.id, status: newStatus, template: effectiveTitle });
         bc.close();
       } catch (_) {}
     }
@@ -3585,10 +3660,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/20 px-2.5 py-1 rounded border border-amber-500/30">
                 WHATSAPP CHAT DIRECT DISPATCHER
               </span>
-              <h3 className="text-lg font-extrabold text-white mt-1">Direct WhatsApp Template & Quick Update</h3>
+              <h3 className="text-lg font-extrabold text-white mt-1">Direct WhatsApp Template &amp; Lead Status Dispatcher</h3>
               <p className="text-xs text-muted">
-                Select pre-approved templates and dispatch directly to{' '}
+                Dispatch WhatsApp templates or custom messages directly to{' '}
                 <strong className="text-emerald-400 font-bold">{whatsappTemplateEngine.formatPhoneDisplay(lead.phone)}</strong>
+                {' '}and auto-update lead status
               </p>
             </div>
             <a
@@ -3603,28 +3679,127 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           </div>
 
           <div className="p-5 rounded-2xl bg-background border border-border space-y-4">
-            {/* 1. Template Selector (Dynamic & Synced with WhatsApp Templates Module) */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-muted block font-semibold">Select WhatsApp Template *</label>
-                <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 size={11} /> {waTemplatesList.length} Templates Synced
-                </span>
-              </div>
-              <select
-                className="crm-input text-xs font-bold w-full bg-slate-900 border-border focus:border-amber-500"
-                value={selectedWaTemplateId}
-                onChange={(e) => handleSelectWaTemplate(e.target.value)}
+            {/* 1. Mode Switcher: Pre-Approved Templates vs Create & Send Custom Template */}
+            <div className="flex items-center gap-2 p-1 bg-slate-900/90 border border-slate-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => handleToggleCustomMode(false)}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  !isCustomTemplateMode
+                    ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
               >
-                {waTemplatesList.map((t) => (
-                  <option key={t.id} value={t.id} className="bg-slate-900 text-white">
-                    {t.title} ({t.category})
-                  </option>
-                ))}
-              </select>
+                <span>📋 Select Pre-Approved Template</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/30 text-amber-200">
+                  {waTemplatesList.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleCustomMode(true)}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  isCustomTemplateMode
+                    ? 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 border border-emerald-500/50 text-emerald-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <span>✨ + Create &amp; Send Custom Template</span>
+              </button>
             </div>
 
-            {/* 2. Live Message Preview & Direct Edit (Android Reference Parity) */}
+            {/* If NOT custom mode: Pre-approved template selector */}
+            {!isCustomTemplateMode ? (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-muted block font-semibold">Select WhatsApp Template *</label>
+                  <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 size={11} /> {waTemplatesList.length} Templates Synced
+                  </span>
+                </div>
+                <select
+                  className="crm-input text-xs font-bold w-full bg-slate-900 border-border focus:border-amber-500"
+                  value={selectedWaTemplateId}
+                  onChange={(e) => handleSelectWaTemplate(e.target.value)}
+                >
+                  {waTemplatesList.map((t) => (
+                    <option key={t.id} value={t.id} className="bg-slate-900 text-white">
+                      {t.title} ({t.category}){t.targetStatus ? ` ➔ Auto-Status: ${t.targetStatus}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              /* Custom Template Builder Form */
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-emerald-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <Sparkles size={14} /> Compose Custom Template &amp; Message
+                  </span>
+                  <span className="text-[10px] text-slate-400">Custom Mode Active</span>
+                </div>
+
+                {/* Custom Template Title */}
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1 font-semibold">Custom Template Title *</label>
+                  <input
+                    type="text"
+                    className="crm-input text-xs w-full bg-slate-900 border-border focus:border-emerald-500"
+                    placeholder="e.g. Customized Quotation / Commercial Proposal Breakdown"
+                    value={customTemplateTitle}
+                    onChange={(e) => setCustomTemplateTitle(e.target.value)}
+                  />
+                </div>
+
+                {/* Template Message Type / Category */}
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1.5 font-semibold">
+                    Select Message Type / Category * <span className="text-[10px] text-muted font-normal">(Defines type of message &amp; auto-selects status)</span>
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {(
+                      [
+                        { cat: 'OUTREACH', label: 'Outreach', emoji: '🌱' },
+                        { cat: 'PROPOSAL', label: 'Proposal', emoji: '💼' },
+                        { cat: 'INVOICE', label: 'Invoice', emoji: '📦' },
+                        { cat: 'MEETING', label: 'Meeting', emoji: '📅' },
+                        { cat: 'FOLLOWUP', label: 'Follow-up', emoji: '⏰' },
+                        { cat: 'PROMOTION', label: 'Promotion', emoji: '🎉' },
+                      ] as const
+                    ).map((c) => (
+                      <button
+                        key={c.cat}
+                        type="button"
+                        onClick={() => handleSelectCustomCategory(c.cat)}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold border transition-all text-center flex flex-col items-center gap-0.5 cursor-pointer ${
+                          customTemplateCategory === c.cat
+                            ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-sm ring-1 ring-emerald-500/40'
+                            : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <span className="text-sm">{c.emoji}</span>
+                        <span className="text-[10px] leading-tight">{c.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Save to library checkbox */}
+                <label className="flex items-center gap-2 cursor-pointer pt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={saveCustomToLibrary}
+                    onChange={(e) => setSaveCustomToLibrary(e.target.checked)}
+                    className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30"
+                  />
+                  <span className="text-xs text-slate-300">
+                    💾 Save this custom template to template library for future team reuse
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* 2. Live Message Preview & Direct Edit */}
             <div>
               <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                 <label className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
@@ -3679,33 +3854,44 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               </div>
             </div>
 
-            {/* 3. Quick Disposition Update Option */}
+            {/* 3. TARGET LEAD STATUS UPDATE SECTION (REPLACES OLD DISPOSITION OPTIONS) */}
             <div>
-              <label className="text-xs text-muted block mb-1 font-semibold">Select Quick Disposition Update Option *</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  'Not Responding',
-                  'Switch Off',
-                  'Busy',
-                  'Not Interested',
-                  'Will Talk Later',
-                  'Talked & Enter Response',
-                  'Other Requirements',
-                ].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setWaDirectDisposition(opt as DispositionOption)}
-                    className={`p-2.5 rounded-xl text-xs font-bold border transition-all text-left flex items-center justify-between cursor-pointer ${
-                      waDirectDisposition === opt
-                        ? 'bg-amber-500/25 border-amber-500 text-amber-500 dark:text-amber-300 shadow-sm ring-1 ring-amber-500/40'
-                        : 'bg-card border-border text-foreground hover:bg-muted/50'
-                    }`}
-                  >
-                    <span>{opt}</span>
-                    {waDirectDisposition === opt && <span className="font-extrabold text-amber-400">✓</span>}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                <div>
+                  <label className="text-xs text-white block font-bold">
+                    Select Target Lead Status to Update *
+                  </label>
+                  <p className="text-[11px] text-slate-400">
+                    Lead status automatically updates when message is sent. Click any option below to change:
+                  </p>
+                </div>
+                <div className="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                  Current Status: <strong className="text-amber-400">{lead.status || 'New'}</strong>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {STATUS_OPTIONS.map((opt) => {
+                  const isSelected = selectedTargetStatus === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setSelectedTargetStatus(opt.key)}
+                      className={`p-2.5 rounded-xl text-xs font-bold border transition-all text-left flex items-center justify-between cursor-pointer ${
+                        isSelected
+                          ? `${opt.bgClass} ${opt.borderClass} ${opt.textClass} shadow-md ring-1 ring-current`
+                          : 'bg-card border-border text-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{opt.badge}</span>
+                        <span>{opt.label}</span>
+                      </div>
+                      {isSelected && <span className="font-extrabold text-sm">✓</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -3715,7 +3901,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               <input
                 type="text"
                 className="crm-input text-xs w-full"
-                placeholder="e.g. Sent pricing PDF via Direct WhatsApp..."
+                placeholder="e.g. Sent pricing breakdown and meeting invitation via Direct WhatsApp..."
                 value={waDirectNotes}
                 onChange={(e) => setWaDirectNotes(e.target.value)}
               />
@@ -3724,9 +3910,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             {/* 5. Dispatch Button */}
             <button
               onClick={handleSendWaDirect}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
             >
-              <Send size={15} /> Send WhatsApp Direct & Auto-Sync to Lead Center →
+              <Send size={15} /> Send WhatsApp Direct &amp; Update Lead Status to &quot;{STATUS_OPTIONS.find(s => s.key === selectedTargetStatus)?.label || selectedTargetStatus}&quot; →
             </button>
           </div>
         </div>
