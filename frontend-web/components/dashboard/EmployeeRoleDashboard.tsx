@@ -30,6 +30,7 @@ interface SyncedLead {
   assignedTime: string;
   source: string;
   requirement?: string;
+  assignedRep?: string;
   avatarBg: string;
 }
 
@@ -98,6 +99,22 @@ export function EmployeeRoleDashboard() {
   const { currentUser } = useAuth();
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Rep';
 
+  // Selected Sales Representative workspace filter (defaults to user or ALL)
+  const [selectedRep, setSelectedRep] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('das_crm_sales_selected_rep');
+      if (stored) return stored;
+    }
+    const cName = currentUser?.name || '';
+    const cEmail = currentUser?.email || '';
+    if (cEmail === 'rastoginandini92@gmail.com' || cName.toLowerCase().includes('nandini')) return 'Nandini Rastogi';
+    if (cEmail === 'sulekhatmr@gmail.com' || cName.toLowerCase().includes('sulekha')) return 'Sulekha Tomar';
+    if (cEmail === 'sadhnadikshit98@gmail.com' || cName.toLowerCase().includes('sadhana')) return 'Sadhana';
+    return 'ALL';
+  });
+
+  const [rawLeads, setRawLeads] = useState<any[]>([]);
+
   // Synced States — initialized from TTL-checked cache (5 min), empty if stale
   const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData('emp_newLeads') || []);
   const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData('emp_followUps') || []);
@@ -120,7 +137,76 @@ export function EmployeeRoleDashboard() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Real-time synchronization of leads for logged-in Sales Representative
+  // Dynamically compute list of all sales representatives from real DB leads and directory
+  const availableReps = useMemo(() => {
+    const repMap = new Map<string, { id: string; name: string; count: number }>();
+
+    // Baseline verified sales executives in DAS organization
+    repMap.set('Nandini Rastogi', { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', count: 0 });
+    repMap.set('Sulekha Tomar', { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', count: 0 });
+    repMap.set('Sadhana', { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', count: 0 });
+
+    rawLeads.forEach(l => {
+      const norm = normalizeLead(l);
+      const ownerStr = norm.owner || '';
+      const customRep = safeString(l.customFields?.assignedRep || l.customFields?.owner || '');
+
+      for (const [repName, entry] of repMap.entries()) {
+        const cleanRep = repName.toLowerCase();
+        const matchesOwner = ownerStr.toLowerCase().includes(cleanRep);
+        const matchesCustom = customRep.toLowerCase().includes(cleanRep);
+        const matchesTrail = Array.isArray(norm.allocationTrail) && norm.allocationTrail.some((ev: any) =>
+          safeString(ev.toName || ev.assigneeName).toLowerCase().includes(cleanRep) ||
+          String(ev.assigneeId) === entry.id
+        );
+        const matchesId = String(norm.ownerId) === entry.id;
+
+        if (matchesOwner || matchesCustom || matchesTrail || matchesId) {
+          entry.count++;
+        }
+      }
+
+      if (norm.assignedRepRole === 'SALES_EXEC' || ownerStr.toLowerCase().includes('sales exec') || ownerStr.toLowerCase().includes('sales rep')) {
+        const cleanName = ownerStr.replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/gi, '').trim();
+        if (cleanName && cleanName !== 'Sales Executive' && cleanName !== 'Unassigned' && cleanName !== '—') {
+          if (!repMap.has(cleanName)) {
+            repMap.set(cleanName, { id: norm.ownerId || `rep_${cleanName}`, name: cleanName, count: 1 });
+          }
+        }
+      }
+    });
+
+    return Array.from(repMap.values());
+  }, [rawLeads]);
+
+  const allSalesLeadsCount = useMemo(() => {
+    return rawLeads.filter(l => {
+      const norm = normalizeLead(l);
+      const ownerLower = (norm.owner || '').toLowerCase();
+      const customLower = safeString(l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase();
+      const trailHasSales = Array.isArray(norm.allocationTrail) && norm.allocationTrail.some((ev: any) =>
+        safeString(ev.toRole).toUpperCase() === 'SALES_EXEC' ||
+        safeString(ev.toName).toLowerCase().includes('sales exec') ||
+        safeString(ev.toName).toLowerCase().includes('nandini') ||
+        safeString(ev.toName).toLowerCase().includes('sulekha') ||
+        safeString(ev.toName).toLowerCase().includes('sadhana')
+      );
+      const isKnownSalesOwner =
+        ownerLower.includes('nandini') ||
+        ownerLower.includes('sulekha') ||
+        ownerLower.includes('sadhana') ||
+        ownerLower.includes('sales exec') ||
+        ownerLower.includes('sales rep') ||
+        customLower.includes('nandini') ||
+        customLower.includes('sulekha') ||
+        customLower.includes('sadhana') ||
+        ['cmuhp0517000ngg2dq93a6nlp', 'cmukwwdv9000ng42dghtw6t3z', 'cmukykfoe000nht2d0ylnsd3t'].includes(String(norm.ownerId));
+
+      return trailHasSales || isKnownSalesOwner;
+    }).length;
+  }, [rawLeads]);
+
+  // Real-time synchronization of leads for logged-in or selected Sales Representative
   const syncData = useCallback(async () => {
     setIsLoading(true);
 
@@ -139,16 +225,30 @@ export function EmployeeRoleDashboard() {
       console.warn('API lead sync error in Sales Dashboard:', err);
     }
 
-    // Resilient offline / cache fallback if network fails or returns empty
-    if (serverLeads.length === 0 && typeof window !== 'undefined') {
+    // Resilient offline / cache fallback & local storage merge
+    if (typeof window !== 'undefined') {
       try {
-        const cached = JSON.parse(
-          localStorage.getItem('das_crm_all_leads_cache') ||
-          localStorage.getItem('das_crm_lead_directory_cache') ||
-          '[]'
-        );
-        if (Array.isArray(cached) && cached.length > 0) {
-          serverLeads = cached;
+        const cachedAll = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
+        const cachedDir = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
+        const localCacheMap = new Map<string, any>();
+        [...cachedAll, ...cachedDir].forEach((item: any) => {
+          if (item?.id) localCacheMap.set(String(item.id), item);
+          if (item?.name) localCacheMap.set(item.name.toLowerCase().trim(), item);
+        });
+
+        if (serverLeads.length > 0) {
+          serverLeads = serverLeads.map((sl: any) => {
+            const match = localCacheMap.get(String(sl.id)) || (sl.firstName ? localCacheMap.get(`${sl.firstName} ${sl.lastName || ''}`.toLowerCase().trim()) : null);
+            if (match && match.allocationTrail && match.allocationTrail.length > (sl.allocationTrail?.length || 0)) {
+              return { ...sl, ...match };
+            }
+            if (match && match.owner && (!sl.owner || sl.owner === 'Unassigned')) {
+              return { ...sl, owner: match.owner, ownerId: match.ownerId || sl.ownerId };
+            }
+            return sl;
+          });
+        } else if (localCacheMap.size > 0) {
+          serverLeads = Array.from(localCacheMap.values());
         }
       } catch (_) {}
     }
@@ -159,35 +259,74 @@ export function EmployeeRoleDashboard() {
       return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
     });
 
-    // ── 2. Filter leads belonging to the logged-in Sales Representative ──
-    // Multi-factor identification: DB ownerId, owner Email, and fuzzy Name match
-    const repId = currentUser?.id;
-    const repName = (currentUser?.name || '').toLowerCase().trim();
-    const repEmail = (currentUser?.email || '').toLowerCase().trim();
-    const repFirst = repName.split(' ')[0];
+    setRawLeads(allLeads);
 
-    const myAssignedLeads = allLeads.filter(l => {
-      const leadOwnerId = l.ownerId || (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : undefined);
-      const leadOwnerEmail = (typeof l.owner === 'object' && l.owner?.email ? l.owner.email : '').toLowerCase().trim();
-      const ownerStr = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee).toLowerCase();
+    // ── 2. Filter leads belonging to the selected Sales Representative ──
+    const filterLeadForRep = (l: any, targetRep: string) => {
+      const norm = normalizeLead(l);
+      const lOwnerId = String(norm.ownerId || l.ownerId || (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : '') || l.customFields?.ownerId || l.customFields?.assigneeId || '');
+      const lOwnerEmail = (typeof l.owner === 'object' && l.owner?.email ? l.owner.email : l.customFields?.ownerEmail || '').toLowerCase().trim();
+      const lOwner = (norm.owner || '').toLowerCase();
+      const lCustomRep = safeString(l.customFields?.assignedRep || l.customFields?.assignedRepName || l.customFields?.owner || '').toLowerCase();
 
-      // 1. Authoritative DB ID match
-      if (repId && leadOwnerId && leadOwnerId === repId) return true;
+      const trail = Array.isArray(norm.allocationTrail) ? norm.allocationTrail : [];
+      const trailAssignees = trail.map((ev: any) => ({
+        toName: safeString(ev.toName || ev.assigneeName).toLowerCase(),
+        toRole: safeString(ev.toRole).toUpperCase(),
+        assigneeId: String(ev.assigneeId || ''),
+      }));
 
-      // 2. Email match (authoritative)
-      if (repEmail && leadOwnerEmail && repEmail === leadOwnerEmail) return true;
+      if (targetRep === 'ALL') {
+        const hasSalesExecTrail = trailAssignees.some(t =>
+          t.toRole === 'SALES_EXEC' ||
+          t.toName.includes('sales exec') ||
+          t.toName.includes('nandini') ||
+          t.toName.includes('sulekha') ||
+          t.toName.includes('sadhana')
+        );
+        const isSalesExecOwner =
+          (typeof l.owner === 'object' && String(l.owner?.role?.name || l.owner?.role || '').toUpperCase().includes('SALES')) ||
+          lOwner.includes('sales exec') ||
+          lOwner.includes('nandini') ||
+          lOwner.includes('sulekha') ||
+          lOwner.includes('sadhana') ||
+          lCustomRep.includes('sales exec') ||
+          lCustomRep.includes('nandini') ||
+          lCustomRep.includes('sulekha') ||
+          lCustomRep.includes('sadhana');
 
-      // 3. Name match against owner string or assignee
-      if (repName && ownerStr && (ownerStr.includes(repName) || repName.includes(ownerStr))) return true;
+        return hasSalesExecTrail || isSalesExecOwner || ['cmuhp0517000ngg2dq93a6nlp', 'cmukwwdv9000ng42dghtw6t3z', 'cmukykfoe000nht2d0ylnsd3t'].includes(lOwnerId);
+      }
 
-      // 4. First name match (if length >= 3)
-      if (repFirst && repFirst.length >= 3 && ownerStr.includes(repFirst)) return true;
+      const cleanTarget = targetRep.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales executive\)|\s*\(rep\)/g, '').trim();
+      const targetFirst = cleanTarget.split(' ')[0];
+
+      const knownIds: Record<string, string> = {
+        'nandini': 'cmuhp0517000ngg2dq93a6nlp',
+        'sulekha': 'cmukwwdv9000ng42dghtw6t3z',
+        'sadhana': 'cmukykfoe000nht2d0ylnsd3t',
+      };
+      for (const [key, id] of Object.entries(knownIds)) {
+        if (cleanTarget.includes(key) && lOwnerId === id) return true;
+      }
+
+      if (lOwner.includes(cleanTarget) || cleanTarget.includes(lOwner)) return true;
+      if (lCustomRep.includes(cleanTarget) || cleanTarget.includes(lCustomRep)) return true;
+      if (targetFirst && targetFirst.length >= 3 && (lOwner.includes(targetFirst) || lCustomRep.includes(targetFirst))) return true;
+
+      if (trailAssignees.some(t => t.toName.includes(cleanTarget) || (targetFirst && targetFirst.length >= 3 && t.toName.includes(targetFirst)))) {
+        return true;
+      }
 
       return false;
-    });
+    };
 
-    // Show only my assigned leads. If I have none, show empty state (not all leads).
-    const effectiveLeads = myAssignedLeads;
+    let effectiveLeads = allLeads.filter(l => filterLeadForRep(l, selectedRep));
+
+    // Fallback: If filtered list is empty, but we have leads in allLeads and selectedRep was 'ALL'
+    if (effectiveLeads.length === 0 && selectedRep === 'ALL') {
+      effectiveLeads = allLeads;
+    }
 
     const colors = [
       'from-emerald-500 to-teal-600',
@@ -213,6 +352,7 @@ export function EmployeeRoleDashboard() {
         assignedTime: norm.created,
         source: norm.source,
         requirement: norm.requirement,
+        assignedRep: norm.owner || norm.assignedRep,
         avatarBg: colors[idx % colors.length],
       };
     });
@@ -348,7 +488,7 @@ export function EmployeeRoleDashboard() {
     setOpportunities(mappedOpportunities);
 
     setIsLoading(false);
-  }, [currentUser]);
+  }, [currentUser, selectedRep]);
 
   useEffect(() => {
     syncData();
@@ -475,13 +615,42 @@ export function EmployeeRoleDashboard() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-black text-white">Good morning, {firstName}! 👋</h1>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  SALES REP
+                  {selectedRep === 'ALL' ? 'SALES TEAM' : 'SALES REP'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">Your personal sales workspace — leads, follow-ups, meetings, and opportunities synced to you.</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {selectedRep === 'ALL'
+                  ? `Showing all leads and opportunities assigned across sales representatives (${allSalesLeadsCount} active leads).`
+                  : `Showing leads, follow-ups, and opportunities assigned to ${selectedRep}.`}
+              </p>
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Sales Representative Workspace Filter Dropdown */}
+            <div className="flex items-center gap-2 bg-slate-800/90 hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-indigo-500/40 shadow-md transition-all">
+              <Users size={14} className="text-indigo-400 flex-shrink-0" />
+              <span className="text-xs text-slate-300 font-bold whitespace-nowrap">Assigned Rep:</span>
+              <select
+                value={selectedRep}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedRep(val);
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('das_crm_sales_selected_rep', val);
+                  }
+                }}
+                className="bg-transparent text-xs font-black text-indigo-300 focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="ALL" className="bg-slate-900 text-white">🌟 All Sales Reps ({allSalesLeadsCount} Leads)</option>
+                {availableReps.map(r => (
+                  <option key={r.id || r.name} value={r.name} className="bg-slate-900 text-white">
+                    👤 {r.name} {r.count !== undefined ? `(${r.count} Leads)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               onClick={() => {
                 clearAllDashboardCaches();
@@ -576,12 +745,17 @@ export function EmployeeRoleDashboard() {
                     <div>
                       {/* Hero Lead Name */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <Link href="/leads" className="text-sm font-black text-white hover:text-emerald-400 transition-colors">
+                        <Link href={`/leads?id=${lead.id}`} className="text-sm font-black text-white hover:text-emerald-400 transition-colors">
                           {lead.name}
                         </Link>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           NEW
                         </span>
+                        {lead.assignedRep && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            👤 {lead.assignedRep}
+                          </span>
+                        )}
                       </div>
                       {/* Organization / Company */}
                       <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
@@ -631,7 +805,7 @@ export function EmployeeRoleDashboard() {
                       <MessageCircle size={12} /> WA
                     </a>
                     <Link
-                      href="/leads"
+                      href={`/leads?id=${lead.id}`}
                       title={`Open details for ${lead.name}`}
                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
                     >

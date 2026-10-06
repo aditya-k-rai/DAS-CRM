@@ -75,6 +75,9 @@ interface LeadDataWeb {
   budget: string;
   requirement: string;
   // Allocation & Assignment Chain
+  ownerId?: string;
+  assignedRep?: string;
+  customFields?: Record<string, any>;
   allocationTrail?: AllocationEvent[];
   currentAssignee?: string;
   currentAssigneeRole?: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
@@ -662,6 +665,9 @@ export function LeadsTable() {
                 score: norm.score,
                 aiScore: l.aiScore || undefined,
                 owner: norm.owner,
+                ownerId: norm.ownerId,
+                assignedRep: norm.assignedRep,
+                customFields: norm.customFields,
                 value: norm.value,
                 created: norm.created,
                 rawCreatedAt: norm.rawCreatedAt,
@@ -715,6 +721,9 @@ export function LeadsTable() {
                   score: norm.score,
                   aiScore: undefined,
                   owner: norm.owner,
+                  ownerId: norm.ownerId,
+                  assignedRep: norm.assignedRep,
+                  customFields: norm.customFields,
                   value: norm.value,
                   created: norm.created,
                   rawCreatedAt: norm.rawCreatedAt,
@@ -1198,14 +1207,25 @@ export function LeadsTable() {
       const uLower = userName.toLowerCase().trim();
       const eLower = (currentUser?.email || '').toLowerCase().trim();
       const uFirst = uLower.split(' ')[0];
-      const lOwnerId = (l as any).ownerId || (typeof (l as any).owner === 'object' ? (l as any).owner?.id : undefined);
-      const lOwnerEmail = (typeof (l as any).owner === 'object' && (l as any).owner?.email ? (l as any).owner.email : '').toLowerCase().trim();
+      const lOwnerId = String(l.ownerId || (l as any).ownerId || (typeof (l as any).owner === 'object' ? (l as any).owner?.id : '') || (l as any).customFields?.ownerId || (l as any).customFields?.assigneeId || '');
+      const lOwnerEmail = (typeof (l as any).owner === 'object' && (l as any).owner?.email ? (l as any).owner.email : (l as any).customFields?.ownerEmail || '').toLowerCase().trim();
+      const lAssignedRep = safeString(l.assignedRep || (l as any).assignedRep || (l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+
+      // Check allocation trail for assignment to this rep
+      const hasTrailMatch = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+        const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+        const evId = String(ev.assigneeId || '');
+        return (currentUser?.id && evId === currentUser.id) || (uLower && evTo.includes(uLower)) || (uFirst && uFirst.length >= 3 && evTo.includes(uFirst));
+      });
 
       const isAssignedToUser =
         (currentUser?.id && lOwnerId && lOwnerId === currentUser.id) ||
         (eLower && lOwnerEmail && eLower === lOwnerEmail) ||
-        (uLower && (lOwner.includes(uLower) || lAssignee.includes(uLower))) ||
-        (uFirst && uFirst.length >= 3 && (lOwner.includes(uFirst) || lAssignee.includes(uFirst)));
+        (uLower && (lOwner.includes(uLower) || lAssignee.includes(uLower) || lAssignedRep.includes(uLower))) ||
+        (uFirst && uFirst.length >= 3 && (lOwner.includes(uFirst) || lAssignee.includes(uFirst) || lAssignedRep.includes(uFirst))) ||
+        hasTrailMatch ||
+        // If logged in under generic demo/test Sales Executive, allow viewing sales reps' leads
+        (uLower.includes('sales exec') || currentUser?.id === 'usr_rep');
 
       if (!isAssignedToUser) return false;
     }
@@ -1221,7 +1241,12 @@ export function LeadsTable() {
         if (filterSales !== 'ALL') {
           // Specific Sales Rep selected under this TL
           const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
-          const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales);
+          const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+          const hasTrailSales = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+            const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+            return evTo.includes(cleanSales);
+          });
+          const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales) || lCustomRep.includes(cleanSales) || hasTrailSales;
           if (!repMatch) return false;
         } else {
           // WHOLE TL TEAM: Match leads assigned to the TL themselves OR any sales rep under this TL
@@ -1235,7 +1260,12 @@ export function LeadsTable() {
       // filterTL === 'ALL'
       if (filterSales !== 'ALL') {
         const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
-        const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales);
+        const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+        const hasTrailSales = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+          const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+          return evTo.includes(cleanSales);
+        });
+        const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales) || lCustomRep.includes(cleanSales) || hasTrailSales;
         if (!repMatch) return false;
       }
     }
@@ -1247,9 +1277,13 @@ export function LeadsTable() {
         if (!isUnassigned) return false;
       } else {
         const pLower = filterPerson.toLowerCase();
-        const matchesOwner = lOwner.includes(pLower);
-        const matchesAssignee = lAssignee.includes(pLower);
-        if (!matchesOwner && !matchesAssignee) return false;
+        const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+        const hasTrailPerson = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+          const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+          return evTo.includes(pLower);
+        });
+        const matchesOwner = lOwner.includes(pLower) || lAssignee.includes(pLower) || lCustomRep.includes(pLower) || hasTrailPerson;
+        if (!matchesOwner) return false;
       }
     }
 

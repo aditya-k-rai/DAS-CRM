@@ -19,6 +19,7 @@ export interface NormalizedLead {
   value: string;
   numericValue: number;
   owner: string;
+  ownerId?: string;
   assignedRep: string;
   assignedRepName: string;
   assignedRepRole: string;
@@ -247,8 +248,42 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
 
   const rawName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.customFields?.clientName || 'Lead Prospect';
   const rawStatus = safeStatus(l.status || l.stage);
-  const rawOwner = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee || l.assignedRepName);
-  const rawOwnerRole = safeOwnerRole(l.owner || l.assignedRepRole);
+  let rawOwner = safeOwnerName(
+    l.owner ||
+    l.assignedRep ||
+    l.assignedRepName ||
+    l.currentAssignee ||
+    l.customFields?.assignedRep ||
+    l.customFields?.assignedRepName ||
+    l.customFields?.owner
+  );
+  let rawOwnerRole = safeOwnerRole(l.owner || l.assignedRepRole);
+  let rawOwnerId = String(
+    l.ownerId ||
+    (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : '') ||
+    l.customFields?.ownerId ||
+    l.customFields?.assigneeId ||
+    ''
+  );
+
+  // If allocationTrail exists, inspect the latest allocation event for authoritative current assignee
+  const trail = Array.isArray(l.allocationTrail) ? l.allocationTrail : [];
+  if (trail.length > 0) {
+    const lastEvent = trail[trail.length - 1];
+    if (lastEvent) {
+      if (!rawOwnerId && lastEvent.assigneeId) {
+        rawOwnerId = String(lastEvent.assigneeId);
+      }
+      if (lastEvent.toName && (!rawOwner || rawOwner === 'Unassigned' || rawOwner === '—')) {
+        rawOwner = safeOwnerName(lastEvent.toName);
+      }
+    }
+  }
+
+  if ((!rawOwner || rawOwner === 'Unassigned' || rawOwner === '—') && (l.customFields?.assignedRep || l.customFields?.assignedRepName)) {
+    rawOwner = safeOwnerName(l.customFields.assignedRep || l.customFields.assignedRepName);
+  }
+
   const rawCompany = safeCompany(l.company || l.customFields?.company);
   const rawSource = safeSource(
     l.customFields?.platform ||
@@ -298,6 +333,7 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
     value: val.formatted,
     numericValue: val.numeric,
     owner: rawOwner,
+    ownerId: rawOwnerId,
     assignedRep: rawOwner,
     assignedRepName: rawOwner,
     assignedRepRole: rawOwnerRole,
@@ -307,7 +343,7 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
     created: createdStr,
     rawCreatedAt: l.createdAt || l.rawCreatedAt || undefined,
     tags: safeTags(l.tags, [rawSource, 'VERIFIED ✓']),
-    allocationTrail: Array.isArray(l.allocationTrail) ? l.allocationTrail : [],
+    allocationTrail: trail,
     currentAssignee: rawOwner,
     totalCalls: typeof l.totalCalls === 'number' ? l.totalCalls : 1,
     lastCalledAt: safeString(l.lastCalledAt, 'Recently updated'),

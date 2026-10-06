@@ -2380,7 +2380,19 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 const updatedLead = {
                   ...lead,
                   owner: finalAssigneeName,
+                  ownerId: finalAssigneeId,
+                  assignedRep: finalAssigneeName,
+                  assignedRepName: finalAssigneeName,
+                  currentAssignee: finalAssigneeName,
                   allocationTrail: updatedTrail,
+                  customFields: {
+                    ...((lead as any).customFields || {}),
+                    owner: finalAssigneeName,
+                    ownerId: finalAssigneeId,
+                    assignedRep: finalAssigneeName,
+                    assignedRepName: finalAssigneeName,
+                    allocatedBy: newEvent.fromName || (newEvent as any).byName || 'Admin',
+                  },
                 };
                 setLead(updatedLead);
 
@@ -2396,7 +2408,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       const allLeads: any[] = JSON.parse(allLeadsRaw);
                       const updatedAll = allLeads.map((item: any) =>
                         String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
-                          ? { ...item, owner: finalAssigneeName, currentAssignee: finalAssigneeName, allocationTrail: updatedTrail }
+                          ? {
+                              ...item,
+                              owner: finalAssigneeName,
+                              ownerId: finalAssigneeId,
+                              assignedRep: finalAssigneeName,
+                              assignedRepName: finalAssigneeName,
+                              currentAssignee: finalAssigneeName,
+                              allocationTrail: updatedTrail,
+                              customFields: {
+                                ...(item.customFields || {}),
+                                owner: finalAssigneeName,
+                                ownerId: finalAssigneeId,
+                                assignedRep: finalAssigneeName,
+                                assignedRepName: finalAssigneeName,
+                              },
+                            }
                           : item
                       );
                       localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
@@ -2407,7 +2434,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       const dirLeads: any[] = JSON.parse(dirLeadsRaw);
                       const updatedDir = dirLeads.map((item: any) =>
                         String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
-                          ? { ...item, owner: finalAssigneeName, assignedRep: finalAssigneeName, allocationTrail: updatedTrail }
+                          ? {
+                              ...item,
+                              owner: finalAssigneeName,
+                              ownerId: finalAssigneeId,
+                              assignedRep: finalAssigneeName,
+                              assignedRepName: finalAssigneeName,
+                              currentAssignee: finalAssigneeName,
+                              allocationTrail: updatedTrail,
+                              customFields: {
+                                ...(item.customFields || {}),
+                                owner: finalAssigneeName,
+                                ownerId: finalAssigneeId,
+                                assignedRep: finalAssigneeName,
+                                assignedRepName: finalAssigneeName,
+                              },
+                            }
                           : item
                       );
                       localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));

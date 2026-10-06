@@ -128,12 +128,27 @@ export class LeadsService {
               id: true,
               firstName: true,
               lastName: true,
+              email: true,
               avatarUrl: true,
               role: true,
             },
           },
           source: true,
           company: { select: { id: true, name: true } },
+          activities: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+          },
           _count: { select: { tasks: true, activities: true } },
         },
         orderBy: safeOrderBy,
