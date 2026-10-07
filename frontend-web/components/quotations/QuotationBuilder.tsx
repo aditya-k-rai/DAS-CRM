@@ -705,7 +705,15 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bc = new BroadcastChannel('das_crm_product_channel');
-        bc.onmessage = (ev) => handleRemoteUpdate(ev.data?.product ? { detail: ev.data.product } : undefined);
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === 'PRODUCT_DELETED' && ev.data.productId) {
+            setCatalogProducts(prev => prev.filter(cp => cp.id !== ev.data.productId));
+          } else if (ev.data?.product) {
+            handleRemoteUpdate({ detail: ev.data.product });
+          } else {
+            handleRemoteUpdate();
+          }
+        };
       }
     } catch (_) {}
 
@@ -3980,7 +3988,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                                     onError={(e) => {
                                       const target = e.currentTarget;
                                       target.onerror = null;
-                                      target.src = '/products/puff-jackets.jpg';
+                                      target.style.display = 'none';
                                     }}
                                   />
                                   <span className="text-[10px] text-emerald-400 font-bold">✓ Image Loaded</span>

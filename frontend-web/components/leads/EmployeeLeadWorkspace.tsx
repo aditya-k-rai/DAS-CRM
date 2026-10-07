@@ -48,15 +48,24 @@ export interface SyncedActivityLog {
   user: string;
 }
 
+export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=';
+
 export interface ProposalCatalogProduct {
   id: string;
   name: string;
   category: string;
+  subCategory?: string;
+  brand?: string;
   price: number;
+  stock?: number;
   sku?: string;
   coverImage?: string;
+  imageUrl?: string;
+  images?: string[];
   description?: string;
   unit?: string;
+  sharedCount?: number;
+  volumeDiscounts?: any[];
 }
 
 export interface AvailableInvoiceItem {
@@ -1522,14 +1531,31 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     showSyncNotification(`✓ ${docTypeLabel} #${docNo} shared via ${sharingMediumLabel}! Lead status auto-advanced to Negotiation.`);
   };
 
-  // Product Selection for Interested — Synced from Catalog Database & Local Cache
-  const [catalogProducts, setCatalogProducts] = useState<any[]>(() => {
+  // Product Selection for Interested — Synced from Real Catalog Database & Local Cache
+  const mapCatalogProduct = (p: any): ProposalCatalogProduct => ({
+    id: p.id,
+    name: p.name,
+    category: p.category || 'General',
+    subCategory: p.subCategory || '',
+    brand: p.brand || '',
+    price: Number(p.price) || 0,
+    stock: p.stock !== undefined ? Number(p.stock) : 100,
+    sku: p.sku || '',
+    coverImage: p.coverImage || p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || DEFAULT_PRODUCT_FALLBACK_IMAGE,
+    images: Array.isArray(p.images) ? p.images : (p.coverImage || p.imageUrl ? [p.coverImage || p.imageUrl] : []),
+    description: p.description || p.overview || '',
+    unit: p.unit || 'Pieces (Pcs)',
+    sharedCount: Number(p.sharedCount) || 0,
+    volumeDiscounts: Array.isArray(p.volumeDiscounts) ? p.volumeDiscounts : [],
+  });
+
+  const [catalogProducts, setCatalogProducts] = useState<ProposalCatalogProduct[]>(() => {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('das_crm_products_catalog_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(mapCatalogProduct);
         }
       } catch (_) {}
     }
@@ -1537,13 +1563,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   });
   const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = useState<string>('');
-  const [selectedProductObj, setSelectedProductObj] = useState<any | null>(() => {
+  const [selectedProductObj, setSelectedProductObj] = useState<ProposalCatalogProduct | null>(() => {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('das_crm_products_catalog_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+          if (Array.isArray(parsed) && parsed.length > 0) return mapCatalogProduct(parsed[0]);
         }
       } catch (_) {}
     }
@@ -1553,13 +1579,26 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [customProductInput, setCustomProductInput] = useState<string>('');
 
   useEffect(() => {
-    const handleProductsUpdated = () => {
+    const handleProductsUpdated = (e?: any) => {
+      if (e?.detail && e.detail.id) {
+        const updated = mapCatalogProduct(e.detail);
+        setCatalogProducts(prev => {
+          const idx = prev.findIndex(p => p.id === updated.id || (p.sku && updated.sku && p.sku.toUpperCase() === updated.sku.toUpperCase()));
+          const next = idx !== -1 ? prev.map((p, i) => i === idx ? updated : p) : [updated, ...prev];
+          try {
+            localStorage.setItem('das_crm_products_catalog_cache', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+        return;
+      }
       try {
         const cached = localStorage.getItem('das_crm_products_catalog_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setCatalogProducts(parsed);
+          if (Array.isArray(parsed)) {
+            const mapped = parsed.map(mapCatalogProduct);
+            setCatalogProducts(mapped);
           }
         }
       } catch (_) {}
@@ -1570,27 +1609,61 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bc = new BroadcastChannel('das_crm_product_channel');
-        bc.onmessage = () => handleProductsUpdated();
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === 'PRODUCT_DELETED' && ev.data.productId) {
+            setCatalogProducts(prev => {
+              const next = prev.filter(p => p.id !== ev.data.productId);
+              try {
+                localStorage.setItem('das_crm_products_catalog_cache', JSON.stringify(next));
+              } catch (_) {}
+              return next;
+            });
+            setSelectedProductObj((prev: any) => prev?.id === ev.data.productId ? null : prev);
+          } else if (ev.data?.product) {
+            handleProductsUpdated({ detail: ev.data.product });
+          } else {
+            handleProductsUpdated();
+          }
+        };
       }
     } catch (_) {}
 
     const fetchCatalog = async () => {
       setIsLoadingCatalog(true);
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+          apiBase = '/api';
+        }
         const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${apiBase}/products`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setCatalogProducts(data);
-            try {
-              localStorage.setItem('das_crm_products_catalog_cache', JSON.stringify(data));
-            } catch (_) {}
-            setSelectedProductObj((prev: any) => prev || data[0]);
-            setSelectedProduct((prev: string) => prev || data[0].name);
+
+        let data: any[] | null = null;
+        try {
+          const res = await fetch(`${apiBase}/products`, { headers });
+          if (res.ok) data = await res.json();
+        } catch (_) {}
+
+        if (!data || !Array.isArray(data) || data.length === 0) {
+          try {
+            const res = await fetch('/api/products');
+            if (res.ok) data = await res.json();
+          } catch (_) {}
+        }
+
+        if (Array.isArray(data)) {
+          const mapped = data.map(mapCatalogProduct);
+          setCatalogProducts(mapped);
+          try {
+            localStorage.setItem('das_crm_products_catalog_cache', JSON.stringify(mapped));
+          } catch (_) {}
+          if (mapped.length > 0) {
+            setSelectedProductObj((prev: any) => (prev && mapped.some(m => m.id === prev.id)) ? prev : mapped[0]);
+            setSelectedProduct((prev: string) => (prev && mapped.some(m => m.name === prev)) ? prev : mapped[0].name);
+          } else {
+            setSelectedProductObj(null);
+            setSelectedProduct('');
           }
         }
       } catch (err) {
@@ -2147,30 +2220,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [directScheduleType, setDirectScheduleType] = useState<'MEETING' | 'FOLLOWUP' | 'CALL'>('MEETING');
   const [enableDirectSchedule, setEnableDirectSchedule] = useState<boolean>(false);
 
-  // Fetch live products and quotations from backend API on mount
+  // Fetch live quotations from backend API on mount
   useEffect(() => {
-    apiFetch('/api/products')
-      .then((data: any) => {
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped: ProposalCatalogProduct[] = data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            category: p.category || 'General',
-            price: Number(p.price) || 0,
-            sku: p.sku,
-            coverImage: p.coverImage || p.imageUrl || p.images?.[0] || '/products/puff-jackets.jpg',
-            description: p.description || p.overview,
-            unit: p.unit || 'Units',
-          }));
-          setCatalogProducts(prev => {
-            const existingIds = new Set(prev.map(item => item.id));
-            const newOnes = mapped.filter(item => !existingIds.has(item.id));
-            return [...prev, ...newOnes];
-          });
-        }
-      })
-      .catch(() => {});
-
     apiFetch('/api/quotations')
       .then((data: any) => {
         if (Array.isArray(data) && data.length > 0) {
@@ -2196,7 +2247,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       })
       .catch(() => {});
 
-    // Listen to real-time updates from Quotes & Products modules
+    // Listen to real-time updates from Quotes module
     const handleRemoteQuotesSync = (e?: any) => {
       try {
         const raw = localStorage.getItem('das_crm_saved_quotes');
@@ -2222,67 +2273,19 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       } catch (_) {}
     };
 
-    const handleRemoteProductsSync = (e?: any) => {
-      if (e?.detail && e.detail.id) {
-        const p = e.detail;
-        const mappedP: ProposalCatalogProduct = {
-          id: p.id,
-          name: p.name,
-          category: p.category || 'General',
-          price: Number(p.price) || 0,
-          sku: p.sku,
-          coverImage: p.coverImage || p.imageUrl || p.images?.[0] || '/products/puff-jackets.jpg',
-          description: p.description || p.overview || '',
-          unit: p.unit || 'Units',
-        };
-        setCatalogProducts(prev => {
-          const exists = prev.some(item => item.id === mappedP.id || (item.sku && mappedP.sku && item.sku.toUpperCase() === mappedP.sku.toUpperCase()));
-          if (exists) {
-            return prev.map(item => (item.id === mappedP.id || (item.sku && mappedP.sku && item.sku.toUpperCase() === mappedP.sku.toUpperCase())) ? mappedP : item);
-          }
-          return [mappedP, ...prev];
-        });
-        return;
-      }
-      try {
-        const raw = localStorage.getItem('das_crm_products_catalog_cache');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setCatalogProducts(parsed.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              category: p.category || 'General',
-              price: Number(p.price) || 0,
-              sku: p.sku,
-              coverImage: p.coverImage || p.imageUrl || p.images?.[0] || '/products/puff-jackets.jpg',
-              description: p.description || p.overview || '',
-              unit: p.unit || 'Units',
-            })));
-          }
-        }
-      } catch (_) {}
-    };
-
     window.addEventListener('das_crm_quotes_updated', handleRemoteQuotesSync);
-    window.addEventListener('das_crm_products_updated', handleRemoteProductsSync);
 
     let bcQuote: BroadcastChannel | null = null;
-    let bcProd: BroadcastChannel | null = null;
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bcQuote = new BroadcastChannel('das_crm_quote_channel');
         bcQuote.onmessage = () => handleRemoteQuotesSync();
-        bcProd = new BroadcastChannel('das_crm_product_channel');
-        bcProd.onmessage = () => handleRemoteProductsSync();
       }
     } catch (_) {}
 
     return () => {
       window.removeEventListener('das_crm_quotes_updated', handleRemoteQuotesSync);
-      window.removeEventListener('das_crm_products_updated', handleRemoteProductsSync);
       if (bcQuote) bcQuote.close();
-      if (bcProd) bcProd.close();
     };
   }, []);
 
@@ -2364,13 +2367,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         const unitLabel = p.unit || 'Units';
         lines.push(`• ${p.name} (Qty: ${qty} ${unitLabel}) @ ₹${p.price.toLocaleString('en-IN')} = ₹${lineTotal.toLocaleString('en-IN')}`);
 
-        const imgUrl = p.coverImage || p.imageUrl || '/products/puff-jackets.jpg';
-        const absoluteImgUrl = typeof window !== 'undefined' && imgUrl.startsWith('/') ? `${window.location.origin}${imgUrl}` : imgUrl;
-        imageLines.push(`  🖼️ ${p.name} Visual: ${absoluteImgUrl}`);
+        const imgUrl = p.coverImage || p.imageUrl || '';
+        if (imgUrl && !imgUrl.startsWith('data:')) {
+          const absoluteImgUrl = typeof window !== 'undefined' && imgUrl.startsWith('/') ? `${window.location.origin}${imgUrl}` : imgUrl;
+          imageLines.push(`  🖼️ ${p.name} Visual: ${absoluteImgUrl}`);
+        }
       }
     });
 
-    return `Hi ${lead.name || 'Client'}! Please find our customized commercial proposal prepared for ${lead.company || 'your requirement'}:\n\n📦 Selected Products & Specifications:\n${lines.join('\n')}\n\n📎 Attached Product Images:\n${imageLines.join('\n')}\n━━━━━━━━━━━━━━━━━━━━\n💰 Total Proposal Value: ₹${grandTotal.toLocaleString('en-IN')} (incl. 18% GST)\n\nPlease review the attached product specifications & images above, and reply to confirm your commercial order!`;
+    const visualSection = imageLines.length > 0 ? `\n\n📎 Attached Product Images:\n${imageLines.join('\n')}` : '';
+
+    return `Hi ${lead.name || 'Client'}! Please find our customized commercial proposal prepared for ${lead.company || 'your requirement'}:\n\n📦 Selected Products & Specifications:\n${lines.join('\n')}${visualSection}\n━━━━━━━━━━━━━━━━━━━━\n💰 Total Proposal Value: ₹${grandTotal.toLocaleString('en-IN')} (incl. 18% GST)\n\nPlease review the attached product specifications above, and reply to confirm your commercial order!`;
   };
 
   const generateInvoiceMessage = (inv: AvailableInvoiceItem) => {
@@ -3824,13 +3831,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                 >
                                   <div className="flex items-center gap-3 min-w-0 pr-2">
                                     <img
-                                      src={prod.coverImage || prod.imageUrl || '/products/puff-jackets.jpg'}
+                                      src={prod.coverImage || prod.imageUrl || DEFAULT_PRODUCT_FALLBACK_IMAGE}
                                       alt={prod.name}
                                       className="w-11 h-11 aspect-square rounded-xl object-cover border border-slate-800 flex-shrink-0"
                                       onError={(e) => {
                                         const target = e.currentTarget;
                                         target.onerror = null;
-                                        target.src = '/products/puff-jackets.jpg';
+                                        target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
                                       }}
                                     />
                                     <div className="min-w-0">
@@ -4859,13 +4866,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
-                            src={prod.coverImage || '/products/puff-jackets.jpg'}
+                            src={prod.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE}
                             alt={prod.name}
                             className="w-12 h-12 rounded-lg object-cover border border-slate-800 flex-shrink-0"
                             onError={(e) => {
                               const target = e.currentTarget;
                               target.onerror = null;
-                              target.src = '/products/puff-jackets.jpg';
+                              target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
                             }}
                           />
                           <div className="min-w-0">
@@ -4939,13 +4946,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                             className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-900 border border-slate-800"
                           >
                             <img
-                              src={prod.coverImage || '/products/puff-jackets.jpg'}
+                              src={prod.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE}
                               alt={prod.name}
                               className="w-10 h-10 rounded-lg object-cover border border-slate-700 flex-shrink-0"
                               onError={(e) => {
                                 const target = e.currentTarget;
                                 target.onerror = null;
-                                target.src = '/products/puff-jackets.jpg';
+                                target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
                               }}
                             />
                             <div className="flex-1 min-w-0">
@@ -5574,13 +5581,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         >
                           <div className="flex items-start gap-3">
                             <img
-                              src={prod.coverImage || '/products/puff-jackets.jpg'}
+                              src={prod.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE}
                               alt={prod.name}
                               className="w-14 h-14 rounded-xl object-cover border border-slate-800 flex-shrink-0"
                               onError={(e) => {
                                 const target = e.currentTarget;
                                 target.onerror = null;
-                                target.src = '/products/puff-jackets.jpg';
+                                target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
                               }}
                             />
                             <div className="flex-1 min-w-0">
