@@ -1371,4 +1371,13 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
   }
 }
 
+/* ── Custom Touch & Scroll Utilities for Smartphones ── */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 

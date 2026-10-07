@@ -420,9 +420,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   const calculateFitScale = () => {
     if (typeof window !== 'undefined') {
-      const availableWidth = Math.max(280, Math.min(window.innerWidth - 32, 794));
+      const padding = window.innerWidth < 640 ? 20 : 40;
+      const availableWidth = Math.max(260, Math.min(window.innerWidth - padding, 794));
       const fit = Math.round((availableWidth / 794) * 100) / 100;
-      return Math.max(0.25, Math.min(1.0, fit));
+      return Math.max(0.30, Math.min(1.0, fit));
     }
     return 0.78;
   };
@@ -447,6 +448,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   // Mobile Tab State (BUILDER vs PREVIEW for Smartphone Viewports)
   const [mobileActiveTab, setMobileActiveTab] = useState<'BUILDER' | 'PREVIEW'>('BUILDER');
+  const [showMobileMoreActions, setShowMobileMoreActions] = useState<boolean>(false);
 
   // PDF Page & Margin Controls State
   const [pdfMargin, setPdfMargin] = useState<number>(10); // 6mm, 10mm, 15mm
@@ -2562,24 +2564,24 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-[1600px] mx-auto pb-12 font-sans text-slate-900 dark:text-white px-2 sm:px-4">
+    <div className="space-y-4 sm:space-y-6 max-w-[1600px] mx-auto pb-28 lg:pb-12 font-sans text-slate-900 dark:text-white px-1 sm:px-4">
       {/* ── TOP ACTION BAR & DOCUMENT TYPE FLOW SELECTOR ── */}
-      <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3.5 print-hide">
+      <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3 sm:space-y-3.5 print-hide">
         {/* Top Header Row: Title, View Switcher & Primary Action Buttons */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="min-w-0">
             <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded">
               PROCESS FLOW ENGINE
             </span>
-            <h2 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2 truncate">
-              <FileText className="text-indigo-400 flex-shrink-0" size={18} />
+            <h2 className="text-sm sm:text-lg font-black text-white mt-1 flex items-center gap-2 truncate">
+              <FileText className="text-indigo-400 flex-shrink-0" size={17} />
               <span className="truncate">{getDocTitle()} GENERATOR &amp; CONVERTER</span>
             </h2>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* View Mode Switcher Controls */}
-            <div className="flex items-center gap-1.5 bg-muted border border-border p-1 rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2.5">
+            {/* Desktop View Mode Switcher Controls */}
+            <div className="hidden lg:flex items-center gap-1.5 bg-muted border border-border p-1 rounded-xl">
               <button
                 onClick={() => {
                   setViewMode('SPLIT');
@@ -2604,14 +2606,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </button>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Desktop Action Buttons Strip */}
+            <div className="hidden sm:flex flex-wrap items-center gap-2">
               {/* ⚡ REFRESH & COMPILE PDF BUTTON */}
               <button
                 type="button"
                 onClick={handleCompilePdf}
                 disabled={isCompiling}
-                className={`px-3.5 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
+                className={`px-3 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                   compileSuccess
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/40 shadow-emerald-600/25'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-indigo-400/30 shadow-indigo-600/25 active:scale-95'
@@ -2677,7 +2679,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 onClick={handleExportPdf}
                 disabled={isExportingPdf || isSavingFirebase}
                 title="Auto-save to Firebase & database, then open Print / Export PDF"
-                className={`px-4 py-2 text-white text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border cursor-pointer ${
+                className={`px-3.5 py-2 text-white text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border cursor-pointer ${
                   isExportingPdf || isSavingFirebase
                     ? 'bg-emerald-700/80 text-emerald-200 border-emerald-500/40 cursor-wait shadow-emerald-700/20'
                     : exportSuccess
@@ -2690,7 +2692,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 ) : exportSuccess ? (
                   <><Check size={14} className="text-white" /> Saved &amp; Exporting...</>
                 ) : (
-                  <><Download size={14} /> Print / Export PDF (A4)</>
+                  <><Download size={14} /> Print / Export PDF</>
                 )}
               </button>
 
@@ -2699,8 +2701,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 type="button"
                 onClick={handleDownloadDocx}
                 disabled={isExportingDocx}
-                title="Download a fully editable Word document (.docx) with all sections — company info, line items, bank details, totals and terms"
-                className={`px-4 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
+                title="Download a fully editable Word document (.docx)"
+                className={`px-3.5 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                   docxSuccess
                     ? 'bg-teal-600 hover:bg-teal-500 text-white border-teal-400/40 shadow-teal-600/25'
                     : isExportingDocx
@@ -2709,13 +2711,111 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 }`}
               >
                 {isExportingDocx ? (
-                  <><RefreshCw size={13} className="animate-spin" /> Generating .docx...</>
+                  <><RefreshCw size={13} className="animate-spin" /> .docx...</>
                 ) : docxSuccess ? (
-                  <><Check size={13} /> Word Downloaded!</>
+                  <><Check size={13} /> Word Ready!</>
                 ) : (
-                  <><FileDown size={13} /> Download Word (.docx)</>
+                  <><FileDown size={13} /> Word (.docx)</>
                 )}
               </button>
+            </div>
+
+            {/* 📱 SMARTPHONE RESPONSIVE ACTION BUTTONS (Clean, Non-crowded Mobile Action Strip) */}
+            <div className="flex sm:hidden flex-col gap-2 w-full pt-1">
+              <div className="grid grid-cols-2 gap-1.5 w-full">
+                {/* ☁️ Save & Sync (Firebase) */}
+                <button
+                  type="button"
+                  onClick={() => handleSaveToFirebase()}
+                  disabled={isSavingFirebase}
+                  className={`col-span-2 py-2.5 px-3 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-2 border transition-all ${
+                    firebaseSaveSuccess
+                      ? 'bg-emerald-600 text-white border-emerald-400'
+                      : isSavingFirebase
+                      ? 'bg-indigo-900/60 text-indigo-300 border-indigo-500/40 cursor-wait'
+                      : 'bg-gradient-to-r from-indigo-600 to-sky-600 text-white border-sky-400/30 shadow-indigo-600/30 active:scale-95'
+                  }`}
+                >
+                  {isSavingFirebase ? (
+                    <><RefreshCw size={14} className="animate-spin" /> Archiving to Firebase...</>
+                  ) : firebaseSaveSuccess ? (
+                    <><Check size={14} /> Synced to Firebase Vault!</>
+                  ) : (
+                    <><CloudUpload size={14} /> Save &amp; Sync (Firebase)</>
+                  )}
+                </button>
+
+                {/* 💾 Save Draft */}
+                <button
+                  type="button"
+                  onClick={handleSaveCurrentDraft}
+                  className={`py-2 px-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                    savedSuccess
+                      ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-800 text-slate-200 border-slate-700 active:scale-95'
+                  }`}
+                >
+                  {savedSuccess ? <Check size={13} className="text-emerald-400" /> : <RefreshCw size={13} />}
+                  <span>{savedSuccess ? 'Draft Saved' : 'Save Draft'}</span>
+                </button>
+
+                {/* 📜 All Quotes */}
+                <button
+                  type="button"
+                  onClick={() => setHistoryDrawerOpen(true)}
+                  className="py-2 px-2.5 bg-indigo-900/40 text-indigo-300 text-xs font-extrabold rounded-xl border border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                >
+                  <History size={13} className="text-indigo-400" />
+                  <span>Quotes ({savedQuotes.length})</span>
+                </button>
+              </div>
+
+              {/* Mobile Secondary Action Dropdown / Expander */}
+              <div className="pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowMobileMoreActions(prev => !prev)}
+                  className="w-full py-1.5 px-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-bold text-slate-400 hover:text-slate-200 flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <SlidersHorizontal size={12} className="text-indigo-400" />
+                    Export PDF, Word &amp; Compile Tools
+                  </span>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${showMobileMoreActions ? 'rotate-180 text-indigo-400' : ''}`} />
+                </button>
+
+                {showMobileMoreActions && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-1.5 animate-fade-in">
+                    <button
+                      type="button"
+                      onClick={handleCompilePdf}
+                      disabled={isCompiling}
+                      className="py-1.5 px-2 bg-slate-800 text-white border border-slate-700 rounded-lg text-[10.5px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <RefreshCw size={12} className={isCompiling ? "animate-spin" : ""} />
+                      {isCompiling ? 'Compiling...' : '⚡ Re-Compile PDF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      disabled={isExportingPdf || isSavingFirebase}
+                      className="py-1.5 px-2 bg-emerald-600/90 text-white border border-emerald-500/40 rounded-lg text-[10.5px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <Download size={12} />
+                      Export PDF (A4)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadDocx}
+                      disabled={isExportingDocx}
+                      className="col-span-2 py-1.5 px-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white border border-indigo-400/30 rounded-lg text-[10.5px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <FileDown size={12} />
+                      Download Word (.docx) Document
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2733,15 +2833,15 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               <button
                 type="button"
                 onClick={handleQuickFillSampleData}
-                className="text-[9.5px] font-extrabold uppercase px-2.5 py-1 rounded-md bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow transition-all cursor-pointer whitespace-nowrap active:scale-95 flex items-center gap-1"
+                className="text-[9.5px] font-extrabold uppercase px-2.5 py-1 rounded-md bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow transition-all cursor-pointer whitespace-nowrap active:scale-95 flex items-center gap-1 w-full sm:w-auto justify-center"
               >
                 <Sparkles size={11} /> Quick-Fill Buyer &amp; Item
               </button>
             </div>
           ) : (
             <div className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
-              <CheckCircle size={12} className="text-emerald-400" />
-              <span>Buyer, Seller &amp; Products Selected — Ready to Save Draft &amp; Archive to Firebase</span>
+              <CheckCircle size={12} className="text-emerald-400 flex-shrink-0" />
+              <span>Buyer, Seller &amp; Products Selected — Ready to Save &amp; Archive</span>
             </div>
           )}
 
@@ -2761,16 +2861,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           )}
         </div>
 
-        {/* Bottom Row: Document Type Flow Selector Pills */}
-        <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar">
+        {/* Bottom Row: Document Type Flow Selector Pills (Smooth Horizontal Touch Scrolling) */}
+        <div className="pt-2.5 sm:pt-3 border-t border-slate-800/80 flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar touch-pan-x flex-nowrap">
           <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider flex-shrink-0 mr-1">
-            Convert Document:
+            Convert:
           </span>
           {(['QUOTATION', 'PROFORMA_INVOICE', 'TAX_INVOICE', 'PAYMENT_RECEIPT', 'CREDIT_NOTE'] as const).map(type => (
             <button
               key={type}
               onClick={() => handleConvertDoc(type)}
-              className={`px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
                 docType === type
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                   : 'bg-card text-foreground hover:bg-muted/50 border border-border'
@@ -2783,67 +2883,78 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         </div>
       </div>
 
-      {/* 📱 MOBILE VIEW TAB SWITCHER (BUILDER FORM vs LIVE A4 SHEET) FOR SMARTPHONES */}
-      {viewMode === 'SPLIT' && (
-        <div className="flex lg:hidden bg-muted border border-border p-1 rounded-xl w-full print-hide">
-          <button
-            onClick={() => setMobileActiveTab('BUILDER')}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
-              mobileActiveTab === 'BUILDER' ? 'bg-indigo-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Sliders size={14} /> 🛠️ Form Builder Inputs
-          </button>
-          <button
-            onClick={() => {
-              setMobileActiveTab('PREVIEW');
-              setZoomScale(calculateFitScale());
-            }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
-              mobileActiveTab === 'PREVIEW' ? 'bg-indigo-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Eye size={14} /> 📄 Live A4 Document
-          </button>
-        </div>
-      )}
+      {/* 📱 STICKY SEGMENTED CONTROL FOR SMARTPHONES (EDIT FORM vs LIVE A4 SHEET) */}
+      <div className="flex lg:hidden sticky top-2 z-30 bg-slate-900/95 backdrop-blur-md border border-slate-800/90 p-1.5 rounded-2xl w-full print-hide shadow-2xl gap-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode('SPLIT');
+            setMobileActiveTab('BUILDER');
+          }}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            viewMode === 'SPLIT' && mobileActiveTab === 'BUILDER'
+              ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-white bg-slate-950/60'
+          }`}
+        >
+          <Sliders size={13} />
+          <span>1. Form Inputs ({coreCompletedCount}/4)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode('SPLIT');
+            setMobileActiveTab('PREVIEW');
+            setZoomScale(calculateFitScale());
+          }}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            (viewMode === 'FULL_PREVIEW' || (viewMode === 'SPLIT' && mobileActiveTab === 'PREVIEW'))
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-white bg-slate-950/60'
+          }`}
+        >
+          <Eye size={13} />
+          <span>2. Live A4 Sheet</span>
+        </button>
+      </div>
 
       {/* ── FULL PREVIEW MODE ── */}
       {viewMode === 'FULL_PREVIEW' ? (
         <div className="flex flex-col items-center space-y-4 print-hide w-full max-w-full overflow-hidden">
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-slate-900 border border-slate-800 px-3 py-2 rounded-2xl text-xs font-bold text-white shadow-xl max-w-full">
-            {/* Refresh & Compile Button in Full Preview Toolbar */}
-            <button
-              type="button"
-              onClick={handleCompilePdf}
-              disabled={isCompiling}
-              className={`px-3 py-1 rounded-lg text-[11px] font-black flex items-center gap-1.5 transition-all shadow ${
-                compileSuccess
-                  ? 'bg-emerald-600 text-white shadow-emerald-600/30'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 active:scale-95'
-              }`}
-              title="Re-compile and sync all live data into the full A4 preview"
-            >
-              <RefreshCw size={12} className={isCompiling ? "animate-spin" : ""} />
-              {isCompiling ? 'Compiling...' : compileSuccess ? '✓ PDF Synced' : 'Refresh & Compile'}
-            </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 bg-slate-900 border border-slate-800 px-3 py-2 rounded-2xl text-xs font-bold text-white shadow-xl max-w-full">
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <button
+                type="button"
+                onClick={handleCompilePdf}
+                disabled={isCompiling}
+                className={`px-3 py-1 rounded-lg text-[11px] font-black flex items-center gap-1.5 transition-all shadow ${
+                  compileSuccess
+                    ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 active:scale-95'
+                }`}
+                title="Re-compile and sync all live data into the full A4 preview"
+              >
+                <RefreshCw size={12} className={isCompiling ? "animate-spin" : ""} />
+                {isCompiling ? 'Compiling...' : compileSuccess ? '✓ PDF Synced' : 'Refresh & Compile'}
+              </button>
 
-            {lastCompiledAt && (
-              <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                Compiled {lastCompiledAt}
-              </span>
-            )}
+              {lastCompiledAt && (
+                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Compiled {lastCompiledAt}
+                </span>
+              )}
 
-            <button
-              onClick={() => setZoomScale(calculateFitScale())}
-              className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all"
-            >
-              <Smartphone size={13} /> 📱 Fit Screen
-            </button>
+              <button
+                onClick={() => setZoomScale(calculateFitScale())}
+                className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all"
+              >
+                <Smartphone size={13} /> Fit Screen
+              </button>
+            </div>
 
             <div className="flex items-center gap-2">
-              <ZoomOut size={15} className="text-slate-400" />
+              <ZoomOut size={14} className="text-slate-400" />
               <input
                 type="range"
                 min="0.20"
@@ -2851,32 +2962,32 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 step="0.05"
                 value={zoomScale}
                 onChange={e => setZoomScale(Number(e.target.value))}
-                className="w-24 sm:w-44 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className="w-20 sm:w-44 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
-              <ZoomIn size={15} className="text-slate-400" />
-              <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
+              <ZoomIn size={14} className="text-slate-400" />
+              <span className="text-[10px] sm:text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-1.5 py-0.5 rounded border border-indigo-400/20">
                 {Math.round(zoomScale * 100)}%
               </span>
-            </div>
 
-            <div className="hidden sm:flex items-center gap-1">
-              {[0.42, 0.50, 0.75, 1.0].map(s => (
-                <button
-                  key={s}
-                  onClick={() => setZoomScale(s)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
-                    zoomScale === s
-                      ? 'bg-indigo-600 text-white shadow'
-                      : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
-                  }`}
-                >
-                  {Math.round(s * 100)}%
-                </button>
-              ))}
+              <div className="flex items-center gap-1 ml-1">
+                {[0.50, 0.75, 1.0].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setZoomScale(s)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-black transition-all ${
+                      zoomScale === s
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {Math.round(s * 100)}%
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="w-full max-w-full overflow-x-auto overflow-y-visible p-2 sm:p-4 bg-slate-950 rounded-2xl border border-slate-800">
+          <div className="w-full max-w-full overflow-x-auto overflow-y-visible p-1 sm:p-4 bg-slate-950 rounded-2xl border border-slate-800 flex justify-center">
             <div
               style={{
                 width: `${Math.round(794 * zoomScale)}px`,
@@ -2966,7 +3077,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
+                <div className="flex overflow-x-auto no-scrollbar gap-1.5 pb-1 touch-pan-x sm:grid sm:grid-cols-8">
                   {[
                     { num: 1, label: '1. Dates', done: isStep1Done, key: 'metadata', opt: false },
                     { num: 2, label: '2. Seller', done: isStep2Done, key: 'company', opt: false },
@@ -2986,7 +3097,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           if (s.num >= 5 && !showMoreControls) setShowMoreControls(true);
                           setOpenSections(prev => prev[s.key] ? {} : { [s.key]: true });
                         }}
-                        className={`p-1 rounded-lg text-center border transition-all cursor-pointer ${
+                        className={`min-w-[68px] sm:min-w-0 flex-shrink-0 p-1.5 sm:p-1 rounded-xl sm:rounded-lg text-center border transition-all cursor-pointer ${
                           isCurrentOpen
                             ? 'bg-indigo-600/30 border-indigo-400 text-white ring-2 ring-indigo-500/50 shadow-md scale-[1.04]'
                             : s.done
@@ -3000,7 +3111,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         <span className="text-[10px] font-mono font-black flex items-center justify-center">
                           {s.done ? <Check size={11} strokeWidth={3} className="text-emerald-400" /> : s.num}
                         </span>
-                        <span className="text-[8.5px] truncate block leading-tight font-medium">
+                        <span className="text-[9px] sm:text-[8.5px] truncate block leading-tight font-semibold mt-0.5">
                           {s.label}{s.opt ? ' *' : ''}
                         </span>
                       </button>
@@ -3145,7 +3256,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     <Building2 size={15} /> 2. Your Company / Seller
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -3156,10 +3267,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         setCompanyModalOpen(true);
                       }
                     }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
+                    className="text-[10px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
                     title="Edit currently selected company details"
                   >
-                    <Edit2 size={12} /> Edit
+                    <Edit2 size={12} /> <span className="hidden sm:inline">Edit</span>
                   </button>
                   <button
                     type="button"
@@ -3169,16 +3280,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                       setNewComp({});
                       setCompanyModalOpen(true);
                     }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2.5 py-1 rounded-lg hover:bg-sky-500/25 transition-all active:scale-95 shadow-sm shadow-sky-500/10 cursor-pointer"
+                    className="text-[10px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-sky-500/25 transition-all active:scale-95 shadow-sm shadow-sky-500/10 cursor-pointer"
                   >
-                    + Add Company
+                    <Plus size={12} /> <span className="hidden sm:inline">Add Company</span><span className="sm:hidden">Add</span>
                   </button>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                  <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep2Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
                   }`}>
-                    {isStep2Done ? '✓ Completed' : 'Pending'}
+                    {isStep2Done ? '✓' : 'Pending'}
                   </span>
                   <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.company ? 'rotate-180 text-sky-400' : 'rotate-0 text-slate-400'}`} />
@@ -3282,7 +3393,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     <UserCheck size={15} /> 3. Select Client / Buyer Party
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -3293,10 +3404,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         setPartyModalOpen(true);
                       }
                     }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
+                    className="text-[10px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
                     title="Edit currently selected party details"
                   >
-                    <Edit2 size={12} /> Edit
+                    <Edit2 size={12} /> <span className="hidden sm:inline">Edit</span>
                   </button>
                   <button
                     type="button"
@@ -3306,16 +3417,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                       setNewParty({});
                       setPartyModalOpen(true);
                     }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
+                    className="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
                   >
-                    + Add Party
+                    <Plus size={12} /> <span className="hidden sm:inline">Add Party</span><span className="sm:hidden">Add</span>
                   </button>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                  <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep3Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
                   }`}>
-                    {isStep3Done ? '✓ Completed' : 'Pending'}
+                    {isStep3Done ? '✓' : 'Pending'}
                   </span>
                   <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.party ? 'rotate-180 text-emerald-400' : 'rotate-0 text-slate-400'}`} />
@@ -3425,19 +3536,19 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     <Package size={15} /> 4. Products &amp; Line Items ({items.length})
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); addLineItem(); }}
-                    className="text-[11px] font-extrabold text-purple-300 bg-purple-500/20 border border-purple-500/40 px-2.5 py-1 rounded-lg hover:bg-purple-500/30 flex items-center gap-1 transition-all active:scale-95 shadow-sm shadow-purple-500/10"
+                    className="text-[10px] sm:text-[11px] font-extrabold text-purple-300 bg-purple-500/20 border border-purple-500/40 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-purple-500/30 flex items-center gap-1 transition-all active:scale-95 shadow-sm shadow-purple-500/10 cursor-pointer"
                   >
-                    <Plus size={12} /> Add Item
+                    <Plus size={12} /> <span className="hidden sm:inline">Add Item</span><span className="sm:hidden">Add</span>
                   </button>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                  <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep4Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
                   }`}>
-                    {isStep4Done ? '✓ Completed' : 'Pending'}
+                    {isStep4Done ? '✓' : 'Pending'}
                   </span>
                   <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.items ? 'rotate-180 text-purple-400' : 'rotate-0 text-slate-400'}`} />
@@ -3697,17 +3808,33 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             value={item.hsnCode || ''}
                             onChange={e => updateLineItem(item.id, { hsnCode: e.target.value })}
                             placeholder="e.g. 998313"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white font-mono"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
                           />
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-400 mb-1">Quantity</label>
-                          <input
-                            type="number"
-                            value={item.qty}
-                            onChange={e => updateLineItem(item.id, { qty: Number(e.target.value) })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white font-bold"
-                          />
+                          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => updateLineItem(item.id, { qty: Math.max(1, (Number(item.qty) || 1) - 1) })}
+                              className="px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs font-black cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              value={item.qty}
+                              onChange={e => updateLineItem(item.id, { qty: Math.max(1, Number(e.target.value)) })}
+                              className="w-full bg-transparent px-1 py-1.5 text-xs text-white font-bold text-center focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateLineItem(item.id, { qty: (Number(item.qty) || 1) + 1 })}
+                              className="px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs font-black cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-400 mb-1">Unit</label>
@@ -3715,7 +3842,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             type="text"
                             value={item.unit}
                             onChange={e => updateLineItem(item.id, { unit: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white"
                           />
                         </div>
                         <div>
@@ -3724,7 +3851,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             type="number"
                             value={item.unitPrice}
                             onChange={e => updateLineItem(item.id, { unitPrice: Number(e.target.value) })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white font-bold"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold"
                           />
                         </div>
                         <div className="col-span-2 sm:col-span-1">
@@ -3733,10 +3860,28 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             type="number"
                             value={item.taxRate}
                             onChange={e => updateLineItem(item.id, { taxRate: Number(e.target.value) })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-amber-400 font-bold text-center"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-amber-400 font-bold text-center"
                           />
                         </div>
                       </div>
+
+                      {/* 💰 Line Item Subtotal Display Banner for Smartphone & Quick Visibility */}
+                      {(() => {
+                        const baseVal = (Number(item.qty) || 0) * (Number(item.unitPrice) || 0);
+                        const taxVal = baseVal * ((Number(item.taxRate) || 0) / 100);
+                        const itemGrand = showGstColumn ? Math.round(baseVal + taxVal) : baseVal;
+                        return (
+                          <div className="bg-slate-900/90 border border-slate-800/80 rounded-xl px-3 py-1.5 flex items-center justify-between text-xs">
+                            <span className="text-[10.5px] font-bold text-slate-400 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                              Row Subtotal {showGstColumn ? `(with ${item.taxRate}% GST)` : '(Base Rate)'}:
+                            </span>
+                            <span className="font-mono font-black text-emerald-400 text-xs sm:text-sm">
+                              ₹{itemGrand.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        );
+                      })()}
 
                       {/* Dynamic Custom Column Inputs */}
                       {customColumns.length > 0 && (
@@ -4445,8 +4590,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           {/* ── RIGHT PANE: LIVE STALWART A4 PREVIEW (STICKY & RESPONSIVE FOR SMARTPHONES) ── */}
           <div className={`lg:col-span-6 sticky top-6 flex flex-col items-center print-hide w-full max-w-full ${mobileActiveTab === 'BUILDER' ? 'hidden lg:flex' : 'flex'}`}>
             {/* Header Toolbar */}
-            <div className="w-full max-w-[210mm] flex items-center justify-between px-3 sm:px-3.5 py-2 bg-slate-900 text-slate-300 rounded-t-xl border border-slate-800 text-[10px] font-bold shadow-md flex-wrap gap-1.5">
-              <div className="flex items-center gap-2">
+            <div className="w-full max-w-[210mm] flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-3.5 py-2 bg-slate-900 text-slate-300 rounded-t-xl border border-slate-800 text-[10px] font-bold shadow-md gap-2">
+              <div className="flex items-center justify-between sm:justify-start gap-2">
                 <span className="flex items-center gap-1.5 text-[#002060] bg-white/90 px-2 py-0.5 rounded font-black truncate">
                   <span className="w-2 h-2 rounded-full bg-[#002060] animate-pulse flex-shrink-0"></span>
                   Spectro A4 Live Preview ({pdfMargin}mm Margin)
@@ -4459,13 +4604,13 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center justify-between sm:justify-end gap-1.5 flex-wrap">
                 {/* ⚡ Live Compile Button right on Preview Toolbar */}
                 <button
                   type="button"
                   onClick={handleCompilePdf}
                   disabled={isCompiling}
-                  className={`px-2.5 py-0.5 rounded text-[9.5px] font-black flex items-center gap-1 transition-all shadow cursor-pointer ${
+                  className={`px-2.5 py-1 sm:py-0.5 rounded text-[9.5px] font-black flex items-center gap-1 transition-all shadow cursor-pointer ${
                     compileSuccess
                       ? 'bg-emerald-600 text-white shadow-emerald-600/30'
                       : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 active:scale-95'
@@ -4473,47 +4618,37 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   title="Force compile latest live data into preview"
                 >
                   <RefreshCw size={11} className={isCompiling ? "animate-spin" : ""} />
-                  {isCompiling ? 'Compiling...' : compileSuccess ? '✓ Synced' : 'Refresh & Compile'}
+                  {isCompiling ? 'Compiling...' : compileSuccess ? '✓ Synced' : 'Compile'}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setZoomScale(calculateFitScale())}
-                  className="px-2 py-0.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded text-[9.5px] font-extrabold flex items-center gap-1 cursor-pointer transition-all"
+                  className="px-2 py-1 sm:py-0.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded text-[9.5px] font-extrabold flex items-center gap-1 cursor-pointer transition-all"
                   title="Fit Screen Width"
                 >
                   <Smartphone size={11} /> Fit Screen
                 </button>
 
-                <button onClick={() => setZoomScale(Math.max(0.20, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-1 hover:text-foreground text-muted-foreground transition-colors" title="Zoom Out">
-                  <ZoomOut size={13} />
-                </button>
-                
-                <input
-                  type="range"
-                  min="0.20"
-                  max="1.00"
-                  step="0.05"
-                  value={zoomScale}
-                  onChange={e => setZoomScale(Number(e.target.value))}
-                  className="w-14 sm:w-24 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
+                <div className="flex items-center gap-1 bg-slate-950 px-1 py-0.5 rounded-lg border border-slate-800">
+                  <button onClick={() => setZoomScale(Math.max(0.20, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-0.5 hover:text-foreground text-muted-foreground transition-colors" title="Zoom Out">
+                    <ZoomOut size={12} />
+                  </button>
+                  <span className="text-indigo-400 font-mono font-black text-[10px] px-1">
+                    {Math.round(zoomScale * 100)}%
+                  </span>
+                  <button onClick={() => setZoomScale(Math.min(1.0, Math.round((zoomScale + 0.05) * 100) / 100))} className="p-0.5 hover:text-foreground text-muted-foreground transition-colors" title="Zoom In">
+                    <ZoomIn size={12} />
+                  </button>
+                </div>
 
-                <button onClick={() => setZoomScale(Math.min(1.0, Math.round((zoomScale + 0.05) * 100) / 100))} className="p-1 hover:text-foreground text-muted-foreground transition-colors" title="Zoom In">
-                  <ZoomIn size={13} />
-                </button>
-
-                <span className="text-indigo-500 font-mono font-black text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded">
-                  {Math.round(zoomScale * 100)}%
-                </span>
-
-                <div className="hidden sm:flex items-center gap-1 ml-1">
-                  {[0.42, 0.50, 0.75, 1.0].map(s => (
+                <div className="flex items-center gap-1 ml-0.5">
+                  {[0.50, 0.75, 1.0].map(s => (
                     <button
                       key={s}
                       onClick={() => setZoomScale(s)}
-                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all ${
-                        zoomScale === s ? 'bg-indigo-600 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all ${
+                        zoomScale === s ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
                       }`}
                     >
                       {Math.round(s * 100)}%
@@ -4524,7 +4659,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             </div>
 
             {/* Scaled Preview Wrapper with Bounding Box Calculation */}
-            <div className="w-full max-w-full overflow-x-auto overflow-y-visible p-2 sm:p-4 bg-slate-950 rounded-b-xl border border-t-0 border-slate-800">
+            <div className="w-full max-w-full overflow-x-auto overflow-y-visible p-1 sm:p-4 bg-slate-950 rounded-b-xl border border-t-0 border-slate-800 flex justify-center">
               <div
                 style={{
                   width: `${Math.round(794 * zoomScale)}px`,
@@ -4559,8 +4694,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       {/* ── MODAL: ADD / EDIT COMPANY ── */}
       {companyModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white max-h-[92vh] overflow-y-auto">
             <h3 className="text-sm font-black text-indigo-400 flex items-center gap-2">
               <Building2 size={18} /> {editingCompanyId ? 'Edit Seller Company' : 'Add New Seller Company'}
             </h3>
@@ -4699,8 +4834,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       {/* ── MODAL: ADD / EDIT PARTY ── */}
       {partyModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white max-h-[92vh] overflow-y-auto">
             <h3 className="text-sm font-black text-emerald-400 flex items-center gap-2">
               <UserCheck size={18} /> {editingPartyId ? 'Edit Client Party' : 'Add New Client Party'}
             </h3>
@@ -4997,11 +5132,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         </div>
 
                         {/* Direct Channel Send & Load Controls */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="grid grid-cols-3 sm:flex items-center gap-1.5 w-full sm:w-auto mt-1 sm:mt-0">
                           <button
                             type="button"
                             onClick={() => handleOpenOrDownloadPdf(record, 'VIEW')}
-                            className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            className="px-2 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all"
                             title="Open official vector PDF in browser viewer"
                           >
                             <FileText size={12} /> View PDF
@@ -5009,37 +5144,41 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           <button
                             type="button"
                             onClick={() => handleOpenOrDownloadPdf(record, 'DOWNLOAD')}
-                            className="px-2 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            className="px-2 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all"
                             title="Download vector PDF file"
                           >
                             <Download size={12} /> PDF
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDirectSendQuote(record, 'EMAIL')}
-                            className="px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            className="px-2 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all"
                             title="Send Quote via Email"
                           >
                             <Mail size={12} /> Email
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDirectSendQuote(record, 'WHATSAPP_DIRECT')}
-                            className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            className="px-2 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all"
                             title="Send Quote via WhatsApp Direct"
                           >
                             <MessageSquare size={12} /> WhatsApp
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => {
                               handleLoadSavedQuote(record);
                               setHistoryDrawerOpen(false);
                             }}
-                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer transition-all"
+                            className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg flex items-center justify-center gap-1 shadow cursor-pointer transition-all"
                             title="Load this quote or draft into editor"
                           >
-                            <FolderOpen size={12} /> {record.status === 'DRAFT' ? 'Edit Draft' : 'Edit / Re-use'}
+                            <FolderOpen size={12} /> {record.status === 'DRAFT' ? 'Edit Draft' : 'Edit'}
                           </button>
                           <button
+                            type="button"
                             onClick={async () => {
                               setSavedQuotes(prev => prev.filter(q => q.id !== record.id));
                               try {
@@ -5051,7 +5190,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                                 });
                               } catch (_) {}
                             }}
-                            className="p-1 text-slate-500 hover:text-rose-400 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
                             title="Delete Quote Record"
                           >
                             <Trash2 size={13} />
@@ -5065,6 +5204,89 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           </div>
         </div>
       )}
+
+      {/* 📱 SMARTPHONE STICKY BOTTOM APP BAR (Floating 1-Thumb Quick Access) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-3 py-2 flex items-center justify-between gap-2 shadow-[0_-8px_30px_rgba(0,0,0,0.7)] print-hide">
+        {/* Total & Item Count Info */}
+        <div className="flex flex-col min-w-0 pr-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+            Total ({items.length} item{items.length === 1 ? '' : 's'})
+          </span>
+          <span className="text-sm font-black text-emerald-400 tracking-tight truncate">
+            ₹{grandTotal.toLocaleString('en-IN')}
+          </span>
+        </div>
+
+        {/* Action Buttons Strip */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* View Toggle Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (mobileActiveTab === 'BUILDER') {
+                setViewMode('SPLIT');
+                setMobileActiveTab('PREVIEW');
+                setZoomScale(calculateFitScale());
+              } else {
+                setViewMode('SPLIT');
+                setMobileActiveTab('BUILDER');
+              }
+            }}
+            className="py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+            title={mobileActiveTab === 'BUILDER' ? 'Switch to A4 Live Sheet' : 'Switch to Form Inputs'}
+          >
+            {mobileActiveTab === 'BUILDER' ? (
+              <>
+                <Eye size={13} className="text-indigo-400" />
+                <span>Sheet</span>
+              </>
+            ) : (
+              <>
+                <Sliders size={13} className="text-violet-400" />
+                <span>Form</span>
+              </>
+            )}
+          </button>
+
+          {/* Quick Save Draft */}
+          <button
+            type="button"
+            onClick={handleSaveCurrentDraft}
+            className={`p-2 rounded-xl border flex items-center justify-center transition-all active:scale-95 ${
+              savedSuccess
+                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-slate-800 text-slate-300 border-slate-700'
+            }`}
+            title="Quick Save Draft"
+          >
+            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <RefreshCw size={14} />}
+          </button>
+
+          {/* Primary Save & Sync (Firebase) Button */}
+          <button
+            type="button"
+            onClick={() => handleSaveToFirebase()}
+            disabled={isSavingFirebase}
+            className={`py-1.5 px-3 rounded-xl text-xs font-black text-white shadow-lg flex items-center gap-1.5 transition-all active:scale-95 border ${
+              firebaseSaveSuccess
+                ? 'bg-emerald-600 border-emerald-400'
+                : isSavingFirebase
+                ? 'bg-indigo-900/70 border-indigo-500/40 text-indigo-200 cursor-wait'
+                : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 border-sky-400/30 shadow-indigo-600/30'
+            }`}
+            title="Save & Sync to Firebase Cloud Vault"
+          >
+            {isSavingFirebase ? (
+              <RefreshCw size={13} className="animate-spin" />
+            ) : firebaseSaveSuccess ? (
+              <Check size={13} />
+            ) : (
+              <CloudUpload size={13} />
+            )}
+            <span>{isSavingFirebase ? 'Syncing...' : firebaseSaveSuccess ? 'Synced!' : 'Save & Sync'}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
