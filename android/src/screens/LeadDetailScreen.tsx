@@ -34,9 +34,12 @@ import { AIScoreDetailModal } from '../components/AIScoreComponents';
 import {
   whatsappTemplateEngine,
   WhatsAppTemplate,
+  TemplateCategory,
   DEFAULT_TEMPLATES,
   CATALOG_PRODUCTS,
   ProductItem,
+  SAMPLE_INVOICES,
+  InvoiceItem,
 } from '../services/whatsappTemplateEngine';
 import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
@@ -170,17 +173,21 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [postCallModalOpen, setPostCallModalOpen] = useState(false);
   const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([]);
 
-  // 💬 WhatsApp Template 2-Step Wizard & Quantity State
+  // 💬 WhatsApp Direct Engine State & Unified Dispatcher Workflow
   const [waModalOpen, setWaModalOpen] = useState(false);
-  const [waStep, setWaStep] = useState<1 | 2>(1);
+  const [waCategory, setWaCategory] = useState<TemplateCategory>('OUTREACH');
+  const [waAttachmentMode, setWaAttachmentMode] = useState<'PRODUCT' | 'INVOICE'>('PRODUCT');
+  const [waCustomMode, setWaCustomMode] = useState(false);
+  const [waCustomTitle, setWaCustomTitle] = useState('Custom Lead Message');
+  const [waTargetStatus, setWaTargetStatus] = useState('Contacted');
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
   const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(DEFAULT_TEMPLATES[0]);
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(CATALOG_PRODUCTS[0]);
-  const [productQuantity, setProductQuantity] = useState<number>(10);
+  const [productQuantity, setProductQuantity] = useState<number>(1);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(SAMPLE_INVOICES[0]);
+  const [availableInvoices] = useState<InvoiceItem[]>(SAMPLE_INVOICES);
   const [customMsgText, setCustomMsgText] = useState('');
-  const [editingTemplate, setEditingTemplate] = useState(false);
-  const [newTplTitle, setNewTplTitle] = useState('');
-  const [newTplBody, setNewTplBody] = useState('');
+  const [saveCustomToLib, setSaveCustomToLib] = useState(true);
 
   useEffect(() => {
     callSyncEngine.checkAndPurgeMidnightLogs();
@@ -195,8 +202,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           whatsappTemplateEngine.interpolateTemplate(
             list[0].text,
             { name: leadName, company: leadCompany, value: leadValue },
-            selectedProduct,
-            productQuantity
+            null,
+            1
           )
         );
       }
@@ -337,6 +344,77 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     }
   };
 
+  // ── WHATSAPP CONFIG CONSTANTS ──
+  const WA_CATEGORIES: { cat: TemplateCategory; label: string; icon: string; desc: string; defaultStatus: string }[] = [
+    { cat: 'OUTREACH', label: 'Outreach', icon: '🌱', desc: 'Initial contact', defaultStatus: 'Contacted' },
+    { cat: 'PROPOSAL', label: 'Proposal', icon: '💼', desc: 'Product details', defaultStatus: 'Proposal' },
+    { cat: 'INVOICE', label: 'Invoice', icon: '📦', desc: 'Invoice / PDF', defaultStatus: 'In Negotiation' },
+    { cat: 'MEETING', label: 'Meeting', icon: '📅', desc: 'Schedule demo', defaultStatus: 'Meeting Scheduled' },
+    { cat: 'FOLLOWUP', label: 'Follow-up', icon: '⏰', desc: 'Callback nudge', defaultStatus: 'Contacted' },
+    { cat: 'PROMOTION', label: 'Promotion', icon: '🎉', desc: 'Offer / discount', defaultStatus: 'In Negotiation' },
+  ];
+
+  const WA_TARGET_STATUSES = [
+    { key: 'Contacted', label: 'Connected / Contacted', icon: '📞', color: '#38bdf8' },
+    { key: 'Proposal', label: 'Proposal Sent (Negotiation)', icon: '📄', color: '#a855f7' },
+    { key: 'In Negotiation', label: 'Product / Invoice Sent (Negotiation)', icon: '📦', color: '#f59e0b' },
+    { key: 'Meeting Scheduled', label: 'Meeting Details (Meeting Scheduled)', icon: '📅', color: '#6366f1' },
+    { key: 'Qualified', label: 'Qualified (Requirements Gathered)', icon: '🎯', color: '#ec4899' },
+    { key: 'WON', label: 'Deal Closed / Payment Cleared (Won)', icon: '🏆', color: '#10b981' },
+  ];
+
+  const getInvoicePdfFilename = () => {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}-${now.getMinutes().toString().padStart(2, '0')}`;
+    const safeName = (leadName || 'Lead').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+    return `${safeName}_${dateStr}_${timeStr}.pdf`;
+  };
+
+  const generateInvoiceMsgText = (inv: InvoiceItem) => {
+    const docLabel = inv.docType.replace(/_/g, ' ');
+    const pdfFilename = getInvoicePdfFilename();
+    const pdfLink = inv.pdfUrl || `https://nexcrm.com/invoices/${inv.quoteNumber}.pdf`;
+    return `Hi ${leadName}! Please find the official ${docLabel} (${inv.quoteNumber}) prepared for ${leadCompany}:\n\n📄 *Document:* ${docLabel}\n🔢 *Invoice Ref:* ${inv.quoteNumber}\n💰 *Total Amount:* ₹${inv.totalAmount.toLocaleString('en-IN')} (incl. 18% GST)\n📅 *Issued Date:* ${inv.date}\n📦 *Items Summary:* ${inv.itemsSummary}\n📎 *Attached PDF Document:* ${pdfFilename} (${pdfLink})\n\nPlease review the attached invoice PDF and reply to confirm payment processing!`;
+  };
+
+  const updateComposedMessage = (
+    cat: TemplateCategory,
+    mode: 'PRODUCT' | 'INVOICE',
+    tpl: WhatsAppTemplate | null,
+    prod: ProductItem | null,
+    qty: number,
+    inv: InvoiceItem | null,
+    isCustom: boolean = waCustomMode
+  ) => {
+    if (isCustom) {
+      if (cat === 'INVOICE' && inv) {
+        setCustomMsgText(generateInvoiceMsgText(inv));
+      } else if (cat === 'PROPOSAL' && prod) {
+        setCustomMsgText(whatsappTemplateEngine.interpolateTemplate(
+          `Hi {name}! Please find our customized commercial proposal for {company} attached below:`,
+          { name: leadName, company: leadCompany, value: leadValue },
+          prod,
+          qty
+        ));
+      }
+      return;
+    }
+
+    if (cat === 'INVOICE' && inv) {
+      setCustomMsgText(generateInvoiceMsgText(inv));
+    } else {
+      const baseText = tpl ? tpl.text : `Hi ${leadName}, following up regarding ${leadCompany}...`;
+      const interpolated = whatsappTemplateEngine.interpolateTemplate(
+        baseText,
+        { name: leadName, company: leadCompany, value: leadValue },
+        mode === 'PRODUCT' && (cat === 'PROPOSAL' || Boolean(prod)) ? prod : null,
+        qty
+      );
+      setCustomMsgText(interpolated);
+    }
+  };
+
   // 💬 WHATSAPP DIRECT HANDLER
   const handleWhatsApp = () => {
     if (!whatsappTemplateEngine.canRoleCommunicate(userRole)) {
@@ -344,49 +422,82 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       return;
     }
 
-    setWaStep(1);
-    const interpolated = whatsappTemplateEngine.interpolateTemplate(
-      selectedTemplate ? selectedTemplate.text : `Hi ${leadName}, following up regarding ${leadCompany}...`,
-      { name: leadName, company: leadCompany, value: leadValue },
-      selectedProduct,
-      productQuantity
-    );
-    setCustomMsgText(interpolated);
+    const initialCat = 'OUTREACH';
+    setWaCategory(initialCat);
+    setWaAttachmentMode('PRODUCT');
+    setWaCustomMode(false);
+    setWaTargetStatus('Contacted');
+
+    const matchingTpl = templates.find(t => t.category === initialCat) || templates[0];
+    if (matchingTpl) {
+      setSelectedTemplate(matchingTpl);
+      updateComposedMessage(initialCat, 'PRODUCT', matchingTpl, selectedProduct, productQuantity, selectedInvoice, false);
+    }
     setWaModalOpen(true);
   };
 
-  const handleSelectTemplate = (tpl: WhatsAppTemplate | null) => {
-    setSelectedTemplate(tpl);
-    const interpolated = whatsappTemplateEngine.interpolateTemplate(
-      tpl ? tpl.text : `Hi ${leadName}, following up regarding ${leadCompany}...`,
-      { name: leadName, company: leadCompany, value: leadValue },
-      selectedProduct,
-      productQuantity
-    );
-    setCustomMsgText(interpolated);
+  const handleSelectCategory = (cat: TemplateCategory) => {
+    setWaCategory(cat);
+    const catCfg = WA_CATEGORIES.find(c => c.cat === cat);
+    if (catCfg) setWaTargetStatus(catCfg.defaultStatus);
+
+    let newMode = waAttachmentMode;
+    if (cat === 'INVOICE') {
+      newMode = 'INVOICE';
+      setWaAttachmentMode('INVOICE');
+    } else if (cat === 'PROPOSAL') {
+      newMode = 'PRODUCT';
+      setWaAttachmentMode('PRODUCT');
+    }
+
+    const matchingTpl = templates.find(t => t.category === cat) || templates[0];
+    if (matchingTpl) {
+      setSelectedTemplate(matchingTpl);
+      updateComposedMessage(cat, newMode, matchingTpl, selectedProduct, productQuantity, selectedInvoice, waCustomMode);
+    }
   };
 
-  const handleSelectProduct = (product: ProductItem | null) => {
-    setSelectedProduct(product);
-    const interpolated = whatsappTemplateEngine.interpolateTemplate(
-      selectedTemplate ? selectedTemplate.text : `Hi ${leadName}, following up regarding ${leadCompany}...`,
-      { name: leadName, company: leadCompany, value: leadValue },
-      product,
-      productQuantity
-    );
-    setCustomMsgText(interpolated);
+  const handleSelectTemplate = (tpl: WhatsAppTemplate) => {
+    setSelectedTemplate(tpl);
+    if (tpl.targetStatus) setWaTargetStatus(tpl.targetStatus);
+    updateComposedMessage(waCategory, waAttachmentMode, tpl, selectedProduct, productQuantity, selectedInvoice, waCustomMode);
+  };
+
+  const handleSelectAttachmentMode = (mode: 'PRODUCT' | 'INVOICE') => {
+    setWaAttachmentMode(mode);
+    if (mode === 'INVOICE') {
+      setWaCategory('INVOICE');
+      setWaTargetStatus('In Negotiation');
+      updateComposedMessage('INVOICE', 'INVOICE', selectedTemplate, selectedProduct, productQuantity, selectedInvoice, waCustomMode);
+    } else {
+      setWaCategory('PROPOSAL');
+      setWaTargetStatus('Proposal');
+      updateComposedMessage('PROPOSAL', 'PRODUCT', selectedTemplate, selectedProduct, productQuantity, selectedInvoice, waCustomMode);
+    }
+  };
+
+  const handleSelectProduct = (prod: ProductItem) => {
+    setSelectedProduct(prod);
+    updateComposedMessage(waCategory, waAttachmentMode, selectedTemplate, prod, productQuantity, selectedInvoice, waCustomMode);
   };
 
   const handleChangeQuantity = (qty: number) => {
-    const validQty = Math.max(1, qty);
-    setProductQuantity(validQty);
-    const interpolated = whatsappTemplateEngine.interpolateTemplate(
-      selectedTemplate ? selectedTemplate.text : `Hi ${leadName}, following up regarding ${leadCompany}...`,
-      { name: leadName, company: leadCompany, value: leadValue },
-      selectedProduct,
-      validQty
-    );
-    setCustomMsgText(interpolated);
+    const valid = Math.max(1, qty);
+    setProductQuantity(valid);
+    updateComposedMessage(waCategory, waAttachmentMode, selectedTemplate, selectedProduct, valid, selectedInvoice, waCustomMode);
+  };
+
+  const handleSelectInvoice = (inv: InvoiceItem) => {
+    setSelectedInvoice(inv);
+    updateComposedMessage(waCategory, 'INVOICE', selectedTemplate, selectedProduct, productQuantity, inv, waCustomMode);
+  };
+
+  const handleInsertPlaceholder = (ph: string) => {
+    const valToInsert = ph === '{name}' ? leadName :
+                        ph === '{company}' ? leadCompany :
+                        ph === '{value}' ? leadValue :
+                        ph === '{product}' ? (selectedProduct?.name || 'DAS CRM Suite') : ph;
+    setCustomMsgText(prev => prev ? `${prev} ${valToInsert}` : valToInsert);
   };
 
   const handleSendDirectWhatsApp = () => {
@@ -404,50 +515,42 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       });
     });
 
-    // Check if product was attached (Step 2: Product & Price Band)
-    const hasProduct = !!selectedProduct && waStep === 2;
+    const isInvoice = waAttachmentMode === 'INVOICE' || waCategory === 'INVOICE';
+    const isProduct = waAttachmentMode === 'PRODUCT' && (waCategory === 'PROPOSAL' || Boolean(selectedProduct));
+
+    // Update lead status state & backend API
+    const newStatus = waTargetStatus || leadStatusState;
+    if (newStatus && newStatus !== leadStatusState) {
+      setLeadStatusState(newStatus);
+      apiService.updateLeadStatus(token, leadId, newStatus);
+      setLastStatusUpdate({
+        status: newStatus,
+        medium: isInvoice ? '📄 WhatsApp (Invoice)' : isProduct ? '💬 WhatsApp (Proposal)' : '💬 WhatsApp Direct',
+        time: `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      });
+    }
 
     handleSaveCallOutcome({
       leadId,
       leadName,
       phone: leadPhone,
       outcome: 'WHATSAPP_CHAT',
-      subOption: hasProduct ? 'CATALOGUE_SHARED' : 'TALKED',
-      selectedProduct: hasProduct ? selectedProduct : null,
-      notes: hasProduct
-        ? `Sent Product "${selectedProduct?.name}" (${selectedProduct?.minPrice}) with WhatsApp message: "${customMsgText.substring(0, 45)}..."`
-        : `Sent WhatsApp outreach message: "${customMsgText.substring(0, 45)}..."`,
+      subOption: isInvoice ? 'CATALOGUE_SHARED' : isProduct ? 'CATALOGUE_SHARED' : 'TALKED',
+      selectedProduct: isProduct ? selectedProduct : null,
+      notes: isInvoice
+        ? `Sent Invoice "${selectedInvoice?.quoteNumber}" (₹${selectedInvoice?.totalAmount?.toLocaleString('en-IN')}) via WhatsApp Direct with PDF attachment: ${getInvoicePdfFilename()}`
+        : isProduct
+        ? `Sent Product Proposal "${selectedProduct?.name}" (Qty: ${productQuantity}) via WhatsApp Direct`
+        : `Sent WhatsApp direct outreach message: "${customMsgText.substring(0, 50)}..."`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
-  };
 
-  const handleSaveNewTemplate = async () => {
-    if (!newTplTitle.trim() || !newTplBody.trim()) {
-      Alert.alert('Incomplete Template', 'Please enter both template title and message body.');
-      return;
-    }
-
-    const newTpl: WhatsAppTemplate = {
-      id: 'tpl_' + Date.now(),
-      title: newTplTitle.trim(),
-      category: 'OUTREACH',
-      text: newTplBody.trim(),
-    };
-
-    const updated = await whatsappTemplateEngine.upsertTemplate(newTpl);
-    setTemplates(updated);
-    setSelectedTemplate(newTpl);
-    setCustomMsgText(
-      whatsappTemplateEngine.interpolateTemplate(newTpl.text, {
-        name: leadName,
-        company: leadCompany,
-        value: leadValue,
-      })
-    );
-    setEditingTemplate(false);
-    setNewTplTitle('');
-    setNewTplBody('');
-    Alert.alert('Template Saved', 'New Admin WhatsApp Template saved successfully!');
+    setToastConfig({
+      id: String(Date.now()),
+      title: 'WhatsApp Dispatched',
+      message: `Message dispatched to ${leadName}. Status auto-updated to ${newStatus}.`,
+      type: 'SUCCESS',
+    });
   };
 
   // Dynamic Status Picker Modal State
@@ -912,159 +1015,430 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       </ScrollView>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 💬 WHATSAPP DIRECT MESSAGE & ADMIN TEMPLATE SELECTOR MODAL                  */}
+      {/* 💬 WHATSAPP DIRECT MESSAGE & UNIFIED CRM DISPATCHER MODAL                   */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={waModalOpen} transparent animationType="slide">
-        <View style={[styles.waModalOverlay, { backgroundColor: isDark ? 'rgba(2, 6, 23, 0.85)' : 'rgba(15, 23, 42, 0.6)' }]}>
-          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+      <Modal visible={waModalOpen} transparent animationType="slide" onRequestClose={() => setWaModalOpen(false)}>
+        <View style={[styles.waModalOverlay, { backgroundColor: isDark ? 'rgba(2, 6, 23, 0.88)' : 'rgba(15, 23, 42, 0.65)' }]}>
+          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border, maxHeight: '92%' }]}>
             
-            {/* Header */}
+            {/* Modal Header */}
             <View style={[styles.waModalHeaderRow, { borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.waModalTitle, { color: colors.text }]}>💬 WhatsApp Direct Message</Text>
-                <Text style={[styles.waModalSub, { color: colors.textSecondary }]}>Target Lead: <Text style={{ color: isDark ? '#34d399' : '#059669', fontWeight: '800' }}>{leadName}</Text> ({leadPhone})</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.waModalTitle, { color: colors.text }]}>💬 WhatsApp Direct Dispatcher</Text>
+                  <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>
+                    <Text style={{ color: '#f59e0b', fontSize: 9, fontWeight: '900' }}>CRM SYNC</Text>
+                  </View>
+                </View>
+                <Text style={[styles.waModalSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                  Target: <Text style={{ color: isDark ? '#34d399' : '#059669', fontWeight: '800' }}>{leadName}</Text> ({leadPhone || 'No Phone'}) • Auto-updates Status
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setWaModalOpen(false)} style={[styles.waCloseBtn, { backgroundColor: colors.cardBgElevated }]}>
                 <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            {/* 2-Step Wizard Header Indicator */}
-            <View style={[styles.wizardStepBar, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-              <TouchableOpacity
-                style={[styles.wizardStepTab, waStep === 1 && styles.wizardStepTabActive]}
-                onPress={() => setWaStep(1)}
-              >
-                <Text style={[styles.wizardStepTabText, { color: waStep === 1 ? (isDark ? '#38bdf8' : '#0284c7') : colors.textSecondary }]}>
-                  1. Select Template {selectedTemplate ? '✓' : ''}
-                </Text>
-              </TouchableOpacity>
-              <Text style={{ color: colors.textSecondary, fontSize: 11 }}>➔</Text>
-              <TouchableOpacity
-                style={[styles.wizardStepTab, waStep === 2 && styles.wizardStepTabActive]}
-                onPress={() => setWaStep(2)}
-              >
-                <Text style={[styles.wizardStepTabText, { color: waStep === 2 ? (isDark ? '#38bdf8' : '#0284c7') : colors.textSecondary }]}>
-                  2. Product &amp; Requirements
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 24, gap: 12 }} showsVerticalScrollIndicator={false}>
 
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
+              {/* ── STEP 0: MESSAGE CATEGORY / TYPE SELECTOR ── */}
+              <View style={[styles.waSectionCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={styles.stepNumBadge}>
+                      <Text style={styles.stepNumBadgeText}>1</Text>
+                    </View>
+                    <Text style={[styles.waSectionTitleNew, { color: colors.text }]}>Select Message Type / Category *</Text>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.35)' }}>
+                    <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '900' }}>{waCategory}</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 8 }}>
+                  Defines type of message &amp; auto-selects CRM lead status:
+                </Text>
 
-              {/* STEP 1: SELECT WHATSAPP TEMPLATE */}
-              {waStep === 1 && (
-                <View>
-                  <Text style={[styles.waSectionTitle, { color: isDark ? '#818cf8' : '#4f46e5' }]}>Select Message Template:</Text>
-                  <View style={{ gap: 8, marginBottom: 12 }}>
-                    {templates.map((tpl) => {
-                      const isSelected = selectedTemplate?.id === tpl.id;
-                      return (
-                        <TouchableOpacity
-                          key={tpl.id}
-                          style={[
-                            styles.tplCard,
-                            { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
-                            isSelected && styles.tplCardSelected,
-                          ]}
-                          onPress={() => handleSelectTemplate(tpl)}
-                        >
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Text style={[styles.tplTitleText, { color: colors.text }]}>{tpl.title}</Text>
-                            {isSelected && <Text style={{ color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900', fontSize: 12 }}>✓ Selected</Text>}
-                          </View>
-                          <Text style={[styles.tplPreviewText, { color: colors.textSecondary }]} numberOfLines={2}>{tpl.text}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                <View style={styles.categoryGrid}>
+                  {WA_CATEGORIES.map((c) => {
+                    const isActive = waCategory === c.cat;
+                    return (
+                      <TouchableOpacity
+                        key={c.cat}
+                        style={[
+                          styles.categoryCard,
+                          { backgroundColor: colors.cardBg, borderColor: colors.border },
+                          isActive && styles.categoryCardActive,
+                        ]}
+                        onPress={() => handleSelectCategory(c.cat)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 16 }}>{c.icon}</Text>
+                        <Text style={[styles.categoryLabel, { color: isActive ? '#fbbf24' : colors.text }]}>
+                          {c.label}
+                        </Text>
+                        <Text style={[styles.categoryDesc, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {c.desc}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ── STEP 1: MODE SWITCHER (Pre-approved vs Custom) ── */}
+              <View style={[styles.modeSwitcherContainer, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  style={[styles.modeSwitcherTab, !waCustomMode && styles.modeSwitcherTabActive]}
+                  onPress={() => {
+                    setWaCustomMode(false);
+                    updateComposedMessage(waCategory, waAttachmentMode, selectedTemplate, selectedProduct, productQuantity, selectedInvoice, false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.modeSwitcherTabText, { color: !waCustomMode ? '#fbbf24' : colors.textSecondary }]}>
+                    📋 Pre-Approved Template
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeSwitcherTab, waCustomMode && styles.modeSwitcherTabActiveCustom]}
+                  onPress={() => {
+                    setWaCustomMode(true);
+                    updateComposedMessage(waCategory, waAttachmentMode, selectedTemplate, selectedProduct, productQuantity, selectedInvoice, true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.modeSwitcherTabText, { color: waCustomMode ? '#34d399' : colors.textSecondary }]}>
+                    ✨ + Custom Template
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Pre-Approved Template Selector */}
+              {!waCustomMode ? (
+                <View style={[styles.waSectionCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={[styles.stepNumBadge, { backgroundColor: 'rgba(52, 211, 153, 0.2)', borderColor: 'rgba(52, 211, 153, 0.4)' }]}>
+                        <Text style={[styles.stepNumBadgeText, { color: '#34d399' }]}>2</Text>
+                      </View>
+                      <Text style={[styles.waSectionTitleNew, { color: colors.text }]}>Select Template *</Text>
+                    </View>
+                    <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>
+                      ✓ {templates.filter(t => t.category === waCategory).length} Matching
+                    </Text>
                   </View>
 
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {[
+                        ...templates.filter(t => t.category === waCategory),
+                        ...templates.filter(t => t.category !== waCategory),
+                      ].map((tpl) => {
+                        const isSelected = selectedTemplate?.id === tpl.id;
+                        const isCatMatch = tpl.category === waCategory;
+                        return (
+                          <TouchableOpacity
+                            key={tpl.id}
+                            style={[
+                              styles.tplChipCard,
+                              { backgroundColor: colors.cardBg, borderColor: colors.border, width: 220 },
+                              isSelected && styles.tplCardSelected,
+                            ]}
+                            onPress={() => handleSelectTemplate(tpl)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <Text style={[styles.tplTitleText, { color: isSelected ? '#38bdf8' : colors.text, flex: 1 }]} numberOfLines={1}>
+                                {isCatMatch ? '★ ' : ''}{tpl.title}
+                              </Text>
+                              {tpl.targetStatus && (
+                                <View style={{ backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                                  <Text style={{ color: '#818cf8', fontSize: 8, fontWeight: '800' }}>➔ {tpl.targetStatus}</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={[styles.tplPreviewText, { color: colors.textSecondary }]} numberOfLines={2}>
+                              {tpl.text}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+              ) : (
+                /* Custom Template Form */
+                <View style={[styles.waSectionCard, { backgroundColor: colors.cardBgElevated, borderColor: 'rgba(52, 211, 153, 0.4)' }]}>
+                  <Text style={[styles.waSectionTitleNew, { color: '#34d399', marginBottom: 6 }]}>
+                    ✨ Compose Custom Template
+                  </Text>
+                  <TextInput
+                    style={[styles.customTitleInput, { backgroundColor: colors.cardBg, borderColor: colors.border, color: colors.text }]}
+                    placeholder="Custom Template Title (e.g. Special Deal Offer)"
+                    placeholderTextColor={colors.textSecondary}
+                    value={waCustomTitle}
+                    onChangeText={setWaCustomTitle}
+                  />
                   <TouchableOpacity
-                    style={styles.proceedStepBtn}
-                    onPress={() => setWaStep(2)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}
+                    onPress={() => setSaveCustomToLib(!saveCustomToLib)}
                   >
-                    <Text style={styles.proceedStepBtnText}>Proceed to Step 2: Product &amp; Price →</Text>
+                    <View style={[styles.checkboxBox, saveCustomToLib && styles.checkboxBoxActive]}>
+                      {saveCustomToLib && <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>✓</Text>}
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>💾 Save custom template to library for future team reuse</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* STEP 2: SELECT PRODUCT & PRICE BAND */}
-              {waStep === 2 && (
-                <View>
-                  <Text style={[styles.waSectionTitle, { color: isDark ? '#818cf8' : '#4f46e5' }]}>Select Product Attachment:</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-                    {CATALOG_PRODUCTS.map((prod) => {
-                      const isSelected = selectedProduct?.id === prod.id;
-                      return (
-                        <TouchableOpacity
-                          key={prod.id}
-                          style={[
-                            styles.productChip,
-                            { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
-                            isSelected && styles.productChipActive,
-                          ]}
-                          onPress={() => handleSelectProduct(prod)}
-                        >
-                          <Image source={{ uri: prod.imageUrl }} style={styles.prodThumb} />
-                          <Text style={[styles.productChipText, { color: isSelected ? (isDark ? '#38bdf8' : '#0284c7') : colors.textSecondary }, isSelected && { fontWeight: '900' }]}>
-                            {prod.name.split(' ')[0]} ({prod.minPrice})
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-
-                  {selectedProduct && (
-                    <View style={[styles.attachedProductCard, { backgroundColor: colors.cardBgElevated, borderColor: isDark ? '#38bdf8' : '#0284c7' }]}>
-                      <Image source={{ uri: selectedProduct.imageUrl }} style={styles.attachedProductImg} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.attachedProdName, { color: colors.text }]}>{selectedProduct.name}</Text>
-                        <Text style={[styles.attachedProdPrice, { color: isDark ? '#34d399' : '#059669' }]}>{selectedProduct.minPrice} - {selectedProduct.maxPrice}</Text>
-                        <Text style={[styles.attachedProdDesc, { color: colors.textSecondary }]}>{selectedProduct.description}</Text>
-                      </View>
+              {/* ── STEP 2: UNIFIED ATTACHMENT SLIDER (Product OR Invoice PDF — mutually exclusive) ── */}
+              <View style={[styles.waSectionCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[styles.stepNumBadge, { backgroundColor: 'rgba(168, 85, 247, 0.2)', borderColor: 'rgba(168, 85, 247, 0.4)' }]}>
+                      <Text style={[styles.stepNumBadgeText, { color: '#a855f7' }]}>3</Text>
                     </View>
-                  )}
+                    <Text style={[styles.waSectionTitleNew, { color: colors.text }]}>Unified Attachment (Only 1 Active)</Text>
+                  </View>
+                  <Text style={{ fontSize: 9, color: colors.textSecondary }}>Slider Toggle</Text>
+                </View>
 
-                  {/* Quantity Counter */}
-                  <View style={[styles.qtyCardContainer, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Quantity &amp; Tier Discount:</Text>
-                    <View style={styles.qtyRow}>
-                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>Selected Units:</Text>
-                      <View style={[styles.qtyCounterBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                        <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} onPress={() => handleChangeQuantity(productQuantity - 1)}>
-                          <Text style={[styles.qtyBtnText, { color: colors.text }]}>-</Text>
-                        </TouchableOpacity>
-                        <Text style={[styles.qtyValText, { color: isDark ? '#38bdf8' : '#0284c7' }]}>{productQuantity} Units</Text>
-                        <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} onPress={() => handleChangeQuantity(productQuantity + 1)}>
-                          <Text style={[styles.qtyBtnText, { color: colors.text }]}>+</Text>
-                        </TouchableOpacity>
+                {/* Slider Tabs */}
+                <View style={[styles.sliderTabBar, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.sliderTabBtn, waAttachmentMode === 'PRODUCT' && styles.sliderTabBtnActiveProduct]}
+                    onPress={() => handleSelectAttachmentMode('PRODUCT')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.sliderTabBtnText, { color: waAttachmentMode === 'PRODUCT' ? '#34d399' : colors.textSecondary }]}>
+                      🖼️ Product Details &amp; Images
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.sliderTabBtn, waAttachmentMode === 'INVOICE' && styles.sliderTabBtnActiveInvoice]}
+                    onPress={() => handleSelectAttachmentMode('INVOICE')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.sliderTabBtnText, { color: waAttachmentMode === 'INVOICE' ? '#f59e0b' : colors.textSecondary }]}>
+                      📄 Invoice PDF
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* A. PRODUCT ATTACHMENT */}
+                {waAttachmentMode === 'PRODUCT' && (
+                  <View style={{ gap: 8, marginTop: 4 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {CATALOG_PRODUCTS.map((prod) => {
+                        const isSelected = selectedProduct?.id === prod.id;
+                        return (
+                          <TouchableOpacity
+                            key={prod.id}
+                            style={[
+                              styles.productChip,
+                              { backgroundColor: colors.cardBg, borderColor: colors.border },
+                              isSelected && styles.productChipActive,
+                            ]}
+                            onPress={() => handleSelectProduct(prod)}
+                          >
+                            <Image source={{ uri: prod.imageUrl }} style={styles.prodThumb} />
+                            <Text style={[styles.productChipText, { color: isSelected ? '#38bdf8' : colors.textSecondary }, isSelected && { fontWeight: '900' }]}>
+                              {prod.name.split(' ')[0]} ({prod.minPrice})
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    {selectedProduct && (
+                      <View style={[styles.attachedProductCard, { backgroundColor: colors.cardBg, borderColor: '#34d399' }]}>
+                        <Image source={{ uri: selectedProduct.imageUrl }} style={styles.attachedProductImg} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.attachedProdName, { color: colors.text }]}>{selectedProduct.name}</Text>
+                          <Text style={[styles.attachedProdPrice, { color: '#34d399' }]}>{selectedProduct.minPrice} - {selectedProduct.maxPrice}</Text>
+                          <Text style={[styles.attachedProdDesc, { color: colors.textSecondary }]} numberOfLines={2}>{selectedProduct.description}</Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Quantity & Tier Price Stepper */}
+                    <View style={[styles.qtyCardContainer, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Quantity &amp; Tier Discount:</Text>
+                        {selectedProduct && (
+                          <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>
+                            Total: ₹{(whatsappTemplateEngine.getTieredPrice(selectedProduct, productQuantity).totalPrice).toLocaleString('en-IN')}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.qtyRow}>
+                        <Text style={{ fontSize: 10, color: colors.textSecondary }}>Selected Units:</Text>
+                        <View style={[styles.qtyCounterBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                          <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} onPress={() => handleChangeQuantity(productQuantity - 1)}>
+                            <Text style={[styles.qtyBtnText, { color: colors.text }]}>-</Text>
+                          </TouchableOpacity>
+                          <Text style={[styles.qtyValText, { color: '#38bdf8' }]}>{productQuantity} Units</Text>
+                          <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} onPress={() => handleChangeQuantity(productQuantity + 1)}>
+                            <Text style={[styles.qtyBtnText, { color: colors.text }]}>+</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </View>
                   </View>
+                )}
 
-                  <Text style={[styles.waSectionTitle, { color: isDark ? '#818cf8' : '#4f46e5', marginTop: 12 }]}>Message Body Preview (Editable):</Text>
-                  <TextInput
-                    style={[styles.previewTextInput, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, color: colors.text }]}
-                    multiline
-                    value={customMsgText}
-                    onChangeText={setCustomMsgText}
-                  />
+                {/* B. INVOICE PDF ATTACHMENT */}
+                {waAttachmentMode === 'INVOICE' && (
+                  <View style={{ gap: 8, marginTop: 4 }}>
+                    <View style={{ gap: 6 }}>
+                      {availableInvoices.map((inv) => {
+                        const isSelected = selectedInvoice?.id === inv.id || selectedInvoice?.quoteNumber === inv.quoteNumber;
+                        return (
+                          <TouchableOpacity
+                            key={inv.id}
+                            style={[
+                              styles.invoiceItemCard,
+                              { backgroundColor: colors.cardBg, borderColor: colors.border },
+                              isSelected && styles.invoiceItemCardActive,
+                            ]}
+                            onPress={() => handleSelectInvoice(inv)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                              <View style={styles.invIconCircle}>
+                                <Text style={{ fontSize: 13 }}>📄</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <Text style={[styles.invNumberText, { color: colors.text }]}>{inv.quoteNumber}</Text>
+                                  <View style={styles.invDocTypePill}>
+                                    <Text style={styles.invDocTypePillText}>{inv.docType.replace(/_/g, ' ')}</Text>
+                                  </View>
+                                </View>
+                                <Text style={{ fontSize: 10, color: colors.textSecondary }} numberOfLines={1}>
+                                  {inv.buyerCompany} • {inv.itemsSummary}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>
+                                ₹{inv.totalAmount.toLocaleString('en-IN')}
+                              </Text>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: isSelected ? '#fbbf24' : colors.textSecondary }}>
+                                {isSelected ? '✓ Attached' : 'Tap to Attach'}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
 
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                    <TouchableOpacity style={[styles.backStepBtn, { backgroundColor: colors.cardBgElevated }]} onPress={() => setWaStep(1)}>
-                      <Text style={[styles.backStepBtnText, { color: colors.textSecondary }]}>← Step 1</Text>
-                    </TouchableOpacity>
+                    {/* Attached Invoice PDF Document Card */}
+                    {selectedInvoice && (
+                      <View style={[styles.attachedDocCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(245, 158, 11, 0.4)' }]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>📎 Attached PDF Document:</Text>
+                          <Text style={{ fontSize: 10, fontWeight: '900', color: '#34d399' }}>₹{selectedInvoice.totalAmount.toLocaleString('en-IN')} (incl. GST)</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 20 }}>📕</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.pdfFilenameText, { color: colors.text }]}>{getInvoicePdfFilename()}</Text>
+                            <Text style={{ fontSize: 9, color: colors.textSecondary }}>Ref: {selectedInvoice.quoteNumber} • Buyer: {selectedInvoice.buyerCompany}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
 
-                    <TouchableOpacity
-                      style={[styles.sendWaDirectBtn, { flex: 1, marginTop: 0 }]}
-                      onPress={handleSendDirectWhatsApp}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.sendWaDirectBtnText}>🚀 Send WhatsApp Message →</Text>
-                    </TouchableOpacity>
+              {/* ── STEP 3: LIVE MESSAGE PREVIEW & MANUAL EDITING ── */}
+              <View style={[styles.waSectionCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
+                  <Text style={[styles.waSectionTitleNew, { color: colors.text }]}>💬 WhatsApp Message Body (Live Editable)</Text>
+                  <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, color: colors.textSecondary }}>Insert:</Text>
+                    {['{name}', '{company}', '{value}', '{product}'].map((ph) => (
+                      <TouchableOpacity
+                        key={ph}
+                        style={[styles.placeholderChip, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                        onPress={() => handleInsertPlaceholder(ph)}
+                      >
+                        <Text style={styles.placeholderChipText}>+{ph.replace(/[{}]/g, '')}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
-              )}
+
+                <TextInput
+                  style={[styles.previewTextInput, { backgroundColor: colors.cardBg, borderColor: colors.border, color: colors.text }]}
+                  multiline
+                  value={customMsgText}
+                  onChangeText={setCustomMsgText}
+                  placeholder="WhatsApp message body..."
+                  placeholderTextColor={colors.textSecondary}
+                />
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={{ fontSize: 9, color: colors.textSecondary }}>
+                    Target: {leadName} ({leadPhone || 'No Phone'})
+                  </Text>
+                  <Text style={{ fontSize: 9, color: colors.textSecondary }}>
+                    {customMsgText.length} chars · {customMsgText.trim().split(/\s+/).filter(Boolean).length} words
+                  </Text>
+                </View>
+              </View>
+
+              {/* ── STEP 4: TARGET LEAD STATUS UPDATE GRID (Matching Screenshot) ── */}
+              <View style={[styles.waSectionCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={[styles.waSectionTitleNew, { color: colors.text }]}>Select Target Lead Status to Update *</Text>
+                  <View style={[styles.currentStatusBadge, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                    <Text style={{ fontSize: 9, color: colors.textSecondary }}>Current: <Text style={{ color: '#fbbf24', fontWeight: '900' }}>{leadStatusState}</Text></Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 8 }}>
+                  Lead status automatically updates when message is sent. Tap any option below to change:
+                </Text>
+
+                <View style={styles.statusGrid}>
+                  {WA_TARGET_STATUSES.map((st) => {
+                    const isSelected = waTargetStatus === st.key;
+                    return (
+                      <TouchableOpacity
+                        key={st.key}
+                        style={[
+                          styles.statusGridCard,
+                          { backgroundColor: colors.cardBg, borderColor: colors.border },
+                          isSelected && { borderColor: st.color, backgroundColor: st.color + '18' },
+                        ]}
+                        onPress={() => setWaTargetStatus(st.key)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <Text style={{ fontSize: 13 }}>{st.icon}</Text>
+                          <Text style={[styles.statusGridCardText, { color: isSelected ? st.color : colors.text }]} numberOfLines={1}>
+                            {st.label}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <Text style={{ color: st.color, fontWeight: '900', fontSize: 11 }}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ── STEP 5: SEND ACTION BUTTON ── */}
+              <TouchableOpacity
+                style={styles.sendWaDirectBtn}
+                onPress={handleSendDirectWhatsApp}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sendWaDirectBtnText}>🚀 Send via WhatsApp Direct →</Text>
+              </TouchableOpacity>
 
             </ScrollView>
           </View>
@@ -1388,47 +1762,81 @@ const styles = StyleSheet.create({
   // WhatsApp Modal Styles
   waModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   waModalCard: { width: '100%', maxWidth: 440, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  waModalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
-  waModalTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
-  waModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+  waModalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
+  waModalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  waModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
   waCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
 
-  waSectionTitle: { fontSize: 11, fontWeight: '800', color: '#818cf8', marginBottom: 6 },
-  tplCard: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 12, padding: 10 },
-  tplCardSelected: { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.08)' },
-  tplTitleText: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
-  tplPreviewText: { fontSize: 10, color: '#94a3b8', marginTop: 3 },
+  waSectionCard: { borderRadius: 14, borderWidth: 1, padding: 10 },
+  stepNumBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(245, 158, 11, 0.2)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)', justifyContent: 'center', alignItems: 'center' },
+  stepNumBadgeText: { fontSize: 9, fontWeight: '900', color: '#fbbf24' },
+  waSectionTitleNew: { fontSize: 11, fontWeight: '900' },
 
-  productChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginRight: 8 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  categoryCard: { width: '31.5%', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 10, borderWidth: 1, alignItems: 'center', gap: 1 },
+  categoryCardActive: { borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.15)' },
+  categoryLabel: { fontSize: 10, fontWeight: '800' },
+  categoryDesc: { fontSize: 8, textAlign: 'center' },
+
+  modeSwitcherContainer: { flexDirection: 'row', padding: 3, borderRadius: 10, borderWidth: 1, gap: 4 },
+  modeSwitcherTab: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 },
+  modeSwitcherTabActive: { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)' },
+  modeSwitcherTabActiveCustom: { backgroundColor: 'rgba(52, 211, 153, 0.2)', borderWidth: 1, borderColor: 'rgba(52, 211, 153, 0.4)' },
+  modeSwitcherTabText: { fontSize: 10, fontWeight: '800' },
+
+  tplChipCard: { borderWidth: 1, borderRadius: 10, padding: 8 },
+  tplCardSelected: { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)' },
+  tplTitleText: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
+  tplPreviewText: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+
+  customTitleInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11 },
+  checkboxBox: { width: 14, height: 14, borderRadius: 3, borderWidth: 1, borderColor: '#64748b', justifyContent: 'center', alignItems: 'center' },
+  checkboxBoxActive: { backgroundColor: '#34d399', borderColor: '#34d399' },
+
+  sliderTabBar: { flexDirection: 'row', padding: 3, borderRadius: 10, borderWidth: 1, gap: 4, marginBottom: 6 },
+  sliderTabBtn: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 8 },
+  sliderTabBtnActiveProduct: { backgroundColor: 'rgba(52, 211, 153, 0.2)', borderWidth: 1, borderColor: 'rgba(52, 211, 153, 0.5)' },
+  sliderTabBtnActiveInvoice: { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.5)' },
+  sliderTabBtnText: { fontSize: 10, fontWeight: '800' },
+
+  productChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, marginRight: 6 },
   productChipActive: { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)' },
-  productChipText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
-  prodThumb: { width: 22, height: 22, borderRadius: 6, resizeMode: 'cover' },
+  productChipText: { fontSize: 9, fontWeight: '700', color: '#94a3b8' },
+  prodThumb: { width: 20, height: 20, borderRadius: 5, resizeMode: 'cover' },
 
-  attachedProductCard: { flexDirection: 'row', gap: 10, backgroundColor: '#020617', borderWidth: 1, borderColor: '#38bdf8', borderRadius: 12, padding: 10, marginBottom: 10 },
-  attachedProductImg: { width: 50, height: 50, borderRadius: 10, resizeMode: 'cover' },
+  attachedProductCard: { flexDirection: 'row', gap: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#38bdf8', borderRadius: 10, padding: 8, marginBottom: 6 },
+  attachedProductImg: { width: 44, height: 44, borderRadius: 8, resizeMode: 'cover' },
   attachedProdName: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
   attachedProdPrice: { fontSize: 10, fontWeight: '800', color: '#34d399' },
-  attachedProdDesc: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+  attachedProdDesc: { fontSize: 8, color: '#94a3b8', marginTop: 1 },
 
-  wizardStepBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#020617', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#1e293b' },
-  wizardStepTab: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  wizardStepTabActive: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)' },
-  wizardStepTabText: { fontSize: 10, fontWeight: '800', color: '#64748b' },
+  qtyCardContainer: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, padding: 8 },
+  qtyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  qtyCounterBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
+  qtyBtn: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 6 },
+  qtyBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '900' },
+  qtyValText: { color: '#38bdf8', fontSize: 12, fontWeight: '900', paddingHorizontal: 10 },
 
-  proceedStepBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  proceedStepBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
-  backStepBtn: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  backStepBtnText: { color: '#94a3b8', fontSize: 11, fontWeight: '800' },
+  invoiceItemCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 8, borderRadius: 10, borderWidth: 1 },
+  invoiceItemCardActive: { borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.12)' },
+  invIconCircle: { width: 24, height: 24, borderRadius: 6, backgroundColor: 'rgba(245, 158, 11, 0.15)', justifyContent: 'center', alignItems: 'center' },
+  invNumberText: { fontSize: 11, fontWeight: '900' },
+  invDocTypePill: { backgroundColor: '#020617', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  invDocTypePillText: { fontSize: 8, color: '#fbbf24', fontWeight: '800' },
 
-  qtyCardContainer: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 12 },
-  qtyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 6 },
-  qtyCounterBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a', borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
-  qtyBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 8 },
-  qtyBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '900' },
-  qtyValText: { color: '#38bdf8', fontSize: 14, fontWeight: '900', paddingHorizontal: 14 },
+  attachedDocCard: { borderWidth: 1, borderRadius: 10, padding: 8, marginTop: 4 },
+  pdfFilenameText: { fontSize: 10, fontWeight: '800', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
 
-  previewTextInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#38bdf8', borderRadius: 12, padding: 10, color: '#34d399', fontSize: 11, height: 90 },
+  placeholderChip: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
+  placeholderChipText: { fontSize: 8, fontWeight: '700', color: '#38bdf8' },
 
-  sendWaDirectBtn: { backgroundColor: '#22c55e', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  previewTextInput: { borderWidth: 1, borderRadius: 10, padding: 8, fontSize: 11, minHeight: 70, maxHeight: 110, textAlignVertical: 'top' },
+
+  currentStatusBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  statusGridCard: { width: '48.8%', borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statusGridCardText: { fontSize: 9, fontWeight: '800', flex: 1 },
+
+  sendWaDirectBtn: { backgroundColor: '#22c55e', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 4 },
   sendWaDirectBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 });

@@ -2149,6 +2149,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   });
   const [waDirectNotes, setWaDirectNotes] = useState('');
 
+  // Step 0: Message Category / Type — used for BOTH Pre-Approved and Custom modes
+  // Drives template filtering, attachment panel, and auto-status selection
+  const [waMessageCategory, setWaMessageCategory] = useState<TemplateCategory>('OUTREACH');
+
+  // Single attachment toggle: 'PRODUCT' | 'INVOICE' — only one active at a time
+  const [attachmentMode, setAttachmentMode] = useState<'PRODUCT' | 'INVOICE'>('PRODUCT');
+
   // Custom template creation & compose mode
   const [isCustomTemplateMode, setIsCustomTemplateMode] = useState<boolean>(false);
   const [customTemplateTitle, setCustomTemplateTitle] = useState<string>('');
@@ -3229,29 +3236,35 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     return matchesSearch && matchesType;
   });
 
-  const isProposalActive =
-    (isCustomTemplateMode && customTemplateCategory === 'PROPOSAL') ||
-    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'PROPOSAL') ||
-    selectedTargetStatus === 'Proposal';
+  // Effective category is driven by waMessageCategory (Step 0) for both modes
+  const effectiveCategory: TemplateCategory = isCustomTemplateMode ? customTemplateCategory : waMessageCategory;
 
-  const isInvoiceActive =
-    (isCustomTemplateMode && customTemplateCategory === 'INVOICE') ||
-    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'INVOICE') ||
-    selectedTargetStatus === 'Negotiation';
+  const isProposalActive = effectiveCategory === 'PROPOSAL' || selectedTargetStatus === 'Proposal';
+  const isInvoiceActive = effectiveCategory === 'INVOICE' || selectedTargetStatus === 'Negotiation';
+
+  // Show unified attachment panel only for PROPOSAL or INVOICE category
+  const showAttachmentPanel = isProposalActive || isInvoiceActive;
 
   const isMeetingActive =
-    (isCustomTemplateMode && customTemplateCategory === 'MEETING') ||
-    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'MEETING') ||
+    effectiveCategory === 'MEETING' ||
     selectedTargetStatus === 'Meeting Scheduled' ||
     (showMeetingScheduler && directScheduleType === 'MEETING');
 
   const isFollowUpActive =
-    (isCustomTemplateMode && customTemplateCategory === 'FOLLOWUP') ||
-    (!isCustomTemplateMode && waTemplatesList.find(t => t.id === selectedWaTemplateId)?.category === 'FOLLOWUP') ||
+    effectiveCategory === 'FOLLOWUP' ||
     selectedTargetStatus === 'Follow-up' ||
     (showMeetingScheduler && (directScheduleType === 'FOLLOWUP' || directScheduleType === 'CALL'));
 
   const isScheduleActive = isMeetingActive || isFollowUpActive || enableDirectSchedule || showMeetingScheduler;
+
+  // Invoice PDF filename: [LeadName]_[YYYY-MM-DD]_[HH-MM].pdf
+  const invoicePdfFilename = (() => {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}-${now.getMinutes().toString().padStart(2, '0')}`;
+    const safeName = (lead.name || 'Lead').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+    return `${safeName}_${dateStr}_${timeStr}.pdf`;
+  })();
 
   return (
     <div className="space-y-6">
@@ -4516,7 +4529,63 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           </div>
 
           <div className="p-5 rounded-2xl bg-background border border-border space-y-4">
-            {/* 1. Mode Switcher: Pre-Approved Templates vs Create & Send Custom Template */}
+
+            {/* ── STEP 0: MESSAGE CATEGORY / TYPE SELECTOR (Android parity — appears in BOTH modes) ── */}
+            <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-700 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black flex items-center justify-center border border-amber-500/30">1</span>
+                  Select Message Type / Category *
+                  <span className="text-[10px] text-slate-400 font-normal">(Defines type of message &amp; auto-selects status)</span>
+                </label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {effectiveCategory}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                {([
+                  { cat: 'OUTREACH' as TemplateCategory, label: 'Outreach', emoji: '🌱', desc: 'Initial contact' },
+                  { cat: 'PROPOSAL' as TemplateCategory, label: 'Proposal', emoji: '💼', desc: 'Product details' },
+                  { cat: 'INVOICE' as TemplateCategory, label: 'Invoice', emoji: '📦', desc: 'Invoice / PDF' },
+                  { cat: 'MEETING' as TemplateCategory, label: 'Meeting', emoji: '📅', desc: 'Schedule demo' },
+                  { cat: 'FOLLOWUP' as TemplateCategory, label: 'Follow-up', emoji: '⏰', desc: 'Callback nudge' },
+                  { cat: 'PROMOTION' as TemplateCategory, label: 'Promotion', emoji: '🎉', desc: 'Offer / discount' },
+                ]).map((c) => {
+                  const isActive = effectiveCategory === c.cat;
+                  return (
+                    <button
+                      key={c.cat}
+                      type="button"
+                      onClick={() => {
+                        if (isCustomTemplateMode) {
+                          handleSelectCustomCategory(c.cat);
+                        } else {
+                          setWaMessageCategory(c.cat);
+                          // Auto-sync attachment mode
+                          if (c.cat === 'INVOICE') setAttachmentMode('INVOICE');
+                          else if (c.cat === 'PROPOSAL') setAttachmentMode('PRODUCT');
+                          // Auto-filter and select best matching template by category
+                          const best = waTemplatesList.find(t => t.category === c.cat);
+                          if (best) handleSelectWaTemplate(best.id);
+                          else handleSelectCustomCategory(c.cat);
+                        }
+                      }}
+                      className={`py-2 px-1.5 rounded-xl text-xs font-bold border transition-all text-center flex flex-col items-center gap-0.5 cursor-pointer ${
+                        isActive
+                          ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-sm ring-1 ring-amber-400/40'
+                          : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-base">{c.emoji}</span>
+                      <span className="text-[10px] leading-tight font-black">{c.label}</span>
+                      <span className="text-[9px] text-slate-400 leading-tight hidden sm:block">{c.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── STEP 1: MODE SWITCHER: Pre-Approved Templates vs Create & Send Custom Template ── */}
             <div className="flex items-center gap-2 p-1 bg-slate-900/90 border border-slate-800 rounded-xl">
               <button
                 type="button"
@@ -4528,8 +4597,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 }`}
               >
                 <span>📋 Select Pre-Approved Template</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/30 text-amber-200">
-                  {waTemplatesList.length}
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/30 text-amber-200">
+                  {waTemplatesList.filter(t => t.category === waMessageCategory).length || waTemplatesList.length}
                 </span>
               </button>
               <button
@@ -4545,13 +4614,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               </button>
             </div>
 
-            {/* If NOT custom mode: Pre-approved template selector */}
+            {/* ── STEP 2: If NOT custom mode: Pre-approved template selector (filtered by Step 0 category) ── */}
             {!isCustomTemplateMode ? (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-muted block font-semibold">Select WhatsApp Template *</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black flex items-center justify-center border border-emerald-500/30">2</span>
+                    Select Template *
+                    <span className="text-[10px] text-slate-400 font-normal">({waTemplatesList.filter(t => t.category === waMessageCategory).length} matching {waMessageCategory.toLowerCase()} templates)</span>
+                  </label>
                   <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 size={11} /> {waTemplatesList.length} Templates Synced
+                    <CheckCircle2 size={11} /> {waTemplatesList.length} Total Synced
                   </span>
                 </div>
                 <select
@@ -4559,9 +4632,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                   value={selectedWaTemplateId}
                   onChange={(e) => handleSelectWaTemplate(e.target.value)}
                 >
-                  {waTemplatesList.map((t) => (
+                  {/* Prioritize templates matching selected category, then show all */}
+                  {[
+                    ...waTemplatesList.filter(t => t.category === waMessageCategory),
+                    ...waTemplatesList.filter(t => t.category !== waMessageCategory),
+                  ].map((t) => (
                     <option key={t.id} value={t.id} className="bg-slate-900 text-white">
-                      {t.title} ({t.category}){t.targetStatus ? ` ➔ Auto-Status: ${t.targetStatus}` : ''}
+                      {t.category === waMessageCategory ? '★ ' : ''}{t.title}{t.targetStatus ? ` ➔ ${t.targetStatus}` : ''}
                     </option>
                   ))}
                 </select>
@@ -4636,9 +4713,67 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               </div>
             )}
 
-            {/* Dynamic Contextual Modules: Proposal Products, Invoices, and Meeting Scheduler */}
-            {/* A. If Proposal mode is active: Inline Product Selector & Image Attachment */}
-            {isProposalActive && (
+            {/* ── STEP 3: UNIFIED ATTACHMENT PANEL (Product OR Invoice — slider toggle, only one at a time) ── */}
+            {showAttachmentPanel && (
+              <div className="space-y-3">
+                {/* Slider Toggle: Product Details & Images vs Invoice PDF */}
+                <div className="flex items-center gap-2 p-1 bg-slate-950 border border-slate-700 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentMode('PRODUCT');
+                      if (isInvoiceActive) {
+                        setWaMessageCategory('PROPOSAL');
+                        if (!isCustomTemplateMode) {
+                          const best = waTemplatesList.find(t => t.category === 'PROPOSAL');
+                          if (best) handleSelectWaTemplate(best.id);
+                        } else {
+                          setCustomTemplateCategory('PROPOSAL');
+                          setSelectedTargetStatus('Proposal');
+                        }
+                        const keys = Object.keys(selectedProductQuantities);
+                        const next = keys.length === 0 && catalogProducts.length > 0 ? { [catalogProducts[0].id]: 1 } : selectedProductQuantities;
+                        setSelectedProductQuantities(next);
+                        setWaDirectMessage(generateProposalMessage(next));
+                      }
+                    }}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      attachmentMode === 'PRODUCT'
+                        ? 'bg-emerald-500/25 border border-emerald-500/50 text-emerald-200 shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Package size={13} /> 🖼️ Product Details &amp; Images
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentMode('INVOICE');
+                      if (isProposalActive) {
+                        setWaMessageCategory('INVOICE');
+                        if (!isCustomTemplateMode) {
+                          const best = waTemplatesList.find(t => t.category === 'INVOICE');
+                          if (best) handleSelectWaTemplate(best.id);
+                        } else {
+                          setCustomTemplateCategory('INVOICE');
+                          setSelectedTargetStatus('Negotiation');
+                        }
+                        if (!selectedInvoice && availableInvoices.length > 0) handleApplyInvoice(availableInvoices[0]);
+                        else if (selectedInvoice) handleApplyInvoice(selectedInvoice);
+                      }
+                    }}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      attachmentMode === 'INVOICE'
+                        ? 'bg-amber-500/25 border border-amber-500/50 text-amber-200 shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Receipt size={13} /> 📄 Invoice PDF
+                  </button>
+                </div>
+
+                {/* A. PRODUCT attachment panel */}
+                {attachmentMode === 'PRODUCT' && (
               <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/50 space-y-3 shadow-xl animate-in fade-in duration-200">
                 <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
                   <div className="flex items-center gap-2.5">
@@ -4838,10 +4973,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                   </div>
                 )}
               </div>
-            )}
+                )}
 
-            {/* B. If Invoice mode is active: Inline Invoices Selector & PDF Attachment */}
-            {isInvoiceActive && (
+                {/* B. INVOICE attachment panel */}
+                {attachmentMode === 'INVOICE' && (
               <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-950 border border-amber-500/50 space-y-3 shadow-xl animate-in fade-in duration-200">
                 <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
                   <div className="flex items-center gap-2.5">
@@ -4979,13 +5114,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         <span className="text-lg">📕</span>
                         <div>
                           <div className="flex items-center gap-2">
-                            <strong className="text-white font-mono text-xs">{selectedInvoice.quoteNumber}.pdf</strong>
+                            <strong className="text-white font-mono text-xs">{invoicePdfFilename}</strong>
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase font-bold">
                               {selectedInvoice.docType}
                             </span>
                           </div>
                           <p className="text-[10px] text-slate-400 mt-0.5">
-                            Buyer: {selectedInvoice.buyerCompany} • {selectedInvoice.itemsSummary}
+                            Ref: {selectedInvoice.quoteNumber} • Buyer: {selectedInvoice.buyerCompany}
                           </p>
                         </div>
                       </div>
@@ -5013,6 +5148,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                     </div>
                   </div>
                 )}
+                </div>
+              )}
+
               </div>
             )}
 

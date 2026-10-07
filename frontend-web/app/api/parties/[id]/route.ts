@@ -11,10 +11,11 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const parties = getLocalParties();
-    const party = parties.find(p => p.id === params.id);
+    const party = parties.find(p => p.id === id);
     if (!party) {
       return NextResponse.json({ error: 'Party not found' }, { status: 404, headers: CORS_HEADERS });
     }
@@ -24,11 +25,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const body = await req.json();
     const current = getLocalParties();
-    const existing = current.find(p => p.id === params.id);
+    const existing = current.find(p => p.id === id);
 
     if (!existing) {
       return NextResponse.json({ error: 'Party not found' }, { status: 404, headers: CORS_HEADERS });
@@ -47,7 +49,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       updatedAt: new Date().toISOString(),
     };
 
-    const next = current.map(p => p.id === params.id ? updated : p);
+    const next = current.map(p => p.id === id ? updated : p);
     saveLocalParties(next);
     return NextResponse.json(updated, { headers: CORS_HEADERS });
   } catch (err: any) {
@@ -55,10 +57,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const current = getLocalParties();
-    const next = current.filter(p => p.id !== params.id);
+    const next = current.filter(p => p.id !== id);
     saveLocalParties(next);
     return NextResponse.json({ success: true }, { headers: CORS_HEADERS });
   } catch (err: any) {
