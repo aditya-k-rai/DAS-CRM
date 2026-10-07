@@ -1304,6 +1304,37 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
 
 
+  // ── Helper: Fetch any image URL and convert to base64 data URL for PDF embedding ──
+  // Handles: data: URIs (already base64), relative paths (/products/…), absolute URLs
+  const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
+    if (!url || url.trim() === '') return null;
+    // Already a base64 data URL — use directly
+    if (url.startsWith('data:')) return url;
+    // Try fetching the image and converting
+    try {
+      const fetchUrl = url.startsWith('/') ? url : url;
+      const resp = await fetch(fetchUrl, { cache: 'force-cache' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      return await new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      // Try localStorage cache for logos/product images that may have been saved there
+      try {
+        if (typeof window !== 'undefined') {
+          const cacheKey = `das_crm_img_cache_${url}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached && cached.startsWith('data:')) return cached;
+        }
+      } catch {}
+      return null;
+    }
+  };
+
   // 📄 Generate High-Fidelity Vector A4 PDF Blob using jsPDF
   const generateQuotationPdfBlob = async (): Promise<Blob> => {
     const { jsPDF } = await import('jspdf');
@@ -1311,6 +1342,15 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     const W = 210;
     const H = 297;
     const margin = 12;
+
+    // ── Pre-load logo and product images as base64 before drawing PDF ──
+    const logoBase64 = activeCompany?.logoUrl ? await fetchImageAsBase64(activeCompany.logoUrl) : null;
+    const itemImagesMap: Record<string, string | null> = {};
+    for (const it of items) {
+      if (it.showImage && it.imageUrl) {
+        itemImagesMap[it.id] = await fetchImageAsBase64(it.imageUrl);
+      }
+    }
 
     // Navy Blue Top Brand Accent Bar (#002060)
     doc.setFillColor(0, 32, 96);
@@ -1323,18 +1363,36 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     doc.setLineWidth(0.3);
     doc.roundedRect(margin, 8, W - 2 * margin, 32, 2, 2, 'D');
 
-    // Company Name
+    // Company Logo + Name (logo occupies 14x14mm; text offset right when logo present)
+    const logoX = margin + 2;
+    const logoY = 10;
+    const logoSize = 16;
+    const textOffsetX = logoBase64 ? margin + logoSize + 4 : margin + 5;
+
+    if (logoBase64) {
+      try {
+        // Draw white rounded background for logo
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 1.5, 1.5, 'F');
+        doc.addImage(logoBase64, 'JPEG', logoX, logoY, logoSize, logoSize);
+      } catch (imgErr) {
+        console.warn('[PDF] Could not embed logo:', imgErr);
+      }
+    }
+
     doc.setTextColor(0, 32, 96);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text(activeCompany?.name || 'Company', margin + 5, 17);
+    doc.setFontSize(13);
+    doc.text(activeCompany?.name || 'Company', textOffsetX, 17);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
-    doc.text(activeCompany?.address || 'Registered Address', margin + 5, 22);
-    doc.text(`Email: ${activeCompany?.email || ''} | Phone: ${activeCompany?.phone || ''}`, margin + 5, 27);
-    doc.text(`GSTIN: ${activeCompany?.gstNo || 'N/A'} | PAN: ${activeCompany?.panNo || 'N/A'}`, margin + 5, 32);
+    const maxAddrWidth = W - textOffsetX - margin - 50; // leave space for doc title on right
+    const addrLines = doc.splitTextToSize(activeCompany?.address || 'Registered Address', maxAddrWidth);
+    doc.text(addrLines.slice(0, 2), textOffsetX, 22);
+    doc.text(`Email: ${activeCompany?.email || ''} | Ph: ${activeCompany?.phone || ''}`, textOffsetX, logoBase64 ? 28 : 27);
+    doc.text(`GSTIN: ${activeCompany?.gstNo || 'N/A'} | PAN: ${activeCompany?.panNo || 'N/A'}`, textOffsetX, logoBase64 ? 33 : 32);
 
     // Doc Title & Meta (Right Aligned)
     doc.setTextColor(0, 32, 96);
@@ -1398,21 +1456,45 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
     items.forEach((it, idx) => {
       if (currentY > 230) return;
+
+      // Determine row height — taller rows when product image is shown
+      const hasItemImg = it.showImage && !!itemImagesMap[it.id];
+      const rowH = hasItemImg ? 10 : 7;
+
       const rowBg = idx % 2 === 0 ? 255 : 248;
       doc.setFillColor(rowBg, rowBg, rowBg);
-      doc.rect(margin, currentY, W - 2 * margin, 7, 'F');
+      doc.rect(margin, currentY, W - 2 * margin, rowH, 'F');
       doc.setDrawColor(226, 232, 240);
-      doc.line(margin, currentY + 7, W - margin, currentY + 7);
+      doc.line(margin, currentY + rowH, W - margin, currentY + rowH);
 
-      doc.text(String(idx + 1), margin + 3, currentY + 4.8);
-      const itemTitle = it.productName.length > 40 ? it.productName.substring(0, 38) + '...' : it.productName;
-      doc.text(itemTitle, margin + 12, currentY + 4.8);
-      doc.text(it.hsnCode || '—', margin + 95, currentY + 4.8);
-      doc.text(`${it.qty} ${it.unit || ''}`.trim(), margin + 115, currentY + 4.8, { align: 'right' });
-      doc.text(it.unitPrice.toLocaleString('en-IN'), margin + 140, currentY + 4.8, { align: 'right' });
-      doc.text(`${it.taxRate}%`, margin + 158, currentY + 4.8, { align: 'right' });
-      doc.text(it.total.toLocaleString('en-IN'), W - margin - 3, currentY + 4.8, { align: 'right' });
-      currentY += 7;
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+
+      const rowMidY = currentY + rowH / 2 + 1.5;
+
+      doc.text(String(idx + 1), margin + 3, rowMidY);
+
+      // Product image (inline, left of item name)
+      let itemTextX = margin + 12;
+      if (hasItemImg) {
+        try {
+          const imgSize = rowH - 2; // 8mm square
+          doc.addImage(itemImagesMap[it.id]!, 'JPEG', itemTextX, currentY + 1, imgSize, imgSize);
+          itemTextX += imgSize + 1.5;
+        } catch { /* image embed failed — just skip */ }
+      }
+
+      const maxTitleWidth = 80 - (itemTextX - (margin + 12));
+      const itemTitle = it.productName.length > 38 ? it.productName.substring(0, 36) + '…' : it.productName;
+      doc.text(itemTitle, itemTextX, rowMidY);
+
+      doc.text(it.hsnCode || '—', margin + 95, rowMidY);
+      doc.text(`${it.qty} ${it.unit || ''}`.trim(), margin + 115, rowMidY, { align: 'right' });
+      doc.text(it.unitPrice.toLocaleString('en-IN'), margin + 140, rowMidY, { align: 'right' });
+      doc.text(`${it.taxRate}%`, margin + 158, rowMidY, { align: 'right' });
+      doc.text(it.total.toLocaleString('en-IN'), W - margin - 3, rowMidY, { align: 'right' });
+      currentY += rowH;
     });
 
     // Financial Totals Box
@@ -2191,6 +2273,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
     // Resolve logo: if base64 data URL, upload to static storage first
     let resolvedLogoUrl = newComp.logoUrl || activeCompany?.logoUrl || '';
+    const originalLogoDataUrl = resolvedLogoUrl; // keep original base64 before uploading
     if (resolvedLogoUrl && resolvedLogoUrl.startsWith('data:')) {
       try {
         const uploadRes = await fetch('/api/products/upload-image', {
@@ -2200,10 +2283,21 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         });
         if (uploadRes.ok) {
           const uploadJson = await uploadRes.json();
-          if (uploadJson?.url) resolvedLogoUrl = uploadJson.url;
+          if (uploadJson?.url) {
+            const returnedUrl = uploadJson.url;
+            // If the server returned a static path (not base64), cache the base64 in
+            // localStorage so fetchImageAsBase64 can recover it if the path 404s.
+            if (returnedUrl && !returnedUrl.startsWith('data:') && originalLogoDataUrl.startsWith('data:')) {
+              try {
+                localStorage.setItem(`das_crm_img_cache_${returnedUrl}`, originalLogoDataUrl);
+              } catch (_) {}
+            }
+            resolvedLogoUrl = returnedUrl;
+          }
         }
       } catch (_) {}
     }
+
 
     const companyId = editingCompanyId || 'comp-1';
     const updatedCompany: CompanyDetails = {

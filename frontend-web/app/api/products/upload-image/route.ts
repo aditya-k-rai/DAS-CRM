@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     // 1. If base64 dataUrl is provided, write it to disk in public/products so client gets a clean, fast static URL!
     if (dataUrl && dataUrl.startsWith('data:')) {
       try {
-        const matches = dataUrl.match(/^data:([A-Za-z0-9-+.\/]+);base64,(.+)$/);
+        const matches = dataUrl.match(/^data:([A-Za-z0-9-+.\\/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
           const mimeType = matches[1].toLowerCase();
           const buffer = Buffer.from(matches[2], 'base64');
@@ -42,19 +42,31 @@ export async function POST(req: Request) {
             path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
           ];
 
+          // Track if at least one disk write succeeded
+          let diskWriteSucceeded = false;
           for (const dir of targetDirs) {
             try {
               if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
               fs.writeFileSync(path.join(dir, cleanName), buffer);
+              diskWriteSucceeded = true;
             } catch (_) {}
           }
 
-          finalUrl = `/products/${cleanName}`;
+          // Only use the static file URL if disk write actually worked.
+          // In read-only environments (Vercel/Render), fall back to the original
+          // base64 data URL so images still display and embed in PDFs correctly.
+          if (diskWriteSucceeded) {
+            finalUrl = `/products/${cleanName}`;
+          } else {
+            // Keep the original dataUrl – it will always work client-side and in jsPDF addImage()
+            finalUrl = dataUrl;
+          }
         }
       } catch (fileErr) {
         console.warn('[upload-image] Failed to write image to disk, falling back to dataUrl:', fileErr);
       }
     }
+
 
     // 2. Also register image in Firestore if token is available
     try {
