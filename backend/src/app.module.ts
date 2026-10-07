@@ -50,12 +50,48 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
       { name: 'pro_max_tier', ttl: 3600000, limit: 50000 },
     ]),
     BullModule.forRootAsync({
-      useFactory: () => ({
-        redis: {
-          host: process.env.REDIS_HOST || 'localhost',
-          port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        },
-      }),
+      useFactory: () => {
+        const redisUrl = process.env.REDIS_URL || process.env.REDIS_TLS_URL;
+        if (redisUrl) {
+          try {
+            const parsed = new URL(redisUrl);
+            return {
+              redis: {
+                host: parsed.hostname || '127.0.0.1',
+                port: parseInt(parsed.port || '6379', 10),
+                password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+                username: parsed.username && parsed.username !== 'default' ? parsed.username : undefined,
+                tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+                maxRetriesPerRequest: null,
+                enableReadyCheck: false,
+                lazyConnect: true,
+                retryStrategy: (times: number) => Math.min(times * 1000, 15000),
+              },
+            };
+          } catch (_) {
+            return {
+              url: redisUrl,
+              redis: {
+                maxRetriesPerRequest: null,
+                enableReadyCheck: false,
+                lazyConnect: true,
+                retryStrategy: (times: number) => Math.min(times * 1000, 15000),
+              },
+            };
+          }
+        }
+        return {
+          redis: {
+            host: process.env.REDIS_HOST || '127.0.0.1',
+            port: parseInt(process.env.REDIS_PORT || '6379', 10),
+            password: process.env.REDIS_PASSWORD || undefined,
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            lazyConnect: true,
+            retryStrategy: (times: number) => Math.min(times * 1000, 15000),
+          },
+        };
+      },
     }),
     PrismaModule,
     AuthModule,

@@ -23,15 +23,34 @@ export class PrismaService
   }
 
   async onModuleInit() {
-    try {
-      await this.$connect();
-      this.logger.log('Successfully connected to database');
-    } catch (error) {
-      this.logger.error(
-        'Failed to connect to database. Please verify DATABASE_URL and DIRECT_URL environment variables on your server.',
-        error,
-      );
-      throw error;
+    const maxRetries = 5;
+    let delay = 1000;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.$connect();
+        this.logger.log('✅ Successfully connected to database');
+        return;
+      } catch (error) {
+        this.logger.warn(
+          `⚠️ Database connection attempt ${attempt}/${maxRetries} failed: ${(error as Error)?.message || error}. Retrying in ${delay}ms...`,
+        );
+        if (attempt === maxRetries) {
+          this.logger.error(
+            '❌ Failed to connect to database after maximum retries. Please verify DATABASE_URL and DIRECT_URL on your server.',
+            error,
+          );
+          if (process.env.NODE_ENV === 'production') {
+            this.logger.warn(
+              'Server will continue running in recovery mode while database reconnects in the background.',
+            );
+            return;
+          }
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(delay * 2, 8000);
+      }
     }
   }
 

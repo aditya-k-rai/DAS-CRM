@@ -6,14 +6,27 @@ import { AppModule } from './app.module';
 const helmet = require('helmet');
 const compression = require('compression');
 
+// Global safety catches to prevent unexpected container termination on Render
+process.on('unhandledRejection', (reason: any) => {
+  Logger.error('Unhandled Promise Rejection encountered:', reason?.stack || reason, 'Process');
+});
+
+process.on('uncaughtException', (error: Error) => {
+  Logger.error('Uncaught Exception caught:', error?.stack || error, 'Process');
+});
+
 async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
   const app = await NestFactory.create(AppModule, {
-    logger: isProd ? ['error', 'warn'] : ['error', 'warn', 'log'],
+    logger: isProd ? ['error', 'warn', 'log'] : ['error', 'warn', 'log', 'debug'],
     bufferLogs: true,
   });
+
+  // Enable shutdown hooks for graceful instance replacements on Render
+  app.enableShutdownHooks();
+
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT', 3001);
+  const port = parseInt(String(process.env.PORT || configService.get<number>('PORT', 3001)), 10);
 
   // Security & Optimization
   const express = require('express');
@@ -99,4 +112,7 @@ async function bootstrap() {
   );
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  Logger.error('❌ Fatal error during backend bootstrap:', err?.stack || err, 'Bootstrap');
+  process.exit(1);
+});
