@@ -32,20 +32,20 @@ export async function POST(req: Request) {
           const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : mimeType.includes('gif') ? 'gif' : mimeType.includes('svg') ? 'svg' : 'jpg';
           const cleanName = `${fileName.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.${ext}`;
 
-          // Target directories: public/products in current cwd and parent/child frontend-web
+          // Target directories: public/products and backend storage
           const targetDirs = [
             path.resolve(process.cwd(), 'public', 'products'),
             path.resolve(process.cwd(), 'frontend-web', 'public', 'products'),
             path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
             path.resolve(process.cwd(), '..', 'backend', 'public', 'products'),
+            path.resolve(process.cwd(), '..', 'backend', 'storage', 'drive_vault', 'products'),
+            path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
           ];
 
           for (const dir of targetDirs) {
             try {
-              if (fs.existsSync(path.dirname(dir))) {
-                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(path.join(dir, cleanName), buffer);
-              }
+              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+              fs.writeFileSync(path.join(dir, cleanName), buffer);
             } catch (_) {}
           }
 

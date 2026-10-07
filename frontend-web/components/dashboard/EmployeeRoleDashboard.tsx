@@ -9,6 +9,7 @@ import {
   UserCheck, Radio, Bell, Check, ExternalLink, BarChart3, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 import { apiFetch } from '@/lib/apiClient';
 import { getCachedData, setCachedData, clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeRequirement, safeSource } from '@/lib/leadNormalizer';
@@ -1274,30 +1275,8 @@ export function EmployeeRoleDashboard() {
           </div>
         </div>
 
-        {/* Notice Board */}
-        <div className="crm-card space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                <Bell size={14} className="text-amber-500 dark:text-amber-400" />
-              </div>
-              The Notice Board
-            </h3>
-            <Link href="/communicate" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">
-              All Notices <ArrowRight size={11} />
-            </Link>
-          </div>
-          <div className="p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 space-y-2">
-            <div className="flex items-center gap-2">
-              <Radio size={14} className="text-amber-400 animate-pulse" />
-              <p className="text-xs font-bold text-white">Q3 Sales Incentives &amp; Sprint Announced</p>
-            </div>
-            <p className="text-[11px] text-slate-300">
-              Top 3 sales reps closing above ₹10L pipeline by month-end will qualify for executive club bonuses. Keep leads updated in real-time!
-            </p>
-            <p className="text-[10px] text-amber-400/80 font-semibold">Posted by Management · 2 hours ago</p>
-          </div>
-        </div>
+        {/* Live Notice Board */}
+        <NoticeBoardWidget title="The Notice Board" />
       </div>
 
     </div>

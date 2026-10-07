@@ -531,9 +531,27 @@ export class ProductsService {
       }
 
       const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
-      const cleanPath = `products/${filenamePrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const cleanFileName = `${filenamePrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const cleanPath = `products/${cleanFileName}`;
+
+      // Write to static public/products directories so frontend and backend can serve statically
+      const staticDirs = [
+        path.resolve(process.cwd(), 'public', 'products'),
+        path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
+        path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
+        path.resolve(process.cwd(), '..', 'storage', 'drive_vault', 'products'),
+      ];
+      for (const sDir of staticDirs) {
+        try {
+          if (!fs.existsSync(sDir)) fs.mkdirSync(sDir, { recursive: true });
+          fs.writeFileSync(path.join(sDir, cleanFileName), buffer);
+        } catch (_) {}
+      }
 
       const { gcsDownloadUrl } = await this.cloudStorageService.uploadBuffer(buffer, cleanPath, mimeType);
+      const finalUrl = (gcsDownloadUrl && !gcsDownloadUrl.includes('/api/v1/storage/files/vault/'))
+        ? gcsDownloadUrl
+        : `/products/${cleanFileName}`;
 
       // Register file metadata in Firestore
       try {
@@ -542,7 +560,7 @@ export class ProductsService {
           await firestore.collection('product_images').add({
             fileName: `${filenamePrefix}.${ext}`,
             path: cleanPath,
-            url: gcsDownloadUrl,
+            url: finalUrl,
             mimeType,
             sizeBytes: buffer.length,
             uploadedAt: new Date().toISOString(),
@@ -550,7 +568,7 @@ export class ProductsService {
         }
       } catch (_) {}
 
-      return gcsDownloadUrl;
+      return finalUrl;
     } catch (err) {
       console.warn('[ProductsService] Failed to upload image to Firebase Cloud Storage, saving to local static directory:', err);
       try {

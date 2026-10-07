@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth, UserRole, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
 import { AdminControlCenterView } from '@/components/admin/AdminControlCenterView';
+import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 import { apiFetch } from '@/lib/apiClient';
 import { normalizeLead } from '@/lib/leadNormalizer';
 
@@ -968,6 +969,9 @@ export function TenantAdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* 📢 COMPANY NOTICE BOARD (LIVE SYNC ACROSS ALL DASHBOARDS) */}
+      <NoticeBoardWidget title="The Notice Board & Admin Broadcasts" />
 
       {/* ── Lead Pipeline & Ingestion Banner ── */}
       <div className="crm-card p-5 border-indigo-500/30 bg-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">

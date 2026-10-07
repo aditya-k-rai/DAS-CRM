@@ -152,11 +152,23 @@ export const STORAGE_BRANDS_KEY = 'das_crm_product_brands';
 
 export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=';
 
-export function getProductCoverImage(imgSrc?: string): string {
-  if (!imgSrc || typeof imgSrc !== 'string' || !imgSrc.trim() || imgSrc.includes('images.unsplash.com') || imgSrc.includes('puff-jackets.jpg') || imgSrc.includes('puff-jacket')) {
-    return DEFAULT_PRODUCT_FALLBACK_IMAGE;
+export function getProductCoverImage(imgSrc?: string, id?: string, sku?: string): string {
+  if (imgSrc && typeof imgSrc === 'string' && imgSrc.trim() && !imgSrc.includes('images.unsplash.com') && !imgSrc.includes('puff-jackets.jpg') && !imgSrc.includes('puff-jacket')) {
+    return imgSrc;
   }
-  return imgSrc;
+  if (typeof window !== 'undefined' && (id || sku)) {
+    try {
+      const s = localStorage.getItem('das_crm_custom_product_images');
+      if (s) {
+        const customMap = JSON.parse(s);
+        const match = (id ? customMap[id] : null) || (sku ? customMap[sku] : null);
+        if (match && match.coverImage && typeof match.coverImage === 'string' && match.coverImage.trim()) {
+          return match.coverImage;
+        }
+      }
+    } catch (_) {}
+  }
+  return DEFAULT_PRODUCT_FALLBACK_IMAGE;
 }
 
 /**
@@ -199,51 +211,47 @@ export function processImageTo1080pSquare(file: File): Promise<string> {
 }
 
 /**
- * Uploads a base64 image data-URL to Firebase Storage & Firestore via the backend endpoint.
- * Returns the permanent Firebase Cloud Storage URL, or falls back to dataUrl if backend is offline.
+ * Uploads a base64 image data-URL to disk and Firebase Storage via backend/API endpoints.
+ * Returns the permanent static/cloud URL, or falls back to dataUrl so images are never lost.
  */
 export async function uploadProductImageToFirebase(dataUrl: string, prefix: string = 'product'): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:')) {
     return dataUrl || '';
   }
   try {
+    // 1. Try local Next.js upload-image route (fast, writes to public/products)
+    try {
+      const localRes = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl, fileName: prefix }),
+      });
+      if (localRes.ok) {
+        const localData = await localRes.json();
+        if (localData?.url) return localData.url;
+      }
+    } catch (_) {}
+
+    // 2. Try backend endpoint
     let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
       apiBase = '/api';
     }
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    let res: Response | null = null;
-    try {
-      res = await fetch(`${apiBase}/products/upload-image`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ dataUrl, fileName: prefix }),
-      });
-      if (!res.ok && apiBase !== '/api') {
-        res = await fetch('/api/products/upload-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dataUrl, fileName: prefix }),
-        });
-      }
-    } catch (_) {
-      try {
-        res = await fetch('/api/products/upload-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dataUrl, fileName: prefix }),
-        });
-      } catch {}
-    }
-    if (res && res.ok) {
+    const res = await fetch(`${apiBase}/products/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ dataUrl, fileName: prefix }),
+    });
+    if (res.ok) {
       const data = await res.json();
       if (data?.url) return data.url;
     }
   } catch (err) {
-    console.warn('[ProductsCatalog] Firebase upload fallback to client image:', err);
+    console.warn('[ProductsCatalog] Image upload fallback to client image:', err);
   }
   return dataUrl;
 }
@@ -2011,7 +2019,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       {cardConfig.showImage && (
                         <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 shadow-inner">
                           <img
-                            src={getProductCoverImage(p.coverImage)}
+                            src={getProductCoverImage(p.coverImage, p.id, p.sku)}
                             alt={p.name}
                             className="w-full h-full aspect-square object-cover group-hover:scale-105 transition-transform duration-300"
                             onError={(e) => {
@@ -2232,7 +2240,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <div className="flex items-center gap-3">
                         <div className="relative flex-shrink-0">
                           <img
-                            src={getProductCoverImage(p.coverImage)}
+                            src={getProductCoverImage(p.coverImage, p.id, p.sku)}
                             alt={p.name}
                             className="w-12 h-12 aspect-square rounded-xl object-cover border border-slate-800"
                             onError={(e) => {

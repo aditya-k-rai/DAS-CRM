@@ -7,6 +7,7 @@ import {
   Bell, Star, Building2, Shield, TrendingUp, Target,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HR Manager Dashboard — Built according to the HR role structure
@@ -271,26 +272,8 @@ export function HRRoleDashboard() {
 
       {/* ── Sections 8–9: Notice Board + Audit ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Notice Board */}
-        <div className="crm-card space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                <Bell size={14} className="text-amber-500 dark:text-amber-400" />
-              </div>
-              Notice Board
-            </h3>
-            <Link href="/communicate" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">Post Notice <ArrowRight size={11} /></Link>
-          </div>
-          <div className="p-8 text-center border border-dashed border-border rounded-xl">
-            <Bell size={20} className="mx-auto mb-2 text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No notices posted yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Company-wide HR announcements, policy updates, and event notifications.</p>
-            <Link href="/communicate" className="mt-3 inline-flex items-center gap-1.5 text-xs text-amber-500 dark:text-amber-400 font-bold hover:underline">
-              <Plus size={11} /> Post an Announcement
-            </Link>
-          </div>
-        </div>
+        {/* Live Notice Board */}
+        <NoticeBoardWidget title="Company Announcements & Notice Board" />
 
         {/* Team Audit & Reports */}
         <div className="crm-card space-y-3">

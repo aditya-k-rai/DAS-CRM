@@ -19,6 +19,7 @@ import {
 } from '@/lib/userDirectoryCache';
 import { getCachedData, setCachedData, clearStaleCaches } from '@/lib/cacheUtils';
 import { normalizeLead, safeString } from '@/lib/leadNormalizer';
+import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 
 export interface DepartmentFollowUp {
   id: string;
@@ -771,6 +772,9 @@ export function ManagerRoleDashboard() {
           </div>
         )}
       </div>
+
+      {/* 📢 COMPANY NOTICE BOARD (LIVE SYNC ACROSS ALL DASHBOARDS) */}
+      <NoticeBoardWidget title="The Notice Board & Department Directives" />
 
       {/* ── DEPARTMENT FOLLOW-UPS & SCHEDULED OUTREACH CENTER (LIVE SYNC) ── */}
       <div className="crm-card p-6 border border-purple-500/30 bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-950 rounded-2xl space-y-5 shadow-lg relative overflow-hidden">

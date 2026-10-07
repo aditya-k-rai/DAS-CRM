@@ -18,6 +18,7 @@ import {
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany } from '@/lib/leadNormalizer';
+import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types for Team Leader Dashboard Modules
@@ -1093,6 +1094,9 @@ export function TeamLeaderRoleDashboard() {
           </div>
         </div>
       </div>
+
+      {/* 📢 COMPANY NOTICE BOARD (LIVE SYNC ACROSS ALL DASHBOARDS) */}
+      <NoticeBoardWidget title="The Notice Board & Team Directives" />
 
     </div>
   );

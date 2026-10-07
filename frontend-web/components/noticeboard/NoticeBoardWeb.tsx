@@ -7,32 +7,22 @@ import {
 } from 'lucide-react';
 import { useAuth, normalizeRoleStr } from '@/context/AuthContext';
 
-export interface WebNoticeItem {
-  id: string;
-  title: string;
-  content: string;
-  author: string;
-  authorRole: string;
-  avatar: string;
-  createdAt: number;
-  expiresAt: number; // createdAt + 7 days
-  priority: 'CRITICAL' | 'IMPORTANT' | 'GENERAL';
-  mentions: string[];
-  acknowledgedBy: string[];
-}
+import { noticeBoardManager, type WebNoticeItem } from '@/lib/noticeBoardManager';
 
 const STAFF_LIST = [
   '@All Staff',
+  '@Sales Team',
+  '@Managers',
+  '@HR Department',
+  '@Team Leaders',
 ];
-
-const INITIAL_NOTICES: WebNoticeItem[] = [];
 
 export function NoticeBoardWeb() {
   const { currentUser } = useAuth();
   const normalizedRole = normalizeRoleStr(currentUser?.role || '');
-  const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(normalizedRole);
+  const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'HR'].includes(normalizedRole);
 
-  const [notices, setNotices] = useState<WebNoticeItem[]>(INITIAL_NOTICES);
+  const [notices, setNotices] = useState<WebNoticeItem[]>(() => noticeBoardManager.getNotices());
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Form state
@@ -41,6 +31,12 @@ export function NoticeBoardWeb() {
   const [selectedMentions, setSelectedMentions] = useState<string[]>(['@All Staff']);
   const [priorityInput, setPriorityInput] = useState<'CRITICAL' | 'IMPORTANT' | 'GENERAL'>('IMPORTANT');
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    noticeBoardManager.fetchServerNotices().then(setNotices).catch(() => {});
+    const unsub = noticeBoardManager.subscribe(setNotices);
+    return () => unsub();
+  }, []);
 
   // 7-Day Auto-Purge Filter
   const activeNotices = notices.filter((n) => n.expiresAt > Date.now());
@@ -53,53 +49,38 @@ export function NoticeBoardWeb() {
     }
   };
 
-  const handlePostNotice = (e: React.FormEvent) => {
+  const handlePostNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titleInput.trim() || !contentInput.trim()) {
       alert('Please enter both Title and Message content.');
       return;
     }
 
-    const newNotice: WebNoticeItem = {
-      id: `wn_${Date.now()}`,
+    await noticeBoardManager.postNotice({
       title: titleInput.trim(),
       content: contentInput.trim(),
-      author: currentUser.name || 'Admin',
+      author: currentUser?.name || 'Admin',
       authorRole: normalizedRole,
-      avatar: (currentUser.name || 'AD').substring(0, 2).toUpperCase(),
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 Days Auto-Purge
       priority: priorityInput,
       mentions: selectedMentions.length > 0 ? selectedMentions : ['@All Staff'],
-      acknowledgedBy: [],
-    };
+    });
 
-    setNotices([newNotice, ...notices]);
     setTitleInput('');
     setContentInput('');
     setSelectedMentions(['@All Staff']);
     setShowCreateForm(false);
-    setSuccessToast('📌 Notice published successfully! It will automatically purge in 7 days.');
+    setSuccessToast('📌 Notice published successfully! Synced across all dashboards and auto-purges in 7 days.');
     setTimeout(() => setSuccessToast(null), 4000);
   };
 
-  const handleAcknowledge = (id: string) => {
-    setNotices((prev) =>
-      prev.map((n) => {
-        if (n.id === id) {
-          const userKey = currentUser.email || 'user';
-          if (!n.acknowledgedBy.includes(userKey)) {
-            return { ...n, acknowledgedBy: [...n.acknowledgedBy, userKey] };
-          }
-        }
-        return n;
-      })
-    );
+  const handleAcknowledge = async (id: string) => {
+    const userKey = currentUser?.email || currentUser?.name || 'user';
+    await noticeBoardManager.acknowledgeNotice(id, userKey);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this notice?')) {
-      setNotices(notices.filter((n) => n.id !== id));
+      await noticeBoardManager.deleteNotice(id);
     }
   };
 
