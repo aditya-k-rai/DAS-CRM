@@ -16,6 +16,10 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3001);
 
   // Security & Optimization
+  const express = require('express');
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
   if (typeof helmet === 'function') {
     app.use(helmet());
   }

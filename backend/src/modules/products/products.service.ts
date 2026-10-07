@@ -8,6 +8,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CloudStorageService } from '../firestore/cloud-storage.service';
 import { FirestoreService } from '../firestore/firestore.service';
 
+import { IsString, IsOptional, IsNumber, IsArray, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import * as fs from 'fs';
+import * as path from 'path';
+
 export interface VolumeDiscountTier {
   tier: string;
   minQty: number;
@@ -43,31 +48,221 @@ export interface ProductItemDto {
   updatedAt?: string;
 }
 
-export interface CreateProductDto {
+export class CreateProductDto {
+  @ApiProperty({ description: 'Product title' })
+  @IsString()
   name: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   sku?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   category?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   subCategory?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   brand?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   unit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   price?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   minPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   maxPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   currency?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   stock?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   minOrderQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   taxRate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
   images?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
   features?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
   volumeDiscounts?: VolumeDiscountTier[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   sharedCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
-export interface UpdateProductDto extends Partial<CreateProductDto> {
+export class UpdateProductDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  subCategory?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  price?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  minPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  maxPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  stock?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  minOrderQty?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  taxRate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  images?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  features?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  volumeDiscounts?: VolumeDiscountTier[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  sharedCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   status?: 'ACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED';
 }
 
@@ -409,7 +604,22 @@ export class ProductsService {
 
       return gcsDownloadUrl;
     } catch (err) {
-      console.warn('[ProductsService] Failed to upload image to Firebase Cloud Storage, keeping original:', err);
+      console.warn('[ProductsService] Failed to upload image to Firebase Cloud Storage, saving to local static directory:', err);
+      try {
+        if (typeof dataUrlOrBuffer === 'string' && dataUrlOrBuffer.startsWith('data:')) {
+          const matches = dataUrlOrBuffer.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const mimeType = matches[1];
+            const buffer = Buffer.from(matches[2], 'base64');
+            const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+            const cleanName = `${filenamePrefix}-${Date.now()}.${ext}`;
+            const targetDir = path.resolve(process.cwd(), 'public', 'products');
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            fs.writeFileSync(path.join(targetDir, cleanName), buffer);
+            return `/products/${cleanName}`;
+          }
+        }
+      } catch (_) {}
       return typeof dataUrlOrBuffer === 'string' ? dataUrlOrBuffer : '';
     }
   }
@@ -578,6 +788,8 @@ export class ProductsService {
         OR: [
           { id },
           { id, organizationId: resolvedOrgId },
+          ...(dto.sku ? [{ description: { contains: dto.sku } }] : []),
+          ...(dto.name ? [{ name: dto.name }] : []),
         ],
       },
     }).catch(() => null);

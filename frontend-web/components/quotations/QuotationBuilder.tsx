@@ -683,7 +683,30 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   // 📦 Sync Active Products directly from Product Section Database (/products) & Cache
   useEffect(() => {
-    const handleRemoteUpdate = () => {
+    const handleRemoteUpdate = (e?: any) => {
+      if (e?.detail && e.detail.id) {
+        const p = e.detail;
+        const item = {
+          id: p.id,
+          name: p.name,
+          desc: p.overview || p.description || '',
+          hsn: p.sku || '998313',
+          price: Number(p.price || 0),
+          tax: Number(p.taxRate || 18),
+          unit: p.unit || 'Pieces (Pcs)',
+          image: p.coverImage || p.imageUrl || '',
+        };
+        setCatalogProducts(prev => {
+          const idx = prev.findIndex(cp => cp.id === item.id || cp.name === item.name);
+          if (idx !== -1) {
+            const next = [...prev];
+            next[idx] = item;
+            return next;
+          }
+          return [item, ...prev];
+        });
+        return;
+      }
       try {
         const cached = localStorage.getItem('das_crm_products_catalog_cache');
         if (cached) {
@@ -709,29 +732,37 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bc = new BroadcastChannel('das_crm_product_channel');
-        bc.onmessage = () => handleRemoteUpdate();
+        bc.onmessage = (ev) => handleRemoteUpdate(ev.data?.product ? { detail: ev.data.product } : undefined);
       }
     } catch (_) {}
 
     const fetchCatalogProducts = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/products`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        });
-        if (res.ok) {
+        let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+          apiBase = '/api';
+        }
+        let res: Response | null = null;
+        try {
+          res = await fetch(`${apiBase}/products`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+        } catch (_) {
+          res = await fetch('/api/products');
+        }
+        if (res && res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             setCatalogProducts(data.map((p: any) => ({
               id: p.id,
               name: p.name,
-              desc: p.description || '',
+              desc: p.description || p.overview || '',
               hsn: p.sku || '998313',
               price: Number(p.price || 0),
               tax: Number(p.taxRate || 18),
               unit: p.unit || 'Pieces (Pcs)',
-              image: p.imageUrl || '',
+              image: p.coverImage || p.imageUrl || '',
             })));
           }
         }

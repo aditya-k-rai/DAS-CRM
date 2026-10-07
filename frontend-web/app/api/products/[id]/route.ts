@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { upsertProductInFirestore } from '@/lib/serverFirestore';
+import { getLocalProducts, saveLocalProducts } from '@/lib/serverProducts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -21,8 +22,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       updatedAt: new Date().toISOString(),
     };
 
-    // Persist directly to Google Cloud Firestore
-    await upsertProductInFirestore(id, updatedProduct);
+    // 1. Persist directly to local products.json storage
+    const currentProducts = getLocalProducts();
+    const existsIndex = currentProducts.findIndex(p => p.id === id || (p.sku && updatedProduct.sku && p.sku.toUpperCase() === updatedProduct.sku.toUpperCase()));
+    let nextList: any[];
+    if (existsIndex !== -1) {
+      nextList = [...currentProducts];
+      nextList[existsIndex] = { ...nextList[existsIndex], ...updatedProduct };
+    } else {
+      nextList = [updatedProduct, ...currentProducts];
+    }
+    saveLocalProducts(nextList);
+
+    // 2. Persist directly to Google Cloud Firestore if connected
+    try {
+      await upsertProductInFirestore(id, updatedProduct);
+    } catch (_) {}
 
     return NextResponse.json(updatedProduct, { headers: CORS_HEADERS });
   } catch (err: any) {
@@ -33,6 +48,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    const currentProducts = getLocalProducts();
+    const nextList = currentProducts.filter(p => p.id !== id);
+    saveLocalProducts(nextList);
+
     return NextResponse.json({ success: true, id }, { headers: CORS_HEADERS });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to delete product' }, { status: 500, headers: CORS_HEADERS });

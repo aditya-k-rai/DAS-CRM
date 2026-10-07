@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
-import type { ProductItemDto, CreateProductDto, UpdateProductDto, ProductCardDisplayConfig } from './products.service';
+import { CreateProductDto, UpdateProductDto, type ProductItemDto, type ProductCardDisplayConfig } from './products.service';
 import { ProductsService } from './products.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 

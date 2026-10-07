@@ -524,6 +524,9 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 if (customImgEntry && customImgEntry.coverImage) {
                   finalCover = customImgEntry.coverImage;
                   finalImages = customImgEntry.images && customImgEntry.images.length > 0 ? customImgEntry.images : [finalCover];
+                } else if (remoteP.coverImage && !remoteP.coverImage.includes('puff-jackets.jpg')) {
+                  finalCover = remoteP.coverImage;
+                  finalImages = remoteP.images && remoteP.images.length > 0 ? remoteP.images : [finalCover];
                 } else if (localMatch && localMatch.coverImage && !localMatch.coverImage.includes('puff-jackets.jpg')) {
                   finalCover = localMatch.coverImage;
                   finalImages = localMatch.images && localMatch.images.length > 0 ? localMatch.images : [finalCover];
@@ -531,10 +534,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
                 if (localMatch) {
                   return {
-                    ...remoteP,
                     ...localMatch,
-                    coverImage: finalCover,
-                    images: finalImages,
+                    ...remoteP,
+                    coverImage: finalCover || remoteP.coverImage || localMatch.coverImage,
+                    images: (finalImages && finalImages.length > 0) ? finalImages : (remoteP.images || localMatch.images),
                   };
                 }
 
@@ -549,7 +552,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               const remoteIds = new Set(mapped.map((m: any) => m.id));
               const remoteSkus = new Set(mapped.map((m: any) => (m.sku || '').toUpperCase()));
               const localOnly = prev.filter(
-                (p: any) => !remoteIds.has(p.id) && !remoteSkus.has((p.sku || '').toUpperCase())
+                (p: any) => !remoteIds.has(p.id) && !remoteSkus.has((p.sku || '').toUpperCase()) && p.id !== 'p-colour-tribe-jackets'
               );
 
               const combined = [...mergedRemote, ...localOnly];
@@ -617,7 +620,22 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     fetchCatalogData();
 
     // Listen to local update events from other tabs or components
-    const handleRemoteUpdate = () => {
+    const handleRemoteUpdate = (e?: any) => {
+      if (e?.detail && e.detail.id) {
+        const updated = e.detail as ProductItemWeb;
+        setProducts(prev => {
+          const next = prev.map(p =>
+            (p.id === updated.id || (p.sku && updated.sku && p.sku.toUpperCase() === updated.sku.toUpperCase()))
+              ? { ...p, ...updated }
+              : p
+          );
+          try {
+            localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+        return;
+      }
       try {
         const cached = localStorage.getItem(STORAGE_PRODUCTS_KEY);
         if (cached) {
@@ -1007,6 +1025,32 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditProdVolumeDiscounts(JSON.parse(JSON.stringify(tiers)));
   };
 
+  const handleEditCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditImageUploadError('');
+    if (file.size > 5 * 1024 * 1024) {
+      setEditImageUploadError(`⚠️ "${file.name}" exceeds 5MB limit. Please upload images under 5MB.`);
+      return;
+    }
+    try {
+      const squareDataUrl = await processImageTo1080pSquare(file);
+      const url = await uploadProductImageToFirebase(squareDataUrl, 'product-cover');
+      setEditProdImages(prev => [url, ...prev.filter((_, idx) => idx !== 0)]);
+    } catch {
+      setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
+    }
+  };
+
+  const handleSetCoverImage = (indexToPromote: number) => {
+    setEditProdImages(prev => {
+      if (indexToPromote <= 0 || indexToPromote >= prev.length) return prev;
+      const target = prev[indexToPromote];
+      const rest = prev.filter((_, idx) => idx !== indexToPromote);
+      return [target, ...rest];
+    });
+  };
+
   const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -1021,7 +1065,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
         const firebaseUrl = await uploadProductImageToFirebase(squareDataUrl, 'product-gallery');
-        setEditProdImages(prev => [...prev, firebaseUrl]);
+        setEditProdImages(prev => {
+          // If only default fallback image was in list, replace with this new image!
+          if (prev.length === 0 || (prev.length === 1 && prev[0].includes('puff-jackets.jpg'))) {
+            return [firebaseUrl];
+          }
+          return [...prev, firebaseUrl];
+        });
       } catch {
         setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
       }
@@ -1168,6 +1218,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         const finalImgs = finalSavedProduct.images && finalSavedProduct.images.length > 0
           ? finalSavedProduct.images
           : [finalSavedProduct.coverImage];
+        customImagesMap[editingProduct.id] = {
+          coverImage: finalSavedProduct.coverImage,
+          images: finalImgs,
+        };
         customImagesMap[finalSavedProduct.id] = {
           coverImage: finalSavedProduct.coverImage,
           images: finalImgs,
@@ -1182,7 +1236,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       } catch (_) {}
 
       setProducts(prev => {
-        const next = prev.map(p => (p.id === stagedProduct.id || p.id === finalSavedProduct.id) ? finalSavedProduct : p);
+        const next = prev.map(p =>
+          (p.id === editingProduct.id || p.id === stagedProduct.id || p.id === finalSavedProduct.id || (p.sku && p.sku.toUpperCase() === stagedProduct.sku.toUpperCase()))
+            ? finalSavedProduct
+            : p
+        );
         try {
           localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(next));
         } catch (_) {}
@@ -2070,7 +2128,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       )}
 
                       {canManage && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -4315,19 +4373,15 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 </div>
               </div>
 
-              {/* Product Images */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+              {/* Product Images & Cover Selection */}
+              <div className="space-y-3 bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <label className="block text-slate-300 font-bold">Product Images (2 or more required)</label>
-                    <p className="text-[10px] text-indigo-400 font-medium">Strict 1:1 Square (1080 × 1080 px) • Auto-scaled to square</p>
+                    <label className="block text-slate-200 font-bold text-xs">Product Imagery &amp; Cover Photo</label>
+                    <p className="text-[10.5px] text-slate-400">First image is the primary cover displayed on cards, quotations &amp; catalogs.</p>
                   </div>
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                    editProdImages.length >= 2
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  }`}>
-                    {editProdImages.length >= 2 ? `✅ ${editProdImages.length} images` : `⚠️ ${editProdImages.length}/2 min required`}
+                  <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {editProdImages.length} {editProdImages.length === 1 ? 'Photo' : 'Photos'}
                   </span>
                 </div>
 
@@ -4337,35 +4391,93 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   </p>
                 )}
 
-                <label className="cursor-pointer flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-indigo-500/40 bg-slate-950 hover:bg-slate-900 transition-colors">
-                  <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Additional Images (1:1 1080x1080)</span>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleEditImageUpload}
-                    className="hidden"
-                  />
-                </label>
-
-                <div className="flex items-center gap-2 overflow-x-auto p-2 bg-slate-950 rounded-xl border border-slate-800">
-                  {editProdImages.map((uri, idx) => (
-                    <div key={idx} className="relative group flex-shrink-0">
-                      <img
-                        src={uri}
-                        alt={`Preview ${idx + 1}`}
-                        className="w-16 h-16 aspect-square rounded-xl object-cover border border-slate-700 shadow-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveEditImage(idx)}
-                        className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-500"
-                        title="Remove image"
-                      >
-                        <X size={12} />
-                      </button>
+                {/* Primary Cover Image Preview Banner */}
+                {editProdImages.length > 0 && (
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-900 rounded-xl border border-indigo-500/40">
+                    <img
+                      src={editProdImages[0]}
+                      alt="Primary Cover"
+                      className="w-14 h-14 aspect-square rounded-lg object-cover border border-indigo-400 shadow"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full inline-block">
+                        ⭐ Primary Cover Image
+                      </span>
+                      <p className="text-[11px] text-slate-300 font-medium truncate mt-0.5">Shown as main photo across catalog &amp; proposals</p>
                     </div>
-                  ))}
+                    <label className="cursor-pointer px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10.5px] font-bold flex items-center gap-1 shadow flex-shrink-0 transition-colors">
+                      <span>Change Cover</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditCoverImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* Gallery List with "Make Cover" Button */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-300">All Product Photos ({editProdImages.length})</span>
+                    <label className="cursor-pointer text-[10.5px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                      <span>+ Add More Photos</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleEditImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                    {editProdImages.map((uri, idx) => (
+                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-700 bg-slate-950 flex flex-col items-center">
+                        <img
+                          src={uri}
+                          alt={`Photo ${idx + 1}`}
+                          className="w-full aspect-square object-cover"
+                        />
+                        {idx === 0 ? (
+                          <span className="w-full text-center bg-emerald-600 text-white text-[9.5px] font-black py-0.5">
+                            ✓ Cover
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetCoverImage(idx)}
+                            className="w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white text-[9.5px] font-bold py-0.5 transition-colors"
+                            title="Set as main cover photo"
+                          >
+                            Set as Cover
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEditImage(idx)}
+                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-500"
+                          title="Remove photo"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+
+                    <label className="cursor-pointer aspect-square rounded-xl border border-dashed border-indigo-500/40 hover:border-indigo-400 bg-slate-950 hover:bg-slate-900 transition-colors flex flex-col items-center justify-center p-2 text-center">
+                      <Plus size={16} className="text-indigo-400 mb-0.5" />
+                      <span className="text-[10px] font-bold text-indigo-300 leading-tight">Add Photo</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleEditImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
