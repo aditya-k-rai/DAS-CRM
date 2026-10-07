@@ -238,3 +238,99 @@ export async function getProductsFromFirestore(): Promise<any[]> {
   }
   return [];
 }
+
+export async function saveQuoteToFirestore(quote: any): Promise<void> {
+  const token = await getFirestoreAccessToken();
+  if (!token) return;
+
+  try {
+    const docNo = quote.quoteNumber || quote.docNo || quote.id || `doc_${Date.now()}`;
+    const cleanId = encodeURIComponent(docNo.replace(/[^a-zA-Z0-9_-]/g, '_'));
+    const url = `https://firestore.googleapis.com/v1/projects/das-crm0/databases/(default)/documents/invoices_pdfs/${cleanId}`;
+
+    await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fields: {
+          id: { stringValue: quote.id || cleanId },
+          docNo: { stringValue: docNo },
+          docType: { stringValue: quote.docType || 'QUOTATION' },
+          pdfData: { stringValue: quote.pdfUrl || '' },
+          totalAmount: { doubleValue: Number(quote.totalAmount || 0) },
+          partyName: { stringValue: quote.partyName || quote.clientName || 'Client' },
+          companyName: { stringValue: quote.companyName || quote.clientCompany || 'Company' },
+          status: { stringValue: quote.status || 'DRAFT' },
+          createdByName: { stringValue: quote.createdByName || '' },
+          createdByRole: { stringValue: quote.createdByRole || '' },
+          payloadJson: { stringValue: JSON.stringify(quote.payload || {}) },
+          itemsJson: { stringValue: JSON.stringify(quote.items || []) },
+          savedAt: { stringValue: new Date().toISOString() },
+        },
+      }),
+    });
+  } catch (e) {
+    console.warn('[Firestore] Quote save to Firestore collection invoices_pdfs notice:', e);
+  }
+}
+
+export async function getQuotesFromFirestore(): Promise<any[]> {
+  const token = await getFirestoreAccessToken();
+  if (!token) return [];
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/das-crm0/databases/(default)/documents/invoices_pdfs?pageSize=100`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.documents)) {
+        return data.documents.map((doc: any) => {
+          const f = doc.fields || {};
+          let payload: any = {};
+          try {
+            if (f.payloadJson?.stringValue) payload = JSON.parse(f.payloadJson.stringValue);
+          } catch (_) {}
+
+          let items: any[] = [];
+          try {
+            if (f.itemsJson?.stringValue) items = JSON.parse(f.itemsJson.stringValue);
+          } catch (_) {}
+
+          const docNo = f.docNo?.stringValue || doc.name.split('/').pop();
+          const pdfUrl = f.pdfData?.stringValue || f.pdfUrl?.stringValue || payload?.pdfUrl || '';
+
+          return {
+            id: f.id?.stringValue || docNo,
+            docNo,
+            quoteNumber: docNo,
+            docType: f.docType?.stringValue || 'QUOTATION',
+            partyName: f.partyName?.stringValue || 'Client',
+            clientName: f.partyName?.stringValue || 'Client',
+            companyName: f.companyName?.stringValue || 'Company',
+            clientCompany: f.companyName?.stringValue || 'Company',
+            totalAmount: Number(f.totalAmount?.doubleValue ?? f.totalAmount?.integerValue ?? 0),
+            status: f.status?.stringValue || 'GENERATED_SENT',
+            pdfUrl,
+            createdByName: f.createdByName?.stringValue,
+            createdByRole: f.createdByRole?.stringValue,
+            savedAt: f.savedAt?.stringValue ? new Date(f.savedAt.stringValue).toLocaleString('en-IN') : 'Recently',
+            createdAt: f.savedAt?.stringValue || new Date().toISOString(),
+            payload: {
+              ...payload,
+              pdfUrl,
+            },
+            items,
+          };
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[Firestore] Failed to list quotes from Firestore:', e);
+  }
+  return [];
+}

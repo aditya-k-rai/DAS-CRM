@@ -14,6 +14,7 @@ export interface QuotationItemDto {
   validUntil?: string;
   itemsCount: number;
   docType?: string;
+  pdfUrl?: string;
   sentToLead?: string;
   sentVia?: string;
   leadId?: string;
@@ -37,13 +38,27 @@ export class QuotationsService {
 
   private fallbackQuotes: QuotationItemDto[] = [];
 
+  private async resolveOrgId(organizationId?: string): Promise<string> {
+    if (organizationId && organizationId !== 'org_default') {
+      return organizationId;
+    }
+    const firstOrg = await this.prisma.organization.findFirst({ select: { id: true } }).catch(() => null);
+    return firstOrg?.id || organizationId || 'org_default';
+  }
+
   // ─── GET ALL QUOTATIONS FOR ORG ──────────────────────────────────────────────
-  async getQuotations(organizationId: string): Promise<QuotationItemDto[]> {
-    if (!organizationId) return [];
+  async getQuotations(organizationId?: string): Promise<QuotationItemDto[]> {
+    const resolvedOrgId = await this.resolveOrgId(organizationId);
 
     try {
       const dbQuotes: any[] = await (this.prisma.quotation as any).findMany({
-        where: { organizationId },
+        where: {
+          OR: [
+            { organizationId: resolvedOrgId },
+            { organizationId: 'org_default' },
+            ...(organizationId && organizationId !== resolvedOrgId ? [{ organizationId }] : []),
+          ],
+        },
         include: {
           items: true,
           lead: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
@@ -62,6 +77,7 @@ export class QuotationsService {
 
           const leadDisplayName = q.lead ? `${q.lead.firstName || ''} ${q.lead.lastName || ''}`.trim() : '';
           const resolvedLeadName = parsedNotes.sentToLead || (leadDisplayName ? `${leadDisplayName}${q.lead.phone ? ` (${q.lead.phone})` : ''}` : undefined);
+          const resolvedPdf = q.pdfUrl || parsedNotes.pdfUrl || parsedNotes.payload?.pdfUrl;
 
           return {
             id: q.id,
@@ -74,6 +90,7 @@ export class QuotationsService {
             validUntil: q.validUntil ? q.validUntil.toISOString() : undefined,
             itemsCount: q.items ? q.items.length : (parsedNotes.itemsCount || 0),
             docType: q.title || parsedNotes.docType || 'QUOTATION',
+            pdfUrl: resolvedPdf,
             sentToLead: resolvedLeadName,
             sentVia: parsedNotes.sentVia,
             leadId: q.leadId || parsedNotes.leadId || undefined,
@@ -81,7 +98,10 @@ export class QuotationsService {
             createdByName: parsedNotes.createdByName,
             createdByRole: parsedNotes.createdByRole,
             notes: q.notes || '',
-            payload: parsedNotes.payload || undefined,
+            payload: {
+              ...(parsedNotes.payload || {}),
+              pdfUrl: resolvedPdf,
+            },
             createdAt: q.createdAt.toISOString(),
             updatedAt: q.updatedAt.toISOString(),
             items: q.items ? q.items.map((it: any) => ({
@@ -101,14 +121,22 @@ export class QuotationsService {
       console.warn('[QuotationsService] DB query failed, using fallback:', e.message);
     }
 
-    return this.fallbackQuotes.filter((q) => !q['organizationId'] || q['organizationId'] === organizationId);
+    return this.fallbackQuotes.filter((q) => !q['organizationId'] || q['organizationId'] === organizationId || q['organizationId'] === resolvedOrgId);
   }
 
   // ─── GET SINGLE QUOTATION BY ID ──────────────────────────────────────────────
   async getQuotationById(organizationId: string, id: string): Promise<QuotationItemDto> {
+    const resolvedOrgId = await this.resolveOrgId(organizationId);
     try {
       const dbQuote: any = await (this.prisma.quotation as any).findFirst({
-        where: { id, organizationId },
+        where: {
+          id,
+          OR: [
+            { organizationId: resolvedOrgId },
+            { organizationId: 'org_default' },
+            ...(organizationId && organizationId !== resolvedOrgId ? [{ organizationId }] : []),
+          ],
+        },
         include: {
           items: true,
           lead: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
@@ -125,6 +153,7 @@ export class QuotationsService {
 
         const leadDisplayName = dbQuote.lead ? `${dbQuote.lead.firstName || ''} ${dbQuote.lead.lastName || ''}`.trim() : '';
         const resolvedLeadName = parsedNotes.sentToLead || (leadDisplayName ? `${leadDisplayName}${dbQuote.lead.phone ? ` (${dbQuote.lead.phone})` : ''}` : undefined);
+        const resolvedPdf = dbQuote.pdfUrl || parsedNotes.pdfUrl || parsedNotes.payload?.pdfUrl;
 
         return {
           id: dbQuote.id,
@@ -137,6 +166,7 @@ export class QuotationsService {
           validUntil: dbQuote.validUntil ? dbQuote.validUntil.toISOString() : undefined,
           itemsCount: dbQuote.items ? dbQuote.items.length : (parsedNotes.itemsCount || 0),
           docType: dbQuote.title || parsedNotes.docType || 'QUOTATION',
+          pdfUrl: resolvedPdf,
           sentToLead: resolvedLeadName,
           sentVia: parsedNotes.sentVia,
           leadId: dbQuote.leadId || parsedNotes.leadId || undefined,
@@ -144,7 +174,10 @@ export class QuotationsService {
           createdByName: parsedNotes.createdByName,
           createdByRole: parsedNotes.createdByRole,
           notes: dbQuote.notes || '',
-          payload: parsedNotes.payload || undefined,
+          payload: {
+            ...(parsedNotes.payload || {}),
+            pdfUrl: resolvedPdf,
+          },
           createdAt: dbQuote.createdAt.toISOString(),
           updatedAt: dbQuote.updatedAt.toISOString(),
           items: dbQuote.items ? dbQuote.items.map((it: any) => ({
@@ -304,6 +337,7 @@ export class QuotationsService {
           validUntil: dbQuote.validUntil?.toISOString(),
           itemsCount: dbQuote.items ? dbQuote.items.length : 0,
           docType: dbQuote.title || 'QUOTATION',
+          pdfUrl: firebasePdfUrl || dbQuote.pdfUrl || undefined,
           sentToLead: metadata.sentToLead,
           sentVia: metadata.sentVia,
           leadId: dbQuote.leadId || undefined,
@@ -311,7 +345,10 @@ export class QuotationsService {
           createdByName: metadata.createdByName,
           createdByRole: metadata.createdByRole,
           notes: dbQuote.notes || '',
-          payload: metadata.payload,
+          payload: {
+            ...(metadata.payload || {}),
+            pdfUrl: firebasePdfUrl || dbQuote.pdfUrl,
+          },
           createdAt: dbQuote.createdAt.toISOString(),
           updatedAt: dbQuote.updatedAt.toISOString(),
           items: dbQuote.items ? dbQuote.items.map((it: any) => ({
@@ -342,6 +379,7 @@ export class QuotationsService {
       validUntil: dto.validUntil,
       itemsCount: dto.items ? dto.items.length : 0,
       docType: metadata.docType,
+      pdfUrl: firebasePdfUrl || undefined,
       sentToLead: metadata.sentToLead,
       sentVia: metadata.sentVia,
       leadId: dto.leadId,
@@ -349,7 +387,10 @@ export class QuotationsService {
       createdByName: dto.createdByName,
       createdByRole: dto.createdByRole,
       notes: JSON.stringify(metadata),
-      payload: metadata.payload,
+      payload: {
+        ...(metadata.payload || {}),
+        pdfUrl: firebasePdfUrl,
+      },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       items: dto.items || [],
@@ -424,7 +465,7 @@ export class QuotationsService {
   async deleteQuotation(organizationId: string, id: string): Promise<{ success: boolean; id: string }> {
     try {
       const existing = await this.prisma.quotation.findFirst({
-        where: { id, organizationId },
+        where: { id },
       }).catch(() => null);
 
       if (existing) {

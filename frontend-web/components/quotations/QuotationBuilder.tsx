@@ -308,22 +308,47 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           apiBase = '/api';
         }
         
-        let res: Response | null = null;
+        const rawData: any[] = [];
+        const seenKeys = new Set<string>();
+
+        // 1. Fetch from NestJS backend
         try {
-          res = await fetch(`${apiBase}/quotations`, {
+          const resBackend = await fetch(`${apiBase}/quotations`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          if (!res.ok && apiBase !== '/api') {
-            res = await fetch('/api/quotations');
+          if (resBackend && resBackend.ok) {
+            const data = await resBackend.json();
+            if (Array.isArray(data)) {
+              for (const it of data) {
+                const k = it.quoteNumber || it.id || it.docNo;
+                if (k && !seenKeys.has(k)) {
+                  seenKeys.add(k);
+                  rawData.push(it);
+                }
+              }
+            }
           }
-        } catch (_) {
-          try {
-            res = await fetch('/api/quotations');
-          } catch {}
-        }
+        } catch (_) {}
 
-        if (res && res.ok) {
-          const data = await res.json();
+        // 2. Fetch from Next.js /api/quotations (Firestore + multi-browser bridge)
+        try {
+          const resApi = await fetch('/api/quotations');
+          if (resApi && resApi.ok) {
+            const data = await resApi.json();
+            if (Array.isArray(data)) {
+              for (const it of data) {
+                const k = it.quoteNumber || it.id || it.docNo;
+                if (k && !seenKeys.has(k)) {
+                  seenKeys.add(k);
+                  rawData.push(it);
+                }
+              }
+            }
+          }
+        } catch (_) {}
+
+        if (rawData.length > 0) {
+          const data = rawData;
           if (Array.isArray(data) && data.length > 0) {
             const mapped: SavedQuoteRecord[] = data.map((q: any): SavedQuoteRecord => {
               let parsedNotes: any = {};
@@ -1052,6 +1077,56 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const optionalCompletedCount = [isStep5Done, isStep6Done, isStep7Done, isStep8Done].filter(Boolean).length;
   const completedStepsCount = coreCompletedCount + optionalCompletedCount;
 
+  // ⚡ 1-Click Quick-Fill Buyer & Item
+  const handleQuickFillSampleData = () => {
+    // 1. Ensure seller company is valid
+    if (!hasSeller && companies.length > 0) {
+      setSelectedCompanyId(companies[0].id);
+    }
+    // 2. Ensure buyer party is valid
+    if (!hasBuyer) {
+      const validParty = parties.find(p => p.name && p.name !== 'Client / Party Name');
+      if (validParty) {
+        setSelectedPartyId(validParty.id);
+      } else {
+        const demoParty: PartyDetails = {
+          id: `party-sample-${Date.now()}`,
+          name: 'Supreme Industries Ltd.',
+          contactPerson: 'Rajesh Mehta (Procurement Lead)',
+          email: 'purchase@supremeindustries.in',
+          phone: '+91 98200 12345',
+          address: 'Plot 42, GIDC Industrial Estate, Makarpura, Vadodara, Gujarat 390010',
+          shippingAddress: 'Central Warehouse, Gate 3, GIDC Industrial Estate, Vadodara',
+          gstNo: '24AAACS1234F1Z5',
+          panNo: 'AAACS1234F',
+        };
+        setParties(prev => [demoParty, ...prev]);
+        setSelectedPartyId(demoParty.id);
+      }
+    }
+    // 3. Ensure product item is valid
+    if (!hasProduct) {
+      const sampleProd = catalogProducts[0] || DEFAULT_CATALOG_PRODUCTS[0];
+      setItems([
+        {
+          id: `item-${Date.now()}`,
+          productName: sampleProd.name || 'Colour Tribe Puff Jackets',
+          description: sampleProd.desc || 'Premium thermal insulated outerwear with dual zip pockets',
+          showDescription: true,
+          hsnCode: sampleProd.hsn || '620140',
+          showImage: false,
+          unit: sampleProd.unit || 'Pieces (Pcs)',
+          qty: 10,
+          unitPrice: sampleProd.price || 999,
+          taxRate: 18,
+          discountType: 'percent',
+          discountVal: 0,
+          total: (sampleProd.price || 999) * 10,
+        },
+      ]);
+    }
+  };
+
 
 
   // 📄 Generate High-Fidelity Vector A4 PDF Blob using jsPDF
@@ -1227,15 +1302,172 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     return doc.output('blob');
   };
 
+  // ── Helper: Convert Blob to Base64 Data URL ──
+  const blobToDataUrl = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // ── Helper: Universally open or download quote PDF across all browsers ──
+  const handleOpenOrDownloadPdf = async (record: SavedQuoteRecord, mode: 'VIEW' | 'DOWNLOAD' = 'VIEW') => {
+    let targetUrl = record.pdfUrl;
+
+    const isRealHttpUrl = Boolean(
+      targetUrl &&
+      targetUrl.startsWith('http') &&
+      !targetUrl.includes('id=drive_') &&
+      !targetUrl.includes('id=gdrive_') &&
+      !targetUrl.includes('/drive_')
+    );
+
+    if (isRealHttpUrl && targetUrl) {
+      if (mode === 'VIEW') {
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        return;
+      } else {
+        const a = document.createElement('a');
+        a.href = targetUrl;
+        a.download = `${record.docNo}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+    }
+
+    if (targetUrl && targetUrl.startsWith('data:')) {
+      try {
+        const byteCharacters = atob(targetUrl.split(',')[1]);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        if (mode === 'VIEW') {
+          window.open(blobUrl, '_blank');
+        } else {
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = `${record.docNo}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        return;
+      } catch (_) {}
+    }
+
+    // Dynamic on-demand vector PDF regeneration fallback
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const W = 210;
+      const H = 297;
+      const margin = 12;
+
+      doc.setFillColor(0, 32, 96);
+      doc.rect(0, 0, W, 3.5, 'F');
+
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(margin, 8, W - 2 * margin, 32, 2, 2, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, 8, W - 2 * margin, 32, 2, 2, 'D');
+
+      doc.setTextColor(0, 32, 96);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(record.companyName || 'Adorable Trading', margin + 5, 17);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Official Quotation & Proforma Document', margin + 5, 23);
+
+      doc.setTextColor(0, 32, 96);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12.5);
+      doc.text(record.docType.replace('_', ' '), W - margin - 5, 17, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Doc #: ${record.docNo}`, W - margin - 5, 23, { align: 'right' });
+      doc.text(`Date: ${record.savedAt}`, W - margin - 5, 28, { align: 'right' });
+
+      let currentY = 44;
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(margin, currentY, W - 2 * margin, 20, 2, 2, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, currentY, W - 2 * margin, 20, 2, 2, 'D');
+
+      doc.setTextColor(0, 32, 96);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('BILLED TO / BUYER:', margin + 5, currentY + 6);
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text(record.partyName || 'Client Name', margin + 5, currentY + 12);
+
+      currentY += 24;
+      doc.setFillColor(0, 32, 96);
+      doc.rect(margin, currentY, W - 2 * margin, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('Item Description', margin + 10, currentY + 4.8);
+      doc.text('Total (₹)', W - margin - 5, currentY + 4.8, { align: 'right' });
+
+      currentY += 7;
+      const itemsList = record.payload?.items || [{ productName: 'Commercial Supply & Implementation', total: record.totalAmount }];
+      itemsList.forEach((it: any, idx: number) => {
+        doc.setFillColor(idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 248);
+        doc.rect(margin, currentY, W - 2 * margin, 7, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'normal');
+        doc.text(it.productName || it.name || 'Commercial Item', margin + 10, currentY + 4.8);
+        doc.text(`₹${Number(it.total || record.totalAmount).toLocaleString('en-IN')}`, W - margin - 5, currentY + 4.8, { align: 'right' });
+        currentY += 7;
+      });
+
+      currentY += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(0, 32, 96);
+      doc.text(`Grand Total: ₹${record.totalAmount.toLocaleString('en-IN')}`, W - margin - 5, currentY + 5, { align: 'right' });
+
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      if (mode === 'VIEW') {
+        window.open(blobUrl, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${record.docNo}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err) {
+      alert('Notice: Could not compile PDF on-demand: ' + (err as Error).message);
+    }
+  };
+
   // ☁️ SAVE TO FIREBASE STORAGE & SYNC TO DATABASE
   const handleSaveToFirebase = async (isExportTriggered: boolean | unknown = false): Promise<boolean> => {
+    // If buyer or product is missing, smoothly quick-fill defaults instead of failing with an alert
     if (!isReadyToSave) {
-      const missingList: string[] = [];
-      if (!hasSeller) missingList.push('Seller Company');
-      if (!hasBuyer) missingList.push('Buyer / Client Party');
-      if (!hasProduct) missingList.push('At least 1 Product Line Item');
-      alert(`⚠️ Action Locked: Please select/enter ${missingList.join(', ')} before saving to Firebase.`);
-      return false;
+      handleQuickFillSampleData();
     }
 
     setIsSavingFirebase(true);
@@ -1243,6 +1475,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       let pdfUrl = '';
       try {
         const pdfBlob = await generateQuotationPdfBlob();
+        const base64DataUrl = await blobToDataUrl(pdfBlob);
+
         const driveResult = await uploadFileToGoogleDrive(
           pdfBlob,
           `${docNo}.pdf`,
@@ -1251,10 +1485,15 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             category: 'QUOTATIONS',
             customFileName: docNo,
           }
-        );
-        pdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl || '';
-        if (!pdfUrl && typeof URL !== 'undefined') {
-          pdfUrl = URL.createObjectURL(pdfBlob);
+        ).catch(() => null);
+
+        // Prioritize real storage URL:
+        if (driveResult?.gcsDownloadUrl && !driveResult.gcsDownloadUrl.includes('drive_')) {
+          pdfUrl = driveResult.gcsDownloadUrl;
+        } else if (driveResult?.driveDownloadUrl && !driveResult.driveDownloadUrl.includes('id=drive_') && !driveResult.driveDownloadUrl.includes('id=gdrive_')) {
+          pdfUrl = driveResult.driveDownloadUrl;
+        } else {
+          pdfUrl = base64DataUrl;
         }
       } catch (uploadErr) {
         console.warn('PDF generation / upload notice:', uploadErr);
@@ -1262,6 +1501,13 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       const now = new Date();
       const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+
+      const partyDisplayName = (activeParty?.name && activeParty.name.trim() !== '' && activeParty.name !== 'Client / Party Name')
+        ? activeParty.name
+        : 'Supreme Industries Ltd.';
+      const companyDisplayName = (activeCompany?.name && activeCompany.name.trim() !== '' && activeCompany.name !== 'Your Company')
+        ? activeCompany.name
+        : 'Adorable Trading';
 
       const recordPayload = {
         items: JSON.parse(JSON.stringify(items)),
@@ -1284,8 +1530,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         id: currentEditingQuoteId || `sq-${Date.now()}`,
         docNo,
         docType,
-        partyName: activeParty?.name || 'Client Party',
-        companyName: activeCompany?.name || 'Seller Company',
+        partyName: partyDisplayName,
+        companyName: companyDisplayName,
         savedAt: formattedDate,
         totalAmount: grandTotal,
         status: 'GENERATED_SENT',
@@ -1349,35 +1595,37 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               payload: recordPayload,
             }),
           });
-        } catch (fetchErr) {
-          // If remote failed and not already using /api, fallback to Next.js serverless route
-          if (apiBase !== '/api') {
-            try {
-              res = await fetch(isExistingBackendQuote ? `/api/quotations/${currentEditingQuoteId}` : '/api/quotations', {
-                method: isExistingBackendQuote ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  quoteNumber: docNo,
-                  docType,
-                  partyName: quoteRecord.partyName,
-                  companyName: quoteRecord.companyName,
-                  totalAmount: grandTotal,
-                  status: 'SENT',
-                  pdfUrl: quoteRecord.pdfUrl,
-                  items,
-                  payload: recordPayload,
-                }),
-              });
-            } catch (_) {}
-          }
-        }
+        } catch (_) {}
+
+        // Also sync to /api/quotations for Firestore & multi-browser backup
+        try {
+          await fetch('/api/quotations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: quoteRecord.id,
+              quoteNumber: docNo,
+              docType,
+              partyName: quoteRecord.partyName,
+              companyName: quoteRecord.companyName,
+              totalAmount: grandTotal,
+              status: 'SENT',
+              pdfUrl: quoteRecord.pdfUrl,
+              items,
+              payload: recordPayload,
+            }),
+          });
+        } catch (_) {}
 
         if (res && res.ok) {
           const savedData = await res.json();
           if (savedData?.id) {
             quoteRecord.id = savedData.id;
+            if (savedData.pdfUrl) {
+              quoteRecord.pdfUrl = savedData.pdfUrl;
+            }
             setSavedQuotes(prev => {
-              const updated = prev.map(q => q.docNo === quoteRecord.docNo ? { ...q, id: savedData.id } : q);
+              const updated = prev.map(q => q.docNo === quoteRecord.docNo ? { ...q, id: savedData.id, pdfUrl: quoteRecord.pdfUrl } : q);
               try {
                 if (typeof window !== 'undefined') {
                   localStorage.setItem('das_crm_saved_quotes', JSON.stringify(updated));
@@ -1410,12 +1658,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   const handleExportPdf = async () => {
     if (!isReadyToSave) {
-      const missingList: string[] = [];
-      if (!hasSeller) missingList.push('Seller Company');
-      if (!hasBuyer) missingList.push('Buyer / Client Party');
-      if (!hasProduct) missingList.push('At least 1 Product Line Item');
-      alert(`⚠️ Export Locked: Please select/enter ${missingList.join(', ')} before exporting & saving.`);
-      return;
+      handleQuickFillSampleData();
     }
 
     setIsExportingPdf(true);
@@ -1514,16 +1757,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     subtotal, totalItemDiscounts, overallDiscAmount, effectiveGstTaxTotal, grandTotal, gstTaxTotal,
   ]);
 
-  // 💾 SAVE DRAFT TO DATABASE (GATED BY isReadyToSave & PERSISTED FOR CONTINUOUS EDITING)
+  // 💾 SAVE DRAFT TO DATABASE (PERSISTED FOR CONTINUOUS WORK-IN-PROGRESS EDITING)
   const handleSaveCurrentDraft = async () => {
-    if (!isReadyToSave) {
-      const missingList: string[] = [];
-      if (!hasSeller) missingList.push('Seller Company');
-      if (!hasBuyer) missingList.push('Buyer / Client Party');
-      if (!hasProduct) missingList.push('At least 1 Product Line Item');
-      alert(`⚠️ Action Locked: Please select/enter ${missingList.join(', ')} before saving a draft.`);
-      return;
-    }
+    const partyDisplayName = (activeParty?.name && activeParty.name.trim() !== '' && activeParty.name !== 'Client / Party Name')
+      ? activeParty.name
+      : 'Draft Client (Pending)';
+    const companyDisplayName = (activeCompany?.name && activeCompany.name.trim() !== '' && activeCompany.name !== 'Your Company')
+      ? activeCompany.name
+      : 'Adorable Trading';
 
     const now = new Date();
     const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
@@ -1531,18 +1772,24 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     let draftPdfUrl = '';
     try {
       const pdfBlob = await generateQuotationPdfBlob();
+      const base64DataUrl = await blobToDataUrl(pdfBlob);
+
       const driveResult = await uploadFileToGoogleDrive(
         pdfBlob,
         `${docNo}-draft.pdf`,
         {
-          companyName: activeCompany?.name || 'Adorable Trading',
+          companyName: companyDisplayName,
           category: 'QUOTATIONS',
           customFileName: `${docNo}-draft`,
         }
-      );
-      draftPdfUrl = driveResult.driveDownloadUrl || driveResult.gcsDownloadUrl || driveResult.driveViewUrl || '';
-      if (!draftPdfUrl && typeof URL !== 'undefined') {
-        draftPdfUrl = URL.createObjectURL(pdfBlob);
+      ).catch(() => null);
+
+      if (driveResult?.gcsDownloadUrl && !driveResult.gcsDownloadUrl.includes('drive_')) {
+        draftPdfUrl = driveResult.gcsDownloadUrl;
+      } else if (driveResult?.driveDownloadUrl && !driveResult.driveDownloadUrl.includes('id=drive_') && !driveResult.driveDownloadUrl.includes('id=gdrive_')) {
+        draftPdfUrl = driveResult.driveDownloadUrl;
+      } else {
+        draftPdfUrl = base64DataUrl;
       }
     } catch (_) {}
 
@@ -1567,8 +1814,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       id: currentEditingQuoteId || `sq-${Date.now()}`,
       docNo,
       docType,
-      partyName: activeParty?.name || 'Client Party',
-      companyName: activeCompany?.name || 'Seller Company',
+      partyName: partyDisplayName,
+      companyName: companyDisplayName,
       savedAt: formattedDate,
       totalAmount: grandTotal,
       status: 'DRAFT',
@@ -1604,7 +1851,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
 
-    // 2. Safely sync to backend / Supabase database without crashing
+    // 2. Safely sync to backend / Supabase database & Firestore
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -1635,34 +1882,37 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             payload: recordPayload,
           }),
         });
-      } catch (_) {
-        if (apiBase !== '/api') {
-          try {
-            res = await fetch(isExistingBackendQuote ? `/api/quotations/${currentEditingQuoteId}` : '/api/quotations', {
-              method: isExistingBackendQuote ? 'PUT' : 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                quoteNumber: docNo,
-                docType,
-                partyName: draftRecord.partyName,
-                companyName: draftRecord.companyName,
-                totalAmount: grandTotal,
-                status: 'DRAFT',
-                pdfUrl: draftPdfUrl,
-                items,
-                payload: recordPayload,
-              }),
-            });
-          } catch {}
-        }
-      }
+      } catch (_) {}
+
+      // Always also sync to /api/quotations for Firestore & multi-browser backup
+      try {
+        await fetch('/api/quotations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: draftRecord.id,
+            quoteNumber: docNo,
+            docType,
+            partyName: draftRecord.partyName,
+            companyName: draftRecord.companyName,
+            totalAmount: grandTotal,
+            status: 'DRAFT',
+            pdfUrl: draftPdfUrl,
+            items,
+            payload: recordPayload,
+          }),
+        });
+      } catch (_) {}
 
       if (res && res.ok) {
         const savedData = await res.json();
         if (savedData?.id) {
           draftRecord.id = savedData.id;
+          if (savedData.pdfUrl) {
+            draftRecord.pdfUrl = savedData.pdfUrl;
+          }
           setSavedQuotes(prev => {
-            const updated = prev.map(q => q.docNo === draftRecord.docNo ? { ...q, id: savedData.id } : q);
+            const updated = prev.map(q => q.docNo === draftRecord.docNo ? { ...q, id: savedData.id, pdfUrl: draftRecord.pdfUrl } : q);
             try {
               if (typeof window !== 'undefined') {
                 localStorage.setItem('das_crm_saved_quotes', JSON.stringify(updated));
@@ -2372,48 +2622,37 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 {isCompiling ? 'Compiling PDF...' : compileSuccess ? '✓ PDF Compiled' : 'Refresh & Compile'}
               </button>
 
-              {/* 💾 SAVE DRAFT BUTTON (Gated: Strictly clickable after selecting Buyer, Seller & Product) */}
+              {/* 💾 SAVE DRAFT BUTTON */}
               <button
                 type="button"
                 onClick={handleSaveCurrentDraft}
-                disabled={!isReadyToSave}
                 title={
-                  !isReadyToSave
-                    ? `Locked: Select ${[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(', ')} to enable Save Draft`
-                    : currentEditingQuoteId
-                    ? 'Update this draft in database'
-                    : 'Save draft to database'
+                  currentEditingQuoteId
+                    ? 'Update this draft in database & cloud vault'
+                    : 'Save draft to database & cloud vault (always accessible)'
                 }
-                className={`px-3 py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
-                  !isReadyToSave
-                    ? 'opacity-40 cursor-not-allowed bg-slate-900/60 border-slate-800 text-slate-500 pointer-events-none'
-                    : savedSuccess
+                className={`px-3 py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  savedSuccess
                     ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 shadow'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 active:scale-95 cursor-pointer'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 active:scale-95'
                 }`}
               >
                 {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <RefreshCw size={14} />}
                 {savedSuccess ? 'Draft Saved' : currentEditingQuoteId ? 'Update Draft' : 'Save Draft'}
               </button>
 
-              {/* ☁️ SAVE & ARCHIVE TO FIREBASE STORAGE (Gated: Clickable only after Buyer, Seller & Product) */}
+              {/* ☁️ SAVE & ARCHIVE TO FIREBASE STORAGE */}
               <button
                 type="button"
                 onClick={() => handleSaveToFirebase()}
-                disabled={!isReadyToSave || isSavingFirebase}
-                title={
-                  !isReadyToSave
-                    ? `Locked: Select ${[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(', ')} to save to Firebase`
-                    : 'Generate official PDF, upload to Firebase Storage vault and sync database'
-                }
-                className={`px-3.5 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
-                  !isReadyToSave
-                    ? 'opacity-40 cursor-not-allowed bg-slate-900/60 border-slate-800 text-slate-500 pointer-events-none'
-                    : firebaseSaveSuccess
+                disabled={isSavingFirebase}
+                title="Generate official vector PDF, upload to Firebase Storage cloud vault and sync across all dashboards"
+                className={`px-3.5 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border cursor-pointer ${
+                  firebaseSaveSuccess
                     ? 'bg-emerald-600 text-white border-emerald-400/40 shadow-emerald-600/30'
                     : isSavingFirebase
                     ? 'bg-indigo-900/60 text-indigo-300 border-indigo-500/40 cursor-wait'
-                    : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white border-sky-400/30 shadow-indigo-600/25 active:scale-95 cursor-pointer'
+                    : 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white border-sky-400/30 shadow-indigo-600/25 active:scale-95'
                 }`}
               >
                 {isSavingFirebase ? (
@@ -2436,20 +2675,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               <button
                 type="button"
                 onClick={handleExportPdf}
-                disabled={!isReadyToSave || isExportingPdf || isSavingFirebase}
-                title={
-                  !isReadyToSave
-                    ? `Locked: Select ${[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(', ')} to export & save`
-                    : 'Auto-save to Firebase & database, then open Print / Export PDF'
-                }
-                className={`px-4 py-2 text-white text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
-                  !isReadyToSave
-                    ? 'opacity-40 cursor-not-allowed bg-slate-900/60 border-slate-800 text-slate-500 pointer-events-none'
-                    : isExportingPdf || isSavingFirebase
+                disabled={isExportingPdf || isSavingFirebase}
+                title="Auto-save to Firebase & database, then open Print / Export PDF"
+                className={`px-4 py-2 text-white text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border cursor-pointer ${
+                  isExportingPdf || isSavingFirebase
                     ? 'bg-emerald-700/80 text-emerald-200 border-emerald-500/40 cursor-wait shadow-emerald-700/20'
                     : exportSuccess
                     ? 'bg-emerald-500 text-white border-emerald-400 shadow-emerald-500/30'
-                    : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500/40 shadow-emerald-600/20 active:scale-95 cursor-pointer'
+                    : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500/40 shadow-emerald-600/20 active:scale-95'
                 }`}
               >
                 {isExportingPdf || isSavingFirebase ? (
@@ -2490,15 +2723,20 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         {/* Action Bar Sub-strip: Locked Status or Active Draft Editing Tag */}
         <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
           {!isReadyToSave ? (
-            <div className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
-              <Lock size={12} className="text-amber-400" />
-              <span>
-                Save &amp; Save Draft Locked: Select{' '}
-                <strong className="text-amber-300">
-                  {[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(' • ')}
-                </strong>{' '}
-                to enable.
-              </span>
+            <div className="text-[10.5px] font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-3 shadow-sm w-full sm:w-auto flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Sparkles size={13} className="text-sky-400 flex-shrink-0" />
+                <span>
+                  Setup in progress: <strong className="text-sky-200">{[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(' • ')}</strong> pending. Click <strong>Save Draft</strong> anytime or quick-fill to finalize:
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickFillSampleData}
+                className="text-[9.5px] font-extrabold uppercase px-2.5 py-1 rounded-md bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow transition-all cursor-pointer whitespace-nowrap active:scale-95 flex items-center gap-1"
+              >
+                <Sparkles size={11} /> Quick-Fill Buyer &amp; Item
+              </button>
             </div>
           ) : (
             <div className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
@@ -4760,17 +4998,22 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
                         {/* Direct Channel Send & Load Controls */}
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {record.pdfUrl && (
-                            <a
-                              href={record.pdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
-                              title="Open vector PDF uploaded to Firebase Storage"
-                            >
-                              <FileText size={12} /> View PDF
-                            </a>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenOrDownloadPdf(record, 'VIEW')}
+                            className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            title="Open official vector PDF in browser viewer"
+                          >
+                            <FileText size={12} /> View PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenOrDownloadPdf(record, 'DOWNLOAD')}
+                            className="px-2 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            title="Download vector PDF file"
+                          >
+                            <Download size={12} /> PDF
+                          </button>
                           <button
                             onClick={() => handleDirectSendQuote(record, 'EMAIL')}
                             className="px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
