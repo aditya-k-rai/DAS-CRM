@@ -14,6 +14,7 @@ export class UpdateOrganizationDto {
 export class UpdateSellerProfileDto {
   name?: string;
   logoUrl?: string;
+  email?: string;
   phone?: string;
   address?: string;
   gstNumber?: string;
@@ -145,6 +146,7 @@ export class OrganizationsService {
       id: org.id,
       name: org.name || 'Adorable Trading',
       logoUrl: org.logoUrl || settings.logoUrl || '',
+      email: settings.email || (org as any).email || '',
       phone: org.phone || '',
       address: settings.address || (org.city ? `${org.city}${org.state ? ', ' + org.state : ''}, India` : 'Registered Business Address'),
       gstNumber: org.gstNumber || settings.gstNumber || '',
@@ -183,6 +185,7 @@ export class OrganizationsService {
         id: 'seller-org',
         name: dto.name || 'Adorable Trading',
         logoUrl: dto.logoUrl || '',
+        email: dto.email || '',
         phone: dto.phone || '',
         address: dto.address || 'Registered Business Address',
         gstNumber: dto.gstNumber || '',
@@ -203,6 +206,7 @@ export class OrganizationsService {
     const updatedSettings = {
       ...currentSettings,
       ...(dto.address !== undefined ? { address: dto.address } : {}),
+      ...(dto.email !== undefined ? { email: dto.email } : {}),
       ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
       ...(dto.gstNumber !== undefined ? { gstNumber: dto.gstNumber } : {}),
       ...(dto.panNumber !== undefined ? { panNumber: dto.panNumber } : {}),
@@ -230,6 +234,7 @@ export class OrganizationsService {
       id: updated.id,
       name: updated.name || '',
       logoUrl: updated.logoUrl || settings.logoUrl || '',
+      email: settings.email || dto.email || '',
       phone: updated.phone || '',
       address: settings.address || '',
       gstNumber: updated.gstNumber || settings.gstNumber || '',

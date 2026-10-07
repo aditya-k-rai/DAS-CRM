@@ -29,6 +29,7 @@ export async function PUT(req: Request) {
       ...current,
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.logoUrl !== undefined ? { logoUrl: body.logoUrl } : {}),
+      ...(body.email !== undefined ? { email: body.email } : {}),
       ...(body.phone !== undefined ? { phone: body.phone } : {}),
       ...(body.address !== undefined ? { address: body.address } : {}),
       ...(body.gstNumber !== undefined ? { gstNumber: body.gstNumber } : {}),

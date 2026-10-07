@@ -794,30 +794,32 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           } catch (_) {}
         }
 
-        if (profile && (profile.name || profile.address || profile.phone || profile.gstNumber)) {
-          const comp: CompanyDetails = {
-            id: profile.id || 'comp-1',
-            name: profile.name || '',
-            logoUrl: profile.logoUrl || '',
-            address: profile.address || '',
-            email: profile.email || '',
-            phone: profile.phone || '',
-            gstNo: profile.gstNumber || '',
-            panNo: profile.panNumber || '',
-            bankName: profile.bankDetails?.bankName || '',
-            accountNo: profile.bankDetails?.accountNo || '',
-            ifscCode: profile.bankDetails?.ifscCode || '',
-            branch: profile.bankDetails?.branch || '',
-            upiId: profile.bankDetails?.upiId || '',
-          };
-          setCompanies([comp]);
-          setSelectedCompanyId(comp.id);
-          // Update localStorage cache
-          try {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('das_crm_seller_companies', JSON.stringify([comp]));
-            }
-          } catch (_) {}
+        if (profile && (profile.name || profile.address || profile.phone || profile.gstNumber || profile.logoUrl)) {
+          setCompanies(prev => {
+            const existing = prev[0] || {} as any;
+            const comp: CompanyDetails = {
+              id: profile.id || existing.id || 'comp-1',
+              name: profile.name || existing.name || '',
+              logoUrl: profile.logoUrl || existing.logoUrl || '',
+              address: profile.address || existing.address || '',
+              email: profile.email || existing.email || '',
+              phone: profile.phone || existing.phone || '',
+              gstNo: profile.gstNumber || profile.gstNo || existing.gstNo || '',
+              panNo: profile.panNumber || profile.panNo || existing.panNo || '',
+              bankName: profile.bankDetails?.bankName || existing.bankName || '',
+              accountNo: profile.bankDetails?.accountNo || existing.accountNo || '',
+              ifscCode: profile.bankDetails?.ifscCode || existing.ifscCode || '',
+              branch: profile.bankDetails?.branch || existing.branch || '',
+              upiId: profile.bankDetails?.upiId || existing.upiId || '',
+            };
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('das_crm_seller_companies', JSON.stringify([comp]));
+              }
+            } catch (_) {}
+            return [comp];
+          });
+          setSelectedCompanyId(profile.id || 'comp-1');
         }
       } catch (e) {
         console.warn('Failed to load seller profile from backend:', e);
@@ -959,13 +961,32 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           }
         } catch (_) {}
 
-        if (fetchedParties.length > 0) {
-          setParties(fetchedParties);
-          setSelectedPartyId(prev => (prev && fetchedParties.some(p => p.id === prev)) ? prev : fetchedParties[0].id);
+        // Merge with existing local party modifications so user edits are preserved
+        let localSavedParties: PartyDetails[] = [];
+        try {
+          if (typeof window !== 'undefined') {
+            const raw = localStorage.getItem('das_crm_saved_parties');
+            if (raw) localSavedParties = JSON.parse(raw);
+          }
+        } catch (_) {}
+
+        const mergedParties = fetchedParties.map(fp => {
+          const custom = localSavedParties.find(cp => cp.id === fp.id || cp.name === fp.name);
+          return custom ? { ...fp, ...custom } : fp;
+        });
+        localSavedParties.forEach(cp => {
+          if (!mergedParties.some(mp => mp.id === cp.id)) {
+            mergedParties.unshift(cp);
+          }
+        });
+
+        if (mergedParties.length > 0) {
+          setParties(mergedParties);
+          setSelectedPartyId(prev => (prev && mergedParties.some(p => p.id === prev)) ? prev : mergedParties[0].id);
           // Update localStorage cache
           try {
             if (typeof window !== 'undefined') {
-              localStorage.setItem('das_crm_saved_parties', JSON.stringify(fetchedParties));
+              localStorage.setItem('das_crm_saved_parties', JSON.stringify(mergedParties));
             }
           } catch (_) {}
         }
@@ -2119,10 +2140,6 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   const handleImageFileUpload = (file: File, onSuccess: (dataUrl: string) => void) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image file size should be less than 5MB.');
-      return;
-    }
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
@@ -2171,7 +2188,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         const uploadRes = await fetch('/api/products/upload-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageData: resolvedLogoUrl, filename: `company_logo_${Date.now()}.jpg` }),
+          body: JSON.stringify({ dataUrl: resolvedLogoUrl, fileName: `company_logo_${Date.now()}` }),
         });
         if (uploadRes.ok) {
           const uploadJson = await uploadRes.json();
@@ -2214,6 +2231,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     const sellerPayload = {
       name: updatedCompany.name,
       logoUrl: updatedCompany.logoUrl,
+      email: updatedCompany.email,
       phone: updatedCompany.phone,
       address: updatedCompany.address,
       gstNumber: updatedCompany.gstNo,
@@ -2365,20 +2383,27 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     // 5. Also sync to backend /leads if it's a backend-originated lead
     if (editingPartyId && editingPartyId.startsWith('lead-')) {
       const cleanId = editingPartyId.replace('lead-', '');
+      const nameParts = updatedParty.name.trim().split(' ');
+      const firstName = nameParts[0] || updatedParty.name;
+      const lastName = nameParts.slice(1).join(' ') || '';
       try {
         await fetch(`${apiBase}/leads/${cleanId}`, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            name: updatedParty.name,
+            firstName,
+            lastName,
             email: updatedParty.email,
             phone: updatedParty.phone,
-            address: updatedParty.address,
-            gstNumber: updatedParty.gstNo,
-            panNumber: updatedParty.panNo,
+            customFields: {
+              address: updatedParty.address,
+              shippingAddress: updatedParty.shippingAddress,
+              gstNo: updatedParty.gstNo,
+              panNo: updatedParty.panNo,
+            },
           }),
         });
       } catch (_) {}

@@ -16,8 +16,8 @@ export async function OPTIONS() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const dataUrl = body.dataUrl || '';
-    const fileName = body.fileName || `product_img_${Date.now()}`;
+    const dataUrl = body.dataUrl || body.imageData || body.image || body.base64 || '';
+    const fileName = body.fileName || body.filename || `product_img_${Date.now()}`;
     const docId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     let finalUrl = dataUrl;
@@ -25,28 +25,29 @@ export async function POST(req: Request) {
     // 1. If base64 dataUrl is provided, write it to disk in public/products so client gets a clean, fast static URL!
     if (dataUrl && dataUrl.startsWith('data:')) {
       try {
-        const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const matches = dataUrl.match(/^data:([A-Za-z0-9-+.\/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
-          const mimeType = matches[1];
+          const mimeType = matches[1].toLowerCase();
           const buffer = Buffer.from(matches[2], 'base64');
-          const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+          const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : mimeType.includes('gif') ? 'gif' : mimeType.includes('svg') ? 'svg' : 'jpg';
           const cleanName = `${fileName.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.${ext}`;
 
-          // Write to frontend-web/public/products
-          const frontendPublicDir = path.resolve(process.cwd(), 'public', 'products');
-          if (!fs.existsSync(frontendPublicDir)) {
-            fs.mkdirSync(frontendPublicDir, { recursive: true });
-          }
-          fs.writeFileSync(path.join(frontendPublicDir, cleanName), buffer);
+          // Target directories: public/products in current cwd and parent/child frontend-web
+          const targetDirs = [
+            path.resolve(process.cwd(), 'public', 'products'),
+            path.resolve(process.cwd(), 'frontend-web', 'public', 'products'),
+            path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
+            path.resolve(process.cwd(), '..', 'backend', 'public', 'products'),
+          ];
 
-          // Also write to backend/public/products if present
-          try {
-            const backendPublicDir = path.resolve(process.cwd(), '..', 'backend', 'public', 'products');
-            if (fs.existsSync(path.dirname(backendPublicDir))) {
-              if (!fs.existsSync(backendPublicDir)) fs.mkdirSync(backendPublicDir, { recursive: true });
-              fs.writeFileSync(path.join(backendPublicDir, cleanName), buffer);
-            }
-          } catch (_) {}
+          for (const dir of targetDirs) {
+            try {
+              if (fs.existsSync(path.dirname(dir))) {
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(path.join(dir, cleanName), buffer);
+              }
+            } catch (_) {}
+          }
 
           finalUrl = `/products/${cleanName}`;
         }

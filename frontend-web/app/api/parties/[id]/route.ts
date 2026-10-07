@@ -32,24 +32,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const current = getLocalParties();
     const existing = current.find(p => p.id === id);
 
-    if (!existing) {
-      return NextResponse.json({ error: 'Party not found' }, { status: 404, headers: CORS_HEADERS });
-    }
-
     const updated: SavedParty = {
-      ...existing,
-      ...(body.name !== undefined ? { name: body.name.trim() } : {}),
-      ...(body.contactPerson !== undefined ? { contactPerson: body.contactPerson } : {}),
-      ...(body.email !== undefined ? { email: body.email } : {}),
-      ...(body.phone !== undefined ? { phone: body.phone } : {}),
-      ...(body.address !== undefined ? { address: body.address } : {}),
-      ...(body.shippingAddress !== undefined ? { shippingAddress: body.shippingAddress } : {}),
-      ...(body.gstNo !== undefined ? { gstNo: body.gstNo } : {}),
-      ...(body.panNo !== undefined ? { panNo: body.panNo } : {}),
+      id,
+      name: body.name ? body.name.trim() : (existing?.name || 'Party Client'),
+      contactPerson: body.contactPerson !== undefined ? body.contactPerson : (existing?.contactPerson || ''),
+      email: body.email !== undefined ? body.email : (existing?.email || ''),
+      phone: body.phone !== undefined ? body.phone : (existing?.phone || ''),
+      address: body.address !== undefined ? body.address : (existing?.address || 'Billed To Address'),
+      shippingAddress: body.shippingAddress !== undefined ? body.shippingAddress : (existing?.shippingAddress || ''),
+      gstNo: body.gstNo !== undefined ? body.gstNo : (existing?.gstNo || ''),
+      panNo: body.panNo !== undefined ? body.panNo : (existing?.panNo || ''),
+      createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    const next = current.map(p => p.id === id ? updated : p);
+    const next = existing ? current.map(p => p.id === id ? updated : p) : [updated, ...current];
     saveLocalParties(next);
     return NextResponse.json(updated, { headers: CORS_HEADERS });
   } catch (err: any) {

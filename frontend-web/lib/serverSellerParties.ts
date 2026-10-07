@@ -1,13 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const SELLER_FILE = path.join(DATA_DIR, 'seller-company.json');
+function getDataPaths() {
+  const dirs = [
+    path.resolve(process.cwd(), 'data'),
+    path.resolve(process.cwd(), 'frontend-web', 'data'),
+    path.resolve(process.cwd(), '..', 'frontend-web', 'data'),
+  ];
+  return dirs;
+}
 
 export interface SellerProfile {
   id: string;
   name: string;
   logoUrl: string;
+  email: string;
   phone: string;
   address: string;
   gstNumber: string;
@@ -26,6 +33,7 @@ const DEFAULT_SELLER: SellerProfile = {
   id: 'seller-org',
   name: '',
   logoUrl: '',
+  email: '',
   phone: '',
   address: '',
   gstNumber: '',
@@ -41,30 +49,31 @@ const DEFAULT_SELLER: SellerProfile = {
 };
 
 export function getLocalSellerProfile(): SellerProfile {
-  try {
-    if (fs.existsSync(SELLER_FILE)) {
-      const content = fs.readFileSync(SELLER_FILE, 'utf8');
-      const parsed = JSON.parse(content);
-      if (parsed && parsed.name) return parsed;
-    }
-  } catch (_) {}
+  for (const dir of getDataPaths()) {
+    try {
+      const file = path.join(dir, 'seller-company.json');
+      if (fs.existsSync(file)) {
+        const content = fs.readFileSync(file, 'utf8');
+        const parsed = JSON.parse(content);
+        if (parsed && (parsed.name || parsed.logoUrl || parsed.address)) return parsed;
+      }
+    } catch (_) {}
+  }
   return DEFAULT_SELLER;
 }
 
 export function saveLocalSellerProfile(profile: SellerProfile): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(SELLER_FILE, JSON.stringify(profile, null, 2), 'utf8');
-  } catch (err) {
-    console.warn('[serverSellerProfile] Failed to write seller-company.json:', err);
+  for (const dir of getDataPaths()) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(dir, 'seller-company.json'), JSON.stringify(profile, null, 2), 'utf8');
+    } catch (_) {}
   }
 }
 
 // ─── Parties (buyer clients) ─────────────────────────────────────────────────
-
-const PARTIES_FILE = path.join(DATA_DIR, 'parties.json');
 
 export interface SavedParty {
   id: string;
@@ -81,23 +90,26 @@ export interface SavedParty {
 }
 
 export function getLocalParties(): SavedParty[] {
-  try {
-    if (fs.existsSync(PARTIES_FILE)) {
-      const content = fs.readFileSync(PARTIES_FILE, 'utf8');
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch (_) {}
+  for (const dir of getDataPaths()) {
+    try {
+      const file = path.join(dir, 'parties.json');
+      if (fs.existsSync(file)) {
+        const content = fs.readFileSync(file, 'utf8');
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+  }
   return [];
 }
 
 export function saveLocalParties(parties: SavedParty[]): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(PARTIES_FILE, JSON.stringify(parties, null, 2), 'utf8');
-  } catch (err) {
-    console.warn('[serverParties] Failed to write parties.json:', err);
+  for (const dir of getDataPaths()) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(dir, 'parties.json'), JSON.stringify(parties, null, 2), 'utf8');
+    } catch (_) {}
   }
 }

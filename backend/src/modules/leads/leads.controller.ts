@@ -277,6 +277,7 @@ export class LeadsController {
   }
 
   @Put(':id')
+  @Patch(':id')
   @ApiOperation({ summary: 'Update lead' })
   update(
     @CurrentUser() user: any,

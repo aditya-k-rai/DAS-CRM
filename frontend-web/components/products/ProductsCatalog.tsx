@@ -779,17 +779,16 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setImageUploadError('');
 
     for (const file of Array.from(files)) {
-      if (file.size > 5 * 1024 * 1024) {
-        setImageUploadError(`⚠️ "${file.name}" exceeds 5MB limit. Please upload images under 5MB.`);
-        continue;
-      }
-
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
-        const firebaseUrl = await uploadProductImageToFirebase(squareDataUrl, 'product-gallery');
-        setNewProdImages(prev => [...prev, firebaseUrl]);
+        setNewProdImages(prev => [...prev, squareDataUrl]);
+        uploadProductImageToFirebase(squareDataUrl, 'product-gallery').then(url => {
+          if (url && url !== squareDataUrl) {
+            setNewProdImages(prev => prev.map(p => p === squareDataUrl ? url : p));
+          }
+        }).catch(() => {});
       } catch {
-        setImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
+        setImageUploadError(`⚠️ Could not process "${file.name}". Please ensure it is a valid image file.`);
       }
     }
   };
@@ -1069,11 +1068,6 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditImageUploadError('');
 
     for (const file of Array.from(files)) {
-      if (file.size > 5 * 1024 * 1024) {
-        setEditImageUploadError(`⚠️ "${file.name}" exceeds 5MB limit. Please upload images under 5MB.`);
-        continue;
-      }
-
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
         setEditProdImages(prev => {
@@ -1086,7 +1080,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           }
         }).catch(err => console.warn('Firebase upload:', err));
       } catch {
-        setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
+        setEditImageUploadError(`⚠️ Could not process "${file.name}". Please ensure it is a valid image file.`);
       }
     }
   };
