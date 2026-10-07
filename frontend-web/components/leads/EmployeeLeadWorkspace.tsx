@@ -263,15 +263,18 @@ function mapServerActivitiesToContactHistory(
           audioRecordingAvailable: Boolean(meta.audioRecordingAvailable || durSecs > 10),
         });
         seenIds.add(act.id);
-      } else if (typeStr === 'EMAIL' || metaType === 'EMAIL' || channel === 'EMAIL') {
+      } else if (typeStr === 'EMAIL' || metaType === 'EMAIL' || channel === 'EMAIL' || metaType.includes('EMAIL')) {
+        const desc = act.description || '';
+        const isAuto = desc.toLowerCase().includes('automation') || desc.toLowerCase().includes('campaign') || channel === 'EMAIL_AUTOMATION' || metaType === 'EMAIL_AUTOMATION';
         attempts.push({
           id: act.id,
-          type: 'EMAIL',
+          type: isAuto ? 'EMAIL_AUTOMATION' : 'EMAIL',
+          sharingMedium: isAuto ? 'EMAIL_AUTOMATION' : 'EMAIL_DIRECT',
           outcome: (meta.outcome || 'EMAIL_SENT') as ContactOutcome,
           by: userName,
           byRole: cleanRole,
           timestamp: actTime,
-          notes: act.description || meta.subject || 'Email Dispatched',
+          notes: act.description || meta.subject || (isAuto ? 'Email Automation Dispatched' : 'Email Dispatched'),
           sentMessage: meta.subject || meta.notes,
         });
         seenIds.add(act.id);
@@ -279,7 +282,10 @@ function mapServerActivitiesToContactHistory(
         (typeStr === 'NOTE' && (metaType === 'WHATSAPP' || channel === 'WHATSAPP' || (act.description && act.description.toLowerCase().includes('whatsapp')))) ||
         typeStr === 'WHATSAPP' ||
         metaType === 'WHATSAPP' ||
-        channel === 'WHATSAPP'
+        metaType === 'WHATSAPP_DIRECT' ||
+        metaType === 'WHATSAPP_CLOUD' ||
+        channel === 'WHATSAPP' ||
+        channel === 'WA_CLOUD'
       ) {
         const desc = act.description || '';
         const schedMatch = desc.match(/\[Scheduled\s+(MEETING|FOLLOWUP|CALL)\s+for\s+([\d-]+)(?:\s+at\s+([^\]\n]+))?\]/i);
@@ -288,6 +294,7 @@ function mapServerActivitiesToContactHistory(
         const fuTime = meta.followUpTime || (schedMatch ? schedMatch[3] : undefined);
         const isScheduled = Boolean(fuDate || meta.outcome === 'MEETING_SCHEDULED' || meta.outcome === 'FOLLOW_UP_SCHEDULED' || schedMatch || metaType === 'FOLLOWUP_SCHEDULED');
         const isMeeting = schedType === 'MEETING' || meta.outcome === 'MEETING_SCHEDULED' || /meeting|visit/i.test(desc);
+        const isCloud = desc.toLowerCase().includes('cloud') || channel === 'WA_CLOUD' || metaType === 'WHATSAPP_CLOUD';
 
         // Normalize display notes for clean timeline card appearance matching Call Contact History
         const rawNote = meta.notes || act.description || 'WhatsApp communication';
@@ -297,10 +304,24 @@ function mapServerActivitiesToContactHistory(
           displayNote = matchTitle ? `WhatsApp Direct (${matchTitle[1]})` : 'WhatsApp Direct (Custom Lead Message)';
         }
 
+        const isQuotationDoc = desc.toLowerCase().includes('quotation') || (meta.docType && !meta.docType.includes('INVOICE'));
+        const isInvoiceDoc = desc.toLowerCase().includes('invoice') || (meta.docType && meta.docType.includes('INVOICE'));
+
+        const waOutcome: ContactOutcome = isMeeting
+          ? 'MEETING_SCHEDULED'
+          : isScheduled
+          ? 'FOLLOW_UP_SCHEDULED'
+          : isInvoiceDoc
+          ? 'INVOICE_SHARED'
+          : isQuotationDoc
+          ? 'QUOTATION_SHARED'
+          : ((meta.outcome || 'WA_SENT') as ContactOutcome);
+
         attempts.push({
           id: act.id,
-          type: isScheduled ? 'FOLLOWUP_SCHEDULED' : 'WHATSAPP',
-          outcome: isMeeting ? 'MEETING_SCHEDULED' : (isScheduled ? 'FOLLOW_UP_SCHEDULED' : ((meta.outcome || 'WA_SENT') as ContactOutcome)),
+          type: isCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP',
+          sharingMedium: isCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP_DIRECT',
+          outcome: waOutcome,
           scheduledType: isMeeting ? 'MEETING' : (schedType as any),
           by: userName,
           byRole: cleanRole,
@@ -2867,8 +2888,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
 
     // 3. Determine status update (matching Call Funnel behavior)
-    const isScheduled = isScheduleActive || selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING' || customTemplateCategory === 'FOLLOWUP' || directScheduleType === 'MEETING' || Boolean(meetingScheduledDate);
+    const isScheduled = isScheduleActive || selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'FOLLOWUP') || directScheduleType === 'MEETING' || Boolean(meetingScheduledDate);
     const isMeeting = directScheduleType === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'MEETING') || selectedTargetStatus === 'Meeting Scheduled';
+
+    const isProposalCategory = customTemplateCategory === 'PROPOSAL' || waDirectTemplateTitle.toLowerCase().includes('proposal') || waDirectTemplateTitle.toLowerCase().includes('quote') || Object.keys(selectedProductQuantities).length > 0;
+    const isInvoiceCategory = customTemplateCategory === 'INVOICE' || waDirectTemplateTitle.toLowerCase().includes('invoice') || Boolean(selectedInvoice);
+
+    const determinedOutcome: ContactOutcome = (isScheduled && isMeeting)
+      ? 'MEETING_SCHEDULED'
+      : isScheduled
+      ? 'FOLLOW_UP_SCHEDULED'
+      : isInvoiceCategory
+      ? 'INVOICE_SHARED'
+      : isProposalCategory
+      ? 'QUOTATION_SHARED'
+      : 'WA_SENT';
 
     const shouldUpdateStatus = Boolean(selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT') || (isScheduled && isMeeting);
     const effectiveTargetStatus = (selectedTargetStatus && selectedTargetStatus !== 'KEEP_CURRENT')
@@ -2879,9 +2913,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     // 4. Record contact attempt
     const newContactAttempt: ContactAttempt = {
       id: `attempt_wa_${Date.now()}`,
-      type: isScheduled ? 'FOLLOWUP_SCHEDULED' : 'WHATSAPP',
-      outcome: isScheduled ? (isMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED') : 'WA_SENT',
+      type: 'WHATSAPP',
+      outcome: determinedOutcome,
       scheduledType: isScheduled ? (isMeeting ? 'MEETING' : 'CALL') : undefined,
+      sharingMedium: 'WHATSAPP_DIRECT',
       by: currentUser?.name || lead.owner || 'Sales Rep',
       byRole: cleanRole,
       timestamp: new Date().toISOString(),
@@ -2889,6 +2924,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       sentMessage: finalMsg,
       followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : undefined,
       followUpTime: isScheduled && meetingScheduledTime ? meetingScheduledTime : undefined,
+      docType: isInvoiceCategory ? 'INVOICE' : isProposalCategory ? 'QUOTATION' : undefined,
+      docNo: (isInvoiceCategory && selectedInvoice) ? (selectedInvoice.quoteNumber || selectedInvoice.id) : undefined,
+      docAmount: (isInvoiceCategory && selectedInvoice) ? selectedInvoice.totalAmount : undefined,
     };
 
     // 4b. Sync Scheduled Meeting or Follow-up to CRM Follow-up Section (Like Call Funnel)
@@ -2899,7 +2937,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         newContactAttempt.followUpTime = meetingScheduledTime;
         newContactAttempt.scheduledType = syncRes.effectiveScheduledType;
         newContactAttempt.outcome = syncRes.effectiveIsMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED';
-        newContactAttempt.type = 'FOLLOWUP_SCHEDULED';
       }
     }
 
@@ -3086,8 +3123,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     const newContactAttempt: ContactAttempt = {
       id: `attempt_wacloud_${Date.now()}`,
-      type: 'WHATSAPP',
+      type: 'WHATSAPP_CLOUD',
       outcome: 'WA_SENT',
+      sharingMedium: 'WHATSAPP_CLOUD',
       by: currentUser?.name || lead.owner || 'Sales Rep',
       byRole: cleanRole,
       timestamp: new Date().toISOString(),
@@ -3110,9 +3148,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         leadId: lead.id,
         notes: `WhatsApp Cloud: ${waCloudInput}`,
         metadata: {
-          channel: 'WHATSAPP',
-          type: 'WHATSAPP',
+          channel: 'WA_CLOUD',
+          type: 'WHATSAPP_CLOUD',
           outcome: 'WA_SENT',
+          sharingMedium: 'WHATSAPP_CLOUD',
           sentMessage: waCloudInput,
           by: currentUser?.name || lead.owner,
           byRole: cleanRole,
@@ -3156,12 +3195,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     const newContactAttempt: ContactAttempt = {
       id: `attempt_email_${Date.now()}`,
-      type: 'EMAIL',
+      type: 'EMAIL_DIRECT',
       outcome: 'EMAIL_SENT',
+      sharingMedium: 'EMAIL_DIRECT',
       by: currentUser?.name || lead.owner || 'Sales Rep',
       byRole: cleanRole,
       timestamp: new Date().toISOString(),
-      notes: `Email (${emailTemplate}): ${emailSubject}`,
+      notes: `Email Direct (${emailTemplate}): ${emailSubject}`,
       sentMessage: emailSubject,
     };
 
@@ -3179,11 +3219,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         activityType: 'EMAIL',
         leadId: lead.id,
         subject: emailSubject,
-        notes: `Email (${emailTemplate}): ${emailSubject}`,
+        notes: `Email Direct (${emailTemplate}): ${emailSubject}`,
         metadata: {
           channel: 'EMAIL',
-          type: 'EMAIL',
+          type: 'EMAIL_DIRECT',
           outcome: 'EMAIL_SENT',
+          sharingMedium: 'EMAIL_DIRECT',
           subject: emailSubject,
           template: emailTemplate,
           by: currentUser?.name || lead.owner,

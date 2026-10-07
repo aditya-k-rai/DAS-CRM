@@ -14,7 +14,11 @@ export type ContactType =
   | 'CALL_OUT'
   | 'CALL_IN'
   | 'WHATSAPP'
+  | 'WHATSAPP_DIRECT'
+  | 'WHATSAPP_CLOUD'
   | 'EMAIL'
+  | 'EMAIL_DIRECT'
+  | 'EMAIL_AUTOMATION'
   | 'CALL_MISSED'
   | 'CALL_BUSY'
   | 'CALL_NOT_RESPONDING'
@@ -68,7 +72,7 @@ export interface ContactAttempt {
   docType?: string;
   docAmount?: number;
   docId?: string;
-  sharingMedium?: 'WHATSAPP' | 'EMAIL' | 'IN_PERSON' | 'DIRECT' | 'WHATSAPP_DIRECT' | string;
+  sharingMedium?: 'WHATSAPP' | 'EMAIL' | 'IN_PERSON' | 'DIRECT' | 'WHATSAPP_DIRECT' | 'WHATSAPP_CLOUD' | 'EMAIL_DIRECT' | 'EMAIL_AUTOMATION' | string;
   sharingMode?: 'ALREADY_SHARED' | 'SHARED_NOW' | 'SHARE_NOW' | string;
   pdfUrl?: string;
 
@@ -149,7 +153,7 @@ function groupByDate(history: ContactAttempt[]): Record<string, ContactAttempt[]
   return groups;
 }
 
-const TYPE_META: Record<ContactType, { icon: React.ReactNode; color: string; bg: string; border: string; label: string }> = {
+const TYPE_META: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string; label: string }> = {
   CALL_OUT: { icon: <Phone size={12} />, color: '#34d399', bg: 'rgba(52,211,153,0.15)', border: 'rgba(52,211,153,0.35)', label: 'Outbound Call' },
   CALL_IN: { icon: <PhoneIncoming size={12} />, color: '#38bdf8', bg: 'rgba(56,189,248,0.15)', border: 'rgba(56,189,248,0.35)', label: 'Inbound Call' },
   CALL_MISSED: { icon: <PhoneMissed size={12} />, color: '#ef4444', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.35)', label: 'Missed Call' },
@@ -157,7 +161,11 @@ const TYPE_META: Record<ContactType, { icon: React.ReactNode; color: string; bg:
   CALL_NOT_RESPONDING: { icon: <PhoneOff size={12} />, color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)', label: 'Not Responding' },
   CALL_SWITCH_OFF: { icon: <PhoneOff size={12} />, color: '#6b7280', bg: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)', label: 'Switch Off' },
   WHATSAPP: { icon: <MessageSquare size={12} />, color: '#4ade80', bg: 'rgba(74,222,128,0.15)', border: 'rgba(74,222,128,0.35)', label: 'WhatsApp' },
+  WHATSAPP_DIRECT: { icon: <MessageSquare size={12} />, color: '#4ade80', bg: 'rgba(74,222,128,0.15)', border: 'rgba(74,222,128,0.35)', label: 'WhatsApp Direct' },
+  WHATSAPP_CLOUD: { icon: <MessageSquare size={12} />, color: '#2dd4bf', bg: 'rgba(45,212,191,0.15)', border: 'rgba(45,212,191,0.35)', label: 'WhatsApp Cloud' },
   EMAIL: { icon: <Mail size={12} />, color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.35)', label: 'Email' },
+  EMAIL_DIRECT: { icon: <Mail size={12} />, color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.35)', label: 'Email Direct' },
+  EMAIL_AUTOMATION: { icon: <Send size={12} />, color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.35)', label: 'Email Automation' },
   FOLLOWUP_SCHEDULED: { icon: <Calendar size={12} />, color: '#38bdf8', bg: 'rgba(56,189,248,0.15)', border: 'rgba(56,189,248,0.35)', label: 'Follow-Up Scheduled' },
   FOLLOWUP_RESCHEDULED: { icon: <Clock size={12} />, color: '#0ea5e9', bg: 'rgba(14,165,233,0.2)', border: 'rgba(14,165,233,0.45)', label: 'Follow-Up Rescheduled' },
   FOLLOWUP_COMPLETED: { icon: <CheckCircle2 size={12} />, color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.35)', label: 'Follow-Up Completed' },
@@ -188,6 +196,261 @@ const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label
   INVOICE_SHARED: { emoji: '🧾', color: '#38bdf8', label: 'Invoice Shared' },
 };
 
+/**
+ * Intelligently and accurately resolves what communication medium was used for an attempt:
+ * (WhatsApp Direct, WhatsApp Cloud, Email Direct, Email Automation, Outbound/Inbound Call, Follow-up Scheduled, etc.)
+ */
+export function resolveAttemptMedium(attempt?: Partial<ContactAttempt>): {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  bg: string;
+  border: string;
+} {
+  const notes = (attempt?.notes || '').toLowerCase();
+  const sentMsg = (attempt?.sentMessage || '').toLowerCase();
+  const type = (attempt?.type || '').toUpperCase();
+  const medium = (attempt?.sharingMedium || '').toLowerCase();
+  const docType = (attempt?.docType || '').toUpperCase();
+
+  // 1. WhatsApp Cloud
+  if (
+    notes.includes('whatsapp cloud') ||
+    notes.includes('wa cloud') ||
+    notes.includes('wacloud') ||
+    type === 'WHATSAPP_CLOUD' ||
+    medium.includes('cloud')
+  ) {
+    return {
+      key: 'WHATSAPP_CLOUD',
+      label: 'WHATSAPP CLOUD',
+      icon: <MessageSquare size={11} />,
+      color: '#2dd4bf',
+      bg: 'rgba(45,212,191,0.15)',
+      border: 'rgba(45,212,191,0.35)',
+    };
+  }
+
+  // 2. WhatsApp Direct
+  if (
+    notes.includes('whatsapp direct') ||
+    notes.includes('wa direct') ||
+    (medium.includes('direct') && (medium.includes('whatsapp') || type === 'WHATSAPP')) ||
+    type === 'WHATSAPP_DIRECT' ||
+    medium === 'whatsapp_direct' ||
+    (type === 'WHATSAPP' && (notes.includes('direct') || !notes.includes('cloud')))
+  ) {
+    return {
+      key: 'WHATSAPP_DIRECT',
+      label: 'WHATSAPP DIRECT',
+      icon: <MessageSquare size={11} />,
+      color: '#4ade80',
+      bg: 'rgba(74,222,128,0.15)',
+      border: 'rgba(74,222,128,0.35)',
+    };
+  }
+
+  // Generic WhatsApp
+  if (
+    type === 'WHATSAPP' ||
+    medium.includes('whatsapp') ||
+    notes.includes('whatsapp') ||
+    sentMsg.includes('whatsapp')
+  ) {
+    return {
+      key: 'WHATSAPP_DIRECT',
+      label: 'WHATSAPP DIRECT',
+      icon: <MessageSquare size={11} />,
+      color: '#4ade80',
+      bg: 'rgba(74,222,128,0.15)',
+      border: 'rgba(74,222,128,0.35)',
+    };
+  }
+
+  // 3. Email Automation
+  if (
+    notes.includes('email automation') ||
+    notes.includes('auto email') ||
+    notes.includes('automation') ||
+    notes.includes('drip') ||
+    notes.includes('campaign') ||
+    type === 'EMAIL_AUTOMATION' ||
+    medium.includes('automation')
+  ) {
+    return {
+      key: 'EMAIL_AUTOMATION',
+      label: 'EMAIL AUTOMATION',
+      icon: <Send size={11} />,
+      color: '#a78bfa',
+      bg: 'rgba(167,139,250,0.15)',
+      border: 'rgba(167,139,250,0.35)',
+    };
+  }
+
+  // 4. Email Direct
+  if (
+    notes.includes('email direct') ||
+    (medium.includes('direct') && (medium.includes('email') || type === 'EMAIL')) ||
+    type === 'EMAIL_DIRECT' ||
+    medium === 'email_direct'
+  ) {
+    return {
+      key: 'EMAIL_DIRECT',
+      label: 'EMAIL DIRECT',
+      icon: <Mail size={11} />,
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  // Generic Email
+  if (
+    type === 'EMAIL' ||
+    medium.includes('email') ||
+    notes.includes('email') ||
+    sentMsg.includes('email')
+  ) {
+    return {
+      key: 'EMAIL_DIRECT',
+      label: 'EMAIL DIRECT',
+      icon: <Mail size={11} />,
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  // 5. Follow-Up Rescheduled
+  if (type === 'FOLLOWUP_RESCHEDULED' || attempt?.outcome === 'FOLLOW_UP_RESCHEDULED') {
+    return {
+      key: 'FOLLOWUP_RESCHEDULED',
+      label: 'FOLLOW-UP RESCHEDULED',
+      icon: <Clock size={11} />,
+      color: '#0ea5e9',
+      bg: 'rgba(14,165,233,0.2)',
+      border: 'rgba(14,165,233,0.45)',
+    };
+  }
+
+  // 6. Scheduled Meeting
+  const isMeeting =
+    attempt?.outcome === 'MEETING_SCHEDULED' ||
+    attempt?.scheduledType === 'MEETING' ||
+    /meeting|visit|in-person|walkthrough/i.test(notes) ||
+    /meeting|visit|in-person|walkthrough/i.test(sentMsg);
+
+  if (isMeeting) {
+    return {
+      key: 'MEETING_SCHEDULED',
+      label: 'FOLLOW-UP SCHEDULED',
+      icon: <Calendar size={11} />,
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  // 7. Follow-Up Scheduled
+  if (type === 'FOLLOWUP_SCHEDULED' || attempt?.outcome === 'FOLLOW_UP_SCHEDULED') {
+    return {
+      key: 'FOLLOWUP_SCHEDULED',
+      label: 'FOLLOW-UP SCHEDULED',
+      icon: <Calendar size={11} />,
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  // 8. Quotation standalone
+  if (type === 'QUOTATION' || attempt?.outcome === 'QUOTATION_SHARED' || (docType && !docType.includes('INVOICE'))) {
+    return {
+      key: 'QUOTATION',
+      label: 'QUOTATION',
+      icon: <FileText size={11} />,
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  // 9. Invoice standalone
+  if (type === 'INVOICE' || attempt?.outcome === 'INVOICE_SHARED' || docType.includes('INVOICE')) {
+    return {
+      key: 'INVOICE',
+      label: 'INVOICE',
+      icon: <Receipt size={11} />,
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  // 10. Phone Calls
+  if (type === 'CALL_IN') {
+    return {
+      key: 'CALL_IN',
+      label: 'INBOUND CALL',
+      icon: <PhoneIncoming size={11} />,
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+  if (type === 'CALL_MISSED' || attempt?.outcome === 'NO_ANSWER') {
+    return {
+      key: 'CALL_MISSED',
+      label: 'MISSED CALL',
+      icon: <PhoneMissed size={11} />,
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,0.15)',
+      border: 'rgba(239,68,68,0.35)',
+    };
+  }
+  if (type === 'CALL_BUSY' || attempt?.outcome === 'BUSY') {
+    return {
+      key: 'CALL_BUSY',
+      label: 'BUSY / ENGAGED',
+      icon: <PhoneOff size={11} />,
+      color: '#f59e0b',
+      bg: 'rgba(245,158,11,0.15)',
+      border: 'rgba(245,158,11,0.35)',
+    };
+  }
+  if (type === 'CALL_NOT_RESPONDING') {
+    return {
+      key: 'CALL_NOT_RESPONDING',
+      label: 'NOT RESPONDING',
+      icon: <PhoneOff size={11} />,
+      color: '#94a3b8',
+      bg: 'rgba(148,163,184,0.1)',
+      border: 'rgba(148,163,184,0.25)',
+    };
+  }
+  if (type === 'CALL_SWITCH_OFF' || attempt?.outcome === 'SWITCH_OFF') {
+    return {
+      key: 'CALL_SWITCH_OFF',
+      label: 'SWITCH OFF',
+      icon: <PhoneOff size={11} />,
+      color: '#6b7280',
+      bg: 'rgba(107,114,128,0.12)',
+      border: 'rgba(107,114,128,0.3)',
+    };
+  }
+
+  // Default: Outbound Call
+  return {
+    key: 'CALL_OUT',
+    label: 'OUTBOUND CALL',
+    icon: <Phone size={11} />,
+    color: '#34d399',
+    bg: 'rgba(52,211,153,0.15)',
+    border: 'rgba(52,211,153,0.35)',
+  };
+}
+
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
 interface CallContactHistoryProps {
@@ -208,15 +471,39 @@ export function CallContactHistory({
   onOpenShareQuoteInvoice,
 }: CallContactHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'ALL' | 'MEETING' | 'FOLLOW_UP' | 'QUOTATION' | 'INVOICE' | ContactType>('ALL');
+  const [filterType, setFilterType] = useState<string>('ALL');
 
   // ── Computed Stats ──────────────────────────────────────────────────────────
   const totalAttempts = history.length;
   const connectedCalls = history.filter(h => ['CALL_OUT', 'CALL_IN'].includes(h.type) && h.durationSeconds && h.durationSeconds > 0).length;
   const missedOrNoAnswer = history.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY').length;
+  const totalCalls = history.filter(h => ['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type)).length;
+  
   const meetingCount = history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes))).length;
-  const waCount = history.filter(h => h.type === 'WHATSAPP').length;
-  const emailCount = history.filter(h => h.type === 'EMAIL').length;
+  
+  const waDirectCount = history.filter(h => {
+    const m = resolveAttemptMedium(h);
+    return (m.key === 'WHATSAPP_DIRECT' || m.key === 'WHATSAPP') && !m.key.includes('CLOUD');
+  }).length;
+
+  const waCloudCount = history.filter(h => {
+    const m = resolveAttemptMedium(h);
+    return m.key === 'WHATSAPP_CLOUD';
+  }).length;
+
+  const emailDirectCount = history.filter(h => {
+    const m = resolveAttemptMedium(h);
+    return m.key === 'EMAIL_DIRECT' || (m.key === 'EMAIL' && !m.key.includes('AUTOMATION'));
+  }).length;
+
+  const emailAutoCount = history.filter(h => {
+    const m = resolveAttemptMedium(h);
+    return m.key === 'EMAIL_AUTOMATION';
+  }).length;
+
+  const waTotalCount = waDirectCount + waCloudCount;
+  const emailTotalCount = emailDirectCount + emailAutoCount;
+
   const followUpCount = history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled)).length;
   const quotationCount = history.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes))).length;
   const invoiceCount = history.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes))).length;
@@ -232,12 +519,30 @@ export function CallContactHistory({
     ? history
     : filterType === 'MEETING'
     ? history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
+    : filterType === 'CALLS'
+    ? history.filter(h => ['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type))
     : filterType === 'FOLLOW_UP'
     ? history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled))
     : filterType === 'QUOTATION'
     ? history.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes)))
     : filterType === 'INVOICE'
     ? history.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes)))
+    : filterType === 'WHATSAPP_DIRECT'
+    ? history.filter(h => {
+        const m = resolveAttemptMedium(h);
+        return m.key === 'WHATSAPP_DIRECT' || (m.key === 'WHATSAPP' && !m.key.includes('CLOUD'));
+      })
+    : filterType === 'WHATSAPP_CLOUD'
+    ? history.filter(h => resolveAttemptMedium(h).key === 'WHATSAPP_CLOUD')
+    : filterType === 'EMAIL_DIRECT'
+    ? history.filter(h => {
+        const m = resolveAttemptMedium(h);
+        return m.key === 'EMAIL_DIRECT' || (m.key === 'EMAIL' && !m.key.includes('AUTOMATION'));
+      })
+    : filterType === 'EMAIL_AUTOMATION'
+    ? history.filter(h => resolveAttemptMedium(h).key === 'EMAIL_AUTOMATION')
+    : filterType === 'CALL_BUSY'
+    ? history.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY')
     : history.filter(h => h.type === filterType);
   const grouped = groupByDate(filtered);
 
@@ -295,8 +600,8 @@ export function CallContactHistory({
         {[
           { label: 'Connected', value: connectedCalls, color: '#34d399', bg: 'rgba(52,211,153,0.12)', icon: <Phone size={13} /> },
           { label: 'Missed/No Ans', value: missedOrNoAnswer, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', icon: <PhoneMissed size={13} /> },
-          { label: 'WhatsApp', value: waCount, color: '#4ade80', bg: 'rgba(74,222,128,0.12)', icon: <MessageSquare size={13} /> },
-          { label: 'Email', value: emailCount, color: '#818cf8', bg: 'rgba(129,140,248,0.12)', icon: <Mail size={13} /> },
+          { label: 'WhatsApp', value: waTotalCount, color: '#4ade80', bg: 'rgba(74,222,128,0.12)', icon: <MessageSquare size={13} /> },
+          { label: 'Email', value: emailTotalCount, color: '#818cf8', bg: 'rgba(129,140,248,0.12)', icon: <Mail size={13} /> },
           { label: 'Talk Time', value: formatDuration(totalTalkSecs), color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', icon: <Mic size={13} /> },
           { label: 'Interested Product / Service', value: displayProduct, color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <Package size={13} /> },
         ].map((stat) => (
@@ -319,24 +624,30 @@ export function CallContactHistory({
 
       {/* ── Filter Chips ──────────────────────────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
-        {(['ALL', 'MEETING', 'CALL_OUT', 'FOLLOW_UP', 'QUOTATION', 'INVOICE', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
+        {[
+          { key: 'ALL', label: `All (${totalAttempts})`, color: '#818cf8' },
+          { key: 'MEETING', label: `🏢 Meetings (${meetingCount})`, color: '#c084fc' },
+          { key: 'CALLS', label: `📞 Calls (${totalCalls})`, color: '#34d399' },
+          { key: 'FOLLOW_UP', label: `⏱️ Follow-ups (${followUpCount})`, color: '#38bdf8' },
+          { key: 'QUOTATION', label: `📄 Quotations (${quotationCount})`, color: '#a5b4fc' },
+          { key: 'INVOICE', label: `🧾 Invoices (${invoiceCount})`, color: '#7dd3fc' },
+          { key: 'WHATSAPP_DIRECT', label: `💬 WhatsApp Direct (${waDirectCount})`, color: '#4ade80' },
+          { key: 'WHATSAPP_CLOUD', label: `💬 WhatsApp Cloud (${waCloudCount})`, color: '#2dd4bf' },
+          { key: 'EMAIL_DIRECT', label: `📧 Email Direct (${emailDirectCount})`, color: '#818cf8' },
+          { key: 'EMAIL_AUTOMATION', label: `⚡ Email Automation (${emailAutoCount})`, color: '#a78bfa' },
+          { key: 'CALL_BUSY', label: `🔴 Busy/Missed (${missedOrNoAnswer})`, color: '#f59e0b' },
+        ].map(chip => (
           <button
-            key={f}
-            onClick={() => setFilterType(f)}
+            key={chip.key}
+            onClick={() => setFilterType(chip.key)}
             className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer"
             style={{
-              background: filterType === f 
-                ? (f === 'MEETING' ? 'rgba(168,85,247,0.25)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.25)' : f === 'QUOTATION' ? 'rgba(129,140,248,0.25)' : f === 'INVOICE' ? 'rgba(56,189,248,0.25)' : 'rgba(99,102,241,0.25)') 
-                : 'rgba(15,23,42,0.8)',
-              borderColor: filterType === f 
-                ? (f === 'MEETING' ? 'rgba(168,85,247,0.5)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.5)' : f === 'QUOTATION' ? 'rgba(129,140,248,0.5)' : f === 'INVOICE' ? 'rgba(56,189,248,0.5)' : 'rgba(99,102,241,0.5)') 
-                : 'rgb(30,41,59)',
-              color: filterType === f 
-                ? (f === 'MEETING' ? '#c084fc' : f === 'FOLLOW_UP' ? '#38bdf8' : f === 'QUOTATION' ? '#a5b4fc' : f === 'INVOICE' ? '#7dd3fc' : '#818cf8') 
-                : '#94a3b8',
+              background: filterType === chip.key ? `${chip.color}25` : 'rgba(15,23,42,0.8)',
+              borderColor: filterType === chip.key ? `${chip.color}60` : 'rgb(30,41,59)',
+              color: filterType === chip.key ? chip.color : '#94a3b8',
             }}
           >
-            {f === 'ALL' ? `All (${totalAttempts})` : f === 'MEETING' ? `🏢 Meetings (${meetingCount})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'FOLLOW_UP' ? `⏱️ Follow-ups (${followUpCount})` : f === 'QUOTATION' ? `📄 Quotations (${quotationCount})` : f === 'INVOICE' ? `🧾 Invoices (${invoiceCount})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
+            {chip.label}
           </button>
         ))}
       </div>
@@ -381,20 +692,120 @@ export function CallContactHistory({
 
                 const isFollowUpAction = attempt?.type?.startsWith('FOLLOWUP_') || attempt?.outcome?.startsWith('FOLLOW_UP_') || isMeeting || Boolean(resolvedFollowUpDate);
 
-                const isScheduledTouchpoint = Boolean(resolvedFollowUpDate) || isMeeting || attempt?.type === 'FOLLOWUP_SCHEDULED' || attempt?.outcome === 'FOLLOW_UP_SCHEDULED';
+                // Accurate medium resolution
+                const mediumMeta = resolveAttemptMedium(attempt);
 
-                const typeMeta = isScheduledTouchpoint && (attempt?.type === 'WHATSAPP' || attempt?.type === 'CALL_OUT' || !attempt?.type || attempt?.type === 'FOLLOWUP_SCHEDULED')
-                  ? TYPE_META.FOLLOWUP_SCHEDULED
-                  : (attempt?.type && TYPE_META[attempt.type]) || TYPE_META.CALL_OUT;
+                // Outcome resolution
+                let resolvedOutcome: ContactOutcome = attempt?.outcome || 'TALKED';
+                if (
+                  attempt?.outcome === 'QUOTATION_SHARED' ||
+                  attempt?.type === 'QUOTATION' ||
+                  (Boolean(attempt?.docType) && !attempt?.docType?.includes('INVOICE')) ||
+                  (Boolean(attempt?.notes) && /quotation/i.test(attempt?.notes || ''))
+                ) {
+                  resolvedOutcome = 'QUOTATION_SHARED';
+                } else if (
+                  attempt?.outcome === 'INVOICE_SHARED' ||
+                  attempt?.type === 'INVOICE' ||
+                  (Boolean(attempt?.docType) && attempt?.docType?.includes('INVOICE')) ||
+                  (Boolean(attempt?.notes) && /invoice/i.test(attempt?.notes || ''))
+                ) {
+                  resolvedOutcome = 'INVOICE_SHARED';
+                } else if (isMeeting) {
+                  resolvedOutcome = 'MEETING_SCHEDULED';
+                } else if (mediumMeta.key === 'WHATSAPP_DIRECT' || mediumMeta.key === 'WHATSAPP' || mediumMeta.key === 'WHATSAPP_CLOUD') {
+                  if (attempt?.outcome === 'FOLLOW_UP_SCHEDULED' && !isMeeting) {
+                    resolvedOutcome = 'FOLLOW_UP_SCHEDULED';
+                  } else if (!attempt?.outcome || attempt?.outcome === 'TALKED' || attempt?.outcome === 'WA_SENT') {
+                    resolvedOutcome = 'WA_SENT';
+                  }
+                } else if (mediumMeta.key === 'EMAIL_DIRECT' || mediumMeta.key === 'EMAIL' || mediumMeta.key === 'EMAIL_AUTOMATION') {
+                  if (!attempt?.outcome || attempt?.outcome === 'TALKED' || attempt?.outcome === 'EMAIL_SENT') {
+                    resolvedOutcome = 'EMAIL_SENT';
+                  }
+                }
 
                 const outcomeMeta = isMeeting
                   ? OUTCOME_META.MEETING_SCHEDULED
-                  : (attempt?.outcome && OUTCOME_META[attempt.outcome]) || OUTCOME_META.TALKED;
+                  : (OUTCOME_META[resolvedOutcome] || OUTCOME_META.TALKED);
 
                 const { time, date } = formatTimestamp(attempt?.timestamp);
                 const isExpanded = expandedId === attempt?.id;
                 const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'FOLLOW_UP_RESCHEDULED', 'FOLLOW_UP_COMPLETED', 'MEETING_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt?.outcome || '') || isMeeting || isFollowUpAction;
-                const isNegative = ['NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'SWITCH_OFF', 'WRONG_NUMBER', 'FOLLOW_UP_CANCELLED'].includes(attempt?.outcome || '') || attempt?.type === 'FOLLOWUP_CANCELLED';
+
+                // Timeline Left Node appearance
+                let nodeBg = mediumMeta.bg;
+                let nodeBorder = mediumMeta.border;
+                let nodeIcon = mediumMeta.icon;
+                let nodeColor = mediumMeta.color;
+
+                if (isMeeting) {
+                  nodeBg = 'rgba(168,85,247,0.15)';
+                  nodeBorder = 'rgba(168,85,247,0.45)';
+                  nodeIcon = <Calendar size={13} className="text-purple-400" />;
+                  nodeColor = '#c084fc';
+                } else if (mediumMeta.key === 'WHATSAPP_DIRECT' || mediumMeta.key === 'WHATSAPP') {
+                  nodeBg = 'rgba(74,222,128,0.15)';
+                  nodeBorder = 'rgba(74,222,128,0.45)';
+                  nodeIcon = <MessageSquare size={13} className="text-emerald-400" />;
+                  nodeColor = '#4ade80';
+                } else if (mediumMeta.key === 'WHATSAPP_CLOUD') {
+                  nodeBg = 'rgba(45,212,191,0.15)';
+                  nodeBorder = 'rgba(45,212,191,0.45)';
+                  nodeIcon = <MessageSquare size={13} className="text-teal-400" />;
+                  nodeColor = '#2dd4bf';
+                } else if (mediumMeta.key === 'EMAIL_AUTOMATION') {
+                  nodeBg = 'rgba(167,139,250,0.15)';
+                  nodeBorder = 'rgba(167,139,250,0.45)';
+                  nodeIcon = <Send size={13} className="text-violet-400" />;
+                  nodeColor = '#a78bfa';
+                } else if (mediumMeta.key === 'EMAIL_DIRECT' || mediumMeta.key === 'EMAIL') {
+                  nodeBg = 'rgba(129,140,248,0.15)';
+                  nodeBorder = 'rgba(129,140,248,0.45)';
+                  nodeIcon = <Mail size={13} className="text-indigo-400" />;
+                  nodeColor = '#818cf8';
+                } else if (attempt?.type === 'FOLLOWUP_RESCHEDULED' || attempt?.outcome === 'FOLLOW_UP_RESCHEDULED') {
+                  nodeBg = 'rgba(14,165,233,0.2)';
+                  nodeBorder = 'rgba(14,165,233,0.5)';
+                  nodeIcon = <Clock size={13} className="text-sky-400" />;
+                  nodeColor = '#38bdf8';
+                } else if (attempt?.type === 'FOLLOWUP_SCHEDULED' || attempt?.outcome === 'FOLLOW_UP_SCHEDULED') {
+                  nodeBg = 'rgba(56,189,248,0.15)';
+                  nodeBorder = 'rgba(56,189,248,0.35)';
+                  nodeIcon = <Calendar size={13} className="text-sky-400" />;
+                  nodeColor = '#38bdf8';
+                }
+
+                // Card container styling
+                const cardBorder = isMeeting
+                  ? 'rgba(168,85,247,0.4)'
+                  : attempt?.type === 'FOLLOWUP_RESCHEDULED'
+                  ? 'rgba(14,165,233,0.45)'
+                  : mediumMeta.key === 'WHATSAPP_DIRECT' || mediumMeta.key === 'WHATSAPP'
+                  ? 'rgba(74,222,128,0.35)'
+                  : mediumMeta.key === 'WHATSAPP_CLOUD'
+                  ? 'rgba(45,212,191,0.35)'
+                  : mediumMeta.key === 'EMAIL_AUTOMATION'
+                  ? 'rgba(167,139,250,0.35)'
+                  : mediumMeta.key === 'EMAIL_DIRECT' || mediumMeta.key === 'EMAIL'
+                  ? 'rgba(129,140,248,0.35)'
+                  : isPositive
+                  ? mediumMeta.border
+                  : 'rgb(30,41,59)';
+
+                const cardBg = isMeeting
+                  ? 'rgba(26,16,43,0.7)'
+                  : attempt?.type === 'FOLLOWUP_RESCHEDULED'
+                  ? 'rgba(12,25,44,0.75)'
+                  : mediumMeta.key === 'WHATSAPP_DIRECT' || mediumMeta.key === 'WHATSAPP'
+                  ? 'rgba(10,30,22,0.7)'
+                  : mediumMeta.key === 'WHATSAPP_CLOUD'
+                  ? 'rgba(10,32,30,0.7)'
+                  : mediumMeta.key === 'EMAIL_AUTOMATION'
+                  ? 'rgba(24,18,40,0.7)'
+                  : mediumMeta.key === 'EMAIL_DIRECT' || mediumMeta.key === 'EMAIL'
+                  ? 'rgba(16,20,40,0.7)'
+                  : 'rgba(15,23,42,0.7)';
 
                 return (
                   <div key={attempt?.id || `attempt-${idx}`} className="flex gap-3 relative">
@@ -402,12 +813,12 @@ export function CallContactHistory({
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center border-2 flex-shrink-0 z-10 mt-0.5"
                       style={{
-                        background: isMeeting ? 'rgba(168,85,247,0.15)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.2)' : typeMeta.bg,
-                        borderColor: isMeeting ? 'rgba(168,85,247,0.45)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.5)' : typeMeta.border,
+                        background: nodeBg,
+                        borderColor: nodeBorder,
                       }}
                     >
-                      <span style={{ color: isMeeting ? '#c084fc' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? '#38bdf8' : typeMeta.color }}>
-                        {isMeeting ? <Calendar size={13} className="text-purple-400" /> : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? <Clock size={13} className="text-sky-400" /> : typeMeta.icon}
+                      <span style={{ color: nodeColor }}>
+                        {nodeIcon}
                       </span>
                     </div>
 
@@ -415,8 +826,8 @@ export function CallContactHistory({
                     <div
                       className="flex-1 rounded-2xl border overflow-hidden"
                       style={{
-                        borderColor: isMeeting ? 'rgba(168,85,247,0.4)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.45)' : isPositive ? typeMeta.border : 'rgb(30,41,59)',
-                        background: isMeeting ? 'rgba(26,16,43,0.7)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(12,25,44,0.75)' : 'rgba(15,23,42,0.7)',
+                        borderColor: cardBorder,
+                        background: cardBg,
                       }}
                     >
                       {/* Card Header — Always Visible */}
@@ -427,12 +838,15 @@ export function CallContactHistory({
                         <div className="flex-1 min-w-0">
                           {/* Type badge + outcome */}
                           <div className="flex items-center gap-2 flex-wrap mb-1">
+                            {/* Medium Badge (Badge 1) */}
                             <span
                               className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full flex items-center gap-1"
-                              style={{ background: typeMeta.bg, color: typeMeta.color, border: `1px solid ${typeMeta.border}` }}
+                              style={{ background: mediumMeta.bg, color: mediumMeta.color, border: `1px solid ${mediumMeta.border}` }}
                             >
-                              {typeMeta.icon} {typeMeta.label}
+                              {mediumMeta.icon} {mediumMeta.label}
                             </span>
+
+                            {/* Outcome Badge (Badge 2) */}
                             <span
                               className="text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1"
                               style={{
@@ -443,6 +857,7 @@ export function CallContactHistory({
                             >
                               <span>{outcomeMeta.emoji}</span> <span>{outcomeMeta.label}</span>
                             </span>
+
                             {attempt.isRescheduled && attempt.type !== 'FOLLOWUP_RESCHEDULED' && (
                               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40">
                                 🔄 Callback Rescheduled
@@ -473,8 +888,8 @@ export function CallContactHistory({
                               </span>
                             )}
                             {!attempt.rescheduleReason && attempt.notes && (
-                              <span className="text-slate-500 text-[10px] italic truncate max-w-[200px] hidden md:block">
-                                — {attempt.notes.substring(0, 60)}...
+                              <span className="text-slate-400 text-[10px] italic truncate max-w-[320px] hidden md:block">
+                                — {attempt.notes.substring(0, 70)}...
                               </span>
                             )}
                           </div>
