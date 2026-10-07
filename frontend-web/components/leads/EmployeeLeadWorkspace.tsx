@@ -73,102 +73,9 @@ export interface AvailableInvoiceItem {
   pdfUrl?: string;
 }
 
-export const DEFAULT_PROPOSAL_PRODUCTS: ProposalCatalogProduct[] = [
-  {
-    id: 'p-colour-tribe-jackets',
-    name: 'Colour Tribe Puff Jackets',
-    category: 'Jackets & Apparel',
-    price: 999,
-    sku: 'DAS-570687',
-    coverImage: '/products/puff-jackets.jpg',
-    unit: 'Pcs',
-    description: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
-  },
-  {
-    id: 'p-das-crm-enterprise',
-    name: 'DAS CRM Enterprise License (Annual)',
-    category: 'Software & SaaS',
-    price: 12499,
-    sku: 'DAS-CRM-ENT',
-    unit: 'License',
-    description: 'Full CRM suite with unlimited sales reps, team leader dashboard, and auto-lead distribution.',
-  },
-  {
-    id: 'p-wa-cloud-suite',
-    name: 'WhatsApp Business Cloud API Suite',
-    category: 'Communications',
-    price: 4999,
-    sku: 'DAS-WA-API',
-    unit: 'Monthly',
-    description: 'Official Meta WhatsApp Business Cloud API integration with AI humanize and instant templates.',
-  },
-  {
-    id: 'p-auto-dialer-pack',
-    name: 'SIM & Cloud Auto-Dialer Module',
-    category: 'Dialer & Telephony',
-    price: 7500,
-    sku: 'DAS-DIAL-MOD',
-    unit: 'License',
-    description: 'Automated disposition logger, audio recording vault, and call funnel tracking engine.',
-  },
-  {
-    id: 'p-gst-billing-module',
-    name: 'Multi-Store Inventory & GST Billing',
-    category: 'Billing & Accounting',
-    price: 8999,
-    sku: 'DAS-GST-INV',
-    unit: 'Yearly',
-    description: 'Compliant 18% GST tax invoices, quotations, proforma generators, and payment gateway sync.',
-  },
-  {
-    id: 'p-onboarding-training',
-    name: 'Executive Onboarding & Team Training',
-    category: 'Professional Services',
-    price: 3500,
-    sku: 'DAS-SRV-TRN',
-    unit: 'Session',
-    description: 'Dedicated 1-on-1 CRM onboarding, workflow tailoring, and telecaller training sessions.',
-  },
-];
+export const DEFAULT_PROPOSAL_PRODUCTS: ProposalCatalogProduct[] = [];
 
-export const DEFAULT_SAMPLE_INVOICES: AvailableInvoiceItem[] = [
-  {
-    id: 'inv-101',
-    quoteNumber: 'INV-2026-0042',
-    docType: 'TAX_INVOICE',
-    date: '2026-10-06',
-    buyerCompany: 'Client Enterprise',
-    buyerName: 'Rahul Kapoor',
-    totalAmount: 45000,
-    taxRate: 18,
-    itemsSummary: 'DAS CRM Enterprise License + WhatsApp API Suite',
-    status: 'GENERATED',
-  },
-  {
-    id: 'inv-102',
-    quoteNumber: 'PI-2026-0118',
-    docType: 'PROFORMA_INVOICE',
-    date: '2026-10-05',
-    buyerCompany: 'Global Traders Pvt Ltd',
-    buyerName: 'Amit Shah',
-    totalAmount: 24999,
-    taxRate: 18,
-    itemsSummary: 'Cloud Telephony Dialer + Lead Allocation Engine',
-    status: 'SHARED',
-  },
-  {
-    id: 'inv-103',
-    quoteNumber: 'EST-2026-0089',
-    docType: 'QUOTATION',
-    date: '2026-10-04',
-    buyerCompany: 'Modern Retailers',
-    buyerName: 'Priya Sharma',
-    totalAmount: 18500,
-    taxRate: 18,
-    itemsSummary: 'Colour Tribe Puff Jackets (20 Pcs Commercial Batch)',
-    status: 'DRAFT',
-  },
-];
+export const DEFAULT_SAMPLE_INVOICES: AvailableInvoiceItem[] = [];
 
 function formatMeetingDateDisplay(isoDate: string): string {
   try {
@@ -1629,7 +1536,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     return DEFAULT_PROPOSAL_PRODUCTS;
   });
   const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(false);
-  const [selectedProduct, setSelectedProduct] = useState<string>('Colour Tribe Puff Jackets');
+  const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [selectedProductObj, setSelectedProductObj] = useState<any | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1640,25 +1547,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         }
       } catch (_) {}
     }
-    return {
-      id: 'p-colour-tribe-jackets',
-      name: 'Colour Tribe Puff Jackets',
-      sku: 'DAS-570687',
-      category: 'Jackets',
-      subCategory: 'Puff Jackets',
-      brand: 'Generic / Unbranded',
-      color: 'Silver Grey, Black',
-      unit: 'Pieces (Pcs)',
-      price: 999,
-      stock: 100,
-      sharedCount: 12,
-      imageUrl: '/products/puff-jackets.jpg',
-      coverImage: '/products/puff-jackets.jpg',
-      volumeDiscounts: [
-        { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
-        { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
-      ],
-    };
+    return null;
   });
   const [selectedProductQuantity, setSelectedProductQuantity] = useState<number>(1);
   const [customProductInput, setCustomProductInput] = useState<string>('');

@@ -24,18 +24,18 @@ export interface SellerProfile {
 
 const DEFAULT_SELLER: SellerProfile = {
   id: 'seller-org',
-  name: 'Adorable Trading',
+  name: '',
   logoUrl: '',
   phone: '',
-  address: 'Registered Business Address',
+  address: '',
   gstNumber: '',
   panNumber: '',
   bankDetails: {
-    bankName: 'HDFC Bank',
-    accountNo: '50200012345678',
-    ifscCode: 'HDFC0001234',
-    branch: 'Corporate Hub',
-    upiId: 'adorable@hdfc',
+    bankName: '',
+    accountNo: '',
+    ifscCode: '',
+    branch: '',
+    upiId: '',
   },
   updatedAt: new Date().toISOString(),
 };

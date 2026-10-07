@@ -81,18 +81,7 @@ export const UNIT_TYPES: string[] = [
   'License',
 ];
 
-export const DEFAULT_BRANDS: string[] = [
-  'Generic / Unbranded',
-  'DAS Technologies',
-  'Apple',
-  'Samsung',
-  'Sony',
-  'HP',
-  'Dell',
-  'Logitech',
-  'Bosch',
-  'Tata',
-];
+export const DEFAULT_BRANDS: string[] = [];
 
 const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_v3';
 const STORAGE_CATS_KEY = 'das_crm_categories_tree_v1';

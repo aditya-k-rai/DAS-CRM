@@ -304,40 +304,8 @@ export class ProductsService {
     private firestoreService: FirestoreService,
   ) {}
 
-  // ─── In-Memory Fallback Store (Preloaded with standard catalog products) ───
-  private fallbackProducts: ProductItemDto[] = [
-    {
-      id: 'p-colour-tribe-jackets',
-      name: 'Colour Tribe Puff Jackets',
-      sku: 'DAS-570687',
-      category: 'Jackets',
-      subCategory: 'Puff Jackets',
-      brand: 'Generic / Unbranded',
-      color: 'Silver Grey, Black',
-      unit: 'Pieces (Pcs)',
-      description: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
-      price: 1999,
-      minPrice: 1999,
-      maxPrice: 1999,
-      currency: '₹',
-      stock: 100,
-      minOrderQty: 1,
-      taxRate: 18,
-      imageUrl: '/products/puff-jackets.jpg',
-      images: [
-        '/products/puff-jackets.jpg',
-      ],
-      features: ['Padded', 'Lightweight', 'Thermal Insulation'],
-      volumeDiscounts: [
-        { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 1999 },
-        { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 1699 },
-      ],
-      sharedCount: 12,
-      isActive: true,
-      status: 'ACTIVE',
-      createdAt: new Date().toISOString(),
-    },
-  ];
+  // ─── In-Memory Fallback Store ───
+  private fallbackProducts: ProductItemDto[] = [];
   private fallbackCardConfig: ProductCardDisplayConfig = { ...DEFAULT_CARD_DISPLAY_CONFIG };
 
   // ─── GET CARD DISPLAY CONFIGURATION ─────────────────────────────────────────
@@ -445,15 +413,15 @@ export class ProductsService {
             } catch (_) {}
           }
 
-          const primaryImg = meta.imageUrl || (meta.images && meta.images[0]) || (p as any).imageUrl || '/products/puff-jackets.jpg';
+          const primaryImg = meta.imageUrl || (meta.images && meta.images[0]) || (p as any).imageUrl || '';
 
           return {
             id: p.id,
             name: p.name,
             sku: meta.sku || (p as any).sku || 'SKU-' + p.id.substring(0, 6).toUpperCase(),
-            category: meta.category || (p as any).category || 'General',
-            subCategory: meta.subCategory || (p as any).subCategory || 'Standard',
-            brand: meta.brand || (p as any).brand || 'Generic / Unbranded',
+            category: meta.category || (p as any).category || '',
+            subCategory: meta.subCategory || (p as any).subCategory || '',
+            brand: meta.brand || (p as any).brand || '',
             color: meta.color || (p as any).color || '',
             unit: p.unit || 'Pieces (Pcs)',
             description: actualDescription,
@@ -476,18 +444,7 @@ export class ProductsService {
           };
         });
 
-        // Always merge fallback products (like Colour Tribe Puff Jackets) if not already in DB
-        const mappedSkus = new Set(mappedDb.map((p) => (p.sku || '').toUpperCase()));
-        const mappedNames = new Set(mappedDb.map((p) => (p.name || '').trim().toLowerCase()));
-        const missingFallbacks = this.fallbackProducts.filter(
-          (f) =>
-            f.isActive &&
-            f.status !== 'DELETED' &&
-            !mappedSkus.has((f.sku || '').toUpperCase()) &&
-            !mappedNames.has((f.name || '').trim().toLowerCase()),
-        );
-
-        return [...missingFallbacks, ...mappedDb];
+        return mappedDb;
       }
     } catch (e) {
       console.warn('[ProductsService] DB query failed:', e.message);
@@ -635,27 +592,25 @@ export class ProductsService {
     let primaryImg = (dto.images && dto.images.length > 0)
       ? dto.images[0]
       : (dto.imageUrl || '');
-    if (!primaryImg || primaryImg.includes('images.unsplash.com')) {
-      primaryImg = '/products/puff-jackets.jpg';
-    } else if (primaryImg.startsWith('data:')) {
+    if (primaryImg && primaryImg.startsWith('data:')) {
       primaryImg = await this.uploadImageToFirebase(primaryImg, 'product-cover');
     }
 
     let processedImages: string[] = [];
     if (dto.images && Array.isArray(dto.images) && dto.images.length > 0) {
       processedImages = await Promise.all(
-        dto.images.map((im) => (im.startsWith('data:') ? this.uploadImageToFirebase(im, 'product-gallery') : Promise.resolve(im)))
+        dto.images.map((im) => (im && im.startsWith('data:') ? this.uploadImageToFirebase(im, 'product-gallery') : Promise.resolve(im)))
       );
-    } else {
+    } else if (primaryImg) {
       processedImages = [primaryImg];
     }
 
     const metadata = {
       description: dto.description || '',
       sku: generatedSku,
-      category: dto.category || 'General',
-      subCategory: dto.subCategory || 'Standard',
-      brand: dto.brand || 'Generic / Unbranded',
+      category: dto.category || '',
+      subCategory: dto.subCategory || '',
+      brand: dto.brand || '',
       color: dto.color || '',
       stock: dto.stock !== undefined ? Number(dto.stock) : 100,
       minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : 1,
@@ -847,8 +802,7 @@ export class ProductsService {
       return this.getProductById(resolvedOrgId, existing.id);
     }
 
-    // 2. Product not yet in Supabase (e.g. preloaded fallback 'p-colour-tribe-jackets')
-    // Persist into Supabase so it becomes a permanent DB record!
+    // 2. Product not yet in DB - create and persist into DB record
     const fallbackItem = this.fallbackProducts.find((p) => p.id === id);
     const generatedSku = dto.sku?.trim() || fallbackItem?.sku || ('DAS-' + Math.floor(100000 + Math.random() * 900000));
     const finalName = dto.name || fallbackItem?.name || 'Updated Product';
@@ -859,17 +813,17 @@ export class ProductsService {
     const metadata = {
       description: dto.description !== undefined ? dto.description : (fallbackItem?.description || ''),
       sku: generatedSku,
-      category: dto.category || fallbackItem?.category || 'General',
-      subCategory: dto.subCategory || fallbackItem?.subCategory || 'Standard',
-      brand: dto.brand || fallbackItem?.brand || 'Generic / Unbranded',
+      category: dto.category || fallbackItem?.category || '',
+      subCategory: dto.subCategory || fallbackItem?.subCategory || '',
+      brand: dto.brand || fallbackItem?.brand || '',
       color: dto.color !== undefined ? dto.color : (fallbackItem?.color || ''),
       stock: dto.stock !== undefined ? Number(dto.stock) : (fallbackItem?.stock ?? 100),
       minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : (fallbackItem?.minOrderQty ?? 1),
       currency: dto.currency || fallbackItem?.currency || '₹',
-      imageUrl: primaryImageUrl || fallbackItem?.imageUrl || '/products/puff-jackets.jpg',
+      imageUrl: primaryImageUrl || fallbackItem?.imageUrl || '',
       images: processedImages && processedImages.length > 0
         ? processedImages
-        : (fallbackItem?.images || [primaryImageUrl || '/products/puff-jackets.jpg']),
+        : (fallbackItem?.images || (primaryImageUrl ? [primaryImageUrl] : [])),
       features: dto.features || fallbackItem?.features || [],
       volumeDiscounts: dto.volumeDiscounts || fallbackItem?.volumeDiscounts || [],
       sharedCount: dto.sharedCount !== undefined ? Number(dto.sharedCount) : (fallbackItem?.sharedCount || 0),

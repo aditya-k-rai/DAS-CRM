@@ -143,27 +143,17 @@ export const UNIT_OPTIONS = [
   'License',
 ];
 
-export const DEFAULT_BRANDS = [
-  'Generic / Unbranded',
-  'DAS Technologies',
-  'Apple',
-  'Samsung',
-  'Sony',
-  'HP',
-  'Dell',
-  'Logitech',
-  'Bosch',
-  'Tata',
-];
+export const DEFAULT_BRANDS: string[] = [];
 
 export const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_cache';
 const STORAGE_CATEGORIES_KEY = 'das_crm_product_categories';
 const STORAGE_SUBCATEGORIES_KEY = 'das_crm_product_subcategories';
+export const STORAGE_BRANDS_KEY = 'das_crm_product_brands';
 
-export const DEFAULT_PRODUCT_FALLBACK_IMAGE = '/products/puff-jackets.jpg';
+export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 24 24" fill="none" stroke="%2364748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
 
 export function getProductCoverImage(imgSrc?: string): string {
-  if (!imgSrc || typeof imgSrc !== 'string' || !imgSrc.trim() || imgSrc.includes('images.unsplash.com')) {
+  if (!imgSrc || typeof imgSrc !== 'string' || !imgSrc.trim() || imgSrc.includes('images.unsplash.com') || imgSrc.includes('puff-jackets.jpg')) {
     return DEFAULT_PRODUCT_FALLBACK_IMAGE;
   }
   return imgSrc;
@@ -258,35 +248,7 @@ export async function uploadProductImageToFirebase(dataUrl: string, prefix: stri
   return dataUrl;
 }
 
-export const INITIAL_PRODUCTS: ProductItemWeb[] = [
-  {
-    id: 'p-colour-tribe-jackets',
-    name: 'Colour Tribe Puff Jackets',
-    sku: 'DAS-570687',
-    category: 'Jackets',
-    subCategory: 'Puff Jackets',
-    brand: 'Generic / Unbranded',
-    color: 'Silver Grey, Black',
-    unit: 'Pieces (Pcs)',
-    price: 1999,
-    stock: 100,
-    minOrderQty: 1,
-    rating: 5.0,
-    sharedCount: 12,
-    sold: 0,
-    taxRate: 18,
-    isActive: true,
-    coverImage: DEFAULT_PRODUCT_FALLBACK_IMAGE,
-    images: [DEFAULT_PRODUCT_FALLBACK_IMAGE],
-    overview: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
-    specs: ['Padded', 'Lightweight', 'Thermal Insulation'],
-    features: ['Padded', 'Lightweight', 'Thermal Insulation'],
-    volumeDiscounts: [
-      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 1999 },
-      { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 1699 },
-    ],
-  },
-];
+export const INITIAL_PRODUCTS: ProductItemWeb[] = [];
 
 export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const { currentUser } = useAuth();
@@ -333,17 +295,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       } catch (_) {}
     }
 
-    return INITIAL_PRODUCTS.map(p => {
-      const customEntry = customImagesMap[p.id] || (p.sku ? customImagesMap[p.sku] : undefined);
-      if (customEntry && customEntry.coverImage) {
-        return {
-          ...p,
-          coverImage: customEntry.coverImage,
-          images: customEntry.images && customEntry.images.length > 0 ? customEntry.images : [customEntry.coverImage],
-        };
-      }
-      return p;
-    });
+    return INITIAL_PRODUCTS;
   });
 
   const [categories, setCategories] = useState<string[]>(() => {
@@ -353,12 +305,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         if (c) {
           const parsed = JSON.parse(c);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return Array.from(new Set(['All', ...parsed, 'Jackets']));
+            return Array.from(new Set(['All', ...parsed]));
           }
         }
       } catch (_) {}
     }
-    return ['All', 'Jackets'];
+    return ['All'];
   });
 
   const [subCategories, setSubCategories] = useState<Record<string, string[]>>(() => {
@@ -368,20 +320,26 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         if (s) {
           const parsed = JSON.parse(s);
           if (parsed && typeof parsed === 'object') {
-            return {
-              ...parsed,
-              'Jackets': Array.from(new Set([...(parsed['Jackets'] || []), 'Puff Jackets'])),
-            };
+            return parsed;
           }
         }
       } catch (_) {}
     }
-    return {
-      'Jackets': ['Puff Jackets'],
-    };
+    return {};
   });
 
-  const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
+  const [brands, setBrands] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const b = localStorage.getItem(STORAGE_BRANDS_KEY);
+        if (b) {
+          const parsed = JSON.parse(b);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_BRANDS;
+  });
   const [createBrandOpen, setCreateBrandOpen] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
 
@@ -569,7 +527,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               const remoteIds = new Set(mapped.map((m: any) => m.id));
               const remoteSkus = new Set(mapped.map((m: any) => (m.sku || '').toUpperCase()));
               const localOnly = prev.filter(
-                (p: any) => !remoteIds.has(p.id) && !remoteSkus.has((p.sku || '').toUpperCase()) && p.id !== 'p-colour-tribe-jackets'
+                (p: any) => !remoteIds.has(p.id) && !remoteSkus.has((p.sku || '').toUpperCase())
               );
 
               const combined = [...mergedRemote, ...localOnly];
@@ -592,14 +550,17 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               if (s) storedSubs = JSON.parse(s);
             } catch {}
 
+            let storedBrands: string[] = [];
+            try {
+              const b = localStorage.getItem(STORAGE_BRANDS_KEY);
+              if (b) storedBrands = JSON.parse(b);
+            } catch {}
+
             const dynamicCats = data.map((p: any) => p.category).filter(Boolean) as string[];
-            const allCats = Array.from(new Set(['All', 'Jackets', ...storedCats, ...dynamicCats]));
+            const allCats = Array.from(new Set(['All', ...storedCats, ...dynamicCats]));
             setCategories(allCats);
 
-            const allSubs: Record<string, string[]> = {
-              'Jackets': ['Puff Jackets'],
-              ...storedSubs,
-            };
+            const allSubs: Record<string, string[]> = { ...storedSubs };
             data.forEach((p: any) => {
               if (p.category && p.subCategory) {
                 if (!allSubs[p.category]) allSubs[p.category] = [];
@@ -609,6 +570,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               }
             });
             setSubCategories(allSubs);
+
+            const dynamicBrands = data.map((p: any) => p.brand).filter(Boolean) as string[];
+            const allBrands = Array.from(new Set([...storedBrands, ...dynamicBrands]));
+            if (allBrands.length > 0) {
+              setBrands(allBrands);
+            }
           }
       } catch (e) {
         console.warn('Could not fetch products:', e);
@@ -1590,7 +1557,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     if (!newBrandName.trim()) return;
     const trimmed = newBrandName.trim();
     if (!brands.includes(trimmed)) {
-      setBrands(prev => [...prev, trimmed]);
+      const nextBrands = [...brands, trimmed];
+      setBrands(nextBrands);
+      try {
+        localStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(nextBrands));
+      } catch {}
     }
     setNewProdBrand(trimmed);
     setCreateBrandOpen(false);
@@ -1616,7 +1587,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       return;
     }
 
-    setBrands(prev => prev.map(b => b === oldBrand ? trimmed : b));
+    const nextBrands = brands.map(b => b === oldBrand ? trimmed : b);
+    setBrands(nextBrands);
+    try {
+      localStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(nextBrands));
+    } catch {}
 
     // Cascade update to all associated products
     setProducts(prev => prev.map(p => (p.brand || '').trim().toLowerCase() === oldBrand.trim().toLowerCase() ? { ...p, brand: trimmed } : p));
@@ -1630,10 +1605,6 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       alert('⛔ Access Denied: Only Admins and Managers can delete brands.');
       return;
     }
-    if (brandName === 'Generic / Unbranded') {
-      alert('Default brand "Generic / Unbranded" cannot be deleted.');
-      return;
-    }
     const count = countProductsInBrand(brandName);
     setDeleteBrandModal({ brand: brandName, productCount: count });
   };
@@ -1642,13 +1613,17 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     if (!deleteBrandModal) return;
     const { brand, productCount } = deleteBrandModal;
 
-    setBrands(prev => prev.filter(b => b !== brand));
+    const nextBrands = brands.filter(b => b !== brand);
+    setBrands(nextBrands);
+    try {
+      localStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(nextBrands));
+    } catch {}
 
-    // Cascade update: reassign associated products to 'Generic / Unbranded'
-    setProducts(prev => prev.map(p => (p.brand || '').trim().toLowerCase() === brand.trim().toLowerCase() ? { ...p, brand: 'Generic / Unbranded' } : p));
+    // Cascade update: reassign associated products to empty brand
+    setProducts(prev => prev.map(p => (p.brand || '').trim().toLowerCase() === brand.trim().toLowerCase() ? { ...p, brand: '' } : p));
 
     setDeleteBrandModal(null);
-    alert(`🗑️ Brand "${brand}" deleted. ${productCount} product(s) reassigned to "Generic / Unbranded".`);
+    alert(`🗑️ Brand "${brand}" deleted.`);
   };
 
   // ─── Admin & Manager Card Display Handlers ───────────────────────────────

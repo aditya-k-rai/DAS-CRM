@@ -142,51 +142,24 @@ export const DEFAULT_TERMS_TEMPLATES: TermsTemplate[] = [
 const INITIAL_COMPANIES: CompanyDetails[] = [
   {
     id: 'comp-1',
-    name: 'Adorable Trading',
+    name: '',
     logoUrl: '',
-    address: 'Registered Business Address',
-    email: 'contact@adorabletrading.com',
-    phone: '+91 98765 43210',
-    gstNo: '',
-    panNo: '',
-    bankName: 'HDFC Bank',
-    accountNo: '50200012345678',
-    ifscCode: 'HDFC0001234',
-    branch: 'Corporate Hub',
-    upiId: 'adorable@hdfc',
-  },
-];
-
-const INITIAL_PARTIES: PartyDetails[] = [
-  {
-    id: 'party-1',
-    name: 'Client / Party Name',
-    contactPerson: '',
+    address: '',
     email: '',
     phone: '',
-    address: 'Billed To Address',
-    shippingAddress: '',
     gstNo: '',
     panNo: '',
+    bankName: '',
+    accountNo: '',
+    ifscCode: '',
+    branch: '',
+    upiId: '',
   },
 ];
 
-const DEFAULT_CATALOG_PRODUCTS: any[] = [
-  {
-    id: 'p-colour-tribe-jackets',
-    name: 'Colour Tribe Puff Jackets',
-    desc: 'Premium Padded Colour Tribe Puff Jackets with lightweight thermal insulation and dual zip pockets.',
-    hsn: 'DAS-570687',
-    price: 999,
-    tax: 18,
-    unit: 'Pieces (Pcs)',
-    image: '/products/puff-jackets.jpg',
-  },
-  { id: 'cat-1', name: 'Executive Desktop Workstation', desc: 'Intel i7 14th Gen, 32GB RAM, 1TB NVMe, RTX 4060', hsn: '84713010', price: 85000, tax: 18, unit: 'Nos', image: '' },
-  { id: 'cat-2', name: 'Enterprise Cloud Firewall Gateway', desc: 'Dual 10Gbps SFP+ with Unified Threat Management', hsn: '85176290', price: 125000, tax: 18, unit: 'Nos', image: '' },
-  { id: 'cat-3', name: 'High-Density Rackmount Server 2U', desc: 'Dual Xeon Gold, 128GB ECC, Redundant PSU', hsn: '84714900', price: 295000, tax: 18, unit: 'Nos', image: '' },
-  { id: 'cat-4', name: 'Annual Software License & Support (AMC)', desc: '24/7 Enterprise SLA with onsite dispatch', hsn: '998313', price: 45000, tax: 18, unit: 'Yr', image: '' },
-];
+const INITIAL_PARTIES: PartyDetails[] = [];
+
+const DEFAULT_CATALOG_PRODUCTS: any[] = [];
 
 // ─── Helper: Number to Words (Indian Rupee Spectro Format) ────
 function numberToWordsINR(amount: number): string {
@@ -821,17 +794,17 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           } catch (_) {}
         }
 
-        if (profile && profile.name) {
+        if (profile && (profile.name || profile.address || profile.phone || profile.gstNumber)) {
           const comp: CompanyDetails = {
             id: profile.id || 'comp-1',
-            name: profile.name || 'Adorable Trading',
+            name: profile.name || '',
             logoUrl: profile.logoUrl || '',
-            address: profile.address || 'Registered Business Address',
+            address: profile.address || '',
             email: profile.email || '',
             phone: profile.phone || '',
             gstNo: profile.gstNumber || '',
             panNo: profile.panNumber || '',
-            bankName: profile.bankDetails?.bankName || 'HDFC Bank',
+            bankName: profile.bankDetails?.bankName || '',
             accountNo: profile.bankDetails?.accountNo || '',
             ifscCode: profile.bankDetails?.ifscCode || '',
             branch: profile.bankDetails?.branch || '',
@@ -1266,48 +1239,31 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   // ⚡ 1-Click Quick-Fill Buyer & Item
   const handleQuickFillSampleData = () => {
     // 1. Ensure seller company is valid
-    if (!hasSeller && companies.length > 0) {
+    if (!hasSeller && companies.length > 0 && companies[0].name) {
       setSelectedCompanyId(companies[0].id);
     }
     // 2. Ensure buyer party is valid
-    if (!hasBuyer) {
-      const validParty = parties.find(p => p.name && p.name !== 'Client / Party Name');
-      if (validParty) {
-        setSelectedPartyId(validParty.id);
-      } else {
-        const demoParty: PartyDetails = {
-          id: `party-sample-${Date.now()}`,
-          name: 'Supreme Industries Ltd.',
-          contactPerson: 'Rajesh Mehta (Procurement Lead)',
-          email: 'purchase@supremeindustries.in',
-          phone: '+91 98200 12345',
-          address: 'Plot 42, GIDC Industrial Estate, Makarpura, Vadodara, Gujarat 390010',
-          shippingAddress: 'Central Warehouse, Gate 3, GIDC Industrial Estate, Vadodara',
-          gstNo: '24AAACS1234F1Z5',
-          panNo: 'AAACS1234F',
-        };
-        setParties(prev => [demoParty, ...prev]);
-        setSelectedPartyId(demoParty.id);
-      }
+    if (!hasBuyer && parties.length > 0 && parties[0].name) {
+      setSelectedPartyId(parties[0].id);
     }
     // 3. Ensure product item is valid
-    if (!hasProduct) {
-      const sampleProd = catalogProducts[0] || DEFAULT_CATALOG_PRODUCTS[0];
+    if (!hasProduct && catalogProducts.length > 0) {
+      const sampleProd = catalogProducts[0];
       setItems([
         {
           id: `item-${Date.now()}`,
-          productName: sampleProd.name || 'Colour Tribe Puff Jackets',
-          description: sampleProd.desc || 'Premium thermal insulated outerwear with dual zip pockets',
-          showDescription: true,
-          hsnCode: sampleProd.hsn || '620140',
+          productName: sampleProd.name || '',
+          description: sampleProd.desc || '',
+          showDescription: !!sampleProd.desc,
+          hsnCode: sampleProd.hsn || '',
           showImage: false,
           unit: sampleProd.unit || 'Pieces (Pcs)',
-          qty: 10,
-          unitPrice: sampleProd.price || 999,
-          taxRate: 18,
+          qty: 1,
+          unitPrice: sampleProd.price || 0,
+          taxRate: sampleProd.tax || 18,
           discountType: 'percent',
           discountVal: 0,
-          total: (sampleProd.price || 999) * 10,
+          total: sampleProd.price || 0,
         },
       ]);
     }
@@ -1570,7 +1526,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       doc.setTextColor(0, 32, 96);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text(record.companyName || 'Adorable Trading', margin + 5, 17);
+      doc.text(record.companyName || 'Company', margin + 5, 17);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -1667,7 +1623,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           pdfBlob,
           `${docNo}.pdf`,
           {
-            companyName: activeCompany?.name || 'Adorable Trading',
+            companyName: activeCompany?.name || 'Company',
             category: 'QUOTATIONS',
             customFileName: docNo,
           }
@@ -1690,10 +1646,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       const partyDisplayName = (activeParty?.name && activeParty.name.trim() !== '' && activeParty.name !== 'Client / Party Name')
         ? activeParty.name
-        : 'Supreme Industries Ltd.';
+        : 'Client / Party';
       const companyDisplayName = (activeCompany?.name && activeCompany.name.trim() !== '' && activeCompany.name !== 'Your Company')
         ? activeCompany.name
-        : 'Adorable Trading';
+        : 'Company / Organization';
 
       const recordPayload = {
         items: JSON.parse(JSON.stringify(items)),
@@ -1947,10 +1903,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const handleSaveCurrentDraft = async () => {
     const partyDisplayName = (activeParty?.name && activeParty.name.trim() !== '' && activeParty.name !== 'Client / Party Name')
       ? activeParty.name
-      : 'Draft Client (Pending)';
+      : 'Draft Client';
     const companyDisplayName = (activeCompany?.name && activeCompany.name.trim() !== '' && activeCompany.name !== 'Your Company')
       ? activeCompany.name
-      : 'Adorable Trading';
+      : 'Company / Organization';
 
     const now = new Date();
     const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
