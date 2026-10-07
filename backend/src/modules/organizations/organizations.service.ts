@@ -98,8 +98,25 @@ export class OrganizationsService {
     });
   }
 
-  // ─── Seller Profile (Quotation) ─────────────────────────────────────
+  // ─── Seller Profile (Quotation) ───
   // Open to ALL roles in the organization — allows sales/managers to set seller details for quotations
+  private fallbackSellerProfile: any = {
+    id: 'seller-org',
+    name: 'Adorable Trading',
+    logoUrl: '',
+    email: '',
+    phone: '',
+    address: 'Registered Business Address',
+    gstNumber: '',
+    panNumber: '',
+    bankDetails: {
+      bankName: 'HDFC Bank',
+      accountNo: '50200012345678',
+      ifscCode: 'HDFC0001234',
+      branch: 'Corporate Hub',
+      upiId: 'adorable@hdfc',
+    },
+  };
 
   async getSellerProfile(orgId: string) {
     let org: any = null;
@@ -121,36 +138,21 @@ export class OrganizationsService {
     }
 
     if (!org) {
-      return {
-        id: 'seller-org',
-        name: 'Adorable Trading',
-        logoUrl: '',
-        phone: '',
-        address: 'Registered Business Address',
-        gstNumber: '',
-        panNumber: '',
-        bankDetails: {
-          bankName: 'HDFC Bank',
-          accountNo: '50200012345678',
-          ifscCode: 'HDFC0001234',
-          branch: 'Corporate Hub',
-          upiId: 'adorable@hdfc',
-        },
-      };
+      return this.fallbackSellerProfile;
     }
 
     const settings = (org.settings as any) || {};
-    const bankDetails = settings.bankDetails || {};
+    const bankDetails = settings.bankDetails || this.fallbackSellerProfile.bankDetails || {};
 
     return {
       id: org.id,
-      name: org.name || 'Adorable Trading',
-      logoUrl: org.logoUrl || settings.logoUrl || '',
-      email: settings.email || (org as any).email || '',
-      phone: org.phone || '',
-      address: settings.address || (org.city ? `${org.city}${org.state ? ', ' + org.state : ''}, India` : 'Registered Business Address'),
-      gstNumber: org.gstNumber || settings.gstNumber || '',
-      panNumber: org.panNumber || settings.panNumber || '',
+      name: org.name || this.fallbackSellerProfile.name || 'Adorable Trading',
+      logoUrl: org.logoUrl || settings.logoUrl || this.fallbackSellerProfile.logoUrl || '',
+      email: settings.email || (org as any).email || this.fallbackSellerProfile.email || '',
+      phone: org.phone || this.fallbackSellerProfile.phone || '',
+      address: settings.address || (org.city ? `${org.city}${org.state ? ', ' + org.state : ''}, India` : this.fallbackSellerProfile.address || 'Registered Business Address'),
+      gstNumber: org.gstNumber || settings.gstNumber || this.fallbackSellerProfile.gstNumber || '',
+      panNumber: org.panNumber || settings.panNumber || this.fallbackSellerProfile.panNumber || '',
       bankDetails: {
         bankName: bankDetails.bankName || 'HDFC Bank',
         accountNo: bankDetails.accountNo || '',
@@ -162,6 +164,20 @@ export class OrganizationsService {
   }
 
   async updateSellerProfile(orgId: string, dto: UpdateSellerProfileDto) {
+    this.fallbackSellerProfile = {
+      ...this.fallbackSellerProfile,
+      ...(dto.name ? { name: dto.name.trim() } : {}),
+      ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+      ...(dto.email !== undefined ? { email: dto.email } : {}),
+      ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+      ...(dto.address !== undefined ? { address: dto.address } : {}),
+      ...(dto.gstNumber !== undefined ? { gstNumber: dto.gstNumber } : {}),
+      ...(dto.panNumber !== undefined ? { panNumber: dto.panNumber } : {}),
+      bankDetails: dto.bankDetails
+        ? { ...this.fallbackSellerProfile.bankDetails, ...dto.bankDetails }
+        : this.fallbackSellerProfile.bankDetails,
+    };
+
     let org: any = null;
     if (orgId && orgId !== 'org_default' && orgId !== 'platform_system') {
       org = await this.prisma.organization.findUnique({
@@ -181,23 +197,7 @@ export class OrganizationsService {
     }
 
     if (!org) {
-      return {
-        id: 'seller-org',
-        name: dto.name || 'Adorable Trading',
-        logoUrl: dto.logoUrl || '',
-        email: dto.email || '',
-        phone: dto.phone || '',
-        address: dto.address || 'Registered Business Address',
-        gstNumber: dto.gstNumber || '',
-        panNumber: dto.panNumber || '',
-        bankDetails: {
-          bankName: dto.bankDetails?.bankName || 'HDFC Bank',
-          accountNo: dto.bankDetails?.accountNo || '',
-          ifscCode: dto.bankDetails?.ifscCode || '',
-          branch: dto.bankDetails?.branch || '',
-          upiId: dto.bankDetails?.upiId || '',
-        },
-      };
+      return this.fallbackSellerProfile;
     }
 
     const currentSettings = (org.settings as any) || {};
@@ -228,17 +228,17 @@ export class OrganizationsService {
     }).catch(() => org);
 
     const settings = (updated.settings as any) || {};
-    const bankDetails = settings.bankDetails || {};
+    const bankDetails = settings.bankDetails || this.fallbackSellerProfile.bankDetails || {};
 
     return {
       id: updated.id,
-      name: updated.name || '',
-      logoUrl: updated.logoUrl || settings.logoUrl || '',
-      email: settings.email || dto.email || '',
-      phone: updated.phone || '',
-      address: settings.address || '',
-      gstNumber: updated.gstNumber || settings.gstNumber || '',
-      panNumber: updated.panNumber || settings.panNumber || '',
+      name: updated.name || this.fallbackSellerProfile.name || '',
+      logoUrl: updated.logoUrl || settings.logoUrl || this.fallbackSellerProfile.logoUrl || '',
+      email: settings.email || dto.email || this.fallbackSellerProfile.email || '',
+      phone: updated.phone || this.fallbackSellerProfile.phone || '',
+      address: settings.address || this.fallbackSellerProfile.address || '',
+      gstNumber: updated.gstNumber || settings.gstNumber || this.fallbackSellerProfile.gstNumber || '',
+      panNumber: updated.panNumber || settings.panNumber || this.fallbackSellerProfile.panNumber || '',
       bankDetails: {
         bankName: bankDetails.bankName || '',
         accountNo: bankDetails.accountNo || '',

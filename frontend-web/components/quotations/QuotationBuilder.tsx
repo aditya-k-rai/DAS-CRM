@@ -805,16 +805,17 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         if (profile && (profile.name || profile.address || profile.phone || profile.gstNumber || profile.logoUrl)) {
           setCompanies(prev => {
             const existing = prev[0] || {} as any;
+            // Never overwrite existing non-empty user logo or fields with empty defaults
             const comp: CompanyDetails = {
               id: profile.id || existing.id || 'comp-1',
-              name: profile.name || existing.name || '',
+              name: profile.name || existing.name || 'Adorable Trading',
               logoUrl: profile.logoUrl || existing.logoUrl || '',
-              address: profile.address || existing.address || '',
+              address: profile.address || existing.address || 'Registered Business Address',
               email: profile.email || existing.email || '',
               phone: profile.phone || existing.phone || '',
               gstNo: profile.gstNumber || profile.gstNo || existing.gstNo || '',
               panNo: profile.panNumber || profile.panNo || existing.panNo || '',
-              bankName: profile.bankDetails?.bankName || existing.bankName || '',
+              bankName: profile.bankDetails?.bankName || existing.bankName || 'HDFC Bank',
               accountNo: profile.bankDetails?.accountNo || existing.accountNo || '',
               ifscCode: profile.bankDetails?.ifscCode || existing.ifscCode || '',
               branch: profile.bankDetails?.branch || existing.branch || '',
@@ -827,7 +828,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             } catch (_) {}
             return [comp];
           });
-          setSelectedCompanyId(profile.id || 'comp-1');
+          setSelectedCompanyId(prev => prev || profile.id || 'comp-1');
         }
       } catch (e) {
         console.warn('Failed to load seller profile from backend:', e);
@@ -850,7 +851,18 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bc = new BroadcastChannel('das_crm_company_channel');
-        bc.onmessage = () => fetchSellerProfile();
+        bc.onmessage = (event) => {
+          if (event?.data?.company && event.data.company.name) {
+            const updated = event.data.company as CompanyDetails;
+            setCompanies([updated]);
+            setSelectedCompanyId(updated.id);
+            try {
+              localStorage.setItem('das_crm_seller_companies', JSON.stringify([updated]));
+            } catch (_) {}
+          } else {
+            fetchSellerProfile();
+          }
+        };
       }
     } catch (_) {}
 
@@ -969,7 +981,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           }
         } catch (_) {}
 
-        // Merge with existing local party modifications so user edits are preserved
+        // Merge with existing local party modifications so user edits ALWAYS take top priority
         let localSavedParties: PartyDetails[] = [];
         try {
           if (typeof window !== 'undefined') {
@@ -978,19 +990,20 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           }
         } catch (_) {}
 
-        const mergedParties = fetchedParties.map(fp => {
-          const custom = localSavedParties.find(cp => cp.id === fp.id || cp.name === fp.name);
-          return custom ? { ...fp, ...custom } : fp;
-        });
-        localSavedParties.forEach(cp => {
-          if (!mergedParties.some(mp => mp.id === cp.id)) {
-            mergedParties.unshift(cp);
+        const mergedParties: PartyDetails[] = [...localSavedParties];
+        fetchedParties.forEach(fp => {
+          const existingIdx = mergedParties.findIndex(p => p.id === fp.id || (p.name && fp.name && p.name.trim().toLowerCase() === fp.name.trim().toLowerCase()));
+          if (existingIdx >= 0) {
+            // Merge but keep local user edits overriding backend defaults
+            mergedParties[existingIdx] = { ...fp, ...mergedParties[existingIdx] };
+          } else {
+            mergedParties.push(fp);
           }
         });
 
         if (mergedParties.length > 0) {
           setParties(mergedParties);
-          setSelectedPartyId(prev => (prev && mergedParties.some(p => p.id === prev)) ? prev : mergedParties[0].id);
+          setSelectedPartyId(prev => (prev && mergedParties.some(p => p.id === prev)) ? prev : (mergedParties[0]?.id || ''));
           // Update localStorage cache
           try {
             if (typeof window !== 'undefined') {
@@ -1016,6 +1029,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           } catch (_) {}
           return next;
         });
+        setSelectedPartyId(updated.id);
         return;
       }
       fetchBuyers();
@@ -1025,7 +1039,22 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bcParty = new BroadcastChannel('das_crm_party_channel');
-        bcParty.onmessage = () => fetchBuyers();
+        bcParty.onmessage = (event) => {
+          if (event?.data?.party && event.data.party.name) {
+            const updated = event.data.party as PartyDetails;
+            setParties(prev => {
+              const exists = prev.find(p => p.id === updated.id);
+              const next = exists ? prev.map(p => p.id === updated.id ? updated : p) : [updated, ...prev];
+              try {
+                localStorage.setItem('das_crm_saved_parties', JSON.stringify(next));
+              } catch (_) {}
+              return next;
+            });
+            setSelectedPartyId(updated.id);
+          } else {
+            fetchBuyers();
+          }
+        };
       }
     } catch (_) {}
 
@@ -2347,28 +2376,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       },
     };
 
-    // 3. Save to backend Prisma DB (cross-device persistent)
-    try {
-      await fetch(`${apiBase}/organizations/seller-profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(sellerPayload),
-      });
-    } catch (_) {}
-
-    // 4. Save to Next.js /api/organization/seller-profile (file-based fallback)
-    try {
-      await fetch('/api/organization/seller-profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sellerPayload),
-      });
-    } catch (_) {}
-
-    // Broadcast company update to all other open tabs & dashboards
+    // Broadcast company update to all other open tabs & dashboards immediately
     try {
       window.dispatchEvent(new CustomEvent('das_crm_seller_profile_updated', { detail: updatedCompany }));
       if (typeof BroadcastChannel !== 'undefined') {
@@ -2377,6 +2385,23 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         bc.close();
       }
     } catch (_) {}
+
+    // Save to Next.js /api/organization/seller-profile AND backend in parallel (non-blocking)
+    Promise.allSettled([
+      fetch('/api/organization/seller-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sellerPayload),
+      }),
+      fetch(`${apiBase}/organizations/seller-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(sellerPayload),
+      }),
+    ]).catch(() => {});
 
     setCompanyModalOpen(false);
     setEditingCompanyId(null);
@@ -2440,78 +2465,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       panNo: updatedParty.panNo,
     };
 
-    // 3. Save to Next.js /api/parties (file-based — cross-device persistent)
-    try {
-      if (editingPartyId) {
-        await fetch(`/api/parties/${partyId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(partyPayload),
-        });
-      } else {
-        await fetch('/api/parties', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(partyPayload),
-        });
-      }
-    } catch (_) {}
-
-    // 4. Also sync to backend /contacts if it's a backend-originated contact
-    if (editingPartyId && editingPartyId.startsWith('contact-')) {
-      const cleanId = editingPartyId.replace('contact-', '');
-      try {
-        await fetch(`${apiBase}/contacts/${cleanId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            firstName: updatedParty.name,
-            email: updatedParty.email,
-            phone: updatedParty.phone,
-            customFields: {
-              address: updatedParty.address,
-              shippingAddress: updatedParty.shippingAddress,
-              gstNo: updatedParty.gstNo,
-              panNo: updatedParty.panNo,
-            },
-          }),
-        });
-      } catch (_) {}
-    }
-
-    // 5. Also sync to backend /leads if it's a backend-originated lead
-    if (editingPartyId && editingPartyId.startsWith('lead-')) {
-      const cleanId = editingPartyId.replace('lead-', '');
-      const nameParts = updatedParty.name.trim().split(' ');
-      const firstName = nameParts[0] || updatedParty.name;
-      const lastName = nameParts.slice(1).join(' ') || '';
-      try {
-        await fetch(`${apiBase}/leads/${cleanId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            firstName,
-            lastName,
-            email: updatedParty.email,
-            phone: updatedParty.phone,
-            customFields: {
-              address: updatedParty.address,
-              shippingAddress: updatedParty.shippingAddress,
-              gstNo: updatedParty.gstNo,
-              panNo: updatedParty.panNo,
-            },
-          }),
-        });
-      } catch (_) {}
-    }
-
-    // Broadcast party update to all other open tabs & dashboards
+    // Broadcast party update to all other open tabs & dashboards immediately
     try {
       window.dispatchEvent(new CustomEvent('das_crm_parties_updated', { detail: updatedParty }));
       if (typeof BroadcastChannel !== 'undefined') {
@@ -2520,6 +2474,72 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         bc.close();
       }
     } catch (_) {}
+
+    // Save to Next.js /api/parties, backend /contacts & backend /leads in parallel (non-blocking)
+    const savePromises: Promise<any>[] = [];
+    if (editingPartyId) {
+      savePromises.push(fetch(`/api/parties/${partyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(partyPayload),
+      }));
+    } else {
+      savePromises.push(fetch('/api/parties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(partyPayload),
+      }));
+    }
+
+    if (editingPartyId && editingPartyId.startsWith('contact-')) {
+      const cleanId = editingPartyId.replace('contact-', '');
+      savePromises.push(fetch(`${apiBase}/contacts/${cleanId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          firstName: updatedParty.name,
+          email: updatedParty.email,
+          phone: updatedParty.phone,
+          customFields: {
+            address: updatedParty.address,
+            shippingAddress: updatedParty.shippingAddress,
+            gstNo: updatedParty.gstNo,
+            panNo: updatedParty.panNo,
+          },
+        }),
+      }));
+    }
+
+    if (editingPartyId && editingPartyId.startsWith('lead-')) {
+      const cleanId = editingPartyId.replace('lead-', '');
+      const nameParts = updatedParty.name.trim().split(' ');
+      const firstName = nameParts[0] || updatedParty.name;
+      const lastName = nameParts.slice(1).join(' ') || '';
+      savePromises.push(fetch(`${apiBase}/leads/${cleanId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email: updatedParty.email,
+          phone: updatedParty.phone,
+          customFields: {
+            address: updatedParty.address,
+            shippingAddress: updatedParty.shippingAddress,
+            gstNo: updatedParty.gstNo,
+            panNo: updatedParty.panNo,
+          },
+        }),
+      }));
+    }
+
+    Promise.allSettled(savePromises).catch(() => {});
 
     setPartyModalOpen(false);
     setEditingPartyId(null);

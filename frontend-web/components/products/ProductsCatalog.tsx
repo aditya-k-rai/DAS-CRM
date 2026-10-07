@@ -153,8 +153,8 @@ export const STORAGE_BRANDS_KEY = 'das_crm_product_brands';
 export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=';
 
 export function getProductCoverImage(imgSrc?: string, id?: string, sku?: string): string {
-  if (imgSrc && typeof imgSrc === 'string' && imgSrc.trim() && !imgSrc.includes('images.unsplash.com') && !imgSrc.includes('puff-jackets.jpg') && !imgSrc.includes('puff-jacket')) {
-    return imgSrc;
+  if (imgSrc && typeof imgSrc === 'string' && imgSrc.trim()) {
+    return imgSrc.trim();
   }
   if (typeof window !== 'undefined' && (id || sku)) {
     try {
@@ -163,7 +163,7 @@ export function getProductCoverImage(imgSrc?: string, id?: string, sku?: string)
         const customMap = JSON.parse(s);
         const match = (id ? customMap[id] : null) || (sku ? customMap[sku] : null);
         if (match && match.coverImage && typeof match.coverImage === 'string' && match.coverImage.trim()) {
-          return match.coverImage;
+          return match.coverImage.trim();
         }
       }
     } catch (_) {}
@@ -507,10 +507,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 if (customImgEntry && customImgEntry.coverImage) {
                   finalCover = customImgEntry.coverImage;
                   finalImages = customImgEntry.images && customImgEntry.images.length > 0 ? customImgEntry.images : [finalCover];
-                } else if (remoteP.coverImage && !remoteP.coverImage.includes('puff-jackets.jpg')) {
+                } else if (remoteP.coverImage) {
                   finalCover = remoteP.coverImage;
                   finalImages = remoteP.images && remoteP.images.length > 0 ? remoteP.images : [finalCover];
-                } else if (localMatch && localMatch.coverImage && !localMatch.coverImage.includes('puff-jackets.jpg')) {
+                } else if (localMatch && localMatch.coverImage) {
                   finalCover = localMatch.coverImage;
                   finalImages = localMatch.images && localMatch.images.length > 0 ? localMatch.images : [finalCover];
                 }
@@ -1027,7 +1027,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     const rawImages = (product.images && product.images.length > 0)
       ? product.images
       : (product.coverImage ? [product.coverImage] : []);
-    const cleanImages = rawImages.filter(img => img && typeof img === 'string' && !img.includes('puff-jackets.jpg') && !img.includes('jacket') && img.trim() !== '');
+    const cleanImages = rawImages.filter(img => img && typeof img === 'string' && img.trim() !== '');
     setEditProdImages(cleanImages);
     setEditImageUploadError('');
     const tiers = Array.isArray(product.volumeDiscounts) && product.volumeDiscounts.length > 0
@@ -1079,7 +1079,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
         setEditProdImages(prev => {
-          const cleanPrev = prev.filter(p => p && !p.includes('puff-jackets.jpg'));
+          const cleanPrev = prev.filter(p => p && typeof p === 'string' && p.trim() !== '');
           return [...cleanPrev, squareDataUrl];
         });
         uploadProductImageToFirebase(squareDataUrl, 'product-gallery').then(url => {

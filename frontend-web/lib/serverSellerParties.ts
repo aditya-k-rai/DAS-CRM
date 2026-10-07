@@ -31,15 +31,15 @@ export interface SellerProfile {
 
 const DEFAULT_SELLER: SellerProfile = {
   id: 'seller-org',
-  name: '',
+  name: 'Adorable Trading',
   logoUrl: '',
   email: '',
   phone: '',
-  address: '',
+  address: 'Registered Business Address',
   gstNumber: '',
   panNumber: '',
   bankDetails: {
-    bankName: '',
+    bankName: 'HDFC Bank',
     accountNo: '',
     ifscCode: '',
     branch: '',
