@@ -11,7 +11,7 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const profile = getLocalSellerProfile();
     return NextResponse.json(profile, { headers: CORS_HEADERS });
@@ -40,6 +40,21 @@ export async function PUT(req: Request) {
     };
 
     saveLocalSellerProfile(updated);
+
+    // Also forward to NestJS backend if reachable
+    try {
+      const authHeader = req.headers.get('Authorization');
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      await fetch(`${apiBase}/organizations/seller-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify(updated),
+      }).catch(() => null);
+    } catch (_) {}
+
     return NextResponse.json(updated, { headers: CORS_HEADERS });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to update seller profile' }, { status: 500, headers: CORS_HEADERS });

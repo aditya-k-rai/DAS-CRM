@@ -268,7 +268,7 @@ export const INITIAL_PRODUCTS: ProductItemWeb[] = [
     brand: 'Generic / Unbranded',
     color: 'Silver Grey, Black',
     unit: 'Pieces (Pcs)',
-    price: 999,
+    price: 1999,
     stock: 100,
     minOrderQty: 1,
     rating: 5.0,
@@ -282,8 +282,8 @@ export const INITIAL_PRODUCTS: ProductItemWeb[] = [
     specs: ['Padded', 'Lightweight', 'Thermal Insulation'],
     features: ['Padded', 'Lightweight', 'Thermal Insulation'],
     volumeDiscounts: [
-      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 999 },
-      { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 849 },
+      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 1999 },
+      { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: 1699 },
     ],
   },
 ];
@@ -458,7 +458,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
     // 3. Fetch products and remote card config from Backend
     const fetchCatalogData = async () => {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+        apiBase = '/api';
+      }
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       const headers = {
         'Content-Type': 'application/json',
@@ -466,10 +469,24 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       };
 
       try {
-        const res = await fetch(`${apiBase}/products`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
+        let data: any[] | null = null;
+        try {
+          const res = await fetch(`${apiBase}/products`, { headers });
+          if (res.ok) {
+            data = await res.json();
+          }
+        } catch (_) {}
+
+        if (!data || !Array.isArray(data) || data.length === 0) {
+          try {
+            const res = await fetch('/api/products');
+            if (res.ok) {
+              data = await res.json();
+            }
+          } catch (_) {}
+        }
+
+        if (data && Array.isArray(data) && data.length > 0) {
             const mapped = data.map((p: any) => ({
               id: p.id,
               name: p.name,
@@ -593,7 +610,6 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             });
             setSubCategories(allSubs);
           }
-        }
       } catch (e) {
         console.warn('Could not fetch products:', e);
       }
@@ -852,35 +868,55 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     let createdId = 'p-' + Date.now().toString();
 
     // Post to API with real database persistence
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const res = await fetch(`${apiBase}/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: newProdName.trim(),
-          sku: finalSku,
-          category: finalCat,
-          subCategory: finalSubCat,
-          brand: newProdBrand.trim() || 'Generic / Unbranded',
-          color: newProdColor.trim(),
-          unit: newProdUnit,
-          price: priceNum,
-          stock: parseInt(newProdStock) || 100,
-          taxRate: parseInt(newProdGst) || 18,
-          description: newProdDescription.trim(),
-          features: newProdFeatures,
-          imageUrl: fallbackCover,
-          images: finalImages,
-          volumeDiscounts: newProdVolumeDiscounts,
-        }),
-      });
+    const productPayload = {
+      name: newProdName.trim(),
+      sku: finalSku,
+      category: finalCat,
+      subCategory: finalSubCat,
+      brand: newProdBrand.trim() || 'Generic / Unbranded',
+      color: newProdColor.trim(),
+      unit: newProdUnit,
+      price: priceNum,
+      stock: parseInt(newProdStock) || 100,
+      taxRate: parseInt(newProdGst) || 18,
+      description: newProdDescription.trim(),
+      features: newProdFeatures,
+      imageUrl: fallbackCover,
+      images: finalImages,
+      volumeDiscounts: newProdVolumeDiscounts,
+    };
 
-      if (res.ok) {
+    try {
+      let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+        apiBase = '/api';
+      }
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      let res: Response | null = null;
+      try {
+        res = await fetch(`${apiBase}/products`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(productPayload),
+        });
+      } catch (_) {}
+
+      // Always also forward to /api/products for persistent local storage
+      try {
+        const apiRes = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(productPayload),
+        });
+        if ((!res || !res.ok) && apiRes.ok) {
+          res = apiRes;
+        }
+      } catch (_) {}
+
+      if (res && res.ok) {
         const savedData = await res.json();
         if (savedData && savedData.id) {
           createdId = savedData.id;

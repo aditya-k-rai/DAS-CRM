@@ -802,29 +802,29 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           apiBase = '/api';
         }
 
-        // Try backend seller-profile first (Prisma DB — cross-device)
+        // Try Next.js /api/organization/seller-profile first (file-based persistent store)
         let profile: any = null;
         try {
-          const res = await fetch(`${apiBase}/organizations/seller-profile`, {
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          });
-          if (res.ok) {
-            profile = await res.json();
-          }
+          const res = await fetch('/api/organization/seller-profile');
+          if (res.ok) profile = await res.json();
         } catch (_) {}
 
-        // Fallback: Next.js /api/organization/seller-profile (file-based)
+        // Fallback: Backend seller-profile (Prisma DB — cross-device)
         if (!profile || !profile.name) {
           try {
-            const res = await fetch('/api/organization/seller-profile');
-            if (res.ok) profile = await res.json();
+            const res = await fetch(`${apiBase}/organizations/seller-profile`, {
+              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            if (res.ok) {
+              profile = await res.json();
+            }
           } catch (_) {}
         }
 
         if (profile && profile.name) {
           const comp: CompanyDetails = {
             id: profile.id || 'comp-1',
-            name: profile.name || '',
+            name: profile.name || 'Adorable Trading',
             logoUrl: profile.logoUrl || '',
             address: profile.address || 'Registered Business Address',
             email: profile.email || '',
@@ -851,6 +851,30 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       }
     };
     fetchSellerProfile();
+
+    // Listen to real-time company updates
+    const handleRemoteCompanyUpdate = (e?: any) => {
+      if (e?.detail && e.detail.name) {
+        const updated = e.detail as CompanyDetails;
+        setCompanies([updated]);
+        setSelectedCompanyId(updated.id);
+        return;
+      }
+      fetchSellerProfile();
+    };
+    window.addEventListener('das_crm_seller_profile_updated', handleRemoteCompanyUpdate);
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('das_crm_company_channel');
+        bc.onmessage = () => fetchSellerProfile();
+      }
+    } catch (_) {}
+
+    return () => {
+      window.removeEventListener('das_crm_seller_profile_updated', handleRemoteCompanyUpdate);
+      if (bc) bc.close();
+    };
   }, []);
 
   // 👤 Sync Buyer / Client Parties from Database (/api/parties, /contacts & /leads)
@@ -977,6 +1001,36 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       }
     };
     fetchBuyers();
+
+    // Listen to real-time party updates
+    const handleRemotePartyUpdate = (e?: any) => {
+      if (e?.detail && e.detail.name) {
+        const updated = e.detail as PartyDetails;
+        setParties(prev => {
+          const exists = prev.find(p => p.id === updated.id);
+          const next = exists ? prev.map(p => p.id === updated.id ? updated : p) : [updated, ...prev];
+          try {
+            localStorage.setItem('das_crm_saved_parties', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+        return;
+      }
+      fetchBuyers();
+    };
+    window.addEventListener('das_crm_parties_updated', handleRemotePartyUpdate);
+    let bcParty: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bcParty = new BroadcastChannel('das_crm_party_channel');
+        bcParty.onmessage = () => fetchBuyers();
+      }
+    } catch (_) {}
+
+    return () => {
+      window.removeEventListener('das_crm_parties_updated', handleRemotePartyUpdate);
+      if (bcParty) bcParty.close();
+    };
   }, []);
 
   // Overall Discount & Terms
@@ -2234,6 +2288,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       });
     } catch (_) {}
 
+    // Broadcast company update to all other open tabs & dashboards
+    try {
+      window.dispatchEvent(new CustomEvent('das_crm_seller_profile_updated', { detail: updatedCompany }));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_company_channel');
+        bc.postMessage({ type: 'SELLER_PROFILE_UPDATED', company: updatedCompany });
+        bc.close();
+      }
+    } catch (_) {}
+
     setCompanyModalOpen(false);
     setEditingCompanyId(null);
     setNewComp({});
@@ -2337,6 +2401,16 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         });
       } catch (_) {}
     }
+
+    // Broadcast party update to all other open tabs & dashboards
+    try {
+      window.dispatchEvent(new CustomEvent('das_crm_parties_updated', { detail: updatedParty }));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_party_channel');
+        bc.postMessage({ type: 'PARTY_UPDATED', party: updatedParty });
+        bc.close();
+      }
+    } catch (_) {}
 
     setPartyModalOpen(false);
     setEditingPartyId(null);

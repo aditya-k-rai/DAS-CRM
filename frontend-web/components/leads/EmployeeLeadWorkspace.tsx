@@ -1233,34 +1233,60 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     setIsLoadingQuotesInvoices(true);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+        apiBase = '/api';
+      }
       let fetchedQuotes: any[] = [];
-      if (token) {
-        try {
-          const res = await fetch(`${apiBase}/quotations`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              fetchedQuotes = data;
+      const seenIds = new Set<string>();
+
+      // 1. Fetch from /api/quotations (file-based persistent store)
+      try {
+        const resApi = await fetch('/api/quotations');
+        if (resApi.ok) {
+          const data = await resApi.json();
+          if (Array.isArray(data)) {
+            for (const item of data) {
+              const k = item.id || item.quoteNumber || item.docNo;
+              if (k && !seenIds.has(k)) {
+                seenIds.add(k);
+                fetchedQuotes.push(item);
+              }
             }
           }
-        } catch (e) {
-          console.warn('API fetch quotations failed, falling back to local cache:', e);
         }
-      }
+      } catch (_) {}
 
+      // 2. Fetch from NestJS backend if reachable
+      try {
+        const res = await fetch(`${apiBase}/quotations`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            for (const item of data) {
+              const k = item.id || item.quoteNumber || item.docNo;
+              if (k && !seenIds.has(k)) {
+                seenIds.add(k);
+                fetchedQuotes.push(item);
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. Merge with localStorage cache
       if (typeof window !== 'undefined') {
         const localSaved = localStorage.getItem('das_crm_saved_quotes');
         if (localSaved) {
           try {
             const parsed = JSON.parse(localSaved);
             if (Array.isArray(parsed)) {
-              const existingIds = new Set(fetchedQuotes.map((q: any) => q.id || q.quoteNumber || q.docNo));
               for (const item of parsed) {
                 const identifier = item.id || item.quoteNumber || item.docNo;
-                if (!existingIds.has(identifier)) {
+                if (identifier && !seenIds.has(identifier)) {
+                  seenIds.add(identifier);
                   fetchedQuotes.push(item);
                 }
               }
@@ -2282,7 +2308,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       .catch(() => {});
 
     // Listen to real-time updates from Quotes & Products modules
-    const handleRemoteQuotesSync = () => {
+    const handleRemoteQuotesSync = (e?: any) => {
       try {
         const raw = localStorage.getItem('das_crm_saved_quotes');
         if (raw) {
@@ -2307,13 +2333,43 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       } catch (_) {}
     };
 
-    const handleRemoteProductsSync = () => {
+    const handleRemoteProductsSync = (e?: any) => {
+      if (e?.detail && e.detail.id) {
+        const p = e.detail;
+        const mappedP: ProposalCatalogProduct = {
+          id: p.id,
+          name: p.name,
+          category: p.category || 'General',
+          price: Number(p.price) || 0,
+          sku: p.sku,
+          coverImage: p.coverImage || p.imageUrl || p.images?.[0] || '/products/puff-jackets.jpg',
+          description: p.description || p.overview || '',
+          unit: p.unit || 'Units',
+        };
+        setCatalogProducts(prev => {
+          const exists = prev.some(item => item.id === mappedP.id || (item.sku && mappedP.sku && item.sku.toUpperCase() === mappedP.sku.toUpperCase()));
+          if (exists) {
+            return prev.map(item => (item.id === mappedP.id || (item.sku && mappedP.sku && item.sku.toUpperCase() === mappedP.sku.toUpperCase())) ? mappedP : item);
+          }
+          return [mappedP, ...prev];
+        });
+        return;
+      }
       try {
         const raw = localStorage.getItem('das_crm_products_catalog_cache');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setCatalogProducts(parsed);
+            setCatalogProducts(parsed.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              category: p.category || 'General',
+              price: Number(p.price) || 0,
+              sku: p.sku,
+              coverImage: p.coverImage || p.imageUrl || p.images?.[0] || '/products/puff-jackets.jpg',
+              description: p.description || p.overview || '',
+              unit: p.unit || 'Units',
+            })));
           }
         }
       } catch (_) {}
@@ -2322,9 +2378,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     window.addEventListener('das_crm_quotes_updated', handleRemoteQuotesSync);
     window.addEventListener('das_crm_products_updated', handleRemoteProductsSync);
 
+    let bcQuote: BroadcastChannel | null = null;
+    let bcProd: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bcQuote = new BroadcastChannel('das_crm_quote_channel');
+        bcQuote.onmessage = () => handleRemoteQuotesSync();
+        bcProd = new BroadcastChannel('das_crm_product_channel');
+        bcProd.onmessage = () => handleRemoteProductsSync();
+      }
+    } catch (_) {}
+
     return () => {
       window.removeEventListener('das_crm_quotes_updated', handleRemoteQuotesSync);
       window.removeEventListener('das_crm_products_updated', handleRemoteProductsSync);
+      if (bcQuote) bcQuote.close();
+      if (bcProd) bcProd.close();
     };
   }, []);
 

@@ -292,6 +292,60 @@ export class QuotationsService {
     };
 
     try {
+      const existing = await this.prisma.quotation.findFirst({
+        where: {
+          OR: [
+            ...(dto.id ? [{ id: dto.id }] : []),
+            { organizationId: resolvedOrgId, number: quoteNumber },
+          ],
+        },
+      }).catch(() => null);
+
+      if (existing) {
+        const updated = await this.prisma.quotation.update({
+          where: { id: existing.id },
+          data: {
+            title: dto.docType || dto.title || existing.title || 'QUOTATION',
+            status: status as any,
+            subtotal: subtotal,
+            grandTotal: grandTotal,
+            currency: dto.currency || existing.currency || 'INR',
+            validUntil: dto.validUntil ? new Date(dto.validUntil) : existing.validUntil,
+            pdfUrl: firebasePdfUrl || existing.pdfUrl || null,
+            notes: JSON.stringify(metadata),
+          },
+          include: { items: true },
+        });
+
+        return {
+          id: updated.id,
+          quoteNumber: updated.number,
+          clientName: metadata.partyName || 'Client',
+          clientCompany: metadata.companyName || 'Company',
+          totalAmount: Number(updated.grandTotal),
+          currency: updated.currency,
+          status: updated.status,
+          validUntil: updated.validUntil?.toISOString(),
+          itemsCount: dto.items ? dto.items.length : (updated.items ? updated.items.length : 0),
+          docType: updated.title || 'QUOTATION',
+          pdfUrl: firebasePdfUrl || updated.pdfUrl || undefined,
+          sentToLead: metadata.sentToLead,
+          sentVia: metadata.sentVia,
+          leadId: updated.leadId || undefined,
+          leadName: metadata.leadName,
+          createdByName: metadata.createdByName,
+          createdByRole: metadata.createdByRole,
+          notes: updated.notes || '',
+          payload: {
+            ...(metadata.payload || {}),
+            pdfUrl: firebasePdfUrl || updated.pdfUrl,
+          },
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+          items: dto.items || [],
+        };
+      }
+
       const dbQuote = await this.prisma.quotation.create({
         data: {
           organizationId: resolvedOrgId,
