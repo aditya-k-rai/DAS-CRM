@@ -11,6 +11,22 @@ export class UpdateOrganizationDto {
   settings?: any;
 }
 
+export class UpdateSellerProfileDto {
+  name?: string;
+  logoUrl?: string;
+  phone?: string;
+  address?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  bankDetails?: {
+    bankName?: string;
+    accountNo?: string;
+    ifscCode?: string;
+    branch?: string;
+    upiId?: string;
+  };
+}
+
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -79,5 +95,91 @@ export class OrganizationsService {
         subscription: true,
       },
     });
+  }
+
+  // ─── Seller Profile (Quotation) ─────────────────────────────────────
+  // Open to ALL roles in the organization — allows sales/managers to set seller details for quotations
+
+  async getSellerProfile(orgId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!org) {
+      throw new NotFoundException('Organization not found.');
+    }
+
+    const settings = (org.settings as any) || {};
+    const bankDetails = settings.bankDetails || {};
+
+    return {
+      id: org.id,
+      name: org.name || '',
+      logoUrl: (org as any).logoUrl || settings.logoUrl || '',
+      phone: org.phone || '',
+      address: settings.address || (org.city ? `${org.city}${org.state ? ', ' + org.state : ''}, India` : ''),
+      gstNumber: (org as any).gstNumber || settings.gstNumber || '',
+      panNumber: (org as any).panNumber || settings.panNumber || '',
+      bankDetails: {
+        bankName: bankDetails.bankName || '',
+        accountNo: bankDetails.accountNo || '',
+        ifscCode: bankDetails.ifscCode || '',
+        branch: bankDetails.branch || '',
+        upiId: bankDetails.upiId || '',
+      },
+    };
+  }
+
+  async updateSellerProfile(orgId: string, dto: UpdateSellerProfileDto) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!org) {
+      throw new NotFoundException('Organization not found.');
+    }
+
+    const currentSettings = (org.settings as any) || {};
+    const currentBankDetails = currentSettings.bankDetails || {};
+
+    const updatedSettings = {
+      ...currentSettings,
+      ...(dto.address !== undefined ? { address: dto.address } : {}),
+      ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+      ...(dto.gstNumber !== undefined ? { gstNumber: dto.gstNumber } : {}),
+      ...(dto.panNumber !== undefined ? { panNumber: dto.panNumber } : {}),
+      bankDetails: dto.bankDetails
+        ? { ...currentBankDetails, ...dto.bankDetails }
+        : currentBankDetails,
+    };
+
+    const updated = await this.prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        ...(dto.name ? { name: dto.name.trim() } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+        settings: updatedSettings,
+      },
+    });
+
+    const settings = (updated.settings as any) || {};
+    const bankDetails = settings.bankDetails || {};
+
+    return {
+      id: updated.id,
+      name: updated.name || '',
+      logoUrl: settings.logoUrl || '',
+      phone: updated.phone || '',
+      address: settings.address || '',
+      gstNumber: settings.gstNumber || '',
+      panNumber: settings.panNumber || '',
+      bankDetails: {
+        bankName: bankDetails.bankName || '',
+        accountNo: bankDetails.accountNo || '',
+        ifscCode: bankDetails.ifscCode || '',
+        branch: bankDetails.branch || '',
+        upiId: bankDetails.upiId || '',
+      },
+    };
   }
 }

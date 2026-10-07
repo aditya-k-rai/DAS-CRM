@@ -778,100 +778,199 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     };
   }, []);
 
-  // 🏢 Sync Companies (Seller) from Database (/companies)
+  // 🏢 Sync Seller Company from seller-profile endpoint (cross-device persistent)
   useEffect(() => {
-    const fetchCompanies = async () => {
+    // 1. Instantly load from localStorage cache
+    if (typeof window !== 'undefined') {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/companies`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const list = Array.isArray(json) ? json : json?.items || [];
-          if (list.length > 0) {
-            const mapped: CompanyDetails[] = list.map((c: any) => ({
-              id: c.id,
-              name: c.name || 'Adorable Trading',
-              logoUrl: c.customFields?.logoUrl || c.logoUrl || '',
-              address: c.customFields?.address || (c.city ? `${c.city}, ${c.country || 'India'}` : 'Registered Business Address'),
-              email: c.customFields?.email || c.website || 'contact@company.com',
-              phone: c.phone || '+91 98765 43210',
-              gstNo: c.customFields?.gstNo || '',
-              panNo: c.customFields?.panNo || '',
-              bankName: c.customFields?.bankName || 'HDFC Bank',
-              accountNo: c.customFields?.accountNo || '50200012345678',
-              ifscCode: c.customFields?.ifscCode || 'HDFC0001234',
-              branch: c.customFields?.branch || 'Corporate Hub',
-              upiId: c.customFields?.upiId || 'company@upi',
-            }));
-            setCompanies(mapped);
-            if (mapped[0]?.id) setSelectedCompanyId(mapped[0].id);
+        const cached = localStorage.getItem('das_crm_seller_companies');
+        if (cached) {
+          const parsed: CompanyDetails[] = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCompanies(parsed);
+            setSelectedCompanyId(parsed[0].id);
           }
         }
+      } catch (_) {}
+    }
+
+    const fetchSellerProfile = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+          apiBase = '/api';
+        }
+
+        // Try backend seller-profile first (Prisma DB — cross-device)
+        let profile: any = null;
+        try {
+          const res = await fetch(`${apiBase}/organizations/seller-profile`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+          if (res.ok) {
+            profile = await res.json();
+          }
+        } catch (_) {}
+
+        // Fallback: Next.js /api/organization/seller-profile (file-based)
+        if (!profile || !profile.name) {
+          try {
+            const res = await fetch('/api/organization/seller-profile');
+            if (res.ok) profile = await res.json();
+          } catch (_) {}
+        }
+
+        if (profile && profile.name) {
+          const comp: CompanyDetails = {
+            id: profile.id || 'comp-1',
+            name: profile.name || '',
+            logoUrl: profile.logoUrl || '',
+            address: profile.address || 'Registered Business Address',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            gstNo: profile.gstNumber || '',
+            panNo: profile.panNumber || '',
+            bankName: profile.bankDetails?.bankName || 'HDFC Bank',
+            accountNo: profile.bankDetails?.accountNo || '',
+            ifscCode: profile.bankDetails?.ifscCode || '',
+            branch: profile.bankDetails?.branch || '',
+            upiId: profile.bankDetails?.upiId || '',
+          };
+          setCompanies([comp]);
+          setSelectedCompanyId(comp.id);
+          // Update localStorage cache
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('das_crm_seller_companies', JSON.stringify([comp]));
+            }
+          } catch (_) {}
+        }
       } catch (e) {
-        console.warn('Failed to load companies from backend:', e);
+        console.warn('Failed to load seller profile from backend:', e);
       }
     };
-    fetchCompanies();
+    fetchSellerProfile();
   }, []);
 
-  // 👤 Sync Buyer / Client Parties from Database (/contacts & /leads)
+  // 👤 Sync Buyer / Client Parties from Database (/api/parties, /contacts & /leads)
   useEffect(() => {
+    // 1. Instantly load saved parties from localStorage cache
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('das_crm_saved_parties');
+        if (cached) {
+          const parsed: PartyDetails[] = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setParties(parsed);
+            setSelectedPartyId(parsed[0].id);
+          }
+        }
+      } catch (_) {}
+    }
+
     const fetchBuyers = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const [contactsRes, leadsRes] = await Promise.allSettled([
-          fetch(`${apiBase}/contacts`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }),
-          fetch(`${apiBase}/leads`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }),
-        ]);
+        let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+          apiBase = '/api';
+        }
 
         const fetchedParties: PartyDetails[] = [];
-        if (contactsRes.status === 'fulfilled' && contactsRes.value.ok) {
-          const cJson = await contactsRes.value.json();
-          const cList = Array.isArray(cJson) ? cJson : cJson?.items || [];
-          cList.forEach((c: any) => {
-            const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.company?.name || 'Contact';
-            fetchedParties.push({
-              id: `contact-${c.id}`,
-              name: fullName,
-              contactPerson: fullName,
-              email: c.email || '',
-              phone: c.phone || '',
-              address: c.company?.name ? `${c.company.name}, Registered Office` : 'Billed To Address',
-              shippingAddress: '',
-              gstNo: c.customFields?.gstNo || '',
-              panNo: c.customFields?.panNo || '',
-            });
-          });
-        }
+        const seenNames = new Set<string>();
 
-        if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
-          const lJson = await leadsRes.value.json();
-          const lList = Array.isArray(lJson) ? lJson : lJson?.items || [];
-          lList.forEach((l: any) => {
-            const leadName = l.name || [l.firstName, l.lastName].filter(Boolean).join(' ') || l.company || 'Lead Client';
-            if (!fetchedParties.some(p => p.name === leadName || (l.phone && p.phone === l.phone))) {
-              fetchedParties.push({
-                id: `lead-${l.id}`,
-                name: leadName,
-                contactPerson: leadName,
-                email: l.email || '',
-                phone: l.phone || '',
-                address: l.address || l.company || 'Billed To Address',
-                shippingAddress: '',
-                gstNo: l.gstNumber || l.customFields?.gstNo || '',
-                panNo: l.panNumber || l.customFields?.panNo || '',
+        // Priority 1: /api/parties (file-based persistent store — always reliable)
+        try {
+          const res = await fetch('/api/parties');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              data.forEach((p: any) => {
+                if (!seenNames.has(p.name)) {
+                  seenNames.add(p.name);
+                  fetchedParties.push({
+                    id: p.id,
+                    name: p.name,
+                    contactPerson: p.contactPerson || '',
+                    email: p.email || '',
+                    phone: p.phone || '',
+                    address: p.address || 'Billed To Address',
+                    shippingAddress: p.shippingAddress || '',
+                    gstNo: p.gstNo || '',
+                    panNo: p.panNo || '',
+                  });
+                }
               });
             }
+          }
+        } catch (_) {}
+
+        // Priority 2: Backend /contacts (Prisma DB)
+        try {
+          const contactsRes = await fetch(`${apiBase}/contacts`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           });
-        }
+          if (contactsRes.ok) {
+            const cJson = await contactsRes.json();
+            const cList = Array.isArray(cJson) ? cJson : cJson?.items || [];
+            cList.forEach((c: any) => {
+              const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.company?.name || 'Contact';
+              if (!seenNames.has(fullName)) {
+                seenNames.add(fullName);
+                fetchedParties.push({
+                  id: `contact-${c.id}`,
+                  name: fullName,
+                  contactPerson: fullName,
+                  email: c.email || '',
+                  phone: c.phone || '',
+                  address: c.customFields?.address || (c.company?.name ? `${c.company.name}, Registered Office` : 'Billed To Address'),
+                  shippingAddress: c.customFields?.shippingAddress || '',
+                  gstNo: c.customFields?.gstNo || '',
+                  panNo: c.customFields?.panNo || '',
+                });
+              }
+            });
+          }
+        } catch (_) {}
+
+        // Priority 3: Backend /leads
+        try {
+          const leadsRes = await fetch(`${apiBase}/leads`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+          if (leadsRes.ok) {
+            const lJson = await leadsRes.json();
+            const lList = Array.isArray(lJson) ? lJson : lJson?.items || [];
+            lList.forEach((l: any) => {
+              const leadName = l.name || [l.firstName, l.lastName].filter(Boolean).join(' ') || l.company || 'Lead Client';
+              if (!seenNames.has(leadName)) {
+                seenNames.add(leadName);
+                fetchedParties.push({
+                  id: `lead-${l.id}`,
+                  name: leadName,
+                  contactPerson: leadName,
+                  email: l.email || '',
+                  phone: l.phone || '',
+                  address: l.address || l.company || 'Billed To Address',
+                  shippingAddress: '',
+                  gstNo: l.gstNumber || l.customFields?.gstNo || '',
+                  panNo: l.panNumber || l.customFields?.panNo || '',
+                });
+              }
+            });
+          }
+        } catch (_) {}
 
         if (fetchedParties.length > 0) {
           setParties(fetchedParties);
           setSelectedPartyId(fetchedParties[0].id);
+          // Update localStorage cache
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('das_crm_saved_parties', JSON.stringify(fetchedParties));
+            }
+          } catch (_) {}
         }
       } catch (err) {
         console.warn('Failed to load buyers from backend:', err);
@@ -2038,218 +2137,207 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     reader.readAsDataURL(file);
   };
 
-  // 🏢 SAVE / UPDATE SELLER COMPANY IN DATABASE (/companies)
+  // 🏢 SAVE / UPDATE SELLER COMPANY — persists to backend DB + file storage + localStorage
   const handleSaveNewCompany = async () => {
     if (!newComp.name || !newComp.name.trim()) {
       alert('Company Name is required.');
       return;
     }
-    if (!newComp.email || !newComp.email.trim()) {
-      alert('Company Email Address is required.');
-      return;
-    }
-    if (!newComp.phone || !newComp.phone.trim()) {
-      alert('Company Contact Number is required.');
-      return;
-    }
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-
-    if (editingCompanyId) {
-      const updatedCompany: CompanyDetails = {
-        id: editingCompanyId,
-        name: newComp.name.trim(),
-        logoUrl: newComp.logoUrl || activeCompany?.logoUrl || '',
-        address: newComp.address || activeCompany?.address || 'Address',
-        email: newComp.email.trim(),
-        phone: newComp.phone.trim(),
-        gstNo: newComp.gstNo || activeCompany?.gstNo || '',
-        panNo: newComp.panNo || activeCompany?.panNo || '',
-        bankName: newComp.bankName || activeCompany?.bankName || 'Bank',
-        accountNo: newComp.accountNo || activeCompany?.accountNo || '',
-        ifscCode: newComp.ifscCode || activeCompany?.ifscCode || '',
-        branch: newComp.branch || activeCompany?.branch || '',
-        upiId: newComp.upiId || activeCompany?.upiId || '',
-      };
-
-      setCompanies(prev => prev.map(c => c.id === editingCompanyId ? updatedCompany : c));
-
-      if (!editingCompanyId.startsWith('comp-')) {
-        try {
-          await fetch(`${apiBase}/companies/${editingCompanyId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              name: updatedCompany.name,
-              phone: updatedCompany.phone,
-              customFields: {
-                email: updatedCompany.email,
-                address: updatedCompany.address,
-                gstNo: updatedCompany.gstNo,
-                panNo: updatedCompany.panNo,
-                bankName: updatedCompany.bankName,
-                accountNo: updatedCompany.accountNo,
-                ifscCode: updatedCompany.ifscCode,
-                branch: updatedCompany.branch,
-                upiId: updatedCompany.upiId,
-                logoUrl: updatedCompany.logoUrl,
-              },
-            }),
-          });
-        } catch (err) {
-          console.warn('Backend company update failed:', err);
-        }
-      }
-    } else {
-      let savedId = `comp-${Date.now()}`;
-      try {
-        const res = await fetch(`${apiBase}/companies`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            name: newComp.name.trim(),
-            phone: newComp.phone.trim(),
-            customFields: {
-              email: newComp.email.trim(),
-              address: newComp.address || 'Address',
-              gstNo: newComp.gstNo || '',
-              panNo: newComp.panNo || '',
-              bankName: newComp.bankName || 'Bank',
-              accountNo: newComp.accountNo || '',
-              ifscCode: newComp.ifscCode || '',
-              branch: newComp.branch || '',
-              upiId: newComp.upiId || '',
-              logoUrl: newComp.logoUrl || '',
-            },
-          }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json?.id) savedId = json.id;
-        }
-      } catch (err) {
-        console.warn('Backend company create failed:', err);
-      }
-
-      const comp: CompanyDetails = {
-        id: savedId,
-        name: newComp.name.trim(),
-        logoUrl: newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
-        address: newComp.address || 'Address',
-        email: newComp.email.trim(),
-        phone: newComp.phone.trim(),
-        gstNo: newComp.gstNo || '',
-        panNo: newComp.panNo || '',
-        bankName: newComp.bankName || 'Bank',
-        accountNo: newComp.accountNo || '',
-        ifscCode: newComp.ifscCode || '',
-        branch: newComp.branch || '',
-        upiId: newComp.upiId || '',
-      };
-      setCompanies(prev => [comp, ...prev]);
-      setSelectedCompanyId(comp.id);
+    let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+      apiBase = '/api';
     }
+
+    // Resolve logo: if base64 data URL, upload to static storage first
+    let resolvedLogoUrl = newComp.logoUrl || activeCompany?.logoUrl || '';
+    if (resolvedLogoUrl && resolvedLogoUrl.startsWith('data:')) {
+      try {
+        const uploadRes = await fetch('/api/products/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageData: resolvedLogoUrl, filename: `company_logo_${Date.now()}.jpg` }),
+        });
+        if (uploadRes.ok) {
+          const uploadJson = await uploadRes.json();
+          if (uploadJson?.url) resolvedLogoUrl = uploadJson.url;
+        }
+      } catch (_) {}
+    }
+
+    const companyId = editingCompanyId || 'comp-1';
+    const updatedCompany: CompanyDetails = {
+      id: companyId,
+      name: newComp.name.trim(),
+      logoUrl: resolvedLogoUrl,
+      address: newComp.address || activeCompany?.address || 'Registered Business Address',
+      email: newComp.email || activeCompany?.email || '',
+      phone: newComp.phone || activeCompany?.phone || '',
+      gstNo: newComp.gstNo || activeCompany?.gstNo || '',
+      panNo: newComp.panNo || activeCompany?.panNo || '',
+      bankName: newComp.bankName || activeCompany?.bankName || 'HDFC Bank',
+      accountNo: newComp.accountNo || activeCompany?.accountNo || '',
+      ifscCode: newComp.ifscCode || activeCompany?.ifscCode || '',
+      branch: newComp.branch || activeCompany?.branch || '',
+      upiId: newComp.upiId || activeCompany?.upiId || '',
+    };
+
+    // 1. Update state immediately
+    setCompanies(prev => {
+      const exists = prev.find(c => c.id === companyId);
+      return exists ? prev.map(c => c.id === companyId ? updatedCompany : c) : [updatedCompany, ...prev];
+    });
+    setSelectedCompanyId(companyId);
+
+    // 2. Persist to localStorage immediately (instant cross-tab sync)
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('das_crm_seller_companies', JSON.stringify([updatedCompany]));
+      }
+    } catch (_) {}
+
+    const sellerPayload = {
+      name: updatedCompany.name,
+      logoUrl: updatedCompany.logoUrl,
+      phone: updatedCompany.phone,
+      address: updatedCompany.address,
+      gstNumber: updatedCompany.gstNo,
+      panNumber: updatedCompany.panNo,
+      bankDetails: {
+        bankName: updatedCompany.bankName,
+        accountNo: updatedCompany.accountNo,
+        ifscCode: updatedCompany.ifscCode,
+        branch: updatedCompany.branch,
+        upiId: updatedCompany.upiId,
+      },
+    };
+
+    // 3. Save to backend Prisma DB (cross-device persistent)
+    try {
+      await fetch(`${apiBase}/organizations/seller-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(sellerPayload),
+      });
+    } catch (_) {}
+
+    // 4. Save to Next.js /api/organization/seller-profile (file-based fallback)
+    try {
+      await fetch('/api/organization/seller-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sellerPayload),
+      });
+    } catch (_) {}
+
     setCompanyModalOpen(false);
     setEditingCompanyId(null);
     setNewComp({});
   };
 
-  // 👤 SAVE / UPDATE BUYER (CLIENT) IN DATABASE (/contacts)
+  // 👤 SAVE / UPDATE BUYER PARTY — persists to /api/parties + backend /contacts + localStorage
   const handleSaveNewParty = async () => {
     if (!newParty.name || !newParty.name.trim()) {
       alert('Client Party Name is required.');
       return;
     }
-    if (!newParty.email || !newParty.email.trim()) {
-      alert('Client Email Address is required.');
-      return;
-    }
-    if (!newParty.phone || !newParty.phone.trim()) {
-      alert('Client Phone Number is required.');
-      return;
-    }
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    let apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBase.startsWith('http://localhost')) {
+      apiBase = '/api';
+    }
 
-    if (editingPartyId) {
-      const updatedParty: PartyDetails = {
-        id: editingPartyId,
-        name: newParty.name.trim(),
-        contactPerson: newParty.contactPerson ?? activeParty?.contactPerson,
-        email: newParty.email.trim(),
-        phone: newParty.phone.trim(),
-        address: newParty.address || activeParty?.address || 'Address',
-        shippingAddress: newParty.shippingAddress ?? activeParty?.shippingAddress,
-        gstNo: newParty.gstNo || activeParty?.gstNo || '',
-        panNo: newParty.panNo || activeParty?.panNo || '',
-      };
+    const partyId = editingPartyId || `party-${Date.now()}`;
+    const updatedParty: PartyDetails = {
+      id: partyId,
+      name: newParty.name.trim(),
+      contactPerson: newParty.contactPerson ?? activeParty?.contactPerson ?? '',
+      email: newParty.email || activeParty?.email || '',
+      phone: newParty.phone || activeParty?.phone || '',
+      address: newParty.address || activeParty?.address || 'Billed To Address',
+      shippingAddress: newParty.shippingAddress ?? activeParty?.shippingAddress ?? '',
+      gstNo: newParty.gstNo || activeParty?.gstNo || '',
+      panNo: newParty.panNo || activeParty?.panNo || '',
+    };
 
-      setParties(prev => prev.map(p => p.id === editingPartyId ? updatedParty : p));
+    // 1. Update state immediately
+    setParties(prev => {
+      const exists = prev.find(p => p.id === partyId);
+      return exists ? prev.map(p => p.id === partyId ? updatedParty : p) : [updatedParty, ...prev];
+    });
+    if (!editingPartyId) setSelectedPartyId(partyId);
 
-      if (editingPartyId.startsWith('contact-')) {
-        const cleanId = editingPartyId.replace('contact-', '');
-        try {
-          await fetch(`${apiBase}/contacts/${cleanId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              firstName: updatedParty.name,
-              email: updatedParty.email,
-              phone: updatedParty.phone,
-            }),
-          });
-        } catch (err) {
-          console.warn('Backend contact update failed:', err);
-        }
+    // 2. Persist to localStorage immediately
+    try {
+      if (typeof window !== 'undefined') {
+        const existing = JSON.parse(localStorage.getItem('das_crm_saved_parties') || '[]');
+        const exists = existing.find((p: any) => p.id === partyId);
+        const next = exists
+          ? existing.map((p: any) => p.id === partyId ? updatedParty : p)
+          : [updatedParty, ...existing];
+        localStorage.setItem('das_crm_saved_parties', JSON.stringify(next));
       }
-    } else {
-      let savedId = `party-${Date.now()}`;
-      try {
-        const res = await fetch(`${apiBase}/contacts`, {
+    } catch (_) {}
+
+    const partyPayload = {
+      id: partyId,
+      name: updatedParty.name,
+      contactPerson: updatedParty.contactPerson,
+      email: updatedParty.email,
+      phone: updatedParty.phone,
+      address: updatedParty.address,
+      shippingAddress: updatedParty.shippingAddress,
+      gstNo: updatedParty.gstNo,
+      panNo: updatedParty.panNo,
+    };
+
+    // 3. Save to Next.js /api/parties (file-based — cross-device persistent)
+    try {
+      if (editingPartyId) {
+        await fetch(`/api/parties/${partyId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(partyPayload),
+        });
+      } else {
+        await fetch('/api/parties', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(partyPayload),
+        });
+      }
+    } catch (_) {}
+
+    // 4. Also sync to backend /contacts if it's a backend-originated contact
+    if (editingPartyId && editingPartyId.startsWith('contact-')) {
+      const cleanId = editingPartyId.replace('contact-', '');
+      try {
+        await fetch(`${apiBase}/contacts/${cleanId}`, {
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            firstName: newParty.name.trim(),
-            email: newParty.email.trim(),
-            phone: newParty.phone.trim(),
+            firstName: updatedParty.name,
+            email: updatedParty.email,
+            phone: updatedParty.phone,
+            customFields: {
+              address: updatedParty.address,
+              shippingAddress: updatedParty.shippingAddress,
+              gstNo: updatedParty.gstNo,
+              panNo: updatedParty.panNo,
+            },
           }),
         });
-        if (res.ok) {
-          const json = await res.json();
-          if (json?.id) savedId = `contact-${json.id}`;
-        }
-      } catch (err) {
-        console.warn('Backend contact create failed:', err);
-      }
-
-      const party: PartyDetails = {
-        id: savedId,
-        name: newParty.name.trim(),
-        contactPerson: newParty.contactPerson,
-        email: newParty.email.trim(),
-        phone: newParty.phone.trim(),
-        address: newParty.address || 'Address',
-        shippingAddress: newParty.shippingAddress,
-        gstNo: newParty.gstNo || '',
-        panNo: newParty.panNo || '',
-      };
-      setParties(prev => [party, ...prev]);
-      setSelectedPartyId(party.id);
+      } catch (_) {}
     }
+
     setPartyModalOpen(false);
     setEditingPartyId(null);
     setNewParty({});
