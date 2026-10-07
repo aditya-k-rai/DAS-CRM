@@ -602,14 +602,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   // Company State
   const [companies, setCompanies] = useState<CompanyDetails[]>(INITIAL_COMPANIES);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(INITIAL_COMPANIES[0].id);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(INITIAL_COMPANIES[0]?.id || 'comp-1');
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [newComp, setNewComp] = useState<Partial<CompanyDetails>>({});
 
   // Party State
   const [parties, setParties] = useState<PartyDetails[]>(INITIAL_PARTIES);
-  const [selectedPartyId, setSelectedPartyId] = useState<string>(INITIAL_PARTIES[0].id);
+  const [selectedPartyId, setSelectedPartyId] = useState<string>(INITIAL_PARTIES[0]?.id || '');
   const [partyModalOpen, setPartyModalOpen] = useState(false);
   const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
   const [newParty, setNewParty] = useState<Partial<PartyDetails>>({});
@@ -1118,8 +1118,12 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
 
   // Selected Active Company & Party
-  const activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
-  const activeParty = parties.find(p => p.id === selectedPartyId) || parties[0];
+  const activeCompany = (companies && companies.length > 0)
+    ? (companies.find(c => c.id === selectedCompanyId) || companies[0])
+    : null;
+  const activeParty = (parties && parties.length > 0)
+    ? (parties.find(p => p.id === selectedPartyId) || parties[0])
+    : null;
 
   // Apply Global GST Rate via Slider
   const handleApplyGlobalGst = (rate: number) => {
@@ -1662,8 +1666,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         gstType,
         docDate,
         validUntilDate,
-        companyDetails: activeCompany,
-        partyDetails: activeParty,
+        companyDetails: activeCompany || undefined,
+        partyDetails: activeParty || undefined,
         termsText,
         pdfUrl,
       };
@@ -1946,8 +1950,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       gstType,
       docDate,
       validUntilDate,
-      companyDetails: activeCompany,
-      partyDetails: activeParty,
+      companyDetails: activeCompany || undefined,
+      partyDetails: activeParty || undefined,
       termsText,
       pdfUrl: draftPdfUrl,
     };
@@ -2399,32 +2403,34 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             {/* Header: Company Info + Document Title Block */}
             <div className="flex items-center gap-3.5 max-w-[65%]">
               <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
-                <img
-                  src={activeCompany.logoUrl}
-                  alt="Logo"
-                  onError={(e) => {
-                    const target = e.target as HTMLElement;
-                    target.style.display = 'none';
-                    if (target.nextElementSibling) {
-                      (target.nextElementSibling as HTMLElement).style.display = 'flex';
-                    }
-                  }}
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-md object-cover border border-slate-200 shadow-sm"
-                />
+                {activeCompany?.logoUrl ? (
+                  <img
+                    src={activeCompany.logoUrl}
+                    alt="Logo"
+                    onError={(e) => {
+                      const target = e.target as HTMLElement;
+                      target.style.display = 'none';
+                      if (target.nextElementSibling) {
+                        (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                      }
+                    }}
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-md object-cover border border-slate-200 shadow-sm"
+                  />
+                ) : null}
                 <div
-                  style={{ display: 'none', backgroundColor: '#002060', color: '#ffffff' }}
+                  style={{ display: activeCompany?.logoUrl ? 'none' : 'flex', backgroundColor: '#002060', color: '#ffffff' }}
                   className="w-10 h-10 sm:w-12 sm:h-12 rounded-md items-center justify-center font-black text-xs sm:text-sm border border-slate-200 shadow-sm uppercase"
                 >
-                  {activeCompany.name ? activeCompany.name.slice(0, 2) : 'CO'}
+                  {activeCompany?.name ? activeCompany.name.slice(0, 2) : 'CO'}
                 </div>
               </div>
               <div className="space-y-0.5 min-w-0">
-                <h1 style={{ color: '#002060' }} className="text-[12px] sm:text-[14px] font-black tracking-tight uppercase leading-snug break-words">{activeCompany.name}</h1>
-                <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-snug break-words">{activeCompany.address}</p>
+                <h1 style={{ color: '#002060' }} className="text-[12px] sm:text-[14px] font-black tracking-tight uppercase leading-snug break-words">{activeCompany?.name || 'Your Company Name'}</h1>
+                <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-snug break-words">{activeCompany?.address || 'Registered Business Address'}</p>
                 <p className="text-[9px] sm:text-[9.5px] font-extrabold text-[#002060] mt-0.5">
-                  GSTIN: <span className="font-mono">{activeCompany.gstNo}</span> • PAN: <span className="font-mono">{activeCompany.panNo}</span>
+                  GSTIN: <span className="font-mono">{activeCompany?.gstNo || 'N/A'}</span> • PAN: <span className="font-mono">{activeCompany?.panNo || 'N/A'}</span>
                 </p>
-                {activeCompany.email && (
+                {activeCompany?.email && (
                   <p className="text-[8.5px] sm:text-[9px] text-slate-500">Email: {activeCompany.email}</p>
                 )}
               </div>
@@ -2451,11 +2457,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             {/* Billing Address Column */}
             <div>
               <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Billed To (Buyer)</span>
-              <h4 className="text-[11px] sm:text-[12px] font-black text-slate-900 leading-snug break-words">{activeParty.name}</h4>
-              {activeParty.contactPerson && (
+              <h4 className="text-[11px] sm:text-[12px] font-black text-slate-900 leading-snug break-words">{activeParty?.name || 'Client / Party Name'}</h4>
+              {activeParty?.contactPerson && (
                 <p className="text-[9px] sm:text-[9.5px] font-medium text-slate-700 mt-0.5">Attn: {activeParty.contactPerson}</p>
               )}
-              <p className="text-[9px] sm:text-[9.5px] text-slate-600 mt-0.5 leading-snug break-words">{activeParty.address}</p>
+              <p className="text-[9px] sm:text-[9.5px] text-slate-600 mt-0.5 leading-snug break-words">{activeParty?.address || 'Client Address'}</p>
             </div>
 
             {/* Separate Shipping Address Column (if enabled) */}
@@ -2464,9 +2470,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-[#002060] block mb-0.5 flex items-center gap-1">
                   🚚 Shipped To (Consignee)
                 </span>
-                <h4 className="text-[11px] sm:text-[12px] font-black text-slate-900 leading-snug break-words">{activeParty.name}</h4>
+                <h4 className="text-[11px] sm:text-[12px] font-black text-slate-900 leading-snug break-words">{activeParty?.name || 'Client / Party Name'}</h4>
                 <p className="text-[9px] sm:text-[9.5px] text-slate-600 mt-0.5 leading-snug break-words">
-                  {customShippingAddress || activeParty.shippingAddress || activeParty.address}
+                  {customShippingAddress || activeParty?.shippingAddress || activeParty?.address || 'Shipping Address'}
                 </p>
               </div>
             )}
@@ -2474,9 +2480,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             {/* Tax & Contact Column */}
             <div className="text-right space-y-0.5">
               <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Tax &amp; Identifiers</span>
-              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">GSTIN: <span className="font-mono text-[#002060]">{activeParty.gstNo}</span></p>
-              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">PAN: <span className="font-mono">{activeParty.panNo}</span></p>
-              <p className="text-[9px] sm:text-[9.5px] text-slate-600">📞 {activeParty.phone}</p>
+              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">GSTIN: <span className="font-mono text-[#002060]">{activeParty?.gstNo || 'N/A'}</span></p>
+              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">PAN: <span className="font-mono">{activeParty?.panNo || 'N/A'}</span></p>
+              <p className="text-[9px] sm:text-[9.5px] text-slate-600">📞 {activeParty?.phone || 'N/A'}</p>
               <p className="text-[8.5px] sm:text-[9px] font-semibold text-slate-500">Place of Supply: <span className="text-slate-800 font-bold">Uttar Pradesh</span></p>
             </div>
           </div>
@@ -2518,7 +2524,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                               onError={(e) => {
                                 const target = e.currentTarget;
                                 target.onerror = null;
-                                target.src = '/products/puff-jackets.jpg';
+                                target.style.display = 'none';
                               }}
                             />
                           )}
@@ -2561,10 +2567,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             <div className="space-y-1.5">
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-0.5">
                 <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Bank Payment Details</span>
-                <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">Bank: {activeCompany.bankName}</p>
-                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[9.5px] font-bold font-mono">A/C No: {activeCompany.accountNo}</p>
-                <p className="text-[9px] sm:text-[9.5px] text-slate-600">IFSC: <span className="font-mono">{activeCompany.ifscCode}</span> • Branch: {activeCompany.branch}</p>
-                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[9.5px] font-extrabold">UPI ID: {activeCompany.upiId}</p>
+                <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">Bank: {activeCompany?.bankName || 'N/A'}</p>
+                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[9.5px] font-bold font-mono">A/C No: {activeCompany?.accountNo || 'N/A'}</p>
+                <p className="text-[9px] sm:text-[9.5px] text-slate-600">IFSC: <span className="font-mono">{activeCompany?.ifscCode || 'N/A'}</span> • Branch: {activeCompany?.branch || 'N/A'}</p>
+                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[9.5px] font-extrabold">UPI ID: {activeCompany?.upiId || 'N/A'}</p>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
@@ -2649,7 +2655,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               <p className="text-[8.5px] sm:text-[9px] text-slate-600 whitespace-pre-line leading-snug break-words">{termsText}</p>
             </div>
             <div className="text-right space-y-2">
-              <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-800">For {activeCompany.name}</p>
+              <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-800">For {activeCompany?.name || 'Company'}</p>
               <div className="inline-block border-b border-slate-400 w-32 pb-0.5 text-center">
                 <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Authorized Signatory</span>
               </div>
@@ -3459,40 +3465,50 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     onChange={e => setSelectedCompanyId(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold cursor-pointer focus:border-indigo-500 focus:outline-none"
                   >
-                    {companies.map((comp, idx) => (
-                      <option key={comp.id} value={comp.id}>
-                        {idx === 0 ? `✨ (Recent) ${comp.name}` : comp.name} — GSTIN: {comp.gstNo}
-                      </option>
-                    ))}
+                    {companies.length === 0 ? (
+                      <option value="">No seller company profile found (Click '+ Add Company')</option>
+                    ) : (
+                      companies.map((comp, idx) => (
+                        <option key={comp.id} value={comp.id}>
+                          {idx === 0 ? `✨ (Recent) ${comp.name || 'Company Profile'}` : comp.name || 'Company Profile'} {comp.gstNo ? `— GSTIN: ${comp.gstNo}` : ''}
+                        </option>
+                      ))
+                    )}
                   </select>
 
-                  {activeCompany && (
+                  {!activeCompany ? (
+                    <div className="bg-slate-950/60 border border-dashed border-indigo-500/30 rounded-xl p-3 text-center">
+                      <p className="text-xs text-slate-400">No company details entered. Click <strong className="text-indigo-400">+ Add Company</strong> to setup your business profile.</p>
+                    </div>
+                  ) : (
                     <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0 flex-1">
                         <div className="relative w-9 h-9 flex-shrink-0">
-                          <img
-                            src={activeCompany.logoUrl}
-                            alt="Logo"
-                            onError={(e) => {
-                              const target = e.target as HTMLElement;
-                              target.style.display = 'none';
-                              if (target.nextElementSibling) {
-                                (target.nextElementSibling as HTMLElement).style.display = 'flex';
-                              }
-                            }}
-                            className="w-9 h-9 rounded-lg object-cover border border-indigo-500/40"
-                          />
+                          {activeCompany.logoUrl ? (
+                            <img
+                              src={activeCompany.logoUrl}
+                              alt="Logo"
+                              onError={(e) => {
+                                const target = e.target as HTMLElement;
+                                target.style.display = 'none';
+                                if (target.nextElementSibling) {
+                                  (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                                }
+                              }}
+                              className="w-9 h-9 rounded-lg object-cover border border-indigo-500/40"
+                            />
+                          ) : null}
                           <div
-                            style={{ display: 'none' }}
+                            style={{ display: activeCompany.logoUrl ? 'none' : 'flex' }}
                             className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-black text-xs items-center justify-center border border-indigo-500/40 uppercase"
                           >
                             {activeCompany.name ? activeCompany.name.slice(0, 2) : 'CO'}
                           </div>
                         </div>
                         <div className="text-xs space-y-0.5 min-w-0 flex-1">
-                          <p className="font-extrabold text-white truncate">{activeCompany.name}</p>
-                          <p className="text-[11px] text-slate-400 truncate">{activeCompany.address}</p>
-                          <p className="text-[10px] font-bold text-indigo-400 mt-1">GSTIN: {activeCompany.gstNo} • PAN: {activeCompany.panNo}</p>
+                          <p className="font-extrabold text-white truncate">{activeCompany.name || 'Your Company'}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{activeCompany.address || 'Address not specified'}</p>
+                          <p className="text-[10px] font-bold text-indigo-400 mt-1">GSTIN: {activeCompany.gstNo || 'N/A'} • PAN: {activeCompany.panNo || 'N/A'}</p>
                         </div>
                       </div>
                       <button
@@ -3596,19 +3612,27 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     onChange={e => setSelectedPartyId(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold cursor-pointer focus:border-emerald-500 focus:outline-none"
                   >
-                    {parties.map((party, idx) => (
-                      <option key={party.id} value={party.id}>
-                        {idx === 0 ? `✨ (Recent) ${party.name}` : party.name} — GSTIN: {party.gstNo}
-                      </option>
-                    ))}
+                    {parties.length === 0 ? (
+                      <option value="">No client / buyer parties saved yet (Click '+ Add Party')</option>
+                    ) : (
+                      parties.map((party, idx) => (
+                        <option key={party.id} value={party.id}>
+                          {idx === 0 ? `✨ (Recent) ${party.name}` : party.name} — GSTIN: {party.gstNo || 'N/A'}
+                        </option>
+                      ))
+                    )}
                   </select>
 
-                  {activeParty && (
+                  {!activeParty ? (
+                    <div className="bg-slate-950/60 border border-dashed border-emerald-500/30 rounded-xl p-3 text-center">
+                      <p className="text-xs text-slate-400">No client party selected. Click <strong className="text-emerald-400">+ Add Party</strong> above to create your first buyer.</p>
+                    </div>
+                  ) : (
                     <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between gap-3">
                       <div className="space-y-1 min-w-0 flex-1">
-                        <p className="font-extrabold text-xs text-white truncate">{activeParty.name}</p>
-                        <p className="text-[11px] text-slate-400 truncate">🏢 Billing: {activeParty.address}</p>
-                        <p className="text-[10px] font-bold text-emerald-400">GSTIN: {activeParty.gstNo} • PAN: {activeParty.panNo}</p>
+                        <p className="font-extrabold text-xs text-white truncate">{activeParty.name || 'Untitled Party'}</p>
+                        <p className="text-[11px] text-slate-400 truncate">🏢 Billing: {activeParty.address || 'Address not specified'}</p>
+                        <p className="text-[10px] font-bold text-emerald-400">GSTIN: {activeParty.gstNo || 'N/A'} • PAN: {activeParty.panNo || 'N/A'}</p>
                       </div>
                       <button
                         type="button"

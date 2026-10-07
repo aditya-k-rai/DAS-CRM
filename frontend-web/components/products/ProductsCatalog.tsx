@@ -150,10 +150,10 @@ const STORAGE_CATEGORIES_KEY = 'das_crm_product_categories';
 const STORAGE_SUBCATEGORIES_KEY = 'das_crm_product_subcategories';
 export const STORAGE_BRANDS_KEY = 'das_crm_product_brands';
 
-export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 24 24" fill="none" stroke="%2364748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=';
 
 export function getProductCoverImage(imgSrc?: string): string {
-  if (!imgSrc || typeof imgSrc !== 'string' || !imgSrc.trim() || imgSrc.includes('images.unsplash.com') || imgSrc.includes('puff-jackets.jpg')) {
+  if (!imgSrc || typeof imgSrc !== 'string' || !imgSrc.trim() || imgSrc.includes('images.unsplash.com') || imgSrc.includes('puff-jackets.jpg') || imgSrc.includes('puff-jacket')) {
     return DEFAULT_PRODUCT_FALLBACK_IMAGE;
   }
   return imgSrc;
@@ -1017,7 +1017,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     setEditProdDescription(product.overview || '');
     setEditProdFeatures(product.features || []);
     setEditFeatureTagInput('');
-    setEditProdImages(product.images && product.images.length > 0 ? product.images : (product.coverImage ? [product.coverImage] : []));
+    const rawImages = (product.images && product.images.length > 0)
+      ? product.images
+      : (product.coverImage ? [product.coverImage] : []);
+    const cleanImages = rawImages.filter(img => img && typeof img === 'string' && !img.includes('puff-jackets.jpg') && !img.includes('jacket') && img.trim() !== '');
+    setEditProdImages(cleanImages);
     setEditImageUploadError('');
     const tiers = Array.isArray(product.volumeDiscounts) && product.volumeDiscounts.length > 0
       ? product.volumeDiscounts
@@ -1038,8 +1042,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     }
     try {
       const squareDataUrl = await processImageTo1080pSquare(file);
-      const url = await uploadProductImageToFirebase(squareDataUrl, 'product-cover');
-      setEditProdImages(prev => [url, ...prev.filter((_, idx) => idx !== 0)]);
+      // Immediately set the dataUrl for instant responsive feedback
+      setEditProdImages(prev => [squareDataUrl, ...prev.filter((_, idx) => idx !== 0)]);
+      uploadProductImageToFirebase(squareDataUrl, 'product-cover').then(url => {
+        if (url && url !== squareDataUrl) {
+          setEditProdImages(prev => [url, ...prev.filter((_, idx) => idx !== 0)]);
+        }
+      }).catch(err => console.warn('Firebase upload:', err));
     } catch {
       setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
     }
@@ -1067,14 +1076,15 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
       try {
         const squareDataUrl = await processImageTo1080pSquare(file);
-        const firebaseUrl = await uploadProductImageToFirebase(squareDataUrl, 'product-gallery');
         setEditProdImages(prev => {
-          // If only default fallback image was in list, replace with this new image!
-          if (prev.length === 0 || (prev.length === 1 && prev[0].includes('puff-jackets.jpg'))) {
-            return [firebaseUrl];
-          }
-          return [...prev, firebaseUrl];
+          const cleanPrev = prev.filter(p => p && !p.includes('puff-jackets.jpg'));
+          return [...cleanPrev, squareDataUrl];
         });
+        uploadProductImageToFirebase(squareDataUrl, 'product-gallery').then(url => {
+          if (url && url !== squareDataUrl) {
+            setEditProdImages(prev => prev.map(p => p === squareDataUrl ? url : p));
+          }
+        }).catch(err => console.warn('Firebase upload:', err));
       } catch {
         setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
       }
@@ -1296,13 +1306,22 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      await fetch(`${apiBase}/products/${deleteConfirmProduct.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      try {
+        await fetch(`${apiBase}/products/${deleteConfirmProduct.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+      } catch (_) {}
+
+      try {
+        await fetch(`/api/products/${deleteConfirmProduct.id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (_) {}
 
       setProducts(prev => {
         const next = prev.filter(p => p.id !== deleteConfirmProduct.id);
@@ -2974,6 +2993,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <img
                         src={uri}
                         alt={`Upload preview ${idx + 1}`}
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.onerror = null;
+                          target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                        }}
                         className="w-16 h-16 aspect-square rounded-xl object-cover border border-slate-700 shadow-sm"
                       />
                       <button
@@ -4408,6 +4432,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     <img
                       src={editProdImages[0]}
                       alt="Primary Cover"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.onerror = null;
+                        target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                      }}
                       className="w-14 h-14 aspect-square rounded-lg object-cover border border-indigo-400 shadow"
                     />
                     <div className="flex-1 min-w-0">
@@ -4450,6 +4479,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                         <img
                           src={uri}
                           alt={`Photo ${idx + 1}`}
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.onerror = null;
+                            target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                          }}
                           className="w-full aspect-square object-cover"
                         />
                         {idx === 0 ? (
