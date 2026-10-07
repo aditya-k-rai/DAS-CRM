@@ -961,7 +961,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
         if (fetchedParties.length > 0) {
           setParties(fetchedParties);
-          setSelectedPartyId(fetchedParties[0].id);
+          setSelectedPartyId(prev => (prev && fetchedParties.some(p => p.id === prev)) ? prev : fetchedParties[0].id);
           // Update localStorage cache
           try {
             if (typeof window !== 'undefined') {
@@ -2357,6 +2357,28 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               gstNo: updatedParty.gstNo,
               panNo: updatedParty.panNo,
             },
+          }),
+        });
+      } catch (_) {}
+    }
+
+    // 5. Also sync to backend /leads if it's a backend-originated lead
+    if (editingPartyId && editingPartyId.startsWith('lead-')) {
+      const cleanId = editingPartyId.replace('lead-', '');
+      try {
+        await fetch(`${apiBase}/leads/${cleanId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            name: updatedParty.name,
+            email: updatedParty.email,
+            phone: updatedParty.phone,
+            address: updatedParty.address,
+            gstNumber: updatedParty.gstNo,
+            panNumber: updatedParty.panNo,
           }),
         });
       } catch (_) {}

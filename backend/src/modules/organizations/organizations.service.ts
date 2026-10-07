@@ -102,9 +102,16 @@ export class OrganizationsService {
 
   async getSellerProfile(orgId: string) {
     let org: any = null;
-    if (orgId && orgId !== 'org_default') {
+    if (orgId && orgId !== 'org_default' && orgId !== 'platform_system') {
       org = await this.prisma.organization.findUnique({
         where: { id: orgId },
+      }).catch(() => null);
+    }
+
+    if (!org) {
+      org = await this.prisma.organization.findFirst({
+        where: { id: { not: 'comp_das' } },
+        orderBy: { createdAt: 'desc' },
       }).catch(() => null);
     }
 
@@ -137,11 +144,11 @@ export class OrganizationsService {
     return {
       id: org.id,
       name: org.name || 'Adorable Trading',
-      logoUrl: (org as any).logoUrl || settings.logoUrl || '',
+      logoUrl: org.logoUrl || settings.logoUrl || '',
       phone: org.phone || '',
       address: settings.address || (org.city ? `${org.city}${org.state ? ', ' + org.state : ''}, India` : 'Registered Business Address'),
-      gstNumber: (org as any).gstNumber || settings.gstNumber || '',
-      panNumber: (org as any).panNumber || settings.panNumber || '',
+      gstNumber: org.gstNumber || settings.gstNumber || '',
+      panNumber: org.panNumber || settings.panNumber || '',
       bankDetails: {
         bankName: bankDetails.bankName || 'HDFC Bank',
         accountNo: bankDetails.accountNo || '',
@@ -154,9 +161,16 @@ export class OrganizationsService {
 
   async updateSellerProfile(orgId: string, dto: UpdateSellerProfileDto) {
     let org: any = null;
-    if (orgId && orgId !== 'org_default') {
+    if (orgId && orgId !== 'org_default' && orgId !== 'platform_system') {
       org = await this.prisma.organization.findUnique({
         where: { id: orgId },
+      }).catch(() => null);
+    }
+
+    if (!org) {
+      org = await this.prisma.organization.findFirst({
+        where: { id: { not: 'comp_das' } },
+        orderBy: { createdAt: 'desc' },
       }).catch(() => null);
     }
 
@@ -202,6 +216,9 @@ export class OrganizationsService {
       data: {
         ...(dto.name ? { name: dto.name.trim() } : {}),
         ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+        ...(dto.gstNumber !== undefined ? { gstNumber: dto.gstNumber } : {}),
+        ...(dto.panNumber !== undefined ? { panNumber: dto.panNumber } : {}),
         settings: updatedSettings,
       },
     }).catch(() => org);
@@ -212,11 +229,11 @@ export class OrganizationsService {
     return {
       id: updated.id,
       name: updated.name || '',
-      logoUrl: settings.logoUrl || '',
+      logoUrl: updated.logoUrl || settings.logoUrl || '',
       phone: updated.phone || '',
       address: settings.address || '',
-      gstNumber: settings.gstNumber || '',
-      panNumber: settings.panNumber || '',
+      gstNumber: updated.gstNumber || settings.gstNumber || '',
+      panNumber: updated.panNumber || settings.panNumber || '',
       bankDetails: {
         bankName: bankDetails.bankName || '',
         accountNo: bankDetails.accountNo || '',
