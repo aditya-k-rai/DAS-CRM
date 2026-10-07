@@ -19,7 +19,7 @@ async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
   const app = await NestFactory.create(AppModule, {
     logger: isProd ? ['error', 'warn', 'log'] : ['error', 'warn', 'log', 'debug'],
-    bufferLogs: true,
+    bufferLogs: false,
   });
 
   // Enable shutdown hooks for graceful instance replacements on Render
@@ -90,15 +90,20 @@ async function bootstrap() {
     exclude: ['health', 'api/v1/health', ''],
   });
 
-  // Swagger
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Business CRM API')
-    .setDescription('Final Business CRM — Web + Android')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  // Swagger (Wrapped safely to never block API startup)
+  try {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Business CRM API')
+      .setDescription('Final Business CRM — Web + Android')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+    Logger.log(`📚 Swagger docs configured at /api/docs`, 'Bootstrap');
+  } catch (swaggerErr) {
+    Logger.warn(`⚠️ Swagger generation skipped: ${(swaggerErr as Error)?.message || swaggerErr}`, 'Bootstrap');
+  }
 
   const server = await app.listen(port, '0.0.0.0');
   if (server && 'keepAliveTimeout' in server) {
@@ -106,13 +111,9 @@ async function bootstrap() {
     (server as any).headersTimeout = 66000;
   }
   Logger.log(`🚀 CRM Backend running on http://0.0.0.0:${port} (Port ${port})`, 'Bootstrap');
-  Logger.log(
-    `📚 Swagger docs at http://localhost:${port}/api/docs`,
-    'Bootstrap',
-  );
 }
 
 bootstrap().catch((err) => {
-  Logger.error('❌ Fatal error during backend bootstrap:', err?.stack || err, 'Bootstrap');
+  console.error('❌ Fatal error during backend bootstrap:', err?.stack || err);
   process.exit(1);
 });

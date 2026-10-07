@@ -1,5 +1,5 @@
-import { Controller, Get, Param, Res, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Req, Res, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiExcludeEndpoint } from '@nestjs/swagger';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -18,27 +18,33 @@ function getMimeType(fileName: string): string {
 @ApiTags('Storage')
 @Controller('storage')
 export class StorageController {
-  @Get('files/vault/:path(*)')
+  @Get('files/vault/*')
   @ApiOperation({ summary: 'Serve storage vault files and product images' })
-  serveVaultFile(@Param('path') rawPath: string, @Res() res: any) {
-    const decodedPath = decodeURIComponent(rawPath || '').replace(/^\/+/, '');
-    const baseName = path.basename(decodedPath);
+  serveVaultFile(@Req() req: any, @Res() res: any) {
+    try {
+      const urlParts = (req.originalUrl || req.url || '').split('/storage/files/vault/');
+      const rawSubPath = urlParts[1] || req.params?.[0] || '';
+      const decodedPath = decodeURIComponent(rawSubPath).split('?')[0].replace(/^\/+/, '');
+      const baseName = path.basename(decodedPath);
 
-    const candidatePaths = [
-      path.resolve(process.cwd(), 'public', 'products', baseName),
-      path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products', baseName),
-      path.resolve(process.cwd(), 'storage', 'drive_vault', decodedPath),
-      path.resolve(process.cwd(), '..', 'storage', 'drive_vault', decodedPath),
-      path.resolve(process.cwd(), 'public', decodedPath),
-    ];
+      const candidatePaths = [
+        path.resolve(process.cwd(), 'public', 'products', baseName),
+        path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products', baseName),
+        path.resolve(process.cwd(), 'storage', 'drive_vault', decodedPath),
+        path.resolve(process.cwd(), '..', 'storage', 'drive_vault', decodedPath),
+        path.resolve(process.cwd(), 'public', decodedPath),
+      ];
 
-    for (const cand of candidatePaths) {
-      if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
-        const mime = getMimeType(cand);
-        res.setHeader('Content-Type', mime);
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        return res.sendFile(cand);
+      for (const cand of candidatePaths) {
+        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+          const mime = getMimeType(cand);
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return res.sendFile(cand);
+        }
       }
+    } catch (err) {
+      console.warn('[StorageController] Error serving vault file:', err);
     }
 
     res.setHeader('Content-Type', 'image/svg+xml');
