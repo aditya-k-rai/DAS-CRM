@@ -10,7 +10,18 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { getApiBase, setApiBase, testApiEndpoint, normalizeApiUrl, PROD_CLOUD_API_URL, CURRENT_LAN_API_URL, EMULATOR_API_URL, DEFAULT_CLOUD_API_URL } from '../config/api';
+import {
+  getApiBase,
+  setApiBase,
+  testApiEndpoint,
+  normalizeApiUrl,
+  findFastestReachableEndpoint,
+  getExpoHostIp,
+  PROD_CLOUD_API_URL,
+  CURRENT_LAN_API_URL,
+  EMULATOR_API_URL,
+  LOCALHOST_API_URL,
+} from '../config/api';
 import { offlineSyncEngine, SyncEngineState } from '../services/offlineSyncEngine';
 import { useTheme } from '../context/ThemeContext';
 
@@ -24,8 +35,12 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
   const [currentUrl, setCurrentUrl] = useState(getApiBase());
   const [inputUrl, setInputUrl] = useState(getApiBase());
   const [isTesting, setIsTesting] = useState(false);
+  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; latencyMs?: number; error?: string } | null>(null);
   const [syncState, setSyncState] = useState<SyncEngineState>(offlineSyncEngine.getState());
+
+  const expoHostIp = getExpoHostIp();
+  const expoMetroUrl = expoHostIp ? `http://${expoHostIp}:3001/api/v1` : null;
 
   useEffect(() => {
     if (visible) {
@@ -43,9 +58,27 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
     setIsTesting(true);
     setTestResult(null);
     const cleanUrl = normalizeApiUrl(urlToTest);
-    const res = await testApiEndpoint(cleanUrl);
+    const res = await testApiEndpoint(cleanUrl, 3000);
     setIsTesting(false);
     setTestResult(res);
+  };
+
+  const handleAutoDetect = async () => {
+    setIsAutoDetecting(true);
+    setTestResult(null);
+    const fastest = await findFastestReachableEndpoint(2500);
+    setIsAutoDetecting(false);
+    if (fastest) {
+      setInputUrl(fastest);
+      setCurrentUrl(fastest);
+      handleTestUrl(fastest);
+    } else {
+      setTestResult({
+        success: false,
+        latencyMs: 0,
+        error: 'No active backend server detected among candidate URLs. Ensure your backend server is running on port 3001.',
+      });
+    }
   };
 
   const handleSetDefaultCloud = () => {
@@ -71,7 +104,6 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
 
   const bg = isDark ? '#090d16' : '#ffffff';
   const cardBg = isDark ? '#0f172a' : '#f8fafc';
-  const innerCardBg = isDark ? '#1e293b' : '#f1f5f9';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
   const subTextColor = isDark ? '#94a3b8' : '#64748b';
   const borderColor = isDark ? '#334155' : '#e2e8f0';
@@ -88,7 +120,7 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
               </View>
               <View>
                 <Text style={[styles.title, { color: textColor }]}>Cloud Connection &amp; Diagnostics</Text>
-                <Text style={[styles.subTitle, { color: subTextColor }]}>Production gateway and offline sync health</Text>
+                <Text style={[styles.subTitle, { color: subTextColor }]}>Backend Gateway &amp; Enterprise Network Status</Text>
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -124,7 +156,7 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
               <View style={styles.diagItem}>
                 <Text style={[styles.diagLabel, { color: subTextColor }]}>BACKEND API</Text>
                 <Text style={[styles.diagVal, { color: syncState.isBackendConnected ? '#34d399' : '#f59e0b' }]}>
-                  {syncState.isBackendConnected ? '🟢 Reachable' : '⚠️ Pending'}
+                  {syncState.isBackendConnected ? '🟢 Reachable' : '⚠️ Unreachable'}
                 </Text>
               </View>
               <View style={[styles.diagDivider, { backgroundColor: borderColor }]} />
@@ -188,18 +220,31 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
               </View>
             )}
 
-            {/* Ping Test Button */}
-            <View style={{ marginTop: 12 }}>
+            {/* Action Buttons: Auto-Detect & Ping */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                style={[styles.autoDetectBtn, isAutoDetecting && { opacity: 0.6 }]}
+                onPress={handleAutoDetect}
+                disabled={isAutoDetecting || isTesting}
+                activeOpacity={0.75}
+              >
+                {isAutoDetecting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.autoDetectBtnText}>⚡ Auto-Detect Server</Text>
+                )}
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.testBtn, isTesting && { opacity: 0.6 }]}
                 onPress={() => handleTestUrl(inputUrl)}
-                disabled={isTesting}
+                disabled={isTesting || isAutoDetecting}
                 activeOpacity={0.75}
               >
                 {isTesting ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={styles.testBtnText}>⚡ Ping Diagnostics Test</Text>
+                  <Text style={styles.testBtnText}>🔍 Ping Test</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -208,7 +253,109 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
             <View style={{ marginTop: 18 }}>
               <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 8 }]}>QUICK PRESETS</Text>
               
-              {/* Preset 1: Cloud */}
+              {/* Preset: Dynamic Expo Metro Bundler (if detected) */}
+              {expoMetroUrl && (
+                <TouchableOpacity
+                  style={[
+                    styles.candidateRow,
+                    {
+                      backgroundColor: cardBg,
+                      borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(expoMetroUrl) ? '#6366f1' : borderColor,
+                      borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(expoMetroUrl) ? 2 : 1,
+                      marginBottom: 8,
+                    },
+                  ]}
+                  onPress={() => handleSelectPreset(expoMetroUrl)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                      {expoMetroUrl}
+                    </Text>
+                    <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                      ⚡ Expo Metro Bundler Host (Detected Dev Server)
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Preset: Android Studio Emulator */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(EMULATOR_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(EMULATOR_API_URL) ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(EMULATOR_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    {EMULATOR_API_URL}
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    📱 Android Studio Emulator Loopback (10.0.2.2:3001)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset: Wi-Fi LAN */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(CURRENT_LAN_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    {CURRENT_LAN_API_URL}
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    📶 Host Computer Wi-Fi LAN IP
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset: Localhost */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(LOCALHOST_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(LOCALHOST_API_URL) ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(LOCALHOST_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    {LOCALHOST_API_URL}
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    💻 Localhost (iOS Simulator / Desktop / Web)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset: Production Cloud */}
               <TouchableOpacity
                 style={[
                   styles.candidateRow,
@@ -229,61 +376,12 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                     </Text>
                     {isDefaultCloud && (
                       <View style={[styles.activePill, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
-                        <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>DEFAULT</Text>
+                        <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>CLOUD</Text>
                       </View>
                     )}
                   </View>
                   <Text style={[styles.candidateHint, { color: subTextColor }]}>
                     ☁️ Production Cloud Backend (HTTPS Cluster)
-                  </Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
-              </TouchableOpacity>
-
-              {/* Preset 2: Wi-Fi LAN */}
-              <TouchableOpacity
-                style={[
-                  styles.candidateRow,
-                  {
-                    backgroundColor: cardBg,
-                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? '#6366f1' : borderColor,
-                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? 2 : 1,
-                    marginBottom: 8,
-                  },
-                ]}
-                onPress={() => handleSelectPreset(CURRENT_LAN_API_URL)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
-                    {CURRENT_LAN_API_URL}
-                  </Text>
-                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                    📶 Host Computer Wi-Fi LAN (Local Machine IP)
-                  </Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
-              </TouchableOpacity>
-
-              {/* Preset 3: Android Studio Emulator */}
-              <TouchableOpacity
-                style={[
-                  styles.candidateRow,
-                  {
-                    backgroundColor: cardBg,
-                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(EMULATOR_API_URL) ? '#6366f1' : borderColor,
-                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(EMULATOR_API_URL) ? 2 : 1,
-                  },
-                ]}
-                onPress={() => handleSelectPreset(EMULATOR_API_URL)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
-                    {EMULATOR_API_URL}
-                  </Text>
-                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                    📱 Android Studio Emulator Loopback (10.0.2.2)
                   </Text>
                 </View>
                 <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
@@ -434,7 +532,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  autoDetectBtn: {
+    flex: 1,
+    backgroundColor: '#059669',
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  autoDetectBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   testBtn: {
+    flex: 1,
     backgroundColor: '#4f46e5',
     paddingVertical: 11,
     borderRadius: 10,

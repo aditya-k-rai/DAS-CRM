@@ -4,7 +4,7 @@
  * End-to-End Sync for Authentication, Leads, Attendance, and Role Telemetry.
  */
 
-import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls } from '../config/api';
+import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls, findFastestReachableEndpoint } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { offlineSyncEngine } from './offlineSyncEngine';
 
@@ -94,11 +94,12 @@ class ApiService {
   /** Live NestJS Backend Health & Network Reachability Check */
   async checkBackendHealth(): Promise<{ isOnline: boolean; isBackendConnected: boolean; latencyMs: number; service?: string }> {
     const startTime = Date.now();
+    const activeBase = getApiBase();
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-      const res = await fetch(`${API_BASE}/health`, {
+      const res = await fetch(`${activeBase}/health`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -119,7 +120,7 @@ class ApiService {
       // Secondary fallback ping if local dev backend is starting up
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 1800);
         const res = await fetch('https://clients3.google.com/generate_204', {
           method: 'HEAD',
           cache: 'no-store',
@@ -148,16 +149,44 @@ class ApiService {
 
   /** Fetch public active tenant companies for login dropdown with multi-candidate network retry and offline cache */
   async getPublicCompanies(): Promise<PublicCompany[]> {
-    const candidateBases = [getApiBase(), ...getCandidateApiUrls()];
-    const uniqueBases = Array.from(new Set(candidateBases));
+    // 1. Try currently active API base first with fast timeout
+    let workingBase = getApiBase();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-    // Try candidates in order
-    for (const baseUrl of uniqueBases) {
+      const res = await fetch(`${workingBase}/auth/public-companies`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const companies: PublicCompany[] = data.map((c: any) => ({
+            id: c.id,
+            name: c.name || c.companyName,
+            slug: c.slug,
+            status: c.status || (c.isActive ? 'APPROVED' : 'PENDING'),
+            isActive: c.isActive ?? (c.status === 'APPROVED'),
+            companyKey: c.companyKey || c.registrationKeyId || undefined,
+          }));
+          AsyncStorage.setItem(STORAGE_KEY_PUBLIC_COMPANIES, JSON.stringify(companies)).catch(() => {});
+          return companies;
+        }
+      }
+    } catch (_) {}
+
+    // 2. If active base failed, race candidate URLs concurrently to discover working server
+    const fastestUrl = await findFastestReachableEndpoint(2200);
+    if (fastestUrl) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-        const res = await fetch(`${baseUrl}/auth/public-companies`, {
+        const res = await fetch(`${fastestUrl}/auth/public-companies`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
@@ -167,9 +196,7 @@ class ApiService {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            // Success! Update active working API base across the app
-            setApiBase(baseUrl);
-
+            setApiBase(fastestUrl);
             const companies: PublicCompany[] = data.map((c: any) => ({
               id: c.id,
               name: c.name || c.companyName,
@@ -178,19 +205,14 @@ class ApiService {
               isActive: c.isActive ?? (c.status === 'APPROVED'),
               companyKey: c.companyKey || c.registrationKeyId || undefined,
             }));
-
-            // Cache in AsyncStorage for instant offline/initial loads
             AsyncStorage.setItem(STORAGE_KEY_PUBLIC_COMPANIES, JSON.stringify(companies)).catch(() => {});
-
             return companies;
           }
         }
-      } catch (_) {
-        // Try next candidate
-      }
+      } catch (_) {}
     }
 
-    // If network attempts all failed, fall back to cached companies in AsyncStorage
+    // 3. If network attempts all failed, fall back to cached companies in AsyncStorage
     try {
       const cached = await AsyncStorage.getItem(STORAGE_KEY_PUBLIC_COMPANIES);
       if (cached) {

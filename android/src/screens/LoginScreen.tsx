@@ -1,10 +1,10 @@
 /**
  * LoginScreen.tsx — DAS CRM Android
  * Mirrors frontend-web/components/auth/LoginGateway.tsx exactly.
- * Supports: Workspace Entry, Staff Invite Key, Forgot Password modal.
+ * Supports: Workspace Entry, Staff Invite Key, Forgot Password, Fast Server Discovery.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,14 +29,20 @@ import {
   DEMO_USERS,
   normalizeRoleStr,
   inferRoleFromEmail,
-  validateEmailRoleMatch,
   getPostLoginDefaultTab,
+  CompanySubscription,
+  getPlanSeatQuota,
 } from '../store/authStore';
 import { apiService, PublicCompany, DEFAULT_ACTIVE_COMPANY } from '../services/apiService';
-import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls } from '../config/api';
+import {
+  getApiBase,
+  setApiBase,
+  getCandidateApiUrls,
+  findFastestReachableEndpoint,
+} from '../config/api';
 import ServerConnectionModal from '../components/ServerConnectionModal';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types & Helpers ──────────────────────────────────────────────────────────
 
 interface LoginScreenProps {
   /** Called after successful login so App.tsx can switch to App navigator. */
@@ -91,8 +97,6 @@ function formatCompanyKey(input: string): string {
   return formatted;
 }
 
-const PUBLIC_COMPANIES: PublicCompany[] = [];
-
 const ALL_ROLES: UserRole[] = [
   'ADMIN',
   'HR',
@@ -101,10 +105,12 @@ const ALL_ROLES: UserRole[] = [
   'SALES_EXEC',
 ];
 
+const STORAGE_KEY_PREV_LOGIN = '@das_crm_prev_login';
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const { switchRole, setAuthSession } = useAuthStore();
+  const { setAuthSession } = useAuthStore();
 
   // Workspace login state
   const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([]);
@@ -114,8 +120,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [hasAutofilled, setHasAutofilled] = useState(false);
+
+  // Verification Pending Banner / Modal
+  const [pendingApprovalModal, setPendingApprovalModal] = useState<{
+    visible: boolean;
+    companyName: string;
+    companyKey: string;
+    email: string;
+  }>({
+    visible: false,
+    companyName: '',
+    companyKey: '',
+    email: '',
+  });
 
   // Segmented mode: Workspace Login vs Staff Self-Register
   const [authMode, setAuthMode] = useState<'LOGIN' | 'STAFF_REGISTER'>('LOGIN');
@@ -129,8 +149,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [validatedOrgId, setValidatedOrgId] = useState('');
   const [validatedOrgName, setValidatedOrgName] = useState('');
 
-  const STORAGE_KEY_PREV_LOGIN = '@das_crm_prev_login';
-
   // Forgot password state
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [forgotMode, setForgotMode] = useState<'company_key' | 'email_otp'>('company_key');
@@ -143,16 +161,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
-  // Company picker modal
+  // Modals
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [serverModalOpen, setServerModalOpen] = useState(false);
-
 
   // General UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** Live Fetch & Sync Companies from Super Admin Approval Engine */
+  /** Live Fetch & Sync Companies from Backend */
   const fetchAndSyncCompanies = async (showIndicator = false) => {
     if (showIndicator) setSyncingCompanies(true);
     try {
@@ -160,26 +177,31 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       if (Array.isArray(comps) && comps.length > 0) {
         setPublicCompanies(comps);
 
-        // Auto-select company prioritizing approved/active workspaces
-        setSelectedCompanyId((prev) => {
-          if (prev && comps.some((c) => c.id === prev)) {
-            return prev;
+        // Select company prioritizing approved/active workspaces
+        setSelectedCompanyId((prevId) => {
+          if (prevId && comps.some((c) => c.id === prevId)) {
+            return prevId;
           }
           const firstApproved = comps.find((c) => c.status === 'APPROVED' || c.isActive) || comps[0];
           return firstApproved ? firstApproved.id : comps[0].id;
         });
 
-        // If the selected company has a known key and user has not typed one, autofill it
+        // Auto-fill company key if the selected company has a known key and input is empty
         setSelectedCompanyId((currentId) => {
           const matched = comps.find((c) => c.id === currentId) || comps[0];
           if (matched && matched.companyKey) {
-            setCompanyKeyInput((prevKey) => (!prevKey || prevKey.length < 11 ? formatCompanyKey(matched.companyKey!) : prevKey));
+            setCompanyKeyInput((prevKey) => {
+              if (!prevKey || prevKey === 'DAS-VW-8329' || prevKey === 'ADOR-AB-8329') {
+                return formatCompanyKey(matched.companyKey!);
+              }
+              return prevKey;
+            });
           }
           return currentId;
         });
       }
     } catch (err) {
-      console.warn('Company sync warning:', err);
+      console.warn('[LoginScreen] Company sync warning:', err);
     } finally {
       if (showIndicator) setSyncingCompanies(false);
     }
@@ -193,7 +215,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           const parsed = JSON.parse(raw);
           if (parsed.email) setEmail(parsed.email);
           if (parsed.password) setPassword(parsed.password);
-          if (parsed.companyKey) setCompanyKeyInput(parsed.companyKey);
+          if (parsed.companyKey) setCompanyKeyInput(formatCompanyKey(parsed.companyKey));
           if (parsed.companyId) setSelectedCompanyId(parsed.companyId);
           if (parsed.role) setSelectedRole(parsed.role);
           setHasAutofilled(true);
@@ -208,11 +230,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         try {
           const cached = JSON.parse(raw);
           if (Array.isArray(cached) && cached.length > 0) {
-            compsToUse = cached.map((c: any) =>
-              c.id === 'cmuev7n3o000mikew7je1tdiw'
-                ? { ...c, companyKey: 'ADOR-EC-7187' }
-                : c,
-            );
+            compsToUse = cached;
           }
         } catch (_) {}
       }
@@ -234,12 +252,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     // 3. Live network sync
     fetchAndSyncCompanies(true);
 
-    // 4. Auto-sync polling every 8 seconds on login screen so Super Admin approvals appear automatically
+    // 4. Auto-sync polling every 10 seconds on login screen so Super Admin approvals appear automatically
     const interval = setInterval(() => {
       fetchAndSyncCompanies(false);
-    }, 8000);
+    }, 10000);
 
-    // 5. Auto-sync whenever user resumes app from browser or other apps
+    // 5. Auto-sync whenever user resumes app
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         fetchAndSyncCompanies(false);
@@ -254,48 +272,47 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   const selectedCompanyName =
     publicCompanies.find((c) => c.id === selectedCompanyId)?.name ||
-    (publicCompanies.length === 0 ? 'No Active Companies Registered' : 'Select Company');
+    (publicCompanies.length === 0 ? 'No Active Companies Registered' : 'Select Company Workspace');
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setError(null);
-    // Autofill ONLY if there is a saved previous login for this role; otherwise do NOT fill fake emails!
+    // Autofill saved credentials for role if available
     AsyncStorage.getItem(`${STORAGE_KEY_PREV_LOGIN}_${role}`).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
           if (parsed.email) setEmail(parsed.email);
           if (parsed.password) setPassword(parsed.password);
-          if (parsed.companyKey && !companyKeyInput) setCompanyKeyInput(parsed.companyKey);
+          if (parsed.companyKey && !companyKeyInput) setCompanyKeyInput(formatCompanyKey(parsed.companyKey));
+          if (parsed.companyId) setSelectedCompanyId(parsed.companyId);
           setHasAutofilled(true);
         } catch (_) {}
-      } else {
-        // Clear if email was from another role's saved login
-        AsyncStorage.getItem(STORAGE_KEY_PREV_LOGIN).then((genRaw) => {
-          if (genRaw) {
-            try {
-              const gen = JSON.parse(genRaw);
-              if (gen.role !== role && email === gen.email) {
-                setEmail('');
-                setPassword('');
-                setHasAutofilled(false);
-              }
-            } catch (_) {}
-          }
-        });
       }
     });
   };
 
+  const handleCompanyKeyChange = (rawText: string) => {
+    const formatted = formatCompanyKey(rawText);
+    setCompanyKeyInput(formatted);
+
+    // Auto-match company dropdown if key matches a known company
+    if (formatted.length >= 8) {
+      const clean = formatted.toUpperCase();
+      const matched = publicCompanies.find(
+        (c) => c.companyKey && c.companyKey.toUpperCase() === clean,
+      );
+      if (matched) {
+        setSelectedCompanyId(matched.id);
+      }
+    }
+  };
 
   /**
-   * Workspace Login — ALWAYS requires a live backend response.
-   * Offline mode is only available for users who already have a valid
-   * JWT token from a prior successful login (persisted in AsyncStorage).
-   * If the backend cannot be reached during login, we show an error — never
-   * grant a session without server verification.
+   * Workspace Login — Fully aligned with Web LoginGateway.tsx.
+   * Probes active endpoint, sends LoginDto, handles role assignment & verification pending.
    */
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
@@ -314,79 +331,182 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setLoading(true);
     setError(null);
 
+    const loginPayload = {
+      email: email.trim(),
+      password,
+      key: companyKeyInput.trim().toUpperCase(),
+      organizationId: selectedCompanyId,
+      selectedRole,
+    };
+
     try {
-      const candidateBases = [getApiBase(), ...getCandidateApiUrls()];
-      const uniqueBases = Array.from(new Set(candidateBases));
+      let activeBase = getApiBase();
       let networkResponse: Response | null = null;
       let data: any = null;
 
-      for (const baseUrl of uniqueBases) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2500);
-          const res = await fetch(`${baseUrl}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: email.trim(),
-              password,
-              key: companyKeyInput.trim(),
-              organizationId: selectedCompanyId,
-              selectedRole,
-            }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (res.ok || res.status === 400 || res.status === 401 || res.status === 403) {
-            networkResponse = res;
-            data = await res.json().catch(() => null);
-            setApiBase(baseUrl);
-            break;
-          }
-        } catch (_) {}
+      // 1. Try currently active base URL
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(`${activeBase}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loginPayload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        networkResponse = res;
+        data = await res.json().catch(() => null);
+      } catch (_) {
+        // Active base unreachable: attempt fast auto-discovery
       }
 
-      // ── Handle backend response ──────────────────────────────────────────────
+      // 2. If first attempt failed to connect, fast-race all candidate backends
+      if (!networkResponse) {
+        const discoveredBase = await findFastestReachableEndpoint(2500);
+        if (discoveredBase) {
+          activeBase = discoveredBase;
+          setApiBase(discoveredBase);
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(`${discoveredBase}/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(loginPayload),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            networkResponse = res;
+            data = await res.json().catch(() => null);
+          } catch (_) {}
+        }
+      }
 
-      if (networkResponse && networkResponse.ok && data?.accessToken) {
-        // STEP 6: User registered but role not assigned yet
-        if (data.hasAssignedRole === false || data.roleNotAssigned === true || !data.user?.role) {
+      // ── Handle Backend Responses ──────────────────────────────────────────
+
+      // Case A: Unreachable server
+      if (!networkResponse) {
+        setError(
+          'Cannot connect to the server.\n\nPlease verify that your DAS CRM backend server is running and reachable on your network.',
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Case B: Verification Pending (HTTP 403 / VERIFICATION_PENDING)
+      if (
+        networkResponse.status === 403 &&
+        (data?.code === 'VERIFICATION_PENDING' ||
+          data?.message?.toLowerCase().includes('verification') ||
+          data?.message?.toLowerCase().includes('pending'))
+      ) {
+        setLoading(false);
+        setPendingApprovalModal({
+          visible: true,
+          companyName: data?.company?.name || selectedCompanyName,
+          companyKey: companyKeyInput.trim(),
+          email: email.trim(),
+        });
+        return;
+      }
+
+      // Case C: Credentials / Key Rejected (HTTP 400, 401, etc.)
+      if (!networkResponse.ok) {
+        const errMsg =
+          data?.message ||
+          `Authentication failed (HTTP ${networkResponse.status}). Please check your credentials and Company Key.`;
+        setError(errMsg);
+        setLoading(false);
+        return;
+      }
+
+      // Case D: Successful Login with Access Token
+      if (networkResponse.ok && data?.accessToken) {
+        const compName =
+          data.organization?.name ||
+          data.user?.organization?.name ||
+          selectedCompanyName;
+        const compId =
+          data.organization?.id ||
+          data.user?.organization?.id ||
+          selectedCompanyId;
+
+        const subData: CompanySubscription = {
+          id: compId,
+          companyName: compName,
+          planType: (data.organization?.subscription?.planTier ||
+            data.organization?.settings?.requestedPlan ||
+            'BUSINESS') as any,
+          trialDaysLeft:
+            data.organization?.settings?.requestedValidityDays || 15,
+          isExpired: false,
+          userSeatsAllocated: getPlanSeatQuota(
+            data.organization?.subscription?.planTier || 'BUSINESS',
+          ),
+          userSeatsUsed: 1,
+          hasTeamLeaders: true,
+          features: {
+            whatsApp: true,
+            emailAutomation: true,
+            aiLeadScoring: true,
+            customSalaryBuilder: true,
+            exportCSV: true,
+          },
+        };
+
+        // Check if role is unassigned
+        if (
+          data.hasAssignedRole === false ||
+          data.roleNotAssigned === true ||
+          !data.user?.role ||
+          data.user?.role === 'UNASSIGNED'
+        ) {
           if (rememberMe) {
             const credsStr = JSON.stringify({
               email: email.trim(),
               password,
               companyKey: companyKeyInput.trim(),
-              companyId: selectedCompanyId,
+              companyId: compId,
+              companyName: compName,
               role: 'UNASSIGNED',
               savedAt: new Date().toISOString(),
             });
             AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
           }
+
           await setAuthSession(
             {
               id: data.user?.id || 'usr_unassigned',
-              name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || 'User',
+              name:
+                `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() ||
+                'User',
               email: data.user?.email || email.trim(),
               role: 'UNASSIGNED',
               avatar: 'UA',
-              companyId: data.organization?.id || selectedCompanyId,
-              companyName: data.organization?.name || selectedCompanyName,
+              companyId: compId,
+              companyName: compName,
               hasAssignedRole: false,
               roleNotAssigned: true,
-              unassignedMessage: data.message || 'Your role is not assigned. Contact Admin or Manager.',
+              unassignedMessage:
+                data.message ||
+                'Your role is not assigned. Contact Admin or Manager.',
             },
             data.accessToken,
+            subData,
           );
           setLoading(false);
           onLoginSuccess('Home');
           return;
         }
 
+        // Full authenticated role
         const backendRoleName =
           data.user?.role?.name ||
           (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole: UserRole = normalizeRoleStr(backendRoleName || selectedRole);
+        const finalRole: UserRole = normalizeRoleStr(
+          backendRoleName || selectedRole,
+        );
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
         if (rememberMe) {
@@ -394,12 +514,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             email: email.trim(),
             password,
             companyKey: companyKeyInput.trim(),
-            companyId: selectedCompanyId,
+            companyId: compId,
+            companyName: compName,
             role: finalRole,
             savedAt: new Date().toISOString(),
           });
           AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-          AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
+          AsyncStorage.setItem(
+            `${STORAGE_KEY_PREV_LOGIN}_${finalRole}`,
+            credsStr,
+          );
         } else {
           AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
         }
@@ -415,122 +539,28 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             avatar: data.user?.firstName
               ? data.user.firstName.slice(0, 2).toUpperCase()
               : demoProfile.avatar,
-            companyId: data.organization?.id || selectedCompanyId,
-            companyName: data.organization?.name || selectedCompanyName,
+            companyId: compId,
+            companyName: compName,
             hasAssignedRole: true,
             roleNotAssigned: false,
           },
           data.accessToken,
+          subData,
         );
+
         setLoading(false);
         onLoginSuccess(getPostLoginDefaultTab(finalRole));
         return;
       }
 
-      // ── Backend was reachable but rejected the credentials ─────────────────────
-      // Surface the server's error directly — never bypass authentication.
-      if (networkResponse && !networkResponse.ok) {
-        const errMsg =
-          data?.message ||
-          `Login failed (HTTP ${networkResponse.status}). Please check your credentials and Company Key.`;
-        setError(errMsg);
-        setLoading(false);
-        return;
-      }
-
-      // ── Backend was unreachable (all candidate URLs timed out / refused) ─────
-      // Login requires server verification. Show a clear error so the user knows
-      // to check their network. Offline mode only works for already-logged-in sessions.
-      if (!networkResponse) {
-        setError(
-          'Cannot connect to the server.\n\nPlease check your network connection and try again. If you were previously logged in, your offline data is safe and will sync when the server is reachable.',
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Should not reach here — safety guard
-      setError('Unexpected authentication error. Please try again.');
+      setError('Unexpected server response. Please try again.');
       setLoading(false);
     } catch (err: any) {
-      // Only JavaScript runtime errors reach here (e.g. JSON parse failure).
-      // Never grant a session — show an actionable error.
-      console.error('[LoginScreen] handleWorkspaceLogin unexpected error:', err);
+      console.error('[LoginScreen] handleWorkspaceLogin error:', err);
       setError(
-        'A connection error occurred. Please check your network and try again.\n\n' +
-        (err?.message || 'Unknown error'),
+        'A connection error occurred. Please check your network and try again.',
       );
       setLoading(false);
-    }
-  };
-
-  /** Mirrors LoginGateway.tsx handleGoogleSignIn */
-  const handleGoogleSignIn = async () => {
-    if (!companyKeyInput.trim()) {
-      setError(
-        'Company workspace selection and Registration Key are required before signing in with Google.',
-      );
-      return;
-    }
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`${getApiBase()}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email || 'user@gmail.com',
-          googleId: 'google_oauth_' + Date.now(),
-          name: email ? email.split('@')[0] : 'Google User',
-          organizationId: selectedCompanyId,
-          key: companyKeyInput.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.accessToken) {
-        const backendRoleName =
-          data.user?.role?.name ||
-          (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole = normalizeRoleStr(
-          backendRoleName || inferRoleFromEmail(email) || selectedRole,
-        );
-        await setAuthSession(
-          {
-            id: data.user.id,
-            name:
-              `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim() ||
-              'Google User',
-            email: data.user.email,
-            role: finalRole,
-            avatar: data.user.firstName
-              ? data.user.firstName.slice(0, 2).toUpperCase()
-              : 'GU',
-            companyId: data.organization?.id || selectedCompanyId,
-            companyName: data.organization?.name || selectedCompanyName,
-          },
-          data.accessToken,
-        );
-        setLoading(false);
-        onLoginSuccess(getPostLoginDefaultTab(finalRole));
-        return;
-      } else {
-        // Backend reachable but OAuth failed — show actual error
-        setError(
-          data.message ||
-            'Google OAuth authentication failed. Please use a valid Gmail ID.',
-        );
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // Backend genuinely unreachable — inform user, do NOT grant demo access
-      setError(
-        'Could not reach the authentication server. Please check your network connection and try again.',
-      );
-      setLoading(false);
-      return;
     }
   };
 
@@ -556,7 +586,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         setValidatedOrgName(data.organizationName || selectedCompanyName);
       } else {
         const matched = publicCompanies.find(
-          (c) => (c.companyKey && c.companyKey.toUpperCase() === cleanKey) || cleanKey === 'ADOR-EC-7187'
+          (c) =>
+            (c.companyKey && c.companyKey.toUpperCase() === cleanKey) ||
+            cleanKey === 'ADOR-EC-7187',
         );
         if (matched) {
           setKeyValidated(true);
@@ -564,28 +596,43 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           setValidatedOrgName(matched.name);
         } else {
           setKeyValidated(false);
-          setError(data?.message || 'Invalid Company Key. Please check with your Admin.');
+          setError(
+            data?.message || 'Invalid Company Key. Please check with your Admin.',
+          );
         }
       }
     } catch {
       const matched = publicCompanies.find(
-        (c) => (c.companyKey && c.companyKey.toUpperCase() === cleanKey) || cleanKey === 'ADOR-EC-7187'
+        (c) =>
+          (c.companyKey && c.companyKey.toUpperCase() === cleanKey) ||
+          cleanKey === 'ADOR-EC-7187',
       );
       if (matched || cleanKey === 'ADOR-EC-7187') {
         setKeyValidated(true);
-        setValidatedOrgId(matched?.id || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw');
-        setValidatedOrgName(matched?.name || selectedCompanyName || 'Adorable Trading');
+        setValidatedOrgId(
+          matched?.id || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw',
+        );
+        setValidatedOrgName(
+          matched?.name || selectedCompanyName || 'Adorable Trading',
+        );
       } else {
-        setError('Could not validate Company Key. Please check your network connection.');
+        setError(
+          'Could not validate Company Key. Please check your network connection.',
+        );
       }
     } finally {
       setKeyValidating(false);
     }
   };
 
-  /** Register Staff with Company Key (Always yields UNASSIGNED until Admin approves) */
+  /** Register Staff with Company Key (Yields UNASSIGNED until Admin approves) */
   const handleStaffKeyRegister = async () => {
-    if (!companyKeyInput.trim() || !staffEmail.trim() || !staffPassword || !staffName.trim()) {
+    if (
+      !companyKeyInput.trim() ||
+      !staffEmail.trim() ||
+      !staffPassword ||
+      !staffName.trim()
+    ) {
       setError('Please fill all required fields including a valid Company Key.');
       return;
     }
@@ -603,46 +650,34 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const cleanStaffPhone = staffPhone.trim();
 
     try {
-      let networkResponse: Response | null = null;
-      let data: any = null;
+      const res = await fetch(`${getApiBase()}/auth/staff-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userKey: cleanKey,
+          name: staffName.trim(),
+          email: staffEmail.trim(),
+          password: staffPassword,
+          phone: cleanStaffPhone,
+          role: assignedRole,
+        }),
+      });
 
-      try {
-        const res = await fetch(`${getApiBase()}/auth/staff-register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userKey: cleanKey,
-            name: staffName.trim(),
-            email: staffEmail.trim(),
-            password: staffPassword,
-            phone: cleanStaffPhone,
-            role: assignedRole,
-          }),
-        });
-        networkResponse = res;
-        data = await res.json().catch(() => null);
-      } catch (_) {}
+      const data = await res.json().catch(() => null);
 
-      if (networkResponse && !networkResponse.ok) {
+      if (!res.ok) {
         setError(data?.message || 'Registration failed. Please check your details.');
         setLoading(false);
         return;
       }
 
-      // Require a real backend-issued accessToken.
-      // Do NOT create a fake local session if the backend was unreachable.
       const savedToken = data?.accessToken;
       if (!savedToken) {
+        setError('Server did not return a valid session token.');
         setLoading(false);
-        Alert.alert(
-          'Registration Queued',
-          `Your account request for ${orgName} has been saved locally. Please connect to the network and re-submit to complete registration.`,
-          [{ text: 'OK' }]
-        );
         return;
       }
 
-      // Staff registration strictly yields UNASSIGNED until Admin approves in the Employees Directory!
       const unassignedUser = {
         id: data?.user?.id || `usr_unassigned_${Date.now()}`,
         name: staffName.trim(),
@@ -654,44 +689,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         phone: cleanStaffPhone || data?.user?.phone || '',
         hasAssignedRole: false,
         roleNotAssigned: true,
-        unassignedMessage: 'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
+        unassignedMessage:
+          'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
       };
-
-      // Persist phone map for reference across other screens
-      try {
-        if (cleanStaffPhone) {
-          const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
-          const phoneMap = rawPhones ? JSON.parse(rawPhones) : {};
-          phoneMap[staffEmail.trim().toLowerCase()] = cleanStaffPhone;
-          phoneMap[unassignedUser.id] = cleanStaffPhone;
-          await AsyncStorage.setItem('@das_crm_user_phones', JSON.stringify(phoneMap));
-        }
-      } catch (_) {}
-
-      // Queue in the local unassigned directory so Admin Control Center shows the pending user
-      try {
-        const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
-        const extra = raw ? JSON.parse(raw) : [];
-        if (!extra.some((u: any) => u.email?.toLowerCase() === staffEmail.trim().toLowerCase())) {
-          extra.unshift({
-            id: unassignedUser.id,
-            name: staffName.trim(),
-            email: staffEmail.trim(),
-            phone: cleanStaffPhone || '—',
-            appliedRole: assignedRole,
-            registeredAt: new Date().toLocaleDateString(),
-            deviceInfo: 'Android App Registration',
-          });
-          await AsyncStorage.setItem('@das_crm_extra_unassigned', JSON.stringify(extra));
-        }
-      } catch (_) {}
 
       await setAuthSession(unassignedUser, savedToken);
       setLoading(false);
       Alert.alert(
         'Registration Submitted',
-        `Your account has been registered with ${orgName}. Your requested role (${assignedRole.replace('_', ' ')}) is pending verification by your Organization Administrator.`,
-        [{ text: 'OK', onPress: () => onLoginSuccess('Home') }]
+        `Your account has been registered with ${orgName}. Your requested role (${assignedRole.replace(
+          '_',
+          ' ',
+        )}) is pending verification by your Organization Administrator.`,
+        [{ text: 'OK', onPress: () => onLoginSuccess('Home') }],
       );
     } catch (err: any) {
       setError(err?.message || 'Network error during registration.');
@@ -699,7 +709,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
-  /** Forgot password — step 1 */
+  /** Forgot password — Request OTP */
   const handleRequestResetOtp = async () => {
     if (!forgotEmail.trim()) {
       setForgotError('Please enter your email address.');
@@ -724,16 +734,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         setForgotError(data.message || 'Failed to send password reset email.');
       }
     } catch {
-      setForgotStep('otp');
-      setForgotMsg(
-        `Security OTP sent to ${forgotEmail} (Demo: enter 123456)`,
-      );
+      setForgotError('Unable to connect to password reset server.');
     } finally {
       setForgotLoading(false);
     }
   };
 
-  /** Forgot password — step 2 */
+  /** Forgot password — Reset via OTP */
   const handleResetPassword = async () => {
     if (forgotOtp.length < 6 || !newPassword.trim()) {
       setForgotError('Please enter a valid 6-digit OTP and new password.');
@@ -766,17 +773,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         setForgotError(data.message || 'Invalid or expired OTP code.');
       }
     } catch {
-      setForgotMsg('Password updated successfully! (Demo Mode)');
-      setTimeout(() => {
-        setForgotModalOpen(false);
-        setPassword(newPassword || 'password123');
-      }, 1000);
+      setForgotError('Network error while resetting password.');
     } finally {
       setForgotLoading(false);
     }
   };
 
-  /** Forgot password — reset via Company Key */
+  /** Forgot password — Reset via Company Key */
   const handleResetWithCompanyKey = async () => {
     if (!forgotEmail.trim()) {
       setForgotError('Please enter your registered email address.');
@@ -786,11 +789,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setForgotError('Please enter your Company Key.');
       return;
     }
-    if (!newPassword.trim()) {
-      setForgotError('Please enter your new password.');
-      return;
-    }
-    if (newPassword.trim().length < 6) {
+    if (!newPassword.trim() || newPassword.trim().length < 6) {
       setForgotError('New password must be at least 6 characters.');
       return;
     }
@@ -810,7 +809,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setForgotMsg('✓ Password Hash Replaced & Verified! You can now log in.');
+        setForgotMsg('✓ Password Reset Successfully! You can now log in.');
         setEmail(forgotEmail.trim());
         setPassword(newPassword.trim());
         setCompanyKeyInput(forgotCompanyKey.trim().toUpperCase());
@@ -819,7 +818,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           setNewPassword('');
         }, 1600);
       } else {
-        setForgotError(data.message || 'Failed to reset password. Check credentials.');
+        setForgotError(
+          data.message || 'Failed to reset password. Check credentials.',
+        );
       }
     } catch {
       setForgotError('Network error. Check connection or server ping.');
@@ -864,7 +865,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             >
               <View style={styles.serverPillDot} />
               <Text style={styles.serverPillText} numberOfLines={1}>
-                Server: {getApiBase()}
+                Gateway: {getApiBase()}
               </Text>
               <Text style={styles.serverPillAction}>⚙️ Change</Text>
             </TouchableOpacity>
@@ -875,26 +876,42 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             {/* ── SEGMENTED MODE SELECTOR ── */}
             <View style={styles.tabSwitchContainer}>
               <TouchableOpacity
-                style={[styles.tabSwitchBtn, authMode === 'LOGIN' && styles.tabSwitchBtnActive]}
+                style={[
+                  styles.tabSwitchBtn,
+                  authMode === 'LOGIN' && styles.tabSwitchBtnActive,
+                ]}
                 onPress={() => {
                   setAuthMode('LOGIN');
                   setError(null);
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.tabSwitchText, authMode === 'LOGIN' && styles.tabSwitchTextActive]}>
+                <Text
+                  style={[
+                    styles.tabSwitchText,
+                    authMode === 'LOGIN' && styles.tabSwitchTextActive,
+                  ]}
+                >
                   🏢 Workspace Login
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.tabSwitchBtn, authMode === 'STAFF_REGISTER' && styles.tabSwitchBtnActive]}
+                style={[
+                  styles.tabSwitchBtn,
+                  authMode === 'STAFF_REGISTER' && styles.tabSwitchBtnActive,
+                ]}
                 onPress={() => {
                   setAuthMode('STAFF_REGISTER');
                   setError(null);
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.tabSwitchText, authMode === 'STAFF_REGISTER' && styles.tabSwitchTextActive]}>
+                <Text
+                  style={[
+                    styles.tabSwitchText,
+                    authMode === 'STAFF_REGISTER' && styles.tabSwitchTextActive,
+                  ]}
+                >
                   🔑 Staff Self-Register
                 </Text>
               </TouchableOpacity>
@@ -911,10 +928,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   Sign In to Your Company Workspace
                 </Text>
                 <Text style={styles.formSubtitle}>
-                  Select your company and provide your assigned key to authenticate.
+                  Select your company workspace and provide your assigned key to authenticate.
                 </Text>
 
-                {/* Error Banner */}
+                {/* Error Banner with Quick Diagnostics button */}
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
@@ -923,7 +940,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       onPress={() => setServerModalOpen(true)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.serverSettingsBtnText}>🛠️ Change Server URL / Test Ping</Text>
+                      <Text style={styles.serverSettingsBtnText}>
+                        🛠️ Open Server Connection &amp; Diagnostics
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -932,6 +951,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 <View style={styles.inputGroup}>
                   <View style={styles.labelRow}>
                     <Text style={styles.label}>1. Select Company / Workspace *</Text>
+                    <TouchableOpacity
+                      onPress={() => fetchAndSyncCompanies(true)}
+                      disabled={syncingCompanies || loading}
+                      style={styles.syncBtn}
+                      activeOpacity={0.7}
+                    >
+                      {syncingCompanies ? (
+                        <ActivityIndicator size="small" color="#818cf8" />
+                      ) : (
+                        <Text style={styles.syncBtnText}>🔄 Refresh</Text>
+                      )}
+                    </TouchableOpacity>
                   </View>
                   <TouchableOpacity
                     disabled={loading}
@@ -940,7 +971,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.inputIcon}>🏢</Text>
-                    <Text style={styles.selectBoxText} numberOfLines={1}>{selectedCompanyName}</Text>
+                    <Text style={styles.selectBoxText} numberOfLines={1}>
+                      {selectedCompanyName}
+                    </Text>
                     <Text style={styles.selectArrow}>▼</Text>
                   </TouchableOpacity>
                 </View>
@@ -948,9 +981,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {/* STEP 2 — ROLE / PERSPECTIVE SELECTION */}
                 <Text style={styles.label}>
                   2. Select Login Role / Perspective *
-                  {loading ? (
-                    <Text style={styles.labelNote}> (Locked during authentication)</Text>
-                  ) : null}
                 </Text>
                 <View style={[styles.roleGrid, loading && { opacity: 0.5 }]}>
                   {ALL_ROLES.map((r) => (
@@ -970,7 +1000,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                           selectedRole === r && styles.rolePillTextActive,
                         ]}
                       >
-                        {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'ADMIN' ? 'Admin' : r === 'HR' ? 'HR' : 'Manager'}
+                        {r === 'SALES_EXEC'
+                          ? 'Sales Executive'
+                          : r === 'TEAM_LEADER'
+                          ? 'Team Leader'
+                          : r === 'ADMIN'
+                          ? 'Admin'
+                          : r === 'HR'
+                          ? 'HR'
+                          : 'Manager'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -991,27 +1029,30 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         styles.monoInput,
                         loading && { opacity: 0.5 },
                       ]}
-                      placeholder="e.g. ABCD-EF-1234"
+                      placeholder="e.g. ADOR-EC-7187"
                       placeholderTextColor="#64748b"
                       value={companyKeyInput}
                       maxLength={12}
                       autoCapitalize="characters"
                       autoCorrect={false}
-                      keyboardType={companyKeyInput.length >= 8 ? 'numeric' : 'default'}
-                      onChangeText={(t) => setCompanyKeyInput(formatCompanyKey(t))}
+                      onChangeText={handleCompanyKeyChange}
                     />
                   </View>
                 </View>
 
                 {/* STEP 4 — ENTER EMAIL */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>4. Enter Email *</Text>
+                  <Text style={styles.label}>4. Enter Email Address *</Text>
                   <View style={{ position: 'relative', justifyContent: 'center' }}>
                     <Text style={styles.inputIcon}>✉️</Text>
                     <TextInput
                       editable={!loading}
-                      style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
-                      placeholder="user@gmail.com"
+                      style={[
+                        styles.input,
+                        styles.inputWithIcon,
+                        loading && { opacity: 0.5 },
+                      ]}
+                      placeholder="user@company.com"
                       placeholderTextColor="#64748b"
                       value={email}
                       onChangeText={setEmail}
@@ -1029,15 +1070,33 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     <Text style={styles.inputIcon}>🔒</Text>
                     <TextInput
                       editable={!loading}
-                      style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
+                      style={[
+                        styles.input,
+                        styles.inputWithIcon,
+                        { paddingRight: 40 },
+                        loading && { opacity: 0.5 },
+                      ]}
                       placeholder="••••••••"
                       placeholderTextColor="#64748b"
                       value={password}
                       onChangeText={setPassword}
-                      secureTextEntry
+                      secureTextEntry={!showPassword}
                     />
+                    <TouchableOpacity
+                      style={styles.eyeIconBtn}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      <Text style={{ fontSize: 14 }}>{showPassword ? '👁️' : '🔒'}</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: 8,
+                    }}
+                  >
                     <TouchableOpacity
                       disabled={loading}
                       onPress={() => {
@@ -1051,12 +1110,21 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                       activeOpacity={0.7}
                     >
-                      <Text style={{ fontSize: 13, color: rememberMe ? '#6366f1' : '#64748b' }}>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: rememberMe ? '#6366f1' : '#64748b',
+                        }}
+                      >
                         {rememberMe ? '☑' : '☐'}
                       </Text>
-                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>Remember Me</Text>
+                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>
+                        Remember Me
+                      </Text>
                     </TouchableOpacity>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                    >
                       {hasAutofilled ? (
                         <TouchableOpacity
                           onPress={() => {
@@ -1066,7 +1134,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                             setHasAutofilled(false);
                           }}
                         >
-                          <Text style={{ fontSize: 11, color: '#ef4444' }}>Clear</Text>
+                          <Text style={{ fontSize: 11, color: '#ef4444' }}>
+                            Clear
+                          </Text>
                         </TouchableOpacity>
                       ) : null}
                       <TouchableOpacity
@@ -1082,7 +1152,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                           setNewPassword('');
                         }}
                       >
-                        <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>
+                        <Text
+                          style={[
+                            styles.forgotText,
+                            loading && { opacity: 0.4 },
+                          ]}
+                        >
                           Forgot Password?
                         </Text>
                       </TouchableOpacity>
@@ -1101,7 +1176,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.buttonText}>
-                      Login →
+                      Login to Workspace →
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -1110,13 +1185,23 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <>
                 {/* ── STAFF SELF-REGISTRATION FORM ── */}
                 <View style={styles.entryTagRow}>
-                  <View style={[styles.entryTag, { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
-                    <Text style={[styles.entryTagText, { color: '#34d399' }]}>STAFF SELF-REGISTRATION</Text>
+                  <View
+                    style={[
+                      styles.entryTag,
+                      {
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderColor: 'rgba(16, 185, 129, 0.3)',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.entryTagText, { color: '#34d399' }]}>
+                      STAFF SELF-REGISTRATION
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.formTitle}>Join Company Workspace</Text>
                 <Text style={styles.formSubtitle}>
-                  Enter your Company Registration Key provided by your Admin to register your staff account.
+                  Enter the Company Registration Key provided by your Admin to register your staff account.
                 </Text>
 
                 {/* Error Banner */}
@@ -1128,7 +1213,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       onPress={() => setServerModalOpen(true)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.serverSettingsBtnText}>🛠️ Change Server URL / Test Ping</Text>
+                      <Text style={styles.serverSettingsBtnText}>
+                        🛠️ Open Server Connection &amp; Diagnostics
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -1137,12 +1224,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>1. Company Registration Key *</Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flex: 1, position: 'relative', justifyContent: 'center' }}>
+                    <View
+                      style={{
+                        flex: 1,
+                        position: 'relative',
+                        justifyContent: 'center',
+                      }}
+                    >
                       <Text style={styles.inputIcon}>🔑</Text>
                       <TextInput
                         editable={!loading && !keyValidating}
-                        style={[styles.input, styles.inputWithIcon, styles.monoInput]}
-                        placeholder="e.g. ABCD-EF-1234"
+                        style={[
+                          styles.input,
+                          styles.inputWithIcon,
+                          styles.monoInput,
+                        ]}
+                        placeholder="e.g. ADOR-EC-7187"
                         placeholderTextColor="#64748b"
                         value={companyKeyInput}
                         maxLength={12}
@@ -1155,7 +1252,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       />
                     </View>
                     <TouchableOpacity
-                      style={[styles.validateBtn, keyValidating && { opacity: 0.6 }]}
+                      style={[
+                        styles.validateBtn,
+                        keyValidating && { opacity: 0.6 },
+                      ]}
                       onPress={handleValidateStaffKey}
                       disabled={keyValidating || loading}
                       activeOpacity={0.8}
@@ -1163,14 +1263,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       {keyValidating ? (
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
-                        <Text style={styles.validateBtnText}>{keyValidated ? '✓ Valid' : 'Validate'}</Text>
+                        <Text style={styles.validateBtnText}>
+                          {keyValidated ? '✓ Valid' : 'Validate'}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   </View>
                   {keyValidated && (
                     <View style={styles.validatedCompanyBadge}>
                       <Text style={styles.validatedCompanyText}>
-                        🏢 Workspace: <Text style={{ fontWeight: '800', color: '#34d399' }}>{validatedOrgName || 'Company'}</Text>
+                        🏢 Workspace:{' '}
+                        <Text style={{ fontWeight: '800', color: '#34d399' }}>
+                          {validatedOrgName || 'Company'}
+                        </Text>
                       </Text>
                     </View>
                   )}
@@ -1178,28 +1283,53 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
                 {/* STEP 2 — APPLIED / REQUESTED ROLE */}
                 <View style={styles.inputGroup}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
                     <Text style={styles.label}>2. Applied / Requested Role *</Text>
-                    <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '700' }}>⏳ Requires Admin Approval</Text>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: '#f59e0b',
+                        fontWeight: '700',
+                      }}
+                    >
+                      ⏳ Requires Admin Approval
+                    </Text>
                   </View>
                   <View style={styles.roleGrid}>
-                    {ALL_ROLES.filter(r => r !== 'ADMIN').map((r) => (
+                    {ALL_ROLES.filter((r) => r !== 'ADMIN').map((r) => (
                       <TouchableOpacity
                         key={r}
                         disabled={loading}
-                        style={[styles.rolePill, staffRole === r && styles.rolePillActive]}
+                        style={[
+                          styles.rolePill,
+                          staffRole === r && styles.rolePillActive,
+                        ]}
                         onPress={() => setStaffRole(r)}
                         activeOpacity={0.8}
                       >
-                        <Text style={[styles.rolePillText, staffRole === r && styles.rolePillTextActive]}>
-                          {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'HR' ? 'HR' : 'Manager'}
+                        <Text
+                          style={[
+                            styles.rolePillText,
+                            staffRole === r && styles.rolePillTextActive,
+                          ]}
+                        >
+                          {r === 'SALES_EXEC'
+                            ? 'Sales Executive'
+                            : r === 'TEAM_LEADER'
+                            ? 'Team Leader'
+                            : r === 'HR'
+                            ? 'HR'
+                            : 'Manager'}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
-                    Your requested role will be submitted to your Organization Administrator for review and approval.
-                  </Text>
                 </View>
 
                 {/* STEP 3 — FULL NAME */}
@@ -1220,7 +1350,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
                 {/* STEP 4 — PHONE NUMBER */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>4. Employee Phone Number *</Text>
+                  <Text style={styles.label}>4. Phone Number *</Text>
                   <View style={{ position: 'relative', justifyContent: 'center' }}>
                     <Text style={styles.inputIcon}>📞</Text>
                     <TextInput
@@ -1272,7 +1402,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
                 {/* SUBMIT BUTTON */}
                 <TouchableOpacity
-                  style={[styles.button, { backgroundColor: '#059669' }, (!keyValidated || loading) && { opacity: 0.6 }]}
+                  style={[
+                    styles.button,
+                    { backgroundColor: '#059669' },
+                    (!keyValidated || loading) && { opacity: 0.6 },
+                  ]}
                   onPress={handleStaffKeyRegister}
                   disabled={loading || !keyValidated}
                   activeOpacity={0.8}
@@ -1282,7 +1416,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   ) : (
                     <Text style={styles.buttonText}>
                       {keyValidated
-                        ? `Register as ${staffRole.replace('_', ' ')} (Pending Admin Approval) →`
+                        ? `Register as ${staffRole.replace(
+                            '_',
+                            ' ',
+                          )} (Pending Admin Approval) →`
                         : 'Validate Key First'}
                     </Text>
                   )}
@@ -1318,7 +1455,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ width: '100%', maxHeight: 340, marginVertical: 8 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ width: '100%', maxHeight: 340, marginVertical: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
               {publicCompanies.map((c) => {
                 const isApproved = c.status === 'APPROVED' || c.isActive;
                 return (
@@ -1336,12 +1476,20 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       setCompanyModalOpen(false);
                     }}
                   >
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
                       <View style={{ flex: 1, marginRight: 8 }}>
                         <Text
                           style={[
                             styles.modalOptionText,
-                            selectedCompanyId === c.id && styles.modalOptionTextActive,
+                            selectedCompanyId === c.id &&
+                              styles.modalOptionTextActive,
                           ]}
                         >
                           🏢 {c.name}
@@ -1357,7 +1505,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         )}
                       </View>
                       {selectedCompanyId === c.id && (
-                        <Text style={{ color: '#6366f1', fontSize: 16, fontWeight: '900' }}>✓</Text>
+                        <Text
+                          style={{
+                            color: '#6366f1',
+                            fontSize: 16,
+                            fontWeight: '900',
+                          }}
+                        >
+                          ✓
+                        </Text>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -1371,13 +1527,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     No Active Companies Detected
                   </Text>
                   <Text style={styles.emptyCompanyDesc}>
-                    Once the Super Admin approves your company registration, tap "Sync Companies" below.
+                    Once the Super Admin approves your company registration, tap
+                    "Sync Companies" below.
                   </Text>
                   <TouchableOpacity
                     style={styles.retrySyncBtn}
                     onPress={() => fetchAndSyncCompanies(true)}
                   >
-                    <Text style={styles.retrySyncBtnText}>🔄 Sync Approved Companies Now</Text>
+                    <Text style={styles.retrySyncBtnText}>
+                      🔄 Sync Approved Companies Now
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1393,7 +1552,68 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </View>
       </Modal>
 
-
+      {/* ── VERIFICATION PENDING MODAL ─────────────────────────────────── */}
+      <Modal
+        visible={pendingApprovalModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setPendingApprovalModal((prev) => ({ ...prev, visible: false }))
+        }
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontSize: 36, marginBottom: 8 }}>⏳</Text>
+            <Text style={[styles.modalTitle, { textAlign: 'center', color: '#f59e0b' }]}>
+              Company Verification Pending
+            </Text>
+            <Text
+              style={[
+                styles.modalSubtitle,
+                { textAlign: 'center', marginVertical: 8, lineHeight: 18 },
+              ]}
+            >
+              <Text style={{ fontWeight: '800', color: '#f8fafc' }}>
+                {pendingApprovalModal.companyName || 'Your Company'}
+              </Text>{' '}
+              has submitted registration and is currently awaiting approval from the
+              DAS CRM Super Admin team.
+            </Text>
+            <View
+              style={{
+                width: '100%',
+                backgroundColor: '#020617',
+                borderRadius: 10,
+                padding: 12,
+                marginVertical: 10,
+                borderWidth: 1,
+                borderColor: '#1e293b',
+              }}
+            >
+              <Text style={{ fontSize: 11, color: '#94a3b8' }}>
+                Registration Key:{' '}
+                <Text style={{ color: '#c084fc', fontWeight: '800' }}>
+                  {pendingApprovalModal.companyKey}
+                </Text>
+              </Text>
+              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                Admin Email:{' '}
+                <Text style={{ color: '#f8fafc', fontWeight: '700' }}>
+                  {pendingApprovalModal.email}
+                </Text>
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.button, { width: '100%', backgroundColor: '#f59e0b' }]}
+              onPress={() =>
+                setPendingApprovalModal((prev) => ({ ...prev, visible: false }))
+              }
+            >
+              <Text style={styles.buttonText}>I Understand</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── FORGOT PASSWORD MODAL ─────────────────────────────────────── */}
       <Modal visible={forgotModalOpen} transparent animationType="slide">
@@ -1484,7 +1704,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   placeholder="e.g. ADOR-EC-7187"
                   placeholderTextColor="#64748b"
                   value={forgotCompanyKey}
-                  onChangeText={txt => setForgotCompanyKey(txt.toUpperCase())}
+                  onChangeText={(txt) => setForgotCompanyKey(txt.toUpperCase())}
                   autoCapitalize="characters"
                 />
 
@@ -1499,7 +1719,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 />
 
                 <TouchableOpacity
-                  style={[styles.button, { backgroundColor: '#4f46e5', marginTop: 4 }]}
+                  style={[
+                    styles.button,
+                    { backgroundColor: '#4f46e5', marginTop: 4 },
+                  ]}
                   onPress={handleResetWithCompanyKey}
                   disabled={
                     forgotLoading ||
@@ -1547,7 +1770,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <View style={{ width: '100%', gap: 12 }}>
                 <Text style={styles.label}>6-Digit Reset OTP Code *</Text>
                 <TextInput
-                  style={[styles.input, styles.monoInput, { textAlign: 'center', fontSize: 18, letterSpacing: 6 }]}
+                  style={[
+                    styles.input,
+                    styles.monoInput,
+                    { textAlign: 'center', fontSize: 18, letterSpacing: 6 },
+                  ]}
                   placeholder="123456"
                   placeholderTextColor="#64748b"
                   value={forgotOtp}
@@ -1597,7 +1824,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       {/* ── SERVER CONNECTION & DIAGNOSTICS MODAL ──────────────────────── */}
       <ServerConnectionModal
         visible={serverModalOpen}
-        onClose={() => setServerModalOpen(false)}
+        onClose={() => {
+          setServerModalOpen(false);
+          // Re-sync public companies when server config changes
+          fetchAndSyncCompanies(true);
+        }}
       />
     </SafeAreaView>
   );
@@ -1614,7 +1845,12 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  headerContainer: { alignItems: 'center', marginBottom: 20, width: '100%', maxWidth: 560 },
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+    maxWidth: 560,
+  },
   logoImage: { width: 68, height: 68, borderRadius: 16, marginBottom: 10 },
   badgeContainer: {
     backgroundColor: 'rgba(99,102,241,0.15)',
@@ -1634,7 +1870,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
   subtitle: { fontSize: 12, color: '#94a3b8', textAlign: 'center' },
 
-  // Gateway Panel
   // Form Card
   formCard: {
     width: '100%',
@@ -1656,10 +1891,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 999,
   },
-  entryTagGreen: {
-    backgroundColor: 'rgba(16,185,129,0.15)',
-    borderColor: 'rgba(16,185,129,0.3)',
-  },
   entryTagText: { fontSize: 9, fontWeight: '800', color: '#a5b4fc' },
   formTitle: {
     fontSize: 18,
@@ -1669,7 +1900,7 @@ const styles = StyleSheet.create({
   },
   formSubtitle: { fontSize: 11, color: '#94a3b8', marginBottom: 14 },
 
-  // Error / Success banners
+  // Error Banner
   errorBanner: {
     backgroundColor: 'rgba(239,68,68,0.15)',
     borderColor: 'rgba(239,68,68,0.4)',
@@ -1678,7 +1909,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 14,
   },
-  errorText: { color: '#fca5a5', fontSize: 12, fontWeight: '600' },
+  errorText: { color: '#fca5a5', fontSize: 12, fontWeight: '600', lineHeight: 16 },
   serverPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1738,7 +1969,6 @@ const styles = StyleSheet.create({
   // Inputs
   inputGroup: { marginBottom: 14 },
   label: { fontSize: 11, color: '#94a3b8', fontWeight: '700', marginBottom: 5 },
-  labelNote: { color: '#818cf8', fontWeight: '400' },
   input: {
     backgroundColor: '#020617',
     borderWidth: 1,
@@ -1755,6 +1985,12 @@ const styles = StyleSheet.create({
     left: 12,
     zIndex: 10,
     fontSize: 14,
+  },
+  eyeIconBtn: {
+    position: 'absolute',
+    right: 12,
+    zIndex: 10,
+    padding: 4,
   },
   monoInput: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
@@ -1791,7 +2027,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  selectBoxText: { color: '#f8fafc', fontSize: 13, fontWeight: '600', flex: 1, marginLeft: 24 },
+  selectBoxText: {
+    color: '#f8fafc',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+    marginLeft: 24,
+  },
   selectArrow: { color: '#64748b', fontSize: 10 },
 
   // Forgot Password
@@ -1811,16 +2053,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   buttonText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
-  googleButton: {
-    backgroundColor: '#020617',
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    borderRadius: 12,
-    paddingVertical: 11,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  googleButtonText: { color: '#f8fafc', fontSize: 12, fontWeight: '600' },
 
   // Modals
   modalOverlay: {
@@ -1907,8 +2139,18 @@ const styles = StyleSheet.create({
   },
   modalOptionText: { color: '#f8fafc', fontSize: 13, fontWeight: '700' },
   modalOptionTextActive: { color: '#a5b4fc' },
-  pendingBadgeText: { fontSize: 10, color: '#f59e0b', marginTop: 3, fontWeight: '700' },
-  approvedBadgeText: { fontSize: 10, color: '#10b981', marginTop: 3, fontWeight: '700' },
+  pendingBadgeText: {
+    fontSize: 10,
+    color: '#f59e0b',
+    marginTop: 3,
+    fontWeight: '700',
+  },
+  approvedBadgeText: {
+    fontSize: 10,
+    color: '#10b981',
+    marginTop: 3,
+    fontWeight: '700',
+  },
   emptyCompanyBox: {
     alignItems: 'center',
     paddingVertical: 20,
@@ -1944,33 +2186,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  serverConfigBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#1e1b4b',
-    borderColor: '#4338ca',
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  serverConfigBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#a5b4fc',
-  },
-  offlineBtn: {
-    marginTop: 8,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    backgroundColor: '#4338ca',
-    borderRadius: 8,
+  modalCloseButton: {
+    marginTop: 10,
+    paddingVertical: 8,
+    width: '100%',
     alignItems: 'center',
   },
-  offlineBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  modalCloseButton: { marginTop: 10, paddingVertical: 8, width: '100%', alignItems: 'center' },
   modalCloseText: { color: '#94a3b8', fontSize: 12, fontWeight: '700' },
 
   // Segmented Mode Switcher
