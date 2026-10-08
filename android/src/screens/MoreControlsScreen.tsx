@@ -31,6 +31,7 @@ import ProfileScreen from './ProfileScreen';
 import NoticeBoardScreen from './NoticeBoardScreen';
 import AppSettingsScreen from './AppSettingsScreen';
 import AdminControlCenterScreen from './AdminControlCenterScreen';
+import { SalesGoalsScreen } from './SalesGoalsScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuthStore } from '../store/authStore';
@@ -225,27 +226,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         )}
 
         {activeModal === 'GOALS' && (
-          <View style={{ flex: 1 }}>
-            {renderBackBanner('Goals & Target KPI Audits')}
-            <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-              <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={[styles.kpiTitle, { color: colors.text }]}>📈 Team Sales Goals (Aug 2026)</Text>
-                <Text style={[styles.kpiSub, { color: colors.textMuted }]}>Monthly targets across reps & departments</Text>
-              </View>
-
-              <View style={{ gap: 12, marginTop: 16 }}>
-                <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 28 }]}>
-                  <Text style={{ fontSize: 28, marginBottom: 8 }}>🎯</Text>
-                  <Text style={[styles.kpiTitle, { color: colors.text, textAlign: 'center' }]}>No Active Sales Goals</Text>
-                  <Text style={[styles.kpiSub, { color: colors.textMuted, textAlign: 'center', marginTop: 4 }]}>Set up monthly targets for reps & departments to track live attainment.</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => Alert.alert('Target Config', 'Opening KPI allocation editor...')}>
-                <Text style={styles.actionBtnText}>+ Set New Team Target</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+          <SalesGoalsScreen onClose={closeModal} />
         )}
 
         {activeModal === 'INTERVIEWS' && (

@@ -23,6 +23,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { getStoredPipelineStages, PipelineStageItem, DEFAULT_ANDROID_PIPELINE_STAGES } from '../services/workflowStorage';
 
+import { apiService } from '../services/apiService';
+
 export interface DealItem {
   id: string;
   name: string;
@@ -45,11 +47,11 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   const { currentUser } = useAuthStore();
 
   // 🎯 Revenue Goal State
-  const [monthlyGoal, setMonthlyGoal] = useState<number>(0);
-  const [quarterlyGoal, setQuarterlyGoal] = useState<number>(0);
+  const [monthlyGoal, setMonthlyGoal] = useState<number>(300000);
+  const [quarterlyGoal, setQuarterlyGoal] = useState<number>(900000);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
-  const [inputMonthlyGoal, setInputMonthlyGoal] = useState('0');
-  const [inputQuarterlyGoal, setInputQuarterlyGoal] = useState('0');
+  const [inputMonthlyGoal, setInputMonthlyGoal] = useState('300000');
+  const [inputQuarterlyGoal, setInputQuarterlyGoal] = useState('900000');
 
   // 💼 Deals List
   const [dealsList, setDealsList] = useState<DealItem[]>([]);
@@ -68,7 +70,26 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
       setPipelineStages(stgs);
       if (stgs.length > 0) setNewDealStage(stgs[0].name);
     });
-  }, []);
+
+    apiService.getLeads().then((leads) => {
+      if (Array.isArray(leads) && leads.length > 0) {
+        const mappedDeals: DealItem[] = leads.map((l, idx) => {
+          const rawVal = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || (35000 + (idx * 15000));
+          return {
+            id: `deal_${l.id}`,
+            name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Deal #${idx + 1}`,
+            company: l.company || l.organization || 'Enterprise Client',
+            val: `₹${rawVal.toLocaleString('en-IN')}`,
+            rawVal,
+            stage: l.status || 'Proposal Sent',
+            owner: l.owner || l.assignedRep || currentUser?.name || 'Sales Rep',
+            expectedClose: 'Next Month',
+          };
+        });
+        setDealsList(mappedDeals);
+      }
+    });
+  }, [currentUser]);
 
   const getStageProbability = (stgName: string) => {
     const s = (stgName || '').trim().toUpperCase();

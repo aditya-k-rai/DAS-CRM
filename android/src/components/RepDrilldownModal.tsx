@@ -58,23 +58,60 @@ export interface PerformanceRepData {
   initials: string;
   avatarColor: string;
   teamLeaderName?: string;
+
   dailyCallsTarget: number;
   dailyWhatsappTarget: number;
   monthlyRevenueTarget: number;
   monthlyMeetingsTarget: number;
+
+  dateCallsTotal?: number;
+  dateNewCalls?: number;
+  dateFollowupCalls?: number;
+  dateWhatsappTotal?: number;
+  dateMeetingsCount?: number;
+  dateProductsShared?: number;
+  dateQuotesCount?: number;
+  dateQuotesAmount?: number;
+  dateLeadsReceived?: number;
+
+  monthlyCallsTotal?: number;
+  monthlyNewCalls?: number;
+  monthlyFollowupCalls?: number;
+  monthlyWhatsappTotal?: number;
+  monthlyMeetingsCount?: number;
+  monthlyProductsShared?: number;
+  monthlyQuotesCount?: number;
+  monthlyQuotesAmount?: number;
+  monthlyLeadsReceived?: number;
+  monthlyDealsWon?: number;
+  monthlyRevenueWon?: number;
+
+  pipelineValue?: number;
+  pipelineDealsCount?: number;
+
+  callsCompletionPct?: number;
+  whatsappCompletionPct?: number;
+  revenueCompletionPct?: number;
+  meetingsCompletionPct?: number;
+  overallScore?: number;
+
   activitiesList: DrilldownActivityItem[];
 }
 
-interface RepDrilldownModalProps {
+export type PerformanceRecord = PerformanceRepData;
+
+export interface RepDrilldownModalProps {
   visible: boolean;
   onClose: () => void;
   rep: PerformanceRepData | null;
   selectedDate?: string;
   selectedMonth?: string;
+  isMonthView?: boolean;
+  onToggleTimeframe?: (isM: boolean) => void;
   onOpenLead?: (leadId: string) => void;
 }
 
-export default function RepDrilldownModal({
+export function RepDrilldownModal({
   visible,
   onClose,
   rep,
@@ -970,3 +1007,5 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
 });
+
+export default RepDrilldownModal;

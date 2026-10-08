@@ -93,7 +93,12 @@ const CATALOG_PRODUCTS: {
   hsn: string;
   desc: string;
   image: string;
-}[] = [];
+}[] = [
+  { name: 'Premium Solar Panel 400W', price: 12500, tax: 12, unit: 'Nos', hsn: '85414011', desc: 'Monocrystalline high-efficiency solar module', image: '' },
+  { name: 'Solar Hybrid Inverter 5kW', price: 35000, tax: 18, unit: 'Nos', hsn: '85044090', desc: '5kW Grid-tie hybrid solar inverter with MPPT', image: '' },
+  { name: 'Lithium Battery 150Ah LiFePO4', price: 18000, tax: 18, unit: 'Nos', hsn: '85076000', desc: 'Deep-cycle lithium iron phosphate battery pack', image: '' },
+  { name: 'Structure Mounting Kit 5kW', price: 4500, tax: 18, unit: 'Set', hsn: '73089090', desc: 'Galvanized steel rooftop mounting structure kit', image: '' },
+];
 
 
 // ─────────────────────────────────────────────────────────────────────────────
