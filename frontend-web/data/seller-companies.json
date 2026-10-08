@@ -1,0 +1,21 @@
+[
+  {
+    "id": "cmuev7n3o000mikew7je1tdiw",
+    "name": "Adorable Trading",
+    "logoUrl": "/products/company_logo_1791419804873_1791419806948.jpg",
+    "email": "",
+    "phone": "8796824282",
+    "address": "Gautam Buddha Nagar, Uttar Pradesh, India",
+    "gstNumber": "09ECBPS7187H1ZY",
+    "panNumber": "ECBPS7187H",
+    "bankDetails": {
+      "bankName": "HDFC Bank",
+      "accountNo": "50200012345678",
+      "ifscCode": "HDFC0001234",
+      "branch": "Corporate Hub",
+      "upiId": "adorable@hdfc"
+    },
+    "updatedAt": "2026-10-08T00:36:47.611Z",
+    "isDefault": false
+  }
+]

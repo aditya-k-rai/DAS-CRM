@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 
 function getDataPaths() {
+  const isInsideFrontend = process.cwd().endsWith('frontend-web');
   const dirs = [
     path.resolve(process.cwd(), 'data'),
-    path.resolve(process.cwd(), 'frontend-web', 'data'),
-    path.resolve(process.cwd(), '..', 'frontend-web', 'data'),
+    ...(isInsideFrontend ? [] : [path.resolve(process.cwd(), 'frontend-web', 'data')]),
   ];
   return dirs;
 }
@@ -49,6 +49,38 @@ const DEFAULT_SELLER: SellerProfile & { isDefault?: boolean } = {
   isDefault: true,
 };
 
+export function getLocalSellerCompanies(): SellerProfile[] {
+  for (const dir of getDataPaths()) {
+    try {
+      const file = path.join(dir, 'seller-companies.json');
+      if (fs.existsSync(file)) {
+        const content = fs.readFileSync(file, 'utf8');
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+  }
+  const single = getLocalSellerProfile();
+  return [single];
+}
+
+export function saveLocalSellerCompanies(companies: SellerProfile[]): void {
+  if (!Array.isArray(companies) || companies.length === 0) return;
+  for (const dir of getDataPaths()) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(dir, 'seller-companies.json'), JSON.stringify(companies, null, 2), 'utf8');
+      if (companies[0]) {
+        fs.writeFileSync(path.join(dir, 'seller-company.json'), JSON.stringify(companies[0], null, 2), 'utf8');
+      }
+    } catch (_) {}
+  }
+}
+
 export function getLocalSellerProfile(): SellerProfile & { isDefault?: boolean } {
   for (const dir of getDataPaths()) {
     try {
@@ -73,6 +105,25 @@ export function saveLocalSellerProfile(profile: SellerProfile): void {
         fs.mkdirSync(dir, { recursive: true });
       }
       fs.writeFileSync(path.join(dir, 'seller-company.json'), JSON.stringify(cleanProfile, null, 2), 'utf8');
+      // Also update in seller-companies.json list
+      const companiesFile = path.join(dir, 'seller-companies.json');
+      let currentList: SellerProfile[] = [];
+      if (fs.existsSync(companiesFile)) {
+        try {
+          const content = fs.readFileSync(companiesFile, 'utf8');
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) currentList = parsed;
+        } catch (_) {}
+      }
+      const existingIdx = currentList.findIndex(c => c.id === cleanProfile.id || c.name.toLowerCase() === cleanProfile.name.toLowerCase());
+      if (existingIdx >= 0) {
+        currentList[existingIdx] = cleanProfile;
+      } else if (currentList.length > 0) {
+        currentList.unshift(cleanProfile);
+      } else {
+        currentList = [cleanProfile];
+      }
+      fs.writeFileSync(companiesFile, JSON.stringify(currentList, null, 2), 'utf8');
     } catch (_) {}
   }
 }

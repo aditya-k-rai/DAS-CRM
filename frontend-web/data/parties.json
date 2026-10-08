@@ -1,0 +1,15 @@
+[
+  {
+    "id": "party-1791419880634",
+    "name": "Acme Corp",
+    "contactPerson": "John Doe",
+    "email": "john@acme.com",
+    "phone": "98765432109876543210",
+    "address": "Billed To Address",
+    "shippingAddress": "",
+    "gstNo": "",
+    "panNo": "",
+    "createdAt": "2026-10-08T00:38:00.739Z",
+    "updatedAt": "2026-10-08T00:38:00.739Z"
+  }
+]

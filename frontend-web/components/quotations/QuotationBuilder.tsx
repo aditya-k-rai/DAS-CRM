@@ -783,91 +783,120 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           apiBase = '/api';
         }
 
-        // 1. Check localStorage first for existing user-edited seller company
-        let cachedComp: CompanyDetails | null = null;
+        // 1. Check localStorage first
+        let localCompanies: CompanyDetails[] = [];
         try {
           if (typeof window !== 'undefined') {
             const cached = localStorage.getItem('das_crm_seller_companies') || localStorage.getItem('das_crm_company_profile');
             if (cached) {
               const parsed = JSON.parse(cached);
-              const list = Array.isArray(parsed) ? parsed : [parsed];
-              if (list.length > 0 && (list[0].name || list[0].logoUrl || list[0].address)) {
-                cachedComp = list[0];
-              }
+              localCompanies = Array.isArray(parsed) ? parsed : [parsed];
             }
           }
         } catch (_) {}
 
-        let profile: any = null;
+        // 2. Fetch from Next.js /api/organization/seller-profile (file-based persistent store)
+        let remoteCompanies: CompanyDetails[] = [];
+        try {
+          const res = await fetch('/api/organization/seller-profile');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data?.companies) && data.companies.length > 0) {
+              remoteCompanies = data.companies.map((c: any) => ({
+                id: c.id || 'comp-1',
+                name: c.name || 'Adorable Trading',
+                logoUrl: c.logoUrl || '',
+                address: c.address || 'Registered Business Address',
+                email: c.email || '',
+                phone: c.phone || '',
+                gstNo: c.gstNumber || c.gstNo || '',
+                panNo: c.panNumber || c.panNo || '',
+                bankName: c.bankDetails?.bankName || c.bankName || 'HDFC Bank',
+                accountNo: c.bankDetails?.accountNo || c.accountNo || '',
+                ifscCode: c.bankDetails?.ifscCode || c.ifscCode || '',
+                branch: c.bankDetails?.branch || c.branch || '',
+                upiId: c.bankDetails?.upiId || c.upiId || '',
+              }));
+            } else if (data && data.name) {
+              remoteCompanies = [{
+                id: data.id || 'comp-1',
+                name: data.name,
+                logoUrl: data.logoUrl || '',
+                address: data.address || 'Registered Business Address',
+                email: data.email || '',
+                phone: data.phone || '',
+                gstNo: data.gstNumber || data.gstNo || '',
+                panNo: data.panNumber || data.panNo || '',
+                bankName: data.bankDetails?.bankName || data.bankName || 'HDFC Bank',
+                accountNo: data.bankDetails?.accountNo || data.accountNo || '',
+                ifscCode: data.bankDetails?.ifscCode || data.ifscCode || '',
+                branch: data.bankDetails?.branch || data.branch || '',
+                upiId: data.bankDetails?.upiId || data.upiId || '',
+              }];
+            }
+          }
+        } catch (_) {}
 
-        // 2. Fetch from backend seller-profile (Prisma DB / Organization — cross-device)
+        // 3. Fetch from backend /organizations/seller-profile (Prisma DB / Organization)
         try {
           const res = await fetch(`${apiBase}/organizations/seller-profile`, {
             headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           });
           if (res.ok) {
             const bData = await res.json();
-            if (bData && (bData.logoUrl || bData.gstNumber || bData.phone || (bData.name && bData.name !== 'Adorable Trading') || (bData.address && bData.address !== 'Registered Business Address'))) {
-              profile = bData;
+            if (bData && bData.name) {
+              const backendComp: CompanyDetails = {
+                id: bData.id || 'comp-1',
+                name: bData.name,
+                logoUrl: bData.logoUrl || '',
+                address: bData.address || 'Registered Business Address',
+                email: bData.email || '',
+                phone: bData.phone || '',
+                gstNo: bData.gstNumber || bData.gstNo || '',
+                panNo: bData.panNumber || bData.panNo || '',
+                bankName: bData.bankDetails?.bankName || bData.bankName || 'HDFC Bank',
+                accountNo: bData.bankDetails?.accountNo || bData.accountNo || '',
+                ifscCode: bData.bankDetails?.ifscCode || bData.ifscCode || '',
+                branch: bData.bankDetails?.branch || bData.branch || '',
+                upiId: bData.bankDetails?.upiId || bData.upiId || '',
+              };
+              const exists = remoteCompanies.some(c => c.id === backendComp.id || (c.name && backendComp.name && c.name.toLowerCase() === backendComp.name.toLowerCase()));
+              if (!exists) {
+                remoteCompanies.push(backendComp);
+              } else {
+                remoteCompanies = remoteCompanies.map(c =>
+                  (c.id === backendComp.id || (c.name && backendComp.name && c.name.toLowerCase() === backendComp.name.toLowerCase()))
+                    ? { ...c, ...backendComp }
+                    : c
+                );
+              }
             }
           }
         } catch (_) {}
 
-        // 3. Fallback: Next.js /api/organization/seller-profile (file-based persistent store)
-        if (!profile) {
+        // 4. Merge all sources giving priority to user customized data while retaining all added companies
+        const mergedMap = new Map<string, CompanyDetails>();
+        remoteCompanies.forEach(c => mergedMap.set(c.id || c.name, c));
+        localCompanies.forEach(c => {
+          const key = c.id || c.name;
+          if (mergedMap.has(key)) {
+            mergedMap.set(key, { ...mergedMap.get(key)!, ...c });
+          } else {
+            mergedMap.set(key, c);
+          }
+        });
+
+        const finalList = Array.from(mergedMap.values());
+        if (finalList.length > 0) {
+          setCompanies(finalList);
+          setSelectedCompanyId(prev => (prev && finalList.some(c => c.id === prev)) ? prev : finalList[0].id);
           try {
-            const res = await fetch('/api/organization/seller-profile');
-            if (res.ok) {
-              const fData = await res.json();
-              if (fData && (fData.logoUrl || fData.gstNumber || fData.phone || (fData.name && fData.name !== 'Adorable Trading') || (fData.address && fData.address !== 'Registered Business Address'))) {
-                profile = fData;
-              }
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('das_crm_seller_companies', JSON.stringify(finalList));
+              localStorage.setItem('das_crm_company_profile', JSON.stringify(finalList[0]));
             }
           } catch (_) {}
         }
-
-        // 4. Merge all sources giving highest priority to explicit user edits
-        setCompanies(prev => {
-          const existing = cachedComp || prev[0] || {} as any;
-          const mergedName = (profile?.name && profile.name !== 'Adorable Trading') ? profile.name : (existing.name || profile?.name || 'Adorable Trading');
-          const mergedLogo = (profile?.logoUrl && profile.logoUrl.trim()) ? profile.logoUrl.trim() : (existing.logoUrl || '');
-          const mergedAddress = (profile?.address && profile.address !== 'Registered Business Address') ? profile.address : (existing.address || profile?.address || 'Registered Business Address');
-          const mergedGst = profile?.gstNumber || profile?.gstNo || existing.gstNo || '';
-          const mergedPan = profile?.panNumber || profile?.panNo || existing.panNo || '';
-          const mergedEmail = profile?.email || existing.email || '';
-          const mergedPhone = profile?.phone || existing.phone || '';
-          const mergedBankName = profile?.bankDetails?.bankName || existing.bankName || 'HDFC Bank';
-          const mergedAcc = profile?.bankDetails?.accountNo || existing.accountNo || '';
-          const mergedIfsc = profile?.bankDetails?.ifscCode || existing.ifscCode || '';
-          const mergedBranch = profile?.bankDetails?.branch || existing.branch || '';
-          const mergedUpi = profile?.bankDetails?.upiId || existing.upiId || '';
-
-          const comp: CompanyDetails = {
-            id: profile?.id || existing.id || 'comp-1',
-            name: mergedName,
-            logoUrl: mergedLogo,
-            address: mergedAddress,
-            email: mergedEmail,
-            phone: mergedPhone,
-            gstNo: mergedGst,
-            panNo: mergedPan,
-            bankName: mergedBankName,
-            accountNo: mergedAcc,
-            ifscCode: mergedIfsc,
-            branch: mergedBranch,
-            upiId: mergedUpi,
-          };
-
-          try {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('das_crm_seller_companies', JSON.stringify([comp]));
-              localStorage.setItem('das_crm_company_profile', JSON.stringify(comp));
-            }
-          } catch (_) {}
-
-          return [comp];
-        });
-        setSelectedCompanyId(profile?.id || cachedComp?.id || 'comp-1');
       } catch (e) {
         console.warn('Failed to load seller profile:', e);
       }
@@ -878,7 +907,15 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     const handleRemoteCompanyUpdate = (e?: any) => {
       if (e?.detail && e.detail.name) {
         const updated = e.detail as CompanyDetails;
-        setCompanies([updated]);
+        setCompanies(prev => {
+          const exists = prev.some(c => c.id === updated.id);
+          const next = exists ? prev.map(c => c.id === updated.id ? updated : c) : [updated, ...prev];
+          try {
+            localStorage.setItem('das_crm_seller_companies', JSON.stringify(next));
+            localStorage.setItem('das_crm_company_profile', JSON.stringify(updated));
+          } catch (_) {}
+          return next;
+        });
         setSelectedCompanyId(updated.id);
         return;
       }
@@ -892,10 +929,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         bc.onmessage = (event) => {
           if (event?.data?.company && event.data.company.name) {
             const updated = event.data.company as CompanyDetails;
-            setCompanies([updated]);
+            const allComps = Array.isArray(event.data.companies) && event.data.companies.length > 0
+              ? event.data.companies
+              : [updated];
+            setCompanies(allComps);
             setSelectedCompanyId(updated.id);
             try {
-              localStorage.setItem('das_crm_seller_companies', JSON.stringify([updated]));
+              localStorage.setItem('das_crm_seller_companies', JSON.stringify(allComps));
+              localStorage.setItem('das_crm_company_profile', JSON.stringify(updated));
             } catch (_) {}
           } else {
             fetchSellerProfile();
@@ -2398,21 +2439,23 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     };
 
     // 1. Update state immediately
-    setCompanies(prev => {
-      const exists = prev.find(c => c.id === companyId);
-      return exists ? prev.map(c => c.id === companyId ? updatedCompany : c) : [updatedCompany, ...prev];
-    });
+    const nextCompanies = companies.some(c => c.id === companyId)
+      ? companies.map(c => c.id === companyId ? updatedCompany : c)
+      : [updatedCompany, ...companies];
+
+    setCompanies(nextCompanies);
     setSelectedCompanyId(companyId);
 
     // 2. Persist to localStorage immediately (instant cross-tab sync and relogin safety)
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('das_crm_seller_companies', JSON.stringify([updatedCompany]));
+        localStorage.setItem('das_crm_seller_companies', JSON.stringify(nextCompanies));
         localStorage.setItem('das_crm_company_profile', JSON.stringify(updatedCompany));
       }
     } catch (_) {}
 
     const sellerPayload = {
+      id: updatedCompany.id,
       name: updatedCompany.name,
       logoUrl: updatedCompany.logoUrl,
       email: updatedCompany.email,
@@ -2427,6 +2470,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         branch: updatedCompany.branch,
         upiId: updatedCompany.upiId,
       },
+      companies: nextCompanies,
     };
 
     // Broadcast company update to all other open tabs & dashboards immediately
@@ -2434,7 +2478,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       window.dispatchEvent(new CustomEvent('das_crm_seller_profile_updated', { detail: updatedCompany }));
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('das_crm_company_channel');
-        bc.postMessage({ type: 'SELLER_PROFILE_UPDATED', company: updatedCompany });
+        bc.postMessage({ type: 'SELLER_PROFILE_UPDATED', company: updatedCompany, companies: nextCompanies });
         bc.close();
       }
     } catch (_) {}
@@ -2461,7 +2505,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     setNewComp({});
   };
 
-  // 👤 SAVE / UPDATE BUYER PARTY — persists to /api/parties + backend /contacts + localStorage
+  // 👤 SAVE / UPDATE BUYER PARTY — persists to /api/parties + backend /contacts & /companies + localStorage
   const handleSaveNewParty = async () => {
     if (!newParty.name || !newParty.name.trim()) {
       alert('Client Party Name is required.');
@@ -2528,7 +2572,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       }
     } catch (_) {}
 
-    // Save to Next.js /api/parties, backend /contacts & backend /leads in parallel (non-blocking)
+    // Save to Next.js /api/parties, backend /contacts & backend /companies in parallel
     const savePromises: Promise<any>[] = [];
     if (editingPartyId) {
       savePromises.push(fetch(`/api/parties/${partyId}`, {
@@ -2542,6 +2586,43 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(partyPayload),
       }));
+
+      // Also create contact & company in backend DB
+      savePromises.push(fetch(`${apiBase}/contacts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          firstName: updatedParty.name,
+          email: updatedParty.email,
+          phone: updatedParty.phone,
+          customFields: {
+            address: updatedParty.address,
+            shippingAddress: updatedParty.shippingAddress,
+            gstNo: updatedParty.gstNo,
+            panNo: updatedParty.panNo,
+            contactPerson: updatedParty.contactPerson,
+          },
+        }),
+      }).catch(() => null));
+
+      savePromises.push(fetch(`${apiBase}/companies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: updatedParty.name,
+          email: updatedParty.email,
+          phone: updatedParty.phone,
+          address: updatedParty.address,
+          gstNumber: updatedParty.gstNo,
+          panNumber: updatedParty.panNo,
+        }),
+      }).catch(() => null));
     }
 
     if (editingPartyId && editingPartyId.startsWith('contact-')) {

@@ -10,7 +10,7 @@ import {
 import { useAuth, normalizeRoleStr } from '@/context/AuthContext';
 
 export function OrganizationSettingsView() {
-  const { currentUser, subscription } = useAuth();
+  const { currentUser, subscription, updateUserProfile, updateSubscription } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   // Dynamic Company Details
@@ -63,7 +63,31 @@ export function OrganizationSettingsView() {
     }
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
+    const trimmed = editableCompanyName.trim();
+    if (trimmed) {
+      updateUserProfile({ companyName: trimmed });
+      updateSubscription({ companyName: trimmed });
+
+      // Synchronize with seller profile
+      try {
+        if (typeof window !== 'undefined') {
+          const raw = localStorage.getItem('das_crm_seller_companies');
+          const current: any[] = raw ? JSON.parse(raw) : [];
+          if (current.length > 0) {
+            current[0].name = trimmed;
+            localStorage.setItem('das_crm_seller_companies', JSON.stringify(current));
+            localStorage.setItem('das_crm_company_profile', JSON.stringify(current[0]));
+            window.dispatchEvent(new CustomEvent('das_crm_seller_profile_updated', { detail: current[0] }));
+            fetch('/api/organization/seller-profile', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(current[0]),
+            }).catch(() => {});
+          }
+        }
+      } catch (_) {}
+    }
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
   };

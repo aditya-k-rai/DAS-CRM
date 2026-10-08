@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Test Premium Leather Jacket",
+    "sku": "DAS-390896",
+    "category": "General",
+    "subCategory": "Standard",
+    "brand": "Generic / Unbranded",
+    "color": "",
+    "unit": "Pieces (Pcs)",
+    "price": 4999,
+    "stock": 100,
+    "taxRate": 18,
+    "description": "",
+    "features": [],
+    "imageUrl": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=",
+    "images": [
+      "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4="
+    ],
+    "volumeDiscounts": [
+      {
+        "tier": "1 - 9 Units",
+        "minQty": 1,
+        "discountPct": 0,
+        "finalPrice": 4999
+      },
+      {
+        "tier": "10+ Units",
+        "minQty": 10,
+        "discountPct": 15,
+        "finalPrice": 4249
+      }
+    ],
+    "id": "p-1791418851182",
+    "createdAt": "2026-10-08T00:20:51.183Z",
+    "updatedAt": "2026-10-08T00:20:51.183Z"
+  }
+]

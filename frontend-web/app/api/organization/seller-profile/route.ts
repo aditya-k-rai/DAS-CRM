@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getLocalSellerProfile, saveLocalSellerProfile, SellerProfile } from '@/lib/serverSellerParties';
+import {
+  getLocalSellerProfile,
+  saveLocalSellerProfile,
+  getLocalSellerCompanies,
+  saveLocalSellerCompanies,
+  SellerProfile,
+} from '@/lib/serverSellerParties';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -14,10 +20,9 @@ export async function OPTIONS() {
 export async function GET(req: Request) {
   try {
     const localProfile = getLocalSellerProfile();
-    if (localProfile && !localProfile.isDefault) {
-      return NextResponse.json(localProfile, { headers: CORS_HEADERS });
-    }
+    const localCompanies = getLocalSellerCompanies();
 
+    // Also attempt to fetch from backend
     try {
       const authHeader = req.headers.get('Authorization');
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -27,13 +32,23 @@ export async function GET(req: Request) {
 
       if (backendRes && backendRes.ok) {
         const backendData = await backendRes.json();
-        if (backendData && (backendData.logoUrl || backendData.gstNumber || (backendData.name && backendData.name !== 'Adorable Trading'))) {
-          return NextResponse.json(backendData, { headers: CORS_HEADERS });
+        if (backendData && (backendData.name || backendData.logoUrl || backendData.gstNumber)) {
+          // If local has custom companies, merge them
+          const mergedCompanies = localCompanies.length > 0
+            ? localCompanies
+            : [backendData];
+          return NextResponse.json({
+            ...backendData,
+            companies: mergedCompanies,
+          }, { headers: CORS_HEADERS });
         }
       }
     } catch (_) {}
 
-    return NextResponse.json(localProfile, { headers: CORS_HEADERS });
+    return NextResponse.json({
+      ...localProfile,
+      companies: localCompanies,
+    }, { headers: CORS_HEADERS });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to get seller profile' }, { status: 500, headers: CORS_HEADERS });
   }
@@ -44,8 +59,13 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const current = getLocalSellerProfile();
 
+    if (Array.isArray(body.companies) && body.companies.length > 0) {
+      saveLocalSellerCompanies(body.companies);
+    }
+
     const updated: SellerProfile = {
       ...current,
+      ...(body.id ? { id: body.id } : {}),
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.logoUrl !== undefined ? { logoUrl: body.logoUrl } : {}),
       ...(body.email !== undefined ? { email: body.email } : {}),
@@ -75,7 +95,11 @@ export async function PUT(req: Request) {
       }).catch(() => null);
     } catch (_) {}
 
-    return NextResponse.json(updated, { headers: CORS_HEADERS });
+    const allCompanies = getLocalSellerCompanies();
+    return NextResponse.json({
+      ...updated,
+      companies: allCompanies,
+    }, { headers: CORS_HEADERS });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to update seller profile' }, { status: 500, headers: CORS_HEADERS });
   }
