@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import {
-  Plus, Building2, MapPin, Globe, Phone, Mail, Users,
+  Plus, Building2, MapPin, Phone, Mail,
   Search, Edit2, Trash2, CheckCircle2,
-  X, Loader2, Landmark
+  X, Loader2, Landmark, Receipt, ShieldCheck
 } from 'lucide-react';
 import { SellerProfile } from '@/lib/serverSellerParties';
 
@@ -29,15 +30,26 @@ interface UnifiedCompany {
   createdAt?: string;
 }
 
-export default function CompaniesPage() {
+function CompaniesContent() {
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get('tab')?.toUpperCase();
+
   const [companies, setCompanies] = useState<UnifiedCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [tab, setTab] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
+  const [tab, setTab] = useState<'ALL' | 'SELLER' | 'BUYER'>(
+    urlTab === 'SELLER' ? 'SELLER' : urlTab === 'BUYER' ? 'BUYER' : 'ALL'
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'SELLER' | 'BUYER'>('SELLER');
   const [editingCompany, setEditingCompany] = useState<UnifiedCompany | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (urlTab === 'SELLER' || urlTab === 'BUYER') {
+      setTab(urlTab);
+    }
+  }, [urlTab]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -542,11 +554,11 @@ export default function CompaniesPage() {
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href="/contacts"
+              href="/quotes"
               className="btn-secondary text-xs sm:text-sm px-3 py-1.5 gap-1.5 cursor-pointer flex items-center hover:text-indigo-400"
-              title="Go to Contacts & Parties Directory"
+              title="Go to Quotations & Invoices"
             >
-              <Users size={14} className="text-emerald-400" /> Contacts
+              <Receipt size={14} className="text-amber-400" /> Quotations
             </Link>
             <button
               onClick={() => handleOpenAdd('SELLER')}
@@ -558,7 +570,7 @@ export default function CompaniesPage() {
               onClick={() => handleOpenAdd('BUYER')}
               className="btn-primary text-xs sm:text-sm px-3.5 py-1.5 gap-1.5 cursor-pointer shadow-md shadow-indigo-600/20"
             >
-              <Plus size={14} /> Add Client Company
+              <Plus size={14} /> Add Client / Buyer
             </button>
           </div>
         }
@@ -582,7 +594,7 @@ export default function CompaniesPage() {
               onClick={() => setTab('ALL')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${tab === 'ALL' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}`}
             >
-              All Entities ({companies.length})
+              All Companies ({companies.length})
             </button>
             <button
               onClick={() => setTab('SELLER')}
@@ -594,7 +606,7 @@ export default function CompaniesPage() {
               onClick={() => setTab('BUYER')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${tab === 'BUYER' ? 'bg-background shadow-xs text-emerald-500 dark:text-emerald-400 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
             >
-              Client / Buyers ({companies.filter(c => c.type === 'BUYER').length})
+              Client / Buyer Companies ({companies.filter(c => c.type === 'BUYER').length})
             </button>
           </div>
         </div>
@@ -931,5 +943,13 @@ export default function CompaniesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CompaniesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground"><Loader2 size={24} className="animate-spin mx-auto mb-2 text-indigo-500" /> Loading Companies...</div>}>
+      <CompaniesContent />
+    </Suspense>
   );
 }

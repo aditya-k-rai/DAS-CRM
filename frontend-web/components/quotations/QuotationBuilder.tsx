@@ -3744,10 +3744,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     <Plus size={12} /> <span className="hidden sm:inline">Add Company</span><span className="sm:hidden">Add</span>
                   </button>
                   <Link
-                    href="/companies"
+                    href="/companies?tab=SELLER"
                     onClick={(e) => e.stopPropagation()}
                     className="text-[10px] sm:text-[11px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-indigo-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-indigo-500/10 cursor-pointer"
-                    title="Go to Companies section"
+                    title="Manage all companies & seller entities"
                   >
                     <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
                   </Link>
@@ -3899,12 +3899,12 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     <Plus size={12} /> <span className="hidden sm:inline">Add Party</span><span className="sm:hidden">Add</span>
                   </button>
                   <Link
-                    href="/contacts"
+                    href="/companies?tab=BUYER"
                     onClick={(e) => e.stopPropagation()}
                     className="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
-                    title="Go to Contacts & Parties section"
+                    title="Manage all buyer / client companies in Companies hub"
                   >
-                    <Users size={12} /> <span className="hidden sm:inline">Contacts</span>
+                    <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
                   </Link>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep3Done

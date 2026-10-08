@@ -16,16 +16,9 @@ export default function QuotationsPage() {
         actions={
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
-              href="/contacts"
-              className="btn-secondary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap flex items-center hover:text-indigo-400"
-              title="Go to Contacts & Parties"
-            >
-              <Users size={14} className="text-emerald-400" /> <span className="hidden xs:inline sm:inline">Contacts</span>
-            </Link>
-            <Link
               href="/companies"
               className="btn-secondary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap flex items-center hover:text-indigo-400"
-              title="Go to Companies & Organizations"
+              title="Go to Companies (Buyer & Seller Directory)"
             >
               <Building2 size={14} className="text-sky-400" /> <span className="hidden xs:inline sm:inline">Companies</span>
             </Link>
