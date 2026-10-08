@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Plus, Trash2, GripVertical, Package, Percent, DollarSign,
   FileText, Send, Eye, Download, Check, Edit2, Building2,
@@ -7,7 +8,7 @@ import {
   ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
   Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User,
   Mail, MessageSquare, Share2, Upload, FileDown, SlidersHorizontal, CheckCircle2,
-  CloudUpload, Lock, CheckCircle
+  CloudUpload, Lock, CheckCircle, Users
 } from 'lucide-react';
 import { exportQuotationAsDocx } from '../../lib/exportDocx';
 import { uploadFileToGoogleDrive } from '../../lib/googleDriveService';
@@ -3742,6 +3743,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   >
                     <Plus size={12} /> <span className="hidden sm:inline">Add Company</span><span className="sm:hidden">Add</span>
                   </button>
+                  <Link
+                    href="/companies"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] sm:text-[11px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-indigo-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-indigo-500/10 cursor-pointer"
+                    title="Go to Companies section"
+                  >
+                    <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
+                  </Link>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep2Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
@@ -3889,6 +3898,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   >
                     <Plus size={12} /> <span className="hidden sm:inline">Add Party</span><span className="sm:hidden">Add</span>
                   </button>
+                  <Link
+                    href="/contacts"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
+                    title="Go to Contacts & Parties section"
+                  >
+                    <Users size={12} /> <span className="hidden sm:inline">Contacts</span>
+                  </Link>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep3Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'

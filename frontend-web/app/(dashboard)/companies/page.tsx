@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import {
   Plus, Building2, MapPin, Globe, Phone, Mail, Users,
-  DollarSign, Search, Filter, Edit2, Trash2, ShieldCheck,
-  CheckCircle2, CreditCard, ExternalLink, X, Loader2, Landmark
+  Search, Edit2, Trash2, CheckCircle2,
+  X, Loader2, Landmark
 } from 'lucide-react';
 import { SellerProfile } from '@/lib/serverSellerParties';
 
@@ -540,6 +541,13 @@ export default function CompaniesPage() {
         title="Companies &amp; Organizations"
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              href="/contacts"
+              className="btn-secondary text-xs sm:text-sm px-3 py-1.5 gap-1.5 cursor-pointer flex items-center hover:text-indigo-400"
+              title="Go to Contacts & Parties Directory"
+            >
+              <Users size={14} className="text-emerald-400" /> Contacts
+            </Link>
             <button
               onClick={() => handleOpenAdd('SELLER')}
               className="btn-secondary text-xs sm:text-sm px-3 py-1.5 gap-1.5 cursor-pointer"

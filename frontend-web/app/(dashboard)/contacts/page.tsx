@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import {
-  Plus, Search, Filter, Mail, Phone, Building2, MapPin,
-  Edit2, Trash2, CheckCircle2, User, Globe, FileText,
-  CreditCard, ShieldCheck, X, Loader2, ArrowUpDown
+  Plus, Search, Mail, Phone, Building2,
+  Edit2, Trash2, CheckCircle2, User, FileText,
+  ShieldCheck, X, Loader2, Receipt
 } from 'lucide-react';
 
 interface ContactItem {
@@ -387,6 +388,20 @@ export default function ContactsPage() {
         title="Contacts & Parties"
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              href="/quotes"
+              className="btn-secondary text-xs sm:text-sm px-3 py-1.5 gap-1.5 cursor-pointer flex items-center hover:text-indigo-400"
+              title="Go to Quotations & Invoices"
+            >
+              <Receipt size={14} className="text-amber-400" /> Quotations
+            </Link>
+            <Link
+              href="/companies"
+              className="btn-secondary text-xs sm:text-sm px-3 py-1.5 gap-1.5 cursor-pointer flex items-center hover:text-indigo-400"
+              title="Go to Companies & Organizations"
+            >
+              <Building2 size={14} className="text-sky-400" /> Companies
+            </Link>
             <button
               onClick={handleOpenAdd}
               className="btn-primary text-xs sm:text-sm px-3.5 py-1.5 gap-1.5 cursor-pointer shadow-md shadow-indigo-600/20"
