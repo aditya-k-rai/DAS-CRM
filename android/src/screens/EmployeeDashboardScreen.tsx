@@ -724,13 +724,22 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         {/* ── 5. Performance & Goals (Target Bars + Drilldown Trigger) ────────── */}
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>🌟 Performance & Goals</Text>
-          <TouchableOpacity
-            style={[styles.drilldownButton, { backgroundColor: colors.primary }]}
-            onPress={() => setDrilldownModalOpen(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.drilldownButtonText}>🔍 Drill-Down Hub</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              style={[styles.drilldownButton, { backgroundColor: colors.primary }]}
+              onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.drilldownButtonText}>📈 My Goals</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => setDrilldownModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.drilldownButtonText, { color: colors.text }]}>🔍 Drill-Down</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -780,6 +789,21 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             </View>
           </View>
 
+          {/* Goal & Target Hub Banner */}
+          <TouchableOpacity
+            style={[styles.drilldownFullBar, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.3)', marginBottom: 8 }]}
+            onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
+            activeOpacity={0.8}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 14 }}>📈</Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
+                Open My Goal & Target Hub (Quota telemetry & targets)
+              </Text>
+            </View>
+            <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
+          </TouchableOpacity>
+
           {/* Drilldown Trigger Link */}
           <TouchableOpacity
             style={[styles.drilldownFullBar, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
@@ -795,6 +819,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
           </TouchableOpacity>
         </View>
+
 
         {/* ── 6. Active Opportunities ────────────────────────────────────────── */}
         <View style={styles.sectionHeaderRow}>
