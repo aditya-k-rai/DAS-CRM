@@ -148,14 +148,20 @@ export function SalesGoals() {
 
     // Role-based visibility isolation
     if (isSalesExec) {
-      list = list.filter(r => r.userId === currentUser?.id || r.userEmail === currentUser?.email);
+      const myId = currentUser?.id;
+      const myEmail = (currentUser?.email || '').toLowerCase().trim();
+      const myName = (currentUser?.name || '').toLowerCase().trim();
+      list = list.filter(r => (myId && r.userId === myId) || (myEmail && r.userEmail.toLowerCase() === myEmail) || (myName && r.userName.toLowerCase() === myName));
       if (list.length === 0 && records.length > 0) {
         list = [records[0]];
       }
     } else if (isTeamLeader) {
       const myId = currentUser?.id || 'usr_tl';
       const myName = (currentUser?.name || '').toLowerCase().trim();
-      list = list.filter(r => r.userId === myId || r.teamLeaderId === myId || r.teamLeaderName?.toLowerCase().includes(myName));
+      list = list.filter(r => r.userId === myId || r.teamLeaderId === myId || (r.teamLeaderName && r.teamLeaderName.toLowerCase().includes(myName)));
+      if (list.length === 0 && records.length > 0) {
+        list = records.filter(r => !r.userRole.includes('ADMIN') && !r.userRole.includes('MANAGER'));
+      }
     }
 
     // Secondary UI TL filter (for Admin / Manager)
@@ -273,9 +279,9 @@ export function SalesGoals() {
             </div>
             <div>
               <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-                Sales Goals & Performance Targets
+                {isSalesExec ? 'My Goals & Performance Targets' : isTeamLeader ? 'Team Goals & Squad Targets' : 'Sales Goals & Performance Targets'}
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {isAdminOrManager ? 'Admin & Manager Hub' : isTeamLeader ? 'Team Leader Squad View' : 'Personal Sales Dashboard'}
+                  {isAdminOrManager ? 'Admin & Manager Hub' : isTeamLeader ? 'Team Leader Squad View' : 'My Personal Target'}
                 </span>
               </h2>
               <p className="text-xs text-slate-400">

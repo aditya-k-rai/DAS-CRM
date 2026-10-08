@@ -827,6 +827,7 @@ function RootAppContent() {
                         items: [
                           { icon: '🎯', label: t.tabLeads || 'Unit Lead Queue Allocation', badge: 'UNIT', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                           { icon: '💼', label: t.modDeals || 'Unit Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                          { icon: '📈', label: 'Team Goal & Target', badge: 'TEAM', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'GOALS' })) },
                           { icon: '🏆', label: 'Rep Performance Audit', badge: 'RANK', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
                           { icon: '⏱️', label: t.tabAttendance || 'Unit Punch Log Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
                         ]
@@ -846,7 +847,7 @@ function RootAppContent() {
                         items: [
                           { icon: '📞', label: t.tabLeads || 'My Assigned Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                           { icon: '💼', label: t.modDeals || 'My Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
-                          { icon: '📝', label: t.modQuotes || 'My Quotations Generator', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
+                          { icon: '📈', label: 'My Goal & Target', badge: 'MINE', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'GOALS' })) },
                           { icon: '⏱️', label: t.tabAttendance || 'Daily Attendance Punch', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
                         ]
                       },

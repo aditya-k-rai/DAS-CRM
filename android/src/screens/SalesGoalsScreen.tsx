@@ -60,6 +60,15 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
 
   const role = (currentUser?.role || '').toUpperCase();
   const isAdminOrManager = role.includes('ADMIN') || role.includes('MANAGER') || role.includes('SUPER') || role.includes('OWNER');
+  const isTL = role.includes('TEAM_LEADER') || role.includes('LEADER');
+  const isSalesRep = !isAdminOrManager && !isTL;
+
+  // Dynamic page title based on viewer's role
+  const pageTitle = isSalesRep
+    ? 'My Goal & Target'
+    : isTL
+    ? 'Team Goal & Target'
+    : 'Sales Goals & Quotas';
 
   const loadCRMData = useCallback(async () => {
     try {
@@ -82,22 +91,60 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
     loadCRMData();
   }, [loadCRMData]);
 
-  // Derive Rep Records
+  // Derive Rep Records with role-based filtering
   const repList = useMemo(() => {
     const rawReps = employees.filter((e) => {
       const r = (e.role || '').toUpperCase();
       return r.includes('SALES') || r.includes('EXEC') || r.includes('REP') || r.includes('LEAD') || r.includes('TL');
     });
 
-    const listToUse = rawReps.length > 0 ? rawReps : [
-      { id: 'emp-1', name: 'Nandini Rastogi', email: 'nandini@das.com', role: 'SALES_EXEC', designation: 'Senior Sales Executive' },
-      { id: 'emp-2', name: 'Sulekha Sharma', email: 'sulekha@das.com', role: 'SALES_EXEC', designation: 'Sales Consultant' },
-      { id: 'emp-3', name: 'Sadhana Verma', email: 'sadhana@das.com', role: 'SALES_EXEC', designation: 'Account Specialist' },
-      { id: 'emp-4', name: 'Rahul Joshi', email: 'rahul@das.com', role: 'TEAM_LEADER', designation: 'Team Leader Sales' },
+    const fallbackReps = [
+      { id: 'emp-1', name: 'Nandini Rastogi', email: 'nandini@das.com', role: 'SALES_EXEC', designation: 'Senior Sales Executive', reportingTo: 'Rahul Joshi' },
+      { id: 'emp-2', name: 'Sulekha Sharma', email: 'sulekha@das.com', role: 'SALES_EXEC', designation: 'Sales Consultant', reportingTo: 'Rahul Joshi' },
+      { id: 'emp-3', name: 'Sadhana Verma', email: 'sadhana@das.com', role: 'SALES_EXEC', designation: 'Account Specialist', reportingTo: 'Rahul Joshi' },
+      { id: 'emp-4', name: 'Rahul Joshi', email: 'rahul@das.com', role: 'TEAM_LEADER', designation: 'Team Leader Sales', reportingTo: undefined },
     ];
 
+    const listToUse = rawReps.length > 0 ? rawReps : fallbackReps;
+
+    if (isSalesRep && currentUser) {
+      // Sales Rep sees ONLY themselves
+      const selfEntry = listToUse.find(
+        (e) =>
+          (e.email || '').toLowerCase() === (currentUser.email || '').toLowerCase() ||
+          (e.name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
+      );
+      if (selfEntry) return [selfEntry];
+      // Fallback: create a self-entry from auth data
+      return [{
+        id: currentUser.id || 'self',
+        name: currentUser.name || 'Me',
+        email: currentUser.email || '',
+        role: currentUser.role || 'SALES_EXEC',
+        designation: 'Sales Executive',
+      }];
+    }
+
+    if (isTL && currentUser) {
+      // TL sees only their assigned subordinates (not themselves)
+      const tlName = (currentUser.name || '').toLowerCase();
+      const tlEmail = (currentUser.email || '').toLowerCase();
+      const subordinates = listToUse.filter((e) => {
+        const eRole = (e.role || '').toUpperCase();
+        const reportingTo = ((e as any).reportingTo || '').toLowerCase();
+        const isSubordinate = !eRole.includes('LEADER') && !eRole.includes('ADMIN') && !eRole.includes('MANAGER');
+        // Match by reportingTo field or just show all non-TL reps as the team
+        return isSubordinate && (reportingTo.includes(tlName) || reportingTo.includes(tlEmail) || true);
+      });
+      return subordinates.length > 0 ? subordinates : listToUse.filter((e) => {
+        const r = (e.role || '').toUpperCase();
+        return !r.includes('LEADER') && !r.includes('ADMIN') && !r.includes('MANAGER');
+      });
+    }
+
+    // Admin / Manager → see all
     return listToUse;
-  }, [employees]);
+  }, [employees, isSalesRep, isTL, currentUser]);
 
   // Construct Performance Records
   const records: PerformanceRecord[] = useMemo(() => {
@@ -278,11 +325,15 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       <View style={[styles.header, { backgroundColor: colors.cardBg, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontSize: 18 }}>🎯</Text>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Sales Goals & Quotas</Text>
+            <Text style={{ fontSize: 18 }}>{isSalesRep ? '🏅' : isTL ? '🛡️' : '🎯'}</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>{pageTitle}</Text>
           </View>
           <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-            Live Telemetry • Leads, Follow-ups, Calls & Revenue
+            {isSalesRep
+              ? 'Your Personal Performance • Calls, Revenue & Goals'
+              : isTL
+              ? 'Your Team Performance • Unit Calls, Revenue & Targets'
+              : 'Live Telemetry • Leads, Follow-ups, Calls & Revenue'}
           </Text>
         </View>
 

@@ -32,14 +32,13 @@ export interface NavItem {
   subItems?: NavSubItem[];
 }
 
-// ─── Sales Representative Navigation (Exact Default Order 0 - 12) ─────────────
+// ─── Sales Representative Navigation (Exact Default Order) ─────────────────────
 const salesRepNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard/sales', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
   { label: 'Leads', href: '/leads', icon: Target, moduleKey: 'LEADS' },
-  { label: 'New Leads', href: '/leads?status=New', icon: Sparkles, moduleKey: 'LEADS' },
   { label: 'Follow-ups', href: '/follow-ups', icon: Clock, moduleKey: 'FOLLOW_UPS' },
-  { label: 'Meetings', href: '/tasks?type=meeting', icon: Calendar, moduleKey: 'TASKS' },
   { label: 'Active Opportunities', href: '/deals', icon: Briefcase, moduleKey: 'DEALS' },
+  { label: 'My Goal & Target', href: '/goals', icon: TrendingUp, moduleKey: 'GOALS' },
   { label: 'My Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS', dividerAfter: true },
   { label: 'Attendance', href: '/attendance', icon: Calendar, moduleKey: 'ATTENDANCE' },
   { label: 'The Notice Board', href: '/notice-board', icon: Radio, moduleKey: 'UPCOMING_COMMS', dividerAfter: true },
@@ -60,7 +59,6 @@ const teamLeaderNavigation: NavItem[] = [
     moduleKey: 'LEADS',
     subItems: [
       { label: 'Team Total Leads', href: '/leads' },
-      { label: 'New Leads', href: '/leads?status=New' },
       { label: 'Contacted', href: '/leads?status=Contacted' },
       { label: 'Qualified', href: '/leads?status=Qualified' },
       { label: 'Unqualified / Lost', href: '/leads?status=Lost' },
@@ -71,7 +69,7 @@ const teamLeaderNavigation: NavItem[] = [
   { label: 'Team Follow-ups', href: '/follow-ups', icon: Clock, moduleKey: 'FOLLOW_UPS' },
   { label: 'Team Calls', href: '/reports?tab=calls', icon: Phone, moduleKey: 'REPORTS' },
   { label: 'Team Attendance', href: '/attendance', icon: Calendar, moduleKey: 'ATTENDANCE' },
-  { label: 'Team Performance', href: '/goals', icon: TrendingUp, moduleKey: 'GOALS' },
+  { label: 'Team Goal & Target', href: '/goals', icon: TrendingUp, moduleKey: 'GOALS' },
   { label: 'The Notice Board', href: '/notice-board', icon: Radio, moduleKey: 'UPCOMING_COMMS', dividerAfter: true },
   { label: 'Team WhatsApp Direct', href: '/whatsapp-templates', icon: MessageCircle, moduleKey: 'WA_TEMPLATES' }, // Not Default (enabled by Admin)
   { label: 'Team WhatsApp Cloud', href: '/comms', icon: MessageSquare, moduleKey: 'COMMUNICATIONS', dividerAfter: true }, // Not Default (enabled by Admin)
@@ -145,7 +143,7 @@ const roleDefaultsMap: Record<string, string[]> = {
   SUPER_ADMIN: Object.values(HREF_TO_MODULE_KEY),
   MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS', 'FOLLOW_UPS'],
   TEAM_LEADER: ['LEADS', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS'],
-  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS'],
+  SALES_EXEC:  ['LEADS', 'DEALS', 'GOALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS'],
   HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
   UNASSIGNED:  [],
 };
