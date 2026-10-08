@@ -137,10 +137,54 @@ function formatTimestamp(iso?: string): { date: string; time: string; dayLabel: 
   return { date, time, dayLabel };
 }
 
+export function deduplicateContactAttempts(history: ContactAttempt[]): ContactAttempt[] {
+  if (!Array.isArray(history)) return [];
+  const result: ContactAttempt[] = [];
+  const seenIds = new Set<string>();
+  const seenContentKeys = new Set<string>();
+
+  for (const item of history) {
+    if (!item) continue;
+
+    // 1. Exact ID match
+    if (item.id && seenIds.has(item.id)) {
+      continue;
+    }
+
+    // 2. Exact semantic content key match (timestamp minute + type + outcome + notes)
+    const timeMinute = item.timestamp ? item.timestamp.slice(0, 16) : '';
+    const contentKey = `${item.type}_${item.outcome}_${timeMinute}_${item.followUpDate || ''}_${item.followUpTime || ''}_${(item.notes || '').slice(0, 40)}`;
+    if (seenContentKeys.has(contentKey)) {
+      continue;
+    }
+
+    // 3. Prevent duplicate generic FOLLOWUP_SCHEDULED card if a CALL attempt on the same day already covers that scheduled follow-up
+    if (item.type === 'FOLLOWUP_SCHEDULED' && item.followUpDate) {
+      const isAlreadyCoveredByCall = history.some(other =>
+        other &&
+        other !== item &&
+        other.type.startsWith('CALL') &&
+        other.followUpDate === item.followUpDate &&
+        (other.followUpTime === item.followUpTime || !item.followUpTime || !other.followUpTime)
+      );
+      if (isAlreadyCoveredByCall) {
+        continue;
+      }
+    }
+
+    if (item.id) seenIds.add(item.id);
+    seenContentKeys.add(contentKey);
+    result.push(item);
+  }
+
+  return result;
+}
+
 function groupByDate(history: ContactAttempt[]): Record<string, ContactAttempt[]> {
   const groups: Record<string, ContactAttempt[]> = {};
   if (!Array.isArray(history)) return groups;
-  [...history].sort((a, b) => {
+  const deduped = deduplicateContactAttempts(history);
+  [...deduped].sort((a, b) => {
     const tA = new Date(a?.timestamp || 0).getTime() || 0;
     const tB = new Date(b?.timestamp || 0).getTime() || 0;
     return tB - tA;
@@ -473,30 +517,33 @@ export function CallContactHistory({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
 
+  // ── Clean & Deduplicate History Attempts ────────────────────────────────────
+  const cleanHistory = deduplicateContactAttempts(history);
+
   // ── Computed Stats ──────────────────────────────────────────────────────────
-  const totalAttempts = history.length;
-  const connectedCalls = history.filter(h => ['CALL_OUT', 'CALL_IN'].includes(h.type) && h.durationSeconds && h.durationSeconds > 0).length;
-  const missedOrNoAnswer = history.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY').length;
-  const totalCalls = history.filter(h => ['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type)).length;
+  const totalAttempts = cleanHistory.length;
+  const connectedCalls = cleanHistory.filter(h => ['CALL_OUT', 'CALL_IN'].includes(h.type) && h.durationSeconds && h.durationSeconds > 0).length;
+  const missedOrNoAnswer = cleanHistory.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY').length;
+  const totalCalls = cleanHistory.filter(h => ['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type)).length;
   
-  const meetingCount = history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes))).length;
+  const meetingCount = cleanHistory.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes))).length;
   
-  const waDirectCount = history.filter(h => {
+  const waDirectCount = cleanHistory.filter(h => {
     const m = resolveAttemptMedium(h);
     return (m.key === 'WHATSAPP_DIRECT' || m.key === 'WHATSAPP') && !m.key.includes('CLOUD');
   }).length;
 
-  const waCloudCount = history.filter(h => {
+  const waCloudCount = cleanHistory.filter(h => {
     const m = resolveAttemptMedium(h);
     return m.key === 'WHATSAPP_CLOUD';
   }).length;
 
-  const emailDirectCount = history.filter(h => {
+  const emailDirectCount = cleanHistory.filter(h => {
     const m = resolveAttemptMedium(h);
     return m.key === 'EMAIL_DIRECT' || (m.key === 'EMAIL' && !m.key.includes('AUTOMATION'));
   }).length;
 
-  const emailAutoCount = history.filter(h => {
+  const emailAutoCount = cleanHistory.filter(h => {
     const m = resolveAttemptMedium(h);
     return m.key === 'EMAIL_AUTOMATION';
   }).length;
@@ -504,46 +551,46 @@ export function CallContactHistory({
   const waTotalCount = waDirectCount + waCloudCount;
   const emailTotalCount = emailDirectCount + emailAutoCount;
 
-  const followUpCount = history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled)).length;
-  const quotationCount = history.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes))).length;
-  const invoiceCount = history.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes))).length;
-  const totalTalkSecs = history.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
+  const followUpCount = cleanHistory.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled)).length;
+  const quotationCount = cleanHistory.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes))).length;
+  const invoiceCount = cleanHistory.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes))).length;
+  const totalTalkSecs = cleanHistory.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
   
   // Resolve Interested Product / Service (from lead profile or logged history)
   const displayProduct = (interestedProduct && interestedProduct !== '—' && interestedProduct.trim())
     ? interestedProduct
-    : (history.find(h => h.productInterest)?.productInterest || '—');
+    : (cleanHistory.find(h => h.productInterest)?.productInterest || '—');
 
   // ── Filter ──────────────────────────────────────────────────────────────────
   const filtered = filterType === 'ALL'
-    ? history
+    ? cleanHistory
     : filterType === 'MEETING'
-    ? history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
+    ? cleanHistory.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
     : filterType === 'CALLS'
-    ? history.filter(h => ['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type))
+    ? cleanHistory.filter(h => ['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type))
     : filterType === 'FOLLOW_UP'
-    ? history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled))
+    ? cleanHistory.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled))
     : filterType === 'QUOTATION'
-    ? history.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes)))
+    ? cleanHistory.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes)))
     : filterType === 'INVOICE'
-    ? history.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes)))
+    ? cleanHistory.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes)))
     : filterType === 'WHATSAPP_DIRECT'
-    ? history.filter(h => {
+    ? cleanHistory.filter(h => {
         const m = resolveAttemptMedium(h);
         return m.key === 'WHATSAPP_DIRECT' || (m.key === 'WHATSAPP' && !m.key.includes('CLOUD'));
       })
     : filterType === 'WHATSAPP_CLOUD'
-    ? history.filter(h => resolveAttemptMedium(h).key === 'WHATSAPP_CLOUD')
+    ? cleanHistory.filter(h => resolveAttemptMedium(h).key === 'WHATSAPP_CLOUD')
     : filterType === 'EMAIL_DIRECT'
-    ? history.filter(h => {
+    ? cleanHistory.filter(h => {
         const m = resolveAttemptMedium(h);
         return m.key === 'EMAIL_DIRECT' || (m.key === 'EMAIL' && !m.key.includes('AUTOMATION'));
       })
     : filterType === 'EMAIL_AUTOMATION'
-    ? history.filter(h => resolveAttemptMedium(h).key === 'EMAIL_AUTOMATION')
+    ? cleanHistory.filter(h => resolveAttemptMedium(h).key === 'EMAIL_AUTOMATION')
     : filterType === 'CALL_BUSY'
-    ? history.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY')
-    : history.filter(h => h.type === filterType);
+    ? cleanHistory.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY')
+    : cleanHistory.filter(h => h.type === filterType);
   const grouped = groupByDate(filtered);
 
   return (
@@ -861,6 +908,16 @@ export function CallContactHistory({
                             {attempt.isRescheduled && attempt.type !== 'FOLLOWUP_RESCHEDULED' && (
                               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40">
                                 🔄 Callback Rescheduled
+                              </span>
+                            )}
+                            {Boolean(attempt.productInterest && typeof attempt.productInterest === 'string' && attempt.productInterest.trim()) && (
+                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 flex items-center gap-1 shadow-sm">
+                                <Package size={9} className="text-emerald-400" /> {attempt.productInterest!.trim()}
+                              </span>
+                            )}
+                            {Boolean(resolvedFollowUpDate && attempt.type !== 'FOLLOWUP_SCHEDULED' && attempt.type !== 'FOLLOWUP_RESCHEDULED') && (
+                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/35 flex items-center gap-1 shadow-sm">
+                                <Clock size={9} className="text-sky-400" /> Follow-up: {resolvedFollowUpDate} {resolvedFollowUpTime ? `@ ${resolvedFollowUpTime}` : ''}
                               </span>
                             )}
                             {attempt.durationSeconds !== undefined && attempt.durationSeconds > 0 && (

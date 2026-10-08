@@ -122,6 +122,7 @@ function mapServerActivitiesToContactHistory(
 ): ContactAttempt[] {
   const attempts: ContactAttempt[] = [];
   const seenIds = new Set<string>();
+  const seenScheduledKeys = new Set<string>();
 
   // 1. Process explicit Activity records from PostgreSQL
   if (Array.isArray(activities)) {
@@ -162,6 +163,10 @@ function mapServerActivitiesToContactHistory(
 
         const fuDate = meta.followUpDate || ((act.description || '').match(/(?:Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+|due:\s*)(\d{4}-\d{2}-\d{2})/i)?.[1]);
         const fuTime = meta.followUpTime || ((act.description || '').match(/(?:at\s+|time:\s*)(\d{1,2}:\d{2}(?:\s*[AP]M)?)/i)?.[1]);
+
+        if (fuDate) {
+          seenScheduledKeys.add(`${fuDate}_${fuTime || ''}`.trim());
+        }
 
         attempts.push({
           id: act.id,
@@ -212,6 +217,10 @@ function mapServerActivitiesToContactHistory(
         const isMeeting = schedType === 'MEETING' || meta.outcome === 'MEETING_SCHEDULED' || /meeting|visit/i.test(desc);
         const isCloud = desc.toLowerCase().includes('cloud') || channel === 'WA_CLOUD' || metaType === 'WHATSAPP_CLOUD';
 
+        if (fuDate) {
+          seenScheduledKeys.add(`${fuDate}_${fuTime || ''}`.trim());
+        }
+
         // Normalize display notes for clean timeline card appearance matching Call Contact History
         const rawNote = meta.notes || act.description || 'WhatsApp communication';
         let displayNote = rawNote;
@@ -253,6 +262,10 @@ function mapServerActivitiesToContactHistory(
         const schedMatch = desc.match(/\[Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+([\d-]+)(?:\s+at\s+([^\]\n]+))?\]/i);
         const fuDate = meta.followUpDate || (schedMatch ? schedMatch[1] : undefined);
         const fuTime = meta.followUpTime || (schedMatch ? schedMatch[2] : undefined);
+
+        if (fuDate) {
+          seenScheduledKeys.add(`${fuDate}_${fuTime || ''}`.trim());
+        }
 
         attempts.push({
           id: act.id,
@@ -584,11 +597,13 @@ function mapServerActivitiesToContactHistory(
         }
       }
     } else {
-      // General scheduled follow-up
+      // General scheduled follow-up — Skip if an activity already scheduled this follow-up or if already added
+      const schedKey = `${taskDateStr || ''}_${taskTimeStr || ''}`.trim();
       const hasDirectCard = attempts.some(a => a.followUpDate === taskDateStr);
-      if (!hasDirectCard) {
+      if (!hasDirectCard && !seenScheduledKeys.has(schedKey)) {
         const schedId = `sched-task-${task.id}`;
         if (!seenIds.has(schedId)) {
+          seenScheduledKeys.add(schedKey);
           attempts.push({
             id: schedId,
             type: 'FOLLOWUP_SCHEDULED',
@@ -1778,8 +1793,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         } else {
           productInterestLogged = selectedProduct || 'Product Interest';
         }
-        autoQueueFollowUp = true;
-        dispositionSummaryTitle = `Talked: Interested in ${productInterestLogged}`;
+        autoQueueFollowUp = Boolean(funnelScheduledDate);
+        dispositionSummaryTitle = funnelScheduledDate
+          ? `Talked: Interested in ${productInterestLogged} — Follow-up: ${funnelScheduledDate} at ${funnelScheduledTime || '10:30'}`
+          : `Talked: Interested in ${productInterestLogged}`;
       } else if (talkedSubOption === 'SAID_WILL_VISIT') {
         outcomeId = 'talked_said_will_visit';
         contactOutcome = 'MEETING_SCHEDULED';
@@ -1919,7 +1936,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       const followUpTitle =
         scheduledType === 'MEETING'
           ? `🏢 In-Person / Virtual Visit: ${resolvedLeadName}${compText ? ` (${compText})` : (lead.phone ? ` (${lead.phone})` : '')}`
-          : `📞 Callback: ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`;
+          : (productInterestLogged
+            ? `📞 Callback (${productInterestLogged.split(' (')[0]}): ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`
+            : `📞 Callback: ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`);
 
       const dueAtIso = `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`;
       const followUpPayload = {
@@ -1987,6 +2006,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(cachedTasks.slice(0, 100)));
           window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
           window.dispatchEvent(new CustomEvent('das_crm_followup_created', { detail: followUpPayload }));
+          window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: followUpPayload }));
         } catch (_) {}
       }
     }
@@ -2056,57 +2076,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         },
       }),
     }).catch(e => console.warn('Could not persist call activity:', e));
-
-    if (autoQueueFollowUp && funnelScheduledDate) {
-      const followUpTask = {
-        id: `fu_${Date.now()}`,
-        title: `📞 Callback: ${lead.name} (${lead.phone})`,
-        leadId: lead.id,
-        lead: {
-          id: lead.id,
-          firstName: lead.name.split(' ')[0] || lead.name,
-          lastName: lead.name.split(' ').slice(1).join(' ') || '',
-          email: lead.email,
-          phone: lead.phone,
-          company: { name: lead.company || '' },
-          owner: { firstName: currentUser?.name || lead.owner },
-        },
-        scheduledDate: funnelScheduledDate,
-        scheduledTime: funnelScheduledTime || '10:30',
-        dueAt: `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`,
-        followUpType: 'CALL',
-        priority: 'HIGH',
-        status: 'PENDING',
-        purpose: callResponseNotes || dispositionSummaryTitle || 'Scheduled Callback',
-        isCompleted: false,
-        assignee: {
-          firstName: currentUser?.name || lead.owner,
-        },
-      };
-
-      if (typeof window !== 'undefined') {
-        try {
-          const rawTasks = localStorage.getItem('das_crm_followup_tasks_cache') || '[]';
-          const existingTasks = JSON.parse(rawTasks);
-          const updatedTasks = [followUpTask, ...(Array.isArray(existingTasks) ? existingTasks : [])];
-          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updatedTasks));
-          window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: followUpTask }));
-        } catch (_) {}
-      }
-
-      apiFetch('/follow-ups', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: `📞 Callback: ${lead.name} (${lead.phone})`,
-          leadId: lead.id,
-          followUpType: 'CALL',
-          scheduledDate: funnelScheduledDate,
-          scheduledTime: funnelScheduledTime || '10:30',
-          priority: 'HIGH',
-          purpose: callResponseNotes || dispositionSummaryTitle || 'Scheduled Callback',
-        }),
-      }).catch(err => console.warn('Could not persist follow-up to server:', err));
-    }
 
     if (productInterestLogged) {
       setLead(prev => ({ ...prev, requirement: productInterestLogged }));
@@ -3770,6 +3739,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                               setTalkedSubOption(sub.key as any);
                               if (sub.key === 'QUOTE_INVOICE_SHARED') {
                                 openShareQuoteInvoiceModal();
+                              } else if (sub.key === 'INTERESTED' || sub.key === 'SAID_WILL_VISIT' || sub.key === 'BUSY_LATER') {
+                                if (!funnelScheduledDate) {
+                                  const d = new Date();
+                                  d.setDate(d.getDate() + 1);
+                                  setFunnelScheduledDate(d.toISOString().split('T')[0]);
+                                  setFunnelScheduledTime('10:30');
+                                  setFunnelSelectedChip('Tomorrow (10:30 AM)');
+                                }
                               }
                             }}
                             className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all ${
@@ -3784,171 +3761,295 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       })}
                     </div>
 
-                    {/* Sub-Option A: INTERESTED -> Synced Product Catalog & Quantity Setting */}
+                    {/* Sub-Option A: INTERESTED -> Synced Product Catalog, Quantity Setting & Follow-up Scheduler */}
                     {talkedSubOption === 'INTERESTED' && (() => {
                       const pricing = calculateLeadProductPricing();
                       return (
-                        <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-3 animate-in fade-in duration-150">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
-                              <Package size={13} className="text-emerald-400" /> Select Interested Product / Catalogue Shared:
-                            </label>
-                            <span className="text-[10px] text-slate-400 font-semibold">
-                              {catalogProducts.length} Products Synced
-                            </span>
-                          </div>
+                        <div className="space-y-3 animate-in fade-in duration-150">
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                                <Package size={13} className="text-emerald-400" /> Select Interested Product / Catalogue Shared:
+                              </label>
+                              <span className="text-[10px] text-slate-400 font-semibold">
+                                {catalogProducts.length} Products Synced
+                              </span>
+                            </div>
 
-                          {/* Synced Products List */}
-                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                            {isLoadingCatalog && (
-                              <div className="p-3 text-center text-xs text-slate-400 italic">
-                                Syncing catalog products from database...
-                              </div>
-                            )}
+                            {/* Synced Products List */}
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                              {isLoadingCatalog && (
+                                <div className="p-3 text-center text-xs text-slate-400 italic">
+                                  Syncing catalog products from database...
+                                </div>
+                              )}
 
-                            {!isLoadingCatalog && catalogProducts.length === 0 && (
-                              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-center space-y-1">
-                                <p className="text-xs text-slate-300 font-semibold">No catalog products found in database.</p>
-                                <p className="text-[10px] text-slate-400">You can create products in Products Catalog or enter a custom product below.</p>
-                              </div>
-                            )}
+                              {!isLoadingCatalog && catalogProducts.length === 0 && (
+                                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-center space-y-1">
+                                  <p className="text-xs text-slate-300 font-semibold">No catalog products found in database.</p>
+                                  <p className="text-[10px] text-slate-400">You can create products in Products Catalog or enter a custom product below.</p>
+                                </div>
+                              )}
 
-                            {catalogProducts.map((prod) => {
-                              const isProdSelected = (selectedProductObj?.id === prod.id || selectedProduct === prod.name) && !customProductInput.trim();
-                              return (
-                                <div
-                                  key={prod.id || prod.name}
-                                  onClick={() => {
-                                    setSelectedProductObj(prod);
-                                    setSelectedProduct(prod.name);
-                                    setCustomProductInput('');
-                                  }}
-                                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                    isProdSelected
-                                      ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-md shadow-emerald-500/10'
-                                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3 min-w-0 pr-2">
-                                    <img
-                                      src={prod.coverImage || prod.imageUrl || DEFAULT_PRODUCT_FALLBACK_IMAGE}
-                                      alt={prod.name}
-                                      className="w-11 h-11 aspect-square rounded-xl object-cover border border-slate-800 flex-shrink-0"
-                                      onError={(e) => {
-                                        const target = e.currentTarget;
-                                        target.onerror = null;
-                                        target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                                      }}
+                              {catalogProducts.map((prod) => {
+                                const isProdSelected = (selectedProductObj?.id === prod.id || selectedProduct === prod.name) && !customProductInput.trim();
+                                return (
+                                  <div
+                                    key={prod.id || prod.name}
+                                    onClick={() => {
+                                      setSelectedProductObj(prod);
+                                      setSelectedProduct(prod.name);
+                                      setCustomProductInput('');
+                                    }}
+                                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                      isProdSelected
+                                        ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-md shadow-emerald-500/10'
+                                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                                      <img
+                                        src={prod.coverImage || prod.imageUrl || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                                        alt={prod.name}
+                                        className="w-11 h-11 aspect-square rounded-xl object-cover border border-slate-800 flex-shrink-0"
+                                        onError={(e) => {
+                                          const target = e.currentTarget;
+                                          target.onerror = null;
+                                          target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                                        }}
+                                      />
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-xs font-bold text-white">{prod.name}</span>
+                                        {prod.sku && (
+                                          <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                                            {prod.sku}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 flex-wrap">
+                                        {prod.category && <span>📁 {prod.category}</span>}
+                                        {prod.subCategory && <span>• {prod.subCategory}</span>}
+                                        {prod.stock !== undefined && prod.stock !== null && <span>• {prod.stock} in stock</span>}
+                                        {prod.sharedCount ? (
+                                          <span className="text-cyan-400 font-semibold">• Shared {prod.sharedCount} times</span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <span className="text-xs font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 block">
+                                      ₹{Number(prod.price).toLocaleString('en-IN')} / {prod.unit || 'Unit'}
+                                    </span>
+                                  </div>
+                                </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* 🔢 Interactive Quantity & Live Tier Pricing */}
+                            {(selectedProductObj || customProductInput.trim()) && (
+                              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <span>📦</span> Required Quantity:
+                                  </span>
+                                  <span className="text-[11px] font-bold text-indigo-400">
+                                    Unit: {pricing.unitName}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2.5">
+                                  {/* Quantity Stepper */}
+                                  <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-inner">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedProductQuantity(prev => Math.max(1, prev - 1))}
+                                      className="px-3 py-1.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                                    >
+                                      −
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={selectedProductQuantity}
+                                      onChange={e => setSelectedProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                      className="w-14 text-center bg-transparent text-xs font-extrabold text-white focus:outline-none"
                                     />
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-xs font-bold text-white">{prod.name}</span>
-                                      {prod.sku && (
-                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                                          {prod.sku}
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedProductQuantity(prev => prev + 1)}
+                                      className="px-3 py-1.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  {/* Live Price Calculation Display */}
+                                  {selectedProductObj && !customProductInput.trim() && (
+                                    <div className="flex-1 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                                      <div>
+                                        <span className="text-[10px] text-slate-400 block font-medium">Estimated Total Value:</span>
+                                        <span className="text-xs font-black text-emerald-400">
+                                          ₹{pricing.totalPrice.toLocaleString('en-IN')}
+                                        </span>
+                                      </div>
+                                      {pricing.appliedTier && pricing.appliedTier.discountPct > 0 ? (
+                                        <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded">
+                                          🎉 {pricing.appliedTier.discountPct}% Tier Off
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                          Base: ₹{pricing.basePrice.toLocaleString('en-IN')}/{pricing.unitName}
                                         </span>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 flex-wrap">
-                                      {prod.category && <span>📁 {prod.category}</span>}
-                                      {prod.subCategory && <span>• {prod.subCategory}</span>}
-                                      {prod.stock !== undefined && prod.stock !== null && <span>• {prod.stock} in stock</span>}
-                                      {prod.sharedCount ? (
-                                        <span className="text-cyan-400 font-semibold">• Shared {prod.sharedCount} times</span>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <span className="text-xs font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 block">
-                                    ₹{Number(prod.price).toLocaleString('en-IN')} / {prod.unit || 'Unit'}
-                                  </span>
-                                </div>
-                              </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* 🔢 Interactive Quantity & Live Tier Pricing */}
-                          {(selectedProductObj || customProductInput.trim()) && (
-                            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                                  <span>📦</span> Required Quantity:
-                                </span>
-                                <span className="text-[11px] font-bold text-indigo-400">
-                                  Unit: {pricing.unitName}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-2.5">
-                                {/* Quantity Stepper */}
-                                <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-inner">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedProductQuantity(prev => Math.max(1, prev - 1))}
-                                    className="px-3 py-1.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-                                  >
-                                    −
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={selectedProductQuantity}
-                                    onChange={e => setSelectedProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                    className="w-14 text-center bg-transparent text-xs font-extrabold text-white focus:outline-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedProductQuantity(prev => prev + 1)}
-                                    className="px-3 py-1.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-                                  >
-                                    +
-                                  </button>
+                                  )}
                                 </div>
 
-                                {/* Live Price Calculation Display */}
-                                {selectedProductObj && !customProductInput.trim() && (
-                                  <div className="flex-1 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center justify-between">
-                                    <div>
-                                      <span className="text-[10px] text-slate-400 block font-medium">Estimated Total Value:</span>
-                                      <span className="text-xs font-black text-emerald-400">
-                                        ₹{pricing.totalPrice.toLocaleString('en-IN')}
-                                      </span>
-                                    </div>
-                                    {pricing.appliedTier && pricing.appliedTier.discountPct > 0 ? (
-                                      <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded">
-                                        🎉 {pricing.appliedTier.discountPct}% Tier Off
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-400 font-medium">
-                                        Base: ₹{pricing.basePrice.toLocaleString('en-IN')}/{pricing.unitName}
-                                      </span>
-                                    )}
-                                  </div>
+                                {pricing.appliedTier && pricing.appliedTier.discountPct > 0 && (
+                                  <p className="text-[11px] text-amber-400 font-medium">
+                                    Tier Applied: <strong className="text-white">{pricing.appliedTier.tier}</strong> (₹{pricing.appliedTier.finalPrice.toLocaleString('en-IN')}/{pricing.unitName}) • Saved ₹{pricing.savedAmount.toLocaleString('en-IN')}!
+                                  </p>
                                 )}
                               </div>
+                            )}
 
-                              {pricing.appliedTier && pricing.appliedTier.discountPct > 0 && (
-                                <p className="text-[11px] text-amber-400 font-medium">
-                                  Tier Applied: <strong className="text-white">{pricing.appliedTier.tier}</strong> (₹{pricing.appliedTier.finalPrice.toLocaleString('en-IN')}/{pricing.unitName}) • Saved ₹{pricing.savedAmount.toLocaleString('en-IN')}!
-                                </p>
-                              )}
+                            {/* Custom Product / Service Entry */}
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                                Or Enter Other Custom Product / Service Name:
+                              </label>
+                              <input
+                                type="text"
+                                className="crm-input text-xs h-8"
+                                placeholder="e.g. Healthcare Multi-Branch Custom License..."
+                                value={customProductInput}
+                                onChange={(e) => setCustomProductInput(e.target.value)}
+                              />
                             </div>
-                          )}
+                          </div>
 
-                          {/* Custom Product / Service Entry */}
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                              Or Enter Other Custom Product / Service Name:
-                            </label>
-                            <input
-                              type="text"
-                              className="crm-input text-xs h-8"
-                              placeholder="e.g. Healthcare Multi-Branch Custom License..."
-                              value={customProductInput}
-                              onChange={(e) => setCustomProductInput(e.target.value)}
-                            />
+                          {/* ⏰ Follow-up Call Scheduling Options (After Product Selection) */}
+                          <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/30 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                <Clock size={13} className="text-amber-400" /> Follow-up Call Scheduling Options:
+                              </label>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Auto Stage: Qualified
+                              </span>
+                            </div>
+
+                            {/* 1-Tap Quick Action: Tomorrow 10:30 AM */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const d = new Date();
+                                d.setDate(d.getDate() + 1);
+                                setFunnelScheduledDate(d.toISOString().split('T')[0]);
+                                setFunnelScheduledTime('10:30');
+                                setFunnelSelectedChip('Tomorrow (10:30 AM)');
+                              }}
+                              className={`w-full p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                                funnelSelectedChip === 'Tomorrow (10:30 AM)'
+                                  ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-md'
+                                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-amber-500/50'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span>⚡</span>
+                                <span>a.1 - Quick Pick: Followup Tomorrow (10:30 AM)</span>
+                              </span>
+                              {funnelSelectedChip === 'Tomorrow (10:30 AM)' && <span className="text-amber-300 font-black">✓ Selected</span>}
+                            </button>
+
+                            {/* Custom 15-Day Date & Time Grid */}
+                            <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                              <label className="text-[11px] font-bold text-slate-300 block">
+                                a - Or Choose Custom Date (Next 15 Days):
+                              </label>
+                              <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                                {Array.from({ length: 15 }, (_, i) => {
+                                  const d = new Date();
+                                  d.setDate(d.getDate() + i);
+                                  const isoDate = d.toISOString().split('T')[0];
+                                  const label =
+                                    i === 0
+                                      ? 'Today'
+                                      : i === 1
+                                      ? 'Tomorrow'
+                                      : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                                  const isSelected = funnelScheduledDate === isoDate && funnelSelectedChip !== 'Tomorrow (10:30 AM)';
+                                  return (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => {
+                                        setFunnelScheduledDate(isoDate);
+                                        setFunnelSelectedChip('Custom Date');
+                                      }}
+                                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border ${
+                                        isSelected
+                                          ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-amber-500'
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Time Slot:</label>
+                                  <div className="flex flex-wrap gap-1">
+                                    {['10:00 AM', '12:00 PM', '03:00 PM', '05:30 PM'].map((slot) => (
+                                      <button
+                                        key={slot}
+                                        type="button"
+                                        onClick={() => {
+                                          setFunnelScheduledTime(slot);
+                                          setFunnelSelectedChip('Custom Date');
+                                        }}
+                                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                          funnelScheduledTime === slot
+                                            ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                        }`}
+                                      >
+                                        {slot}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Custom Time:</label>
+                                  <input
+                                    type="time"
+                                    className="crm-input text-xs h-8 [color-scheme:dark]"
+                                    value={funnelScheduledTime.includes(':') && !funnelScheduledTime.includes('M') ? funnelScheduledTime : '10:30'}
+                                    onChange={(e) => {
+                                      setFunnelScheduledTime(e.target.value);
+                                      setFunnelSelectedChip('Custom Date');
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={enablePreAlert5Min}
+                                  onChange={(e) => setEnablePreAlert5Min(e.target.checked)}
+                                  className="rounded border-slate-700 text-amber-600 bg-slate-950"
+                                />
+                                <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                                  <Bell size={12} className="text-amber-400" /> Pre-alert notification (5 mins before scheduled time in Follow-ups)
+                                </span>
+                              </label>
+                            </div>
                           </div>
                         </div>
                       );
