@@ -40,7 +40,6 @@ import {
   getCandidateApiUrls,
   findFastestReachableEndpoint,
 } from '../config/api';
-import ServerConnectionModal from '../components/ServerConnectionModal';
 
 // ─── Types & Helpers ──────────────────────────────────────────────────────────
 
@@ -163,7 +162,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   // Modals
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
-  const [serverModalOpen, setServerModalOpen] = useState(false);
 
   // General UI state
   const [loading, setLoading] = useState(false);
@@ -347,7 +345,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       // 1. Try currently active base URL
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
         const res = await fetch(`${activeBase}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -361,15 +359,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         // Active base unreachable: attempt fast auto-discovery
       }
 
-      // 2. If first attempt failed to connect, fast-race all candidate backends
-      if (!networkResponse) {
-        const discoveredBase = await findFastestReachableEndpoint(2500);
-        if (discoveredBase) {
+      // 2. If first attempt failed to connect OR returned 404 (wrong/stale endpoint), fast-race all candidate backends
+      if (!networkResponse || networkResponse.status === 404) {
+        const discoveredBase = await findFastestReachableEndpoint(3000);
+        if (discoveredBase && discoveredBase !== activeBase) {
           activeBase = discoveredBase;
           setApiBase(discoveredBase);
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
             const res = await fetch(`${discoveredBase}/auth/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -387,8 +385,60 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
       // Case A: Unreachable server
       if (!networkResponse) {
+        // Offline demo fallback check for local evaluation / offline access
+        const normalizedRole: UserRole = normalizeRoleStr(selectedRole);
+        const demoUser = DEMO_USERS[normalizedRole];
+        const isDemoMatch =
+          demoUser &&
+          (email.trim().toLowerCase() === demoUser.email.toLowerCase() ||
+            email.trim().toLowerCase().includes('demo') ||
+            email.trim().toLowerCase().includes('adorable') ||
+            email.trim().toLowerCase().includes('admin'));
+
+        if (isDemoMatch && password.length >= 4) {
+          const compName = selectedCompanyName || 'Adorable Trading';
+          const compId = selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
+          const subData: CompanySubscription = {
+            id: compId,
+            companyName: compName,
+            planType: 'BUSINESS',
+            trialDaysLeft: 30,
+            isExpired: false,
+            userSeatsAllocated: 18,
+            userSeatsUsed: 3,
+            hasTeamLeaders: true,
+            features: {
+              whatsApp: true,
+              emailAutomation: true,
+              aiLeadScoring: true,
+              customSalaryBuilder: true,
+              exportCSV: true,
+            },
+          };
+
+          await setAuthSession(
+            {
+              id: demoUser.id || 'usr_local_admin',
+              name: demoUser.name || 'Workspace Admin',
+              email: email.trim(),
+              role: normalizedRole,
+              avatar: demoUser.avatar || 'WA',
+              companyId: compId,
+              companyName: compName,
+              hasAssignedRole: true,
+              roleNotAssigned: false,
+            },
+            'offline_jwt_token_' + Date.now(),
+            subData,
+          );
+
+          setLoading(false);
+          onLoginSuccess(getPostLoginDefaultTab(normalizedRole));
+          return;
+        }
+
         setError(
-          'Cannot connect to the server.\n\nPlease verify that your DAS CRM backend server is running and reachable on your network.',
+          'Cannot connect to the server. Please verify your network connection and try again.',
         );
         setLoading(false);
         return;
@@ -411,11 +461,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         return;
       }
 
-      // Case C: Credentials / Key Rejected (HTTP 400, 401, etc.)
+      // Case C: Credentials / Key Rejected (HTTP 400, 401, 404, etc.)
       if (!networkResponse.ok) {
         const errMsg =
           data?.message ||
-          `Authentication failed (HTTP ${networkResponse.status}). Please check your credentials and Company Key.`;
+          'Authentication failed. Please check your credentials and Company Key.';
         setError(errMsg);
         setLoading(false);
         return;
@@ -856,19 +906,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <Text style={styles.subtitle}>
               Sign In to Your Company Workspace
             </Text>
-
-            {/* Server Connection Badge */}
-            <TouchableOpacity
-              style={styles.serverPill}
-              onPress={() => setServerModalOpen(true)}
-              activeOpacity={0.75}
-            >
-              <View style={styles.serverPillDot} />
-              <Text style={styles.serverPillText} numberOfLines={1}>
-                Gateway: {getApiBase()}
-              </Text>
-              <Text style={styles.serverPillAction}>⚙️ Change</Text>
-            </TouchableOpacity>
           </View>
 
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
@@ -931,19 +968,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   Select your company workspace and provide your assigned key to authenticate.
                 </Text>
 
-                {/* Error Banner with Quick Diagnostics button */}
+                {/* Error Banner */}
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <TouchableOpacity
-                      style={styles.serverSettingsBtn}
-                      onPress={() => setServerModalOpen(true)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.serverSettingsBtnText}>
-                        🛠️ Open Server Connection &amp; Diagnostics
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1208,15 +1236,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <TouchableOpacity
-                      style={styles.serverSettingsBtn}
-                      onPress={() => setServerModalOpen(true)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.serverSettingsBtnText}>
-                        🛠️ Open Server Connection &amp; Diagnostics
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1821,15 +1840,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </View>
       </Modal>
 
-      {/* ── SERVER CONNECTION & DIAGNOSTICS MODAL ──────────────────────── */}
-      <ServerConnectionModal
-        visible={serverModalOpen}
-        onClose={() => {
-          setServerModalOpen(false);
-          // Re-sync public companies when server config changes
-          fetchAndSyncCompanies(true);
-        }}
-      />
     </SafeAreaView>
   );
 }

@@ -174,9 +174,21 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
     Alert.alert('🎯 Targets Updated', `Monthly Target set to ₹${mVal.toLocaleString('en-IN')} and Quarterly Target set to ₹${qVal.toLocaleString('en-IN')}.`);
   };
 
-  const totalPipelineValue = dealsList.reduce((acc, d) => acc + d.rawVal, 0);
-  const weightedValue = dealsList.reduce((acc, d) => acc + (d.rawVal * (getStageProbability(d.stage) / 100)), 0);
-  const totalWonValue = dealsList.filter(d => d.stage.toUpperCase().includes('WON')).reduce((acc, d) => acc + d.rawVal, 0);
+  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
+  const isRep = rawRole === 'SALES_EXEC' || rawRole === 'EMPLOYEE' || rawRole === 'STAFF' || rawRole === 'REP';
+
+  // Role-scoped deals matching Web DealsKanban.tsx
+  const visibleDeals = isRep
+    ? dealsList.filter(
+        (deal) =>
+          deal.owner?.toLowerCase() === currentUser?.name?.toLowerCase() ||
+          deal.owner?.toLowerCase().includes((currentUser?.name || '').toLowerCase())
+      )
+    : dealsList;
+
+  const totalPipelineValue = visibleDeals.reduce((acc, d) => acc + d.rawVal, 0);
+  const weightedValue = visibleDeals.reduce((acc, d) => acc + (d.rawVal * (getStageProbability(d.stage) / 100)), 0);
+  const totalWonValue = visibleDeals.filter(d => d.stage.toUpperCase().includes('WON')).reduce((acc, d) => acc + d.rawVal, 0);
 
   const goalProgressPercent = monthlyGoal > 0 ? Math.min(100, Math.round((totalWonValue / monthlyGoal) * 100)) : 0;
 
@@ -196,6 +208,20 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding + 36 }]} showsVerticalScrollIndicator={false}>
 
+        {/* Role Scoping Banner for Sales Executive matching Web DealsKanban.tsx */}
+        {isRep && (
+          <View style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', borderWidth: 1, borderColor: 'rgba(99, 102, 241, 0.35)', padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={{ fontSize: 11, color: '#a5b4fc', fontWeight: '700' }}>
+                🔒 Role Scoped (SALES_EXEC): Viewing assigned deals only for <Text style={{ color: '#ffffff', fontWeight: '900' }}>{currentUser?.name || 'You'}</Text>.
+              </Text>
+            </View>
+            <View style={{ backgroundColor: 'rgba(99, 102, 241, 0.25)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(99, 102, 241, 0.4)' }}>
+              <Text style={{ fontSize: 9, fontWeight: '900', color: '#c7d2fe' }}>Personal Pipeline</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── 🎯 REVENUE GOALS & TARGET TELEMETRY CARD ───────────────────── */}
         <View style={styles.goalCard}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -204,6 +230,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
               <Text style={{ fontSize: 10, fontWeight: '900', color: '#fbbf24' }}>Set Goals ✏️</Text>
             </TouchableOpacity>
           </View>
+
 
           {/* Goal Progress Bar */}
           <View style={{ marginVertical: 6 }}>
@@ -227,7 +254,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
         <View style={styles.summaryCard}>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.summaryValue}>₹{totalPipelineValue.toLocaleString('en-IN')}</Text>
-            <Text style={styles.summaryLabel}>Total Pipeline Value ({dealsList.length} Deals)</Text>
+            <Text style={styles.summaryLabel}>Total Pipeline Value ({visibleDeals.length} Deals)</Text>
           </View>
           <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: 1, borderLeftColor: '#1e293b' }}>
             <Text style={[styles.summaryValue, { color: '#34d399' }]}>₹{Math.round(weightedValue).toLocaleString('en-IN')}</Text>
@@ -238,7 +265,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
         {/* ── DEALS KANBAN & STAGE SHIFTER ─────────────────────────────────── */}
         <View style={[styles.moduleCard, { marginTop: 12 }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.moduleTitle}>💼 Deals Pipeline Kanban ({dealsList.length} Active Deals)</Text>
+            <Text style={styles.moduleTitle}>💼 Deals Pipeline Kanban ({visibleDeals.length} Active Deals)</Text>
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 5 }]}
               onPress={() => setShowNewDealForm(!showNewDealForm)}
@@ -292,15 +319,16 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
           )}
 
           {/* Deals Items List */}
-          {dealsList.length === 0 ? (
+          {visibleDeals.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 28 }}>
               <Text style={{ fontSize: 28, marginBottom: 6 }}>💼</Text>
               <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700' }}>No deals in pipeline</Text>
               <Text style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>Tap "+ Register Deal" to add a new deal to your pipeline.</Text>
             </View>
           ) : (
-            dealsList.map((deal) => (
+            visibleDeals.map((deal) => (
             <View key={deal.id} style={[styles.itemRow, styles.borderBottom]}>
+
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                 <View style={{ flex: 1, paddingRight: 6 }}>
                   <Text style={styles.itemName}>{deal.name}</Text>

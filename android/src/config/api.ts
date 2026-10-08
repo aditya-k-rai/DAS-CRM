@@ -212,11 +212,18 @@ export async function probeAndSetWorkingApiBase(): Promise<string | null> {
   return findFastestReachableEndpoint(2500);
 }
 
-// Hydrate saved working API_BASE on app startup
+// Hydrate and sanitize saved working API_BASE on app startup
 try {
   AsyncStorage.getItem(STORAGE_KEY_API_BASE).then((saved) => {
     if (saved && typeof saved === 'string' && saved.startsWith('http')) {
-      API_BASE = normalizeApiUrl(saved);
+      if (saved.includes('nexcrm')) {
+        // Purge legacy/invalid host and reset to clean production endpoint
+        AsyncStorage.removeItem(STORAGE_KEY_API_BASE).catch(() => {});
+        API_BASE = DEFAULT_CLOUD_API_URL;
+      } else {
+        API_BASE = normalizeApiUrl(saved);
+      }
     }
   }).catch(() => {});
 } catch (_) {}
+

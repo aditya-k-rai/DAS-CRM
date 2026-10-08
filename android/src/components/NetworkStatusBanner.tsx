@@ -15,7 +15,6 @@ import {
   Easing,
 } from 'react-native';
 import { offlineSyncEngine, SyncEngineState } from '../services/offlineSyncEngine';
-import ServerConnectionModal from './ServerConnectionModal';
 
 interface Props {
   token?: string | null;
@@ -90,8 +89,6 @@ export default function NetworkStatusBanner({ token, isOfflineSession, onRequest
     }
   }, [syncState.isOnline, syncState.syncStatus]);
 
-  const [showConfigModal, setShowConfigModal] = useState(false);
-
   const handleManualSync = () => {
     if (syncState.isBackendConnected && syncState.pendingCount > 0) {
       offlineSyncEngine.flushQueue();
@@ -101,61 +98,54 @@ export default function NetworkStatusBanner({ token, isOfflineSession, onRequest
   const { dotColor, label, subLabel } = getBannerContent(syncState, isOfflineSession);
 
   return (
-    <>
-      <Animated.View
-        style={[styles.banner, { transform: [{ translateY: slideY }] }]}
-        pointerEvents="box-none"
+    <Animated.View
+      style={[styles.banner, { transform: [{ translateY: slideY }] }]}
+      pointerEvents="box-none"
+    >
+      <TouchableOpacity
+        style={styles.inner}
+        activeOpacity={0.85}
+        onPress={() => {
+          if (!syncState.isBackendConnected) {
+            offlineSyncEngine.checkNetworkStatus();
+          }
+        }}
       >
-        <TouchableOpacity
-          style={styles.inner}
-          activeOpacity={0.85}
-          onPress={() => {
-            if (!syncState.isBackendConnected) {
+        <Animated.View style={[styles.dot, { backgroundColor: dotColor, opacity: dotOpacity }]} />
+        <View style={styles.textBlock}>
+          <Text style={styles.label}>{label}</Text>
+          {subLabel ? <Text style={styles.subLabel}>{subLabel}</Text> : null}
+        </View>
+
+        {isOfflineSession && onRequestReLogin && (
+          <TouchableOpacity
+            style={styles.syncBtn}
+            onPress={onRequestReLogin}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.syncBtnText}>Re-Login 🔑</Text>
+          </TouchableOpacity>
+        )}
+
+        {!isOfflineSession && !syncState.isBackendConnected && (
+          <TouchableOpacity
+            style={styles.configBtn}
+            onPress={() => {
               offlineSyncEngine.checkNetworkStatus();
-            }
-          }}
-        >
-          <Animated.View style={[styles.dot, { backgroundColor: dotColor, opacity: dotOpacity }]} />
-          <View style={styles.textBlock}>
-            <Text style={styles.label}>{label}</Text>
-            {subLabel ? <Text style={styles.subLabel}>{subLabel}</Text> : null}
-          </View>
+            }}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.configBtnText}>Retry 🔄</Text>
+          </TouchableOpacity>
+        )}
 
-          {isOfflineSession && onRequestReLogin && (
-            <TouchableOpacity
-              style={styles.syncBtn}
-              onPress={onRequestReLogin}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.syncBtnText}>Re-Login 🔑</Text>
-            </TouchableOpacity>
-          )}
-
-          {!isOfflineSession && !syncState.isBackendConnected && (
-            <TouchableOpacity
-              style={styles.configBtn}
-              onPress={() => {
-                offlineSyncEngine.checkNetworkStatus();
-              }}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.configBtnText}>Retry 🔄</Text>
-            </TouchableOpacity>
-          )}
-
-          {!isOfflineSession && syncState.pendingCount > 0 && syncState.isBackendConnected ? (
-            <TouchableOpacity style={styles.syncBtn} onPress={handleManualSync} activeOpacity={0.75}>
-              <Text style={styles.syncBtnText}>Sync Now</Text>
-            </TouchableOpacity>
-          ) : null}
-        </TouchableOpacity>
-      </Animated.View>
-
-      <ServerConnectionModal
-        visible={showConfigModal}
-        onClose={() => setShowConfigModal(false)}
-      />
-    </>
+        {!isOfflineSession && syncState.pendingCount > 0 && syncState.isBackendConnected ? (
+          <TouchableOpacity style={styles.syncBtn} onPress={handleManualSync} activeOpacity={0.75}>
+            <Text style={styles.syncBtnText}>Sync Now</Text>
+          </TouchableOpacity>
+        ) : null}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

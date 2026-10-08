@@ -20,7 +20,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { apiService } from '../services/apiService';
+import { useTheme } from '../context/ThemeContext';
+import { getApiBase } from '../config/api';
 
 interface EmailMarketingScreenProps {
   onClose?: () => void;
@@ -30,6 +31,7 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
+  const { colors, isDark } = useTheme();
 
   // SMTP Credentials State
   const [smtpHost, setSmtpHost] = useState('');
@@ -52,8 +54,9 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
 
   const handleTestSmtpConnection = async () => {
     setIsTestingSmtp(true);
+    const apiBase = await getApiBase();
     try {
-      const res = await fetch(`http://localhost:3000/email/test-smtp`, {
+      const res = await fetch(`${apiBase}/email/test-smtp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,9 +92,10 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
 
     setIsSendingCampaign(true);
     const recipientsList = campaignRecipients.split(',').map((e) => e.trim());
+    const apiBase = await getApiBase();
 
     try {
-      const res = await fetch(`http://localhost:3000/email/send-campaign`, {
+      const res = await fetch(`${apiBase}/email/send-campaign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -144,33 +148,33 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
   };
 
   return (
-    <View style={[styles.container, { paddingTop: onClose ? 8 : topPadding }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: onClose ? 8 : topPadding }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
         {/* ── TOP SUB-HEADER BAR ─────────────────────────────────────────── */}
-        <View style={{ width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}>
+        <View style={{ width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           {onClose ? (
-            <TouchableOpacity style={{ backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }} onPress={onClose}>
+            <TouchableOpacity style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }} onPress={onClose}>
               <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>← Back to Controls Menu</Text>
             </TouchableOpacity>
           ) : (
             <View />
           )}
-          <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>📧 Email Marketing &amp; SMTP Engine</Text>
+          <Text style={{ fontSize: 12, fontWeight: '900', color: colors.text }}>📧 Email Marketing &amp; SMTP Engine</Text>
         </View>
 
         {/* ── HEADER ────────────────────────────────────────────────────────── */}
         <View style={styles.headerBox}>
-          <Text style={styles.headerTitle}>Email Marketing &amp; Custom SMTP Engine</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Email Marketing &amp; Custom SMTP Engine</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Connect custom SMTP server credentials (Gmail, Office365, SendGrid) to dispatch real email campaigns directly.
           </Text>
         </View>
 
         {/* ── 1. CUSTOM SMTP CREDENTIALS FORM ─────────────────────────────────── */}
-        <View style={styles.cardBox}>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={styles.cardTitle}>⚙️ Custom SMTP Configuration</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>⚙️ Custom SMTP Configuration</Text>
             <View style={[styles.statusBadge, smtpConnected ? styles.statusBadgeConnected : styles.statusBadgeDisconnected]}>
               <Text style={[styles.statusBadgeText, smtpConnected ? { color: '#34d399' } : { color: '#fca5a5' }]}>
                 {smtpConnected ? '🟢 SMTP Active' : '🔴 Connection Required'}
@@ -180,41 +184,41 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <View style={{ flex: 2 }}>
-              <Text style={styles.label}>SMTP Host *</Text>
-              <TextInput style={styles.textInput} value={smtpHost} onChangeText={setSmtpHost} placeholder="smtp.gmail.com" placeholderTextColor="#64748b" />
+              <Text style={[styles.label, { color: colors.textSecondary }]}>SMTP Host *</Text>
+              <TextInput style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={smtpHost} onChangeText={setSmtpHost} placeholder="smtp.gmail.com" placeholderTextColor={colors.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Port *</Text>
-              <TextInput style={styles.textInput} value={smtpPort} onChangeText={setSmtpPort} keyboardType="numeric" placeholder="587" placeholderTextColor="#64748b" />
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Port *</Text>
+              <TextInput style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={smtpPort} onChangeText={setSmtpPort} keyboardType="numeric" placeholder="587" placeholderTextColor={colors.textSecondary} />
             </View>
           </View>
 
-          <Text style={styles.label}>Username / Email Address *</Text>
-          <TextInput style={styles.textInput} value={smtpUser} onChangeText={setSmtpUser} placeholder="user@domain.com" placeholderTextColor="#64748b" />
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Username / Email Address *</Text>
+          <TextInput style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={smtpUser} onChangeText={setSmtpUser} placeholder="user@domain.com" placeholderTextColor={colors.textSecondary} />
 
-          <Text style={styles.label}>Password / App Password *</Text>
-          <TextInput style={styles.textInput} value={smtpPass} onChangeText={setSmtpPass} secureTextEntry placeholder="••••••••••••" placeholderTextColor="#64748b" />
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Password / App Password *</Text>
+          <TextInput style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={smtpPass} onChangeText={setSmtpPass} secureTextEntry placeholder="••••••••••••" placeholderTextColor={colors.textSecondary} />
 
-          <TouchableOpacity style={styles.testSmtpBtn} onPress={handleTestSmtpConnection} disabled={isTestingSmtp}>
+          <TouchableOpacity style={[styles.testSmtpBtn, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderColor: colors.border }]} onPress={handleTestSmtpConnection} disabled={isTestingSmtp}>
             {isTestingSmtp ? <ActivityIndicator color="#38bdf8" size="small" /> : <Text style={styles.testSmtpBtnText}>📡 Test SMTP Connection Handshake →</Text>}
           </TouchableOpacity>
         </View>
 
         {/* ── 2. REAL EMAIL CAMPAIGN DISPATCHER ───────────────────────────────── */}
-        <View style={styles.cardBox}>
-          <Text style={styles.cardTitle}>✉️ Real Email Campaign Dispatcher</Text>
-          <Text style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8 }}>
-            Emails are sent directly from your connected SMTP server ({smtpHost}).
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>✉️ Real Email Campaign Dispatcher</Text>
+          <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 8 }}>
+            Emails are sent directly from your connected SMTP server ({smtpHost || 'Custom SMTP'}).
           </Text>
 
-          <Text style={styles.label}>Subject Line *</Text>
-          <TextInput style={styles.textInput} value={campaignSubject} onChangeText={setCampaignSubject} placeholder="Campaign Subject..." placeholderTextColor="#64748b" />
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Subject Line *</Text>
+          <TextInput style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={campaignSubject} onChangeText={setCampaignSubject} placeholder="Campaign Subject..." placeholderTextColor={colors.textSecondary} />
 
-          <Text style={styles.label}>Recipient Emails (Comma Separated) *</Text>
-          <TextInput style={styles.textInput} value={campaignRecipients} onChangeText={setCampaignRecipients} placeholder="client1@domain.com, client2@domain.com" placeholderTextColor="#64748b" />
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Recipient Emails (Comma Separated) *</Text>
+          <TextInput style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={campaignRecipients} onChangeText={setCampaignRecipients} placeholder="client1@domain.com, client2@domain.com" placeholderTextColor={colors.textSecondary} />
 
-          <Text style={styles.label}>HTML Message Body *</Text>
-          <TextInput style={[styles.textInput, { height: 80 }]} value={campaignHtml} onChangeText={setCampaignHtml} multiline placeholder="<h1>Email Title</h1>..." placeholderTextColor="#64748b" />
+          <Text style={[styles.label, { color: colors.textSecondary }]}>HTML Message Body *</Text>
+          <TextInput style={[styles.textInput, { height: 80, color: colors.text, borderColor: colors.border, backgroundColor: isDark ? '#020617' : '#f9fafb' }]} value={campaignHtml} onChangeText={setCampaignHtml} multiline placeholder="<h1>Email Title</h1>..." placeholderTextColor={colors.textSecondary} />
 
           <TouchableOpacity style={styles.sendCampaignBtn} onPress={handleSendRealCampaign} disabled={isSendingCampaign}>
             {isSendingCampaign ? <ActivityIndicator color="#ffffff" size="small" /> : <Text style={styles.sendCampaignBtnText}>🚀 Dispatch Real Email Campaign Now →</Text>}
@@ -222,19 +226,19 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
         </View>
 
         {/* ── 3. FIREBASE STORAGE TELEMETRY & APK / DMG DOWNLOADS ─────────────────── */}
-        <View style={styles.cardBox}>
-          <Text style={styles.cardTitle}>📁 Firebase Storage &amp; App Releases</Text>
-          <Text style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8 }}>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>📁 Firebase Storage &amp; App Releases</Text>
+          <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 8 }}>
             Upload files directly to allocated Firebase Storage folder with live transfer speed (% Done &amp; MB/s).
           </Text>
 
           {uploadProgress && (
-            <View style={styles.progressCard}>
+            <View style={[styles.progressCard, { backgroundColor: isDark ? '#020617' : '#f9fafb', borderColor: colors.border }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Upload Progress: {uploadProgress.percent}%</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Upload Progress: {uploadProgress.percent}%</Text>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#38bdf8' }}>Speed: {uploadProgress.speedMbps} MB/s</Text>
               </View>
-              <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarTrack, { backgroundColor: colors.border }]}>
                 <View style={[styles.progressBarFill, { width: `${uploadProgress.percent}%` }]} />
               </View>
             </View>
@@ -251,25 +255,25 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
+  container: { flex: 1 },
   content: { padding: 16, alignItems: 'center', paddingBottom: 24 },
 
   headerBox: { width: '100%', maxWidth: 600, marginBottom: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
-  headerSubtitle: { fontSize: 11, color: '#94a3b8' },
+  headerTitle: { fontSize: 18, fontWeight: '800', marginBottom: 2 },
+  headerSubtitle: { fontSize: 11 },
 
-  cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 14, marginBottom: 14 },
-  cardTitle: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
+  cardBox: { width: '100%', maxWidth: 600, borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 14 },
+  cardTitle: { fontSize: 13, fontWeight: '800' },
 
   statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   statusBadgeConnected: { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: '#34d399' },
   statusBadgeDisconnected: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' },
   statusBadgeText: { fontSize: 8, fontWeight: '800' },
 
-  label: { fontSize: 10, fontWeight: '700', color: '#cbd5e1', marginTop: 8, marginBottom: 3 },
-  textInput: { backgroundColor: '#020617', borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', color: '#ffffff', paddingHorizontal: 10, paddingVertical: 7, fontSize: 11 },
+  label: { fontSize: 10, fontWeight: '700', marginTop: 8, marginBottom: 3 },
+  textInput: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7, fontSize: 11 },
 
-  testSmtpBtn: { marginTop: 12, backgroundColor: '#1e293b', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
+  testSmtpBtn: { marginTop: 12, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1 },
   testSmtpBtnText: { color: '#38bdf8', fontWeight: '800', fontSize: 11 },
 
   sendCampaignBtn: { marginTop: 14, backgroundColor: '#4f46e5', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
@@ -278,7 +282,7 @@ const styles = StyleSheet.create({
   uploadDriveBtn: { marginTop: 10, backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   uploadDriveBtnText: { color: '#38bdf8', fontWeight: '800', fontSize: 11 },
 
-  progressCard: { backgroundColor: '#020617', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#1e293b', marginBottom: 8 },
-  progressBarTrack: { height: 8, backgroundColor: '#1e293b', borderRadius: 4, overflow: 'hidden' },
+  progressCard: { borderRadius: 10, padding: 10, borderWidth: 1, marginBottom: 8 },
+  progressBarTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#38bdf8', borderRadius: 4 },
 });
