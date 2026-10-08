@@ -22,7 +22,6 @@ export async function PUT(request: Request) {
     const updated: GoalsStoragePayload = {
       globalSettings: body.globalSettings ? { ...current.globalSettings, ...body.globalSettings } : current.globalSettings,
       userOverrides: Array.isArray(body.userOverrides) ? body.userOverrides : current.userOverrides,
-      tlAssignments: body.tlAssignments !== undefined ? body.tlAssignments : current.tlAssignments,
       updatedAt: new Date().toISOString(),
     };
 

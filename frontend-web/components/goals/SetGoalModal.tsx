@@ -6,17 +6,13 @@ import {
   Target,
   Sliders,
   Users,
-  Shield,
   Phone,
   MessageCircle,
-  FileText,
   DollarSign,
-  UserCheck,
+  Calendar,
   Check,
   Save,
-  Plus,
   Trash2,
-  HelpCircle,
   Sparkles,
 } from 'lucide-react';
 import { GlobalGoalSettings, UserGoalTarget } from '@/lib/serverGoals';
@@ -27,12 +23,10 @@ interface SetGoalModalProps {
   onClose: () => void;
   globalSettings: GlobalGoalSettings;
   userOverrides: UserGoalTarget[];
-  tlAssignments: Record<string, string[]>;
   allUsers: PerformanceRecord[];
   onSave: (payload: {
     globalSettings: GlobalGoalSettings;
     userOverrides: UserGoalTarget[];
-    tlAssignments: Record<string, string[]>;
   }) => Promise<void>;
 }
 
@@ -41,23 +35,32 @@ export function SetGoalModal({
   onClose,
   globalSettings: initialGlobal,
   userOverrides: initialOverrides,
-  tlAssignments: initialAssignments,
   allUsers,
   onSave,
 }: SetGoalModalProps) {
-  const [activeTab, setActiveTab] = useState<'GLOBAL' | 'INDIVIDUAL' | 'TL_ASSIGN'>('GLOBAL');
+  const [activeTab, setActiveTab] = useState<'GLOBAL' | 'INDIVIDUAL'>('GLOBAL');
   const [globalSettings, setGlobalSettings] = useState<GlobalGoalSettings>(initialGlobal);
   const [userOverrides, setUserOverrides] = useState<UserGoalTarget[]>(initialOverrides);
-  const [tlAssignments, setTlAssignments] = useState<Record<string, string[]>>(initialAssignments);
-  const [selectedRepId, setSelectedRepId] = useState<string>(allUsers[0]?.userId || '');
+  const [selectedRepId, setSelectedRepId] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Filter eligible users strictly to Sales Executives and Team Leaders
+  const eligibleUsers = allUsers.filter(u => {
+    const r = (u.userRole || '').toUpperCase();
+    if (r.includes('ADMIN') || r.includes('SUPER') || r.includes('MANAGER') || r.includes('HR') || r.includes('OWNER')) {
+      return false;
+    }
+    return r.includes('SALES') || r.includes('EXEC') || r.includes('REP') || r.includes('LEAD') || r.includes('TL');
+  });
 
   useEffect(() => {
     setGlobalSettings(initialGlobal);
     setUserOverrides(initialOverrides);
-    setTlAssignments(initialAssignments);
-  }, [initialGlobal, initialOverrides, initialAssignments, isOpen]);
+    if (eligibleUsers.length > 0 && !selectedRepId) {
+      setSelectedRepId(eligibleUsers[0].userId);
+    }
+  }, [initialGlobal, initialOverrides, isOpen, eligibleUsers, selectedRepId]);
 
   if (!isOpen) return null;
 
@@ -74,7 +77,7 @@ export function SetGoalModal({
   };
 
   const handleOverrideChange = (userId: string, field: keyof UserGoalTarget, value: any) => {
-    const user = allUsers.find(u => u.userId === userId);
+    const user = eligibleUsers.find(u => u.userId === userId);
     setUserOverrides(prev => {
       const existing = prev.find(o => o.userId === userId);
       const parsedVal = typeof value === 'number' || !isNaN(Number(value)) ? Number(value) : value;
@@ -87,21 +90,10 @@ export function SetGoalModal({
           userName: user?.userName || 'User',
           userEmail: user?.userEmail || '',
           userRole: user?.userRole || 'SALES_EXEC',
-          teamLeaderId: user?.teamLeaderId,
           [field]: parsedVal,
         };
         return [...prev, newOverride];
       }
-    });
-  };
-
-  const handleAssignRepToTL = (tlId: string, repId: string, isAssigned: boolean) => {
-    setTlAssignments(prev => {
-      const currentReps = prev[tlId] || [];
-      const updated = isAssigned
-        ? Array.from(new Set([...currentReps, repId]))
-        : currentReps.filter(id => id !== repId);
-      return { ...prev, [tlId]: updated };
     });
   };
 
@@ -111,7 +103,6 @@ export function SetGoalModal({
       await onSave({
         globalSettings,
         userOverrides,
-        tlAssignments,
       });
       showToast('✓ Goals and targets saved successfully!');
       setTimeout(() => {
@@ -124,23 +115,12 @@ export function SetGoalModal({
     }
   };
 
-  const eligibleUsers = allUsers.filter(u => {
-    const r = (u.userRole || '').toUpperCase();
-    if (r.includes('ADMIN') || r.includes('SUPER') || r.includes('MANAGER') || r.includes('HR') || r.includes('OWNER')) {
-      return false;
-    }
-    return r.includes('SALES') || r.includes('EXEC') || r.includes('REP') || r.includes('LEAD') || r.includes('TL');
-  });
-
-  const teamLeaders = eligibleUsers.filter(u => u.userRole.includes('LEAD') || u.userRole.includes('TL'));
-  const salesReps = eligibleUsers.filter(u => !u.userRole.includes('LEAD') && !u.userRole.includes('TL'));
-
   const selectedRep = eligibleUsers.find(u => u.userId === selectedRepId) || eligibleUsers[0] || allUsers[0];
   const selectedOverride = userOverrides.find(o => o.userId === selectedRep?.userId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60">
           <div className="flex items-center gap-3">
@@ -155,7 +135,7 @@ export function SetGoalModal({
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Configure daily call & WhatsApp quotas, pipeline targets, team leader rollups, and individual overrides.
+                Configure daily call quotas, optional WhatsApp targets, monthly revenue targets, and meetings.
               </p>
             </div>
           </div>
@@ -191,17 +171,6 @@ export function SetGoalModal({
             <Users size={14} />
             2. Individual Rep Overrides
           </button>
-          <button
-            onClick={() => setActiveTab('TL_ASSIGN')}
-            className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-              activeTab === 'TL_ASSIGN'
-                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <UserCheck size={14} />
-            3. Team Leader (TL) Squad Assignments
-          </button>
         </div>
 
         {/* Modal Body */}
@@ -212,21 +181,25 @@ export function SetGoalModal({
               <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-800/40 text-xs text-indigo-200 flex items-start gap-3">
                 <Sparkles size={18} className="text-indigo-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-white">Company-Wide Default Baseline Targets</p>
+                  <p className="font-semibold text-white">Company-Wide Baseline Targets</p>
                   <p className="text-indigo-300/80 mt-0.5">
-                    These default targets automatically apply to all Sales Executives and Team Leaders unless customized individually in Tab 2.
+                    These baseline daily and monthly targets automatically apply to all Sales Executives and Team Leaders unless customized individually in Tab 2.
                   </p>
                 </div>
               </div>
 
-              {/* Daily Activity Targets */}
+              {/* Daily Targets */}
               <div className="space-y-3">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <Phone size={14} className="text-emerald-400" /> Daily Activity Targets (Per Rep)
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Daily Calls */}
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 block">Daily Calls Target</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300">Daily Calls Target</label>
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase">Required</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -237,90 +210,73 @@ export function SetGoalModal({
                       />
                       <span className="text-xs text-slate-500 font-medium">calls/day</span>
                     </div>
-                    <p className="text-[10px] text-slate-500">Includes new prospecting & follow-up calls</p>
+                    <p className="text-[10px] text-slate-500">Tracks Fresh Calls (Lead First Touch) & Follow-ups</p>
                   </div>
 
+                  {/* Daily WhatsApp (Optional) */}
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 block">Daily WhatsApp Target</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300">Daily WhatsApp Target</label>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Optional</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        min={1}
+                        min={0}
                         value={globalSettings.dailyWhatsappTarget}
                         onChange={e => handleGlobalChange('dailyWhatsappTarget', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
                       />
                       <span className="text-xs text-slate-500 font-medium">msgs/day</span>
                     </div>
-                    <p className="text-[10px] text-slate-500">WA Direct + WhatsApp Cloud messages</p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 block">Daily Quotations Target</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        value={globalSettings.dailyQuotesTarget}
-                        onChange={e => handleGlobalChange('dailyQuotesTarget', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
-                      />
-                      <span className="text-xs text-slate-500 font-medium">quotes/day</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500">Quotes & invoices created/shared</p>
+                    <p className="text-[10px] text-slate-500">WA Direct + WhatsApp Cloud messages (0 = optional)</p>
                   </div>
                 </div>
               </div>
 
-              {/* Monthly Pipeline & Financial Targets */}
+              {/* Monthly Targets */}
               <div className="space-y-3">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                  <DollarSign size={14} className="text-amber-400" /> Monthly Revenue & Pipeline Targets
+                  <DollarSign size={14} className="text-amber-400" /> Monthly Revenue & Meeting Targets
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Monthly Revenue */}
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 block">Monthly Revenue Target (₹)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300">Monthly Revenue Target (₹)</label>
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase">Primary</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-slate-400">₹</span>
                       <input
                         type="number"
                         step={10000}
+                        min={0}
                         value={globalSettings.monthlyRevenueTarget}
                         onChange={e => handleGlobalChange('monthlyRevenueTarget', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500">Closed deals revenue quota</p>
+                    <p className="text-[10px] text-slate-500">Won deals closed revenue quota</p>
                   </div>
 
+                  {/* Monthly Meetings (Optional) */}
                   <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 block">Monthly Deals Won Target</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300">Monthly Meetings Target</label>
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Optional</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        min={1}
-                        value={globalSettings.monthlyDealsTarget}
-                        onChange={e => handleGlobalChange('monthlyDealsTarget', e.target.value)}
+                        min={0}
+                        value={globalSettings.monthlyMeetingsTarget}
+                        onChange={e => handleGlobalChange('monthlyMeetingsTarget', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
                       />
-                      <span className="text-xs text-slate-500 font-medium">deals</span>
+                      <span className="text-xs text-slate-500 font-medium">meetings</span>
                     </div>
-                    <p className="text-[10px] text-slate-500">Number of leads converted to Won</p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 block">Monthly Leads Received Target</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={1}
-                        value={globalSettings.monthlyLeadsTarget}
-                        onChange={e => handleGlobalChange('monthlyLeadsTarget', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
-                      />
-                      <span className="text-xs text-slate-500 font-medium">leads</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500">Monthly new prospect inflow</p>
+                    <p className="text-[10px] text-slate-500">Scheduled client meetings & visits (0 = optional)</p>
                   </div>
                 </div>
               </div>
@@ -333,8 +289,10 @@ export function SetGoalModal({
               <div className="flex flex-col md:flex-row gap-6">
                 {/* Rep Selection List */}
                 <div className="w-full md:w-1/3 space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">Select Employee</label>
-                  <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                    Select Sales Rep / TL
+                  </label>
+                  <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1">
                     {eligibleUsers.map(user => {
                       const isSel = user.userId === selectedRepId;
                       const hasOverride = userOverrides.some(o => o.userId === user.userId);
@@ -396,9 +354,13 @@ export function SetGoalModal({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Daily Calls */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Daily Calls Target</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-300">Daily Calls Target</label>
+                        <span className="text-[9px] text-emerald-400 font-bold uppercase">Required</span>
+                      </div>
                       <input
                         type="number"
                         min={1}
@@ -408,150 +370,53 @@ export function SetGoalModal({
                       />
                     </div>
 
+                    {/* Daily WhatsApp (Optional) */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Daily WhatsApp Target</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-300">Daily WhatsApp Target</label>
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase">Optional</span>
+                      </div>
                       <input
                         type="number"
-                        min={1}
+                        min={0}
                         value={selectedOverride?.dailyWhatsappTarget ?? globalSettings.dailyWhatsappTarget}
                         onChange={e => handleOverrideChange(selectedRep.userId, 'dailyWhatsappTarget', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
                       />
                     </div>
 
+                    {/* Monthly Revenue Target */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Daily Quotations Target</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={selectedOverride?.dailyQuotesTarget ?? globalSettings.dailyQuotesTarget}
-                        onChange={e => handleOverrideChange(selectedRep.userId, 'dailyQuotesTarget', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Monthly Revenue Target (₹)</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-300">Monthly Revenue Target (₹)</label>
+                        <span className="text-[9px] text-emerald-400 font-bold uppercase">Primary</span>
+                      </div>
                       <input
                         type="number"
                         step={10000}
+                        min={0}
                         value={selectedOverride?.monthlyRevenueTarget ?? globalSettings.monthlyRevenueTarget}
                         onChange={e => handleOverrideChange(selectedRep.userId, 'monthlyRevenueTarget', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
                       />
                     </div>
 
+                    {/* Monthly Meetings Target (Optional) */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Monthly Deals Target</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={selectedOverride?.monthlyDealsTarget ?? globalSettings.monthlyDealsTarget}
-                        onChange={e => handleOverrideChange(selectedRep.userId, 'monthlyDealsTarget', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Monthly Leads Target</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={selectedOverride?.monthlyLeadsTarget ?? globalSettings.monthlyLeadsTarget}
-                        onChange={e => handleOverrideChange(selectedRep.userId, 'monthlyLeadsTarget', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: TL SQUAD ASSIGNMENTS */}
-          {activeTab === 'TL_ASSIGN' && (
-            <div className="space-y-6 animate-fadeIn">
-              <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-800/40 text-xs text-indigo-200 flex items-start gap-3">
-                <UserCheck size={18} className="text-indigo-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-white">Team Leader (TL) Performance & Squad Mapping</p>
-                  <p className="text-indigo-300/80 mt-0.5">
-                    Assign sales executives under Team Leaders. The Team Leader dashboard will automatically roll up their squad's pipeline value, calls, WhatsApp, products shared, and quotes.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {teamLeaders.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400">
-                    <p className="font-bold text-sm">No Team Leaders or Managers configured yet.</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Promote employees to Team Leader role in the Employee or Admin Control Center to create squads.
-                    </p>
-                  </div>
-                ) : (
-                  teamLeaders.map(tl => {
-                    const assignedReps = tlAssignments[tl.userId] || [];
-
-                    return (
-                      <div key={tl.userId} className="p-5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs"
-                              style={{ background: `${tl.avatarColor}20`, color: tl.avatarColor }}
-                            >
-                              {tl.initials}
-                            </div>
-                            <div>
-                              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                                {tl.userName}
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
-                                  {tl.userRole}
-                                </span>
-                              </h4>
-                              <p className="text-xs text-slate-400">{tl.userEmail}</p>
-                            </div>
-                          </div>
-                          <span className="text-xs font-semibold text-emerald-400">
-                            {assignedReps.length} Reps Assigned in Squad
-                          </span>
-                        </div>
-
-                        {/* Checkbox grid for Sales Reps */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                          {salesReps
-                            .filter(r => r.userId !== tl.userId)
-                            .map(rep => {
-                              const isChecked = assignedReps.includes(rep.userId);
-
-                              return (
-                                <label
-                                  key={rep.userId}
-                                  className={`flex items-center gap-3 p-3 rounded-lg border text-xs cursor-pointer transition-all ${
-                                    isChecked
-                                      ? 'bg-indigo-950/40 border-indigo-500/60 text-white'
-                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={e => handleAssignRepToTL(tl.userId, rep.userId, e.target.checked)}
-                                    className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
-                                  />
-                                  <div className="min-w-0">
-                                    <p className="font-bold truncate text-slate-200">{rep.userName}</p>
-                                    <p className="text-[10px] text-slate-500 truncate">{rep.userRole}</p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-300">Monthly Meetings Target</label>
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase">Optional</span>
                       </div>
-                    );
-                  })
-                )}
+                      <input
+                        type="number"
+                        min={0}
+                        value={selectedOverride?.monthlyMeetingsTarget ?? globalSettings.monthlyMeetingsTarget}
+                        onChange={e => handleOverrideChange(selectedRep.userId, 'monthlyMeetingsTarget', e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -563,7 +428,7 @@ export function SetGoalModal({
             {toastMessage ? (
               <span className="text-emerald-400 font-bold">{toastMessage}</span>
             ) : (
-              'All changes take effect immediately across all live dashboards.'
+              'Changes immediately take effect across all Sales & Team Leader dashboards.'
             )}
           </div>
           <div className="flex items-center gap-3">

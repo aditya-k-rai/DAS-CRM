@@ -2,11 +2,13 @@
  * goalMetricsEngine.ts — Live Real-Time Aggregator for Goals & Performance Targets
  *
  * Exclusively tracks and aggregates performance for Sales Representatives and Team Leaders.
- * Syncs real live data directly from:
- * 1. Leads Module (assigned leads, pipeline value, first touch, stages)
- * 2. Follow-ups & Activities Module (/activities, contact history attempts, follow-up logs)
- * 3. Quotations Module (/api/quotations, quotations.json, local quotes)
- * 4. User Directory & Staff Roster (Strictly Sales Executives & Team Leaders)
+ * Uses simplified, focused target metrics:
+ * 1. Daily Calls Target (Required: Fresh Calls + Follow-ups)
+ * 2. Daily WhatsApp Target (Optional: Direct WA + WhatsApp Cloud)
+ * 3. Monthly Revenue Target (Primary: ₹ Won Deals)
+ * 4. Monthly Meetings Target (Optional: Scheduled / In-Person / Zoom meetings)
+ *
+ * Hierarchy: Directly uses existing Team Leader / Manager assignments from the Employee Directory.
  */
 
 import { apiFetch } from './apiClient';
@@ -22,16 +24,11 @@ export interface PerformanceRecord {
   teamLeaderId?: string;
   teamLeaderName?: string;
 
-  // Targets (Resolved from user override or global default)
-  dailyCallsTarget: number;
-  dailyWhatsappTarget: number;
-  dailyQuotesTarget: number;
-  dailyNewLeadsTarget: number;
-  monthlyRevenueTarget: number;
-  monthlyDealsTarget: number;
-  monthlyLeadsTarget: number;
-  monthlyQuotesTarget: number;
-  monthlyQuotesValueTarget: number;
+  // Simplified Targets
+  dailyCallsTarget: number; // Required
+  dailyWhatsappTarget: number; // Optional (0 = disabled)
+  monthlyRevenueTarget: number; // Primary (₹)
+  monthlyMeetingsTarget: number; // Optional
 
   // Selected Date Real Stats
   dateCallsTotal: number;
@@ -40,8 +37,7 @@ export interface PerformanceRecord {
   dateWhatsappTotal: number;
   dateWaDirect: number; // WhatsApp Direct
   dateWaCloud: number; // WhatsApp Cloud
-  dateNewWhatsapp: number;
-  dateFollowupWhatsapp: number;
+  dateMeetingsCount: number; // Real meetings scheduled today
   dateProductsShared: number;
   dateQuotesCount: number;
   dateQuotesAmount: number;
@@ -54,6 +50,7 @@ export interface PerformanceRecord {
   monthlyWhatsappTotal: number;
   monthlyWaDirect: number;
   monthlyWaCloud: number;
+  monthlyMeetingsCount: number;
   monthlyProductsShared: number;
   monthlyQuotesCount: number;
   monthlyQuotesAmount: number;
@@ -68,8 +65,8 @@ export interface PerformanceRecord {
   // Completion percentages for active view
   callsCompletionPct: number;
   whatsappCompletionPct: number;
-  quotesCompletionPct: number;
-  leadsCompletionPct: number;
+  revenueCompletionPct: number;
+  meetingsCompletionPct: number;
   overallScore: number;
 }
 
@@ -78,6 +75,7 @@ export interface DayPerformanceHeatmap {
   dayNumber: number;
   callsCount: number;
   whatsappCount: number;
+  meetingsCount: number;
   quotesCount: number;
   quotesAmount: number;
   leadsCount: number;
@@ -177,7 +175,7 @@ export async function fetchUnifiedCRMData() {
 
   let rawUsers = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
   
-  // Also load staff from local cache if available to get comprehensive staff roster
+  // Also load staff from local cache if available to get comprehensive staff roster and existing TL assignments
   if (typeof window !== 'undefined') {
     try {
       const dirRaw = localStorage.getItem('das_crm_user_dir_cache_v2');
@@ -196,7 +194,13 @@ export async function fetchUnifiedCRMData() {
                 email: p.email,
                 role: p.role,
                 managerId: p.managerId,
+                assignedManager: p.assignedManager,
               });
+            } else {
+              // Merge managerId / assignedManager
+              const existing = userMap.get(String(p.id));
+              existing.managerId = existing.managerId || p.managerId;
+              existing.assignedManager = existing.assignedManager || p.assignedManager;
             }
           });
           rawUsers = Array.from(userMap.values());
@@ -260,7 +264,7 @@ export async function fetchUnifiedCRMData() {
 
 /**
  * Main Engine: Calculates all role-based individual and team performance metrics.
- * Strictly isolates Sales Reps and Team Leaders, calculating real fresh calls and follow-ups.
+ * Strictly isolates Sales Reps and Team Leaders, calculating real fresh calls, follow-ups, and meetings.
  */
 export function calculatePerformanceRecords({
   users,
@@ -284,36 +288,29 @@ export function calculatePerformanceRecords({
   records: PerformanceRecord[];
   teamRollup: PerformanceRecord;
   globalSettings: GlobalGoalSettings;
-  tlAssignments: Record<string, string[]>;
 } {
   const globalSettings: GlobalGoalSettings = goalsConfig?.globalSettings || {
     dailyCallsTarget: 40,
     dailyWhatsappTarget: 25,
-    dailyQuotesTarget: 2,
-    dailyNewLeadsTarget: 5,
     monthlyRevenueTarget: 500000,
-    monthlyDealsTarget: 10,
-    monthlyLeadsTarget: 60,
-    monthlyQuotesTarget: 20,
-    monthlyQuotesValueTarget: 1000000,
+    monthlyMeetingsTarget: 10,
     activeMonth: selectedMonth,
   };
 
   const userOverrides: UserGoalTarget[] = goalsConfig?.userOverrides || [];
-  const tlAssignments: Record<string, string[]> = goalsConfig?.tlAssignments || {};
 
   // 1. Collect all local contact attempts grouped by lead
   const localLeadHistories = getLocalContactAttempts();
 
-  // Process contact attempts per lead to identify First Call (Fresh Call) vs Follow-up Call
   interface NormalizedInteraction {
     id: string;
     leadId: string;
-    type: 'CALL' | 'WHATSAPP' | 'WHATSAPP_CLOUD' | 'EMAIL' | 'DOCUMENT' | 'NOTE';
+    type: 'CALL' | 'WHATSAPP' | 'WHATSAPP_CLOUD' | 'MEETING' | 'EMAIL' | 'DOCUMENT' | 'NOTE';
     isFreshCall: boolean;
     isFollowupCall: boolean;
     isWaDirect: boolean;
     isWaCloud: boolean;
+    isMeeting: boolean;
     productsCount: number;
     docNo?: string;
     docAmount?: number;
@@ -327,7 +324,6 @@ export function calculatePerformanceRecords({
 
   // Track per-lead call sequence to accurately classify First Call vs Follow-up
   localLeadHistories.forEach(({ leadId, attempts }) => {
-    // Sort chronologically (oldest first)
     const sorted = [...attempts].sort((a, b) => {
       const tA = new Date(a.timestamp || a.time || a.createdAt || 0).getTime();
       const tB = new Date(b.timestamp || b.time || b.createdAt || 0).getTime();
@@ -343,6 +339,7 @@ export function calculatePerformanceRecords({
 
       const isCall = rawType.includes('CALL') || rawType.includes('PHONE') || rawOutcome.includes('CALL') || rawNotes.includes('call');
       const isWA = rawType.includes('WHATSAPP') || rawType.includes('WA_') || rawNotes.includes('whatsapp') || att.channel === 'WA_CLOUD';
+      const isMeeting = rawOutcome === 'MEETING_SCHEDULED' || att.scheduledType === 'MEETING' || /meeting|visit|in-person/i.test(rawNotes) || rawType === 'MEETING';
       const isDoc = rawType.includes('DOCUMENT') || rawOutcome.includes('QUOTATION') || !!att.docNo;
 
       let isFreshCall = false;
@@ -365,11 +362,12 @@ export function calculatePerformanceRecords({
       normalizedInteractions.push({
         id: att.id || `att_${Math.random()}`,
         leadId,
-        type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isDoc ? 'DOCUMENT' : 'NOTE',
+        type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isMeeting ? 'MEETING' : isDoc ? 'DOCUMENT' : 'NOTE',
         isFreshCall,
         isFollowupCall,
         isWaDirect,
         isWaCloud,
+        isMeeting,
         productsCount: att.productInterest ? 1 : (att.metadata?.products?.length || 0),
         docNo: att.docNo,
         docAmount: att.docAmount ? Number(att.docAmount) : undefined,
@@ -381,14 +379,16 @@ export function calculatePerformanceRecords({
     });
   });
 
-  // Also include raw backend activities if not duplicated
+  // Also include raw backend activities
   activities.forEach(act => {
     const rawType = String(act.type || '').toUpperCase();
     const rawDesc = String(act.description || '').toLowerCase();
     const rawChannel = String(act.metadata?.channel || '').toUpperCase();
+    const rawOutcome = String(act.metadata?.outcome || '').toUpperCase();
 
     const isCall = rawType === 'CALL' || rawDesc.includes('call') || rawChannel.includes('CALL');
     const isWA = rawChannel.includes('WA') || rawChannel.includes('WHATSAPP') || rawDesc.includes('whatsapp');
+    const isMeeting = rawType === 'MEETING' || rawOutcome === 'MEETING_SCHEDULED' || /meeting|visit/i.test(rawDesc);
     const isDoc = rawType === 'DOCUMENT' || rawDesc.includes('quote') || act.metadata?.docNo;
 
     const isNew = act.metadata?.isNewTouch || rawDesc.includes('new lead') || rawDesc.includes('first touch');
@@ -404,11 +404,12 @@ export function calculatePerformanceRecords({
     normalizedInteractions.push({
       id: act.id || `act_${Math.random()}`,
       leadId: act.leadId || '',
-      type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isDoc ? 'DOCUMENT' : 'NOTE',
+      type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isMeeting ? 'MEETING' : isDoc ? 'DOCUMENT' : 'NOTE',
       isFreshCall,
       isFollowupCall,
       isWaDirect,
       isWaCloud,
+      isMeeting,
       productsCount: act.metadata?.products?.length || (rawDesc.includes('product') ? 1 : 0),
       docNo: act.metadata?.docNo,
       docAmount: act.metadata?.docAmount,
@@ -425,17 +426,16 @@ export function calculatePerformanceRecords({
     return isSalesOrTLRole(role);
   });
 
-  // Fallback defaults strictly with Sales and TL roles if empty
   if (targetUsers.length === 0) {
     targetUsers = [
-      { id: 'usr_tl', name: 'Sachin Puri', email: 'sachin.puri@das.com', role: 'TEAM_LEADER' },
-      { id: 'usr_rep_1', name: 'Nandini Rastogi', email: 'nandini.rastogi@das.com', role: 'SALES_EXEC', managerId: 'usr_tl' },
+      { id: 'usr_tl', name: 'Sachin Puri', email: 'sachinpuri938@gmail.com', role: 'TEAM_LEADER' },
+      { id: 'usr_rep_1', name: 'Nandini Rastogi', email: 'rastoginandini92@gmail.com', role: 'SALES_EXEC', managerId: 'usr_tl' },
       { id: 'usr_rep_2', name: 'Sulekha Tomar', email: 'sulekha.tomar@das.com', role: 'SALES_EXEC', managerId: 'usr_tl' },
       { id: 'usr_rep_3', name: 'Sadhana', email: 'sadhnadikshit98@gmail.com', role: 'SALES_EXEC', managerId: 'usr_tl' },
     ];
   }
 
-  // 3. Map each Sales / TL user to a PerformanceRecord with REAL data calculations
+  // 3. Map each Sales / TL user to a PerformanceRecord with REAL data
   const records: PerformanceRecord[] = targetUsers.map((u: any) => {
     const uId = String(u.id);
     const uName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email || 'Sales Rep';
@@ -448,24 +448,13 @@ export function calculatePerformanceRecords({
 
     const dailyCallsTarget = override?.dailyCallsTarget ?? globalSettings.dailyCallsTarget;
     const dailyWhatsappTarget = override?.dailyWhatsappTarget ?? globalSettings.dailyWhatsappTarget;
-    const dailyQuotesTarget = override?.dailyQuotesTarget ?? globalSettings.dailyQuotesTarget;
-    const dailyNewLeadsTarget = override?.dailyNewLeadsTarget ?? globalSettings.dailyNewLeadsTarget;
     const monthlyRevenueTarget = override?.monthlyRevenueTarget ?? globalSettings.monthlyRevenueTarget;
-    const monthlyDealsTarget = override?.monthlyDealsTarget ?? globalSettings.monthlyDealsTarget;
-    const monthlyLeadsTarget = override?.monthlyLeadsTarget ?? globalSettings.monthlyLeadsTarget;
-    const monthlyQuotesTarget = override?.monthlyQuotesTarget ?? globalSettings.monthlyQuotesTarget;
-    const monthlyQuotesValueTarget = override?.monthlyQuotesValueTarget ?? globalSettings.monthlyQuotesValueTarget;
+    const monthlyMeetingsTarget = override?.monthlyMeetingsTarget ?? globalSettings.monthlyMeetingsTarget;
 
-    // Determine Team Leader ID
-    let tlId = override?.teamLeaderId || u.managerId || u.teamLeaderId;
-    if (!tlId) {
-      for (const [tLeaderId, repIds] of Object.entries(tlAssignments)) {
-        if (repIds.includes(uId)) {
-          tlId = tLeaderId;
-          break;
-        }
-      }
-    }
+    // Team Leader assigned in employee directory
+    const tlId = u.managerId || u.teamLeaderId || (u.assignedManager && u.assignedManager !== 'Unassigned' ? u.assignedManager : undefined);
+    const tlUser = targetUsers.find((t: any) => String(t.id) === String(tlId) || t.name === tlId);
+    const tlName = tlUser?.name || (uRole === 'TEAM_LEADER' ? uName : (u.assignedManager || 'Sachin Puri'));
 
     const nameLower = uName.toLowerCase();
 
@@ -494,15 +483,12 @@ export function calculatePerformanceRecords({
       return false;
     });
 
-    // ── Calculate Selected Date Metrics (REAL DATA) ──
+    // ── Selected Date Real Stats ──
     let dateCallsTotal = 0;
     let dateNewCalls = 0;
     let dateFollowupCalls = 0;
     let dateWhatsappTotal = 0;
-    let dateWaDirect = 0;
-    let dateWaCloud = 0;
-    let dateNewWhatsapp = 0;
-    let dateFollowupWhatsapp = 0;
+    let dateMeetingsCount = 0;
     let dateProductsShared = 0;
 
     userInteractions.forEach(item => {
@@ -514,10 +500,13 @@ export function calculatePerformanceRecords({
         else dateFollowupCalls++;
       }
 
-      if (item.type === 'WHATSAPP' || item.type === 'WHATSAPP_CLOUD') {
+      // Only count direct manual WhatsApp messages (excluding automated WA cloud)
+      if (item.isWaDirect || (item.type === 'WHATSAPP' && !item.isWaCloud)) {
         dateWhatsappTotal++;
-        if (item.isWaCloud) dateWaCloud++;
-        else dateWaDirect++;
+      }
+
+      if (item.isMeeting || item.type === 'MEETING') {
+        dateMeetingsCount++;
       }
 
       if (item.productsCount > 0) {
@@ -545,13 +534,12 @@ export function calculatePerformanceRecords({
       }
     });
 
-    // ── Calculate Monthly Aggregate Metrics (REAL DATA) ──
+    // ── Monthly Real Stats ──
     let monthlyCallsTotal = 0;
     let monthlyNewCalls = 0;
     let monthlyFollowupCalls = 0;
     let monthlyWhatsappTotal = 0;
-    let monthlyWaDirect = 0;
-    let monthlyWaCloud = 0;
+    let monthlyMeetingsCount = 0;
     let monthlyProductsShared = 0;
 
     userInteractions.forEach(item => {
@@ -563,10 +551,13 @@ export function calculatePerformanceRecords({
         else monthlyFollowupCalls++;
       }
 
-      if (item.type === 'WHATSAPP' || item.type === 'WHATSAPP_CLOUD') {
+      // Only count direct manual WhatsApp messages (excluding automated WA cloud)
+      if (item.isWaDirect || (item.type === 'WHATSAPP' && !item.isWaCloud)) {
         monthlyWhatsappTotal++;
-        if (item.isWaCloud) monthlyWaCloud++;
-        else monthlyWaDirect++;
+      }
+
+      if (item.isMeeting || item.type === 'MEETING') {
+        monthlyMeetingsCount++;
       }
 
       if (item.productsCount > 0) {
@@ -585,7 +576,7 @@ export function calculatePerformanceRecords({
       }
     });
 
-    // Monthly Leads Received, Won Deals, and Active Pipeline
+    // Monthly Leads Received, Won Revenue, and Active Pipeline
     let monthlyLeadsReceived = 0;
     let monthlyDealsWon = 0;
     let monthlyRevenueWon = 0;
@@ -615,10 +606,26 @@ export function calculatePerformanceRecords({
     // Completion Percentages
     const callsCompletionPct = dailyCallsTarget > 0 ? Math.min(200, Math.round((dateCallsTotal / dailyCallsTarget) * 100)) : 100;
     const whatsappCompletionPct = dailyWhatsappTarget > 0 ? Math.min(200, Math.round((dateWhatsappTotal / dailyWhatsappTarget) * 100)) : 100;
-    const quotesCompletionPct = dailyQuotesTarget > 0 ? Math.min(200, Math.round((dateQuotesCount / dailyQuotesTarget) * 100)) : 100;
-    const leadsCompletionPct = dailyNewLeadsTarget > 0 ? Math.min(200, Math.round((dateLeadsReceived / dailyNewLeadsTarget) * 100)) : 100;
+    const revenueCompletionPct = monthlyRevenueTarget > 0 ? Math.min(200, Math.round((monthlyRevenueWon / monthlyRevenueTarget) * 100)) : 0;
+    const meetingsCompletionPct = monthlyMeetingsTarget > 0 ? Math.min(200, Math.round((monthlyMeetingsCount / monthlyMeetingsTarget) * 100)) : 100;
 
-    const overallScore = Math.round((callsCompletionPct + whatsappCompletionPct + quotesCompletionPct) / 3);
+    // Overall Score based on active configured targets
+    let totalScoreWeight = 1;
+    let scoreSum = callsCompletionPct;
+    if (dailyWhatsappTarget > 0) {
+      scoreSum += whatsappCompletionPct;
+      totalScoreWeight += 1;
+    }
+    if (monthlyRevenueTarget > 0) {
+      scoreSum += revenueCompletionPct;
+      totalScoreWeight += 1;
+    }
+    if (monthlyMeetingsTarget > 0) {
+      scoreSum += meetingsCompletionPct;
+      totalScoreWeight += 1;
+    }
+
+    const overallScore = Math.round(scoreSum / totalScoreWeight);
 
     return {
       userId: uId,
@@ -628,17 +635,12 @@ export function calculatePerformanceRecords({
       initials: getInitials(uName),
       avatarColor: getAvatarColor(uId + uName),
       teamLeaderId: tlId,
-      teamLeaderName: targetUsers.find((t: any) => String(t.id) === String(tlId))?.name || (uRole === 'TEAM_LEADER' ? uName : 'Team Leader'),
+      teamLeaderName: tlName,
 
       dailyCallsTarget,
       dailyWhatsappTarget,
-      dailyQuotesTarget,
-      dailyNewLeadsTarget,
       monthlyRevenueTarget,
-      monthlyDealsTarget,
-      monthlyLeadsTarget,
-      monthlyQuotesTarget,
-      monthlyQuotesValueTarget,
+      monthlyMeetingsTarget,
 
       dateCallsTotal,
       dateNewCalls,
@@ -646,8 +648,7 @@ export function calculatePerformanceRecords({
       dateWhatsappTotal,
       dateWaDirect,
       dateWaCloud,
-      dateNewWhatsapp,
-      dateFollowupWhatsapp,
+      dateMeetingsCount,
       dateProductsShared,
       dateQuotesCount,
       dateQuotesAmount,
@@ -659,6 +660,7 @@ export function calculatePerformanceRecords({
       monthlyWhatsappTotal,
       monthlyWaDirect,
       monthlyWaCloud,
+      monthlyMeetingsCount,
       monthlyProductsShared,
       monthlyQuotesCount,
       monthlyQuotesAmount,
@@ -671,8 +673,8 @@ export function calculatePerformanceRecords({
 
       callsCompletionPct,
       whatsappCompletionPct,
-      quotesCompletionPct,
-      leadsCompletionPct,
+      revenueCompletionPct,
+      meetingsCompletionPct,
       overallScore,
     };
   });
@@ -688,13 +690,8 @@ export function calculatePerformanceRecords({
 
     dailyCallsTarget: records.reduce((s, r) => s + r.dailyCallsTarget, 0),
     dailyWhatsappTarget: records.reduce((s, r) => s + r.dailyWhatsappTarget, 0),
-    dailyQuotesTarget: records.reduce((s, r) => s + r.dailyQuotesTarget, 0),
-    dailyNewLeadsTarget: records.reduce((s, r) => s + r.dailyNewLeadsTarget, 0),
     monthlyRevenueTarget: records.reduce((s, r) => s + r.monthlyRevenueTarget, 0),
-    monthlyDealsTarget: records.reduce((s, r) => s + r.monthlyDealsTarget, 0),
-    monthlyLeadsTarget: records.reduce((s, r) => s + r.monthlyLeadsTarget, 0),
-    monthlyQuotesTarget: records.reduce((s, r) => s + r.monthlyQuotesTarget, 0),
-    monthlyQuotesValueTarget: records.reduce((s, r) => s + r.monthlyQuotesValueTarget, 0),
+    monthlyMeetingsTarget: records.reduce((s, r) => s + r.monthlyMeetingsTarget, 0),
 
     dateCallsTotal: records.reduce((s, r) => s + r.dateCallsTotal, 0),
     dateNewCalls: records.reduce((s, r) => s + r.dateNewCalls, 0),
@@ -702,8 +699,7 @@ export function calculatePerformanceRecords({
     dateWhatsappTotal: records.reduce((s, r) => s + r.dateWhatsappTotal, 0),
     dateWaDirect: records.reduce((s, r) => s + r.dateWaDirect, 0),
     dateWaCloud: records.reduce((s, r) => s + r.dateWaCloud, 0),
-    dateNewWhatsapp: records.reduce((s, r) => s + r.dateNewWhatsapp, 0),
-    dateFollowupWhatsapp: records.reduce((s, r) => s + r.dateFollowupWhatsapp, 0),
+    dateMeetingsCount: records.reduce((s, r) => s + r.dateMeetingsCount, 0),
     dateProductsShared: records.reduce((s, r) => s + r.dateProductsShared, 0),
     dateQuotesCount: records.reduce((s, r) => s + r.dateQuotesCount, 0),
     dateQuotesAmount: records.reduce((s, r) => s + r.dateQuotesAmount, 0),
@@ -715,6 +711,7 @@ export function calculatePerformanceRecords({
     monthlyWhatsappTotal: records.reduce((s, r) => s + r.monthlyWhatsappTotal, 0),
     monthlyWaDirect: records.reduce((s, r) => s + r.monthlyWaDirect, 0),
     monthlyWaCloud: records.reduce((s, r) => s + r.monthlyWaCloud, 0),
+    monthlyMeetingsCount: records.reduce((s, r) => s + r.monthlyMeetingsCount, 0),
     monthlyProductsShared: records.reduce((s, r) => s + r.monthlyProductsShared, 0),
     monthlyQuotesCount: records.reduce((s, r) => s + r.monthlyQuotesCount, 0),
     monthlyQuotesAmount: records.reduce((s, r) => s + r.monthlyQuotesAmount, 0),
@@ -727,22 +724,22 @@ export function calculatePerformanceRecords({
 
     callsCompletionPct: 0,
     whatsappCompletionPct: 0,
-    quotesCompletionPct: 0,
-    leadsCompletionPct: 0,
+    revenueCompletionPct: 0,
+    meetingsCompletionPct: 0,
     overallScore: 0,
   };
 
   teamRollup.callsCompletionPct = teamRollup.dailyCallsTarget > 0 ? Math.min(200, Math.round((teamRollup.dateCallsTotal / teamRollup.dailyCallsTarget) * 100)) : 100;
   teamRollup.whatsappCompletionPct = teamRollup.dailyWhatsappTarget > 0 ? Math.min(200, Math.round((teamRollup.dateWhatsappTotal / teamRollup.dailyWhatsappTarget) * 100)) : 100;
-  teamRollup.quotesCompletionPct = teamRollup.dailyQuotesTarget > 0 ? Math.min(200, Math.round((teamRollup.dateQuotesCount / teamRollup.dailyQuotesTarget) * 100)) : 100;
-  teamRollup.leadsCompletionPct = teamRollup.dailyNewLeadsTarget > 0 ? Math.min(200, Math.round((teamRollup.dateLeadsReceived / teamRollup.dailyNewLeadsTarget) * 100)) : 100;
-  teamRollup.overallScore = Math.round((teamRollup.callsCompletionPct + teamRollup.whatsappCompletionPct + teamRollup.quotesCompletionPct) / 3);
+  teamRollup.revenueCompletionPct = teamRollup.monthlyRevenueTarget > 0 ? Math.min(200, Math.round((teamRollup.monthlyRevenueWon / teamRollup.monthlyRevenueTarget) * 100)) : 0;
+  teamRollup.meetingsCompletionPct = teamRollup.monthlyMeetingsTarget > 0 ? Math.min(200, Math.round((teamRollup.monthlyMeetingsCount / teamRollup.monthlyMeetingsTarget) * 100)) : 100;
+
+  teamRollup.overallScore = Math.round((teamRollup.callsCompletionPct + (teamRollup.dailyWhatsappTarget > 0 ? teamRollup.whatsappCompletionPct : teamRollup.callsCompletionPct) + teamRollup.revenueCompletionPct) / 3);
 
   return {
     records,
     teamRollup,
     globalSettings,
-    tlAssignments,
   };
 }
 
@@ -769,19 +766,19 @@ export function generateMonthlyHeatmap({
     const dayPadded = String(day).padStart(2, '0');
     const dateStr = `${selectedMonth}-${dayPadded}`;
 
-    // Compute real aggregate for this day across records
     let callsCount = 0;
     let whatsappCount = 0;
+    let meetingsCount = 0;
     let quotesCount = 0;
     let quotesAmount = 0;
     let leadsCount = 0;
     let productsCount = 0;
 
     records.forEach(r => {
-      // If date matches selected date, use date stats, else derive from monthly activities
       if (dateStr === toDateKey(new Date())) {
         callsCount += r.dateCallsTotal;
         whatsappCount += r.dateWhatsappTotal;
+        meetingsCount += r.dateMeetingsCount;
         quotesCount += r.dateQuotesCount;
         quotesAmount += r.dateQuotesAmount;
         leadsCount += r.dateLeadsReceived;
@@ -797,6 +794,7 @@ export function generateMonthlyHeatmap({
       dayNumber: day,
       callsCount,
       whatsappCount,
+      meetingsCount,
       quotesCount,
       quotesAmount,
       leadsCount,

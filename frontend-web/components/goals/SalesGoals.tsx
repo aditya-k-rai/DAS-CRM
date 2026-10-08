@@ -32,6 +32,7 @@ import {
   Eye,
   Sliders,
   X,
+  Video,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -53,7 +54,6 @@ export function SalesGoals() {
   const [selectedMonth, setSelectedMonth] = useState<string>(() => new Date().toISOString().slice(0, 7)); // "YYYY-MM"
   const [selectedDate, setSelectedDate] = useState<string>(() => toDateKey(new Date())); // "YYYY-MM-DD"
   const [isMonthView, setIsMonthView] = useState<boolean>(false);
-  const [viewScope, setViewScope] = useState<'ALL' | 'TEAM' | 'INDIVIDUAL'>('ALL');
   const [selectedTlFilter, setSelectedTlFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -72,17 +72,6 @@ export function SalesGoals() {
   const isTeamLeader = userRoleStr.includes('LEAD') || userRoleStr.includes('TL');
   const isSalesExec = !isAdminOrManager && !isTeamLeader;
 
-  // Auto-set initial view scope based on role
-  useEffect(() => {
-    if (isSalesExec) {
-      setViewScope('INDIVIDUAL');
-    } else if (isTeamLeader) {
-      setViewScope('TEAM');
-    } else {
-      setViewScope('ALL');
-    }
-  }, [isSalesExec, isTeamLeader]);
-
   // Load CRM Data
   const loadData = useCallback(async (showIndicator = false) => {
     if (showIndicator) setIsRefreshing(true);
@@ -100,7 +89,7 @@ export function SalesGoals() {
   useEffect(() => {
     loadData();
 
-    // Listen to real-time events
+    // Listen to real-time events across all CRM modules
     const handleSync = () => loadData(false);
     window.addEventListener('das_crm_activities_updated', handleSync);
     window.addEventListener('das_crm_leads_updated', handleSync);
@@ -116,7 +105,7 @@ export function SalesGoals() {
   }, [loadData]);
 
   // Execute Calculation Engine
-  const { records, teamRollup, globalSettings, tlAssignments } = useMemo(() => {
+  const { records, teamRollup, globalSettings } = useMemo(() => {
     if (!rawCRMData) {
       return {
         records: [],
@@ -124,16 +113,10 @@ export function SalesGoals() {
         globalSettings: {
           dailyCallsTarget: 40,
           dailyWhatsappTarget: 25,
-          dailyQuotesTarget: 2,
-          dailyNewLeadsTarget: 5,
           monthlyRevenueTarget: 500000,
-          monthlyDealsTarget: 10,
-          monthlyLeadsTarget: 60,
-          monthlyQuotesTarget: 20,
-          monthlyQuotesValueTarget: 1000000,
+          monthlyMeetingsTarget: 10,
           activeMonth: selectedMonth,
         },
-        tlAssignments: {},
       };
     }
 
@@ -170,14 +153,13 @@ export function SalesGoals() {
       }
     } else if (isTeamLeader) {
       const myId = currentUser?.id || 'usr_tl';
-      const myAssignedRepIds = tlAssignments[myId] || [];
-      list = list.filter(r => r.userId === myId || r.teamLeaderId === myId || myAssignedRepIds.includes(r.userId));
+      const myName = (currentUser?.name || '').toLowerCase().trim();
+      list = list.filter(r => r.userId === myId || r.teamLeaderId === myId || r.teamLeaderName?.toLowerCase().includes(myName));
     }
 
     // Secondary UI TL filter (for Admin / Manager)
     if (selectedTlFilter !== 'ALL') {
-      const assignedReps = tlAssignments[selectedTlFilter] || [];
-      list = list.filter(r => r.userId === selectedTlFilter || r.teamLeaderId === selectedTlFilter || assignedReps.includes(r.userId));
+      list = list.filter(r => r.userId === selectedTlFilter || r.teamLeaderId === selectedTlFilter || r.teamLeaderName === selectedTlFilter);
     }
 
     // Search query filter
@@ -188,7 +170,7 @@ export function SalesGoals() {
 
     // Sort by overallScore descending
     return list.sort((a, b) => b.overallScore - a.overallScore);
-  }, [records, isSalesExec, isTeamLeader, currentUser, tlAssignments, selectedTlFilter, searchQuery]);
+  }, [records, isSalesExec, isTeamLeader, currentUser, selectedTlFilter, searchQuery]);
 
   // Active aggregated card stats (Calculated from filtered records)
   const activeStats = useMemo(() => {
@@ -205,19 +187,23 @@ export function SalesGoals() {
     const waDirect = isM ? list.reduce((s, r) => s + r.monthlyWaDirect, 0) : list.reduce((s, r) => s + r.dateWaDirect, 0);
     const waCloud = isM ? list.reduce((s, r) => s + r.monthlyWaCloud, 0) : list.reduce((s, r) => s + r.dateWaCloud, 0);
 
+    const meetingsAchieved = isM ? list.reduce((s, r) => s + r.monthlyMeetingsCount, 0) : list.reduce((s, r) => s + r.dateMeetingsCount, 0);
+    const meetingsTarget = isM ? list.reduce((s, r) => s + r.monthlyMeetingsTarget, 0) : list.reduce((s, r) => s + Math.max(1, Math.round(r.monthlyMeetingsTarget / 22)), 0);
+
+    const revenueWon = list.reduce((s, r) => s + r.monthlyRevenueWon, 0);
+    const revenueTarget = list.reduce((s, r) => s + r.monthlyRevenueTarget, 0);
+    const dealsWon = list.reduce((s, r) => s + r.monthlyDealsWon, 0);
+    const pipelineValue = list.reduce((s, r) => s + r.pipelineValue, 0);
+
     const productsShared = isM ? list.reduce((s, r) => s + r.monthlyProductsShared, 0) : list.reduce((s, r) => s + r.dateProductsShared, 0);
     const quotesCount = isM ? list.reduce((s, r) => s + r.monthlyQuotesCount, 0) : list.reduce((s, r) => s + r.dateQuotesCount, 0);
     const quotesAmount = isM ? list.reduce((s, r) => s + r.monthlyQuotesAmount, 0) : list.reduce((s, r) => s + r.dateQuotesAmount, 0);
-    const pipelineValue = list.reduce((s, r) => s + r.pipelineValue, 0);
-
     const leadsReceived = isM ? list.reduce((s, r) => s + r.monthlyLeadsReceived, 0) : list.reduce((s, r) => s + r.dateLeadsReceived, 0);
-    const dealsWon = list.reduce((s, r) => s + r.monthlyDealsWon, 0);
-    const revenueWon = list.reduce((s, r) => s + r.monthlyRevenueWon, 0);
-    const revenueTarget = list.reduce((s, r) => s + r.monthlyRevenueTarget, 0);
 
     const callsPct = callsTarget > 0 ? Math.min(200, Math.round((callsAchieved / callsTarget) * 100)) : 100;
     const waPct = waTarget > 0 ? Math.min(200, Math.round((waAchieved / waTarget) * 100)) : 100;
     const revPct = revenueTarget > 0 ? Math.min(200, Math.round((revenueWon / revenueTarget) * 100)) : 0;
+    const meetingsPct = meetingsTarget > 0 ? Math.min(200, Math.round((meetingsAchieved / meetingsTarget) * 100)) : 100;
 
     return {
       callsAchieved,
@@ -230,15 +216,18 @@ export function SalesGoals() {
       waDirect,
       waCloud,
       waPct,
-      productsShared,
-      quotesCount,
-      quotesAmount,
-      pipelineValue,
-      leadsReceived,
-      dealsWon,
+      meetingsAchieved,
+      meetingsTarget,
+      meetingsPct,
       revenueWon,
       revenueTarget,
       revPct,
+      dealsWon,
+      pipelineValue,
+      productsShared,
+      quotesCount,
+      quotesAmount,
+      leadsReceived,
     };
   }, [filteredRecords, isMonthView]);
 
@@ -246,7 +235,6 @@ export function SalesGoals() {
   const handleSaveGoals = async (payload: {
     globalSettings: GlobalGoalSettings;
     userOverrides: UserGoalTarget[];
-    tlAssignments: Record<string, string[]>;
   }) => {
     const res = await fetch('/api/goals', {
       method: 'PUT',
@@ -340,9 +328,9 @@ export function SalesGoals() {
         </div>
       </div>
 
-      {/* ─── TOP 4 METRIC CARDS (REAL-TIME AGGREGATED) ────────────────── */}
+      {/* ─── TOP 4 FOCUSED METRIC CARDS ─────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* CARD 1: DAILY CALLS TARGET */}
+        {/* CARD 1: DAILY CALLS TARGET (REQUIRED) */}
         <div className="crm-card bg-slate-900/90 border border-slate-800/90 p-5 rounded-2xl shadow-lg relative overflow-hidden space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -380,20 +368,20 @@ export function SalesGoals() {
             />
           </div>
 
-          {/* Breakdown Pills: New Calls vs Follow-up Calls */}
+          {/* Breakdown Pills: Fresh Calls (Lead 1st Call) vs Follow-up Calls */}
           <div className="flex items-center justify-between text-[11px] pt-1 text-slate-300 border-t border-slate-800/60">
-            <span className="flex items-center gap-1 text-emerald-400 font-bold">
+            <span className="flex items-center gap-1 text-emerald-400 font-bold" title="Lead First Contact Attempt">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              New Calls: {activeStats.newCalls}
+              Fresh Calls: {activeStats.newCalls}
             </span>
-            <span className="flex items-center gap-1 text-indigo-400 font-bold">
+            <span className="flex items-center gap-1 text-indigo-400 font-bold" title="Subsequent Follow-up Calls">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
               Follow-ups: {activeStats.followupCalls}
             </span>
           </div>
         </div>
 
-        {/* CARD 2: DAILY WHATSAPP MESSAGES */}
+        {/* CARD 2: DAILY WHATSAPP TARGET (OPTIONAL) */}
         <div className="crm-card bg-slate-900/90 border border-slate-800/90 p-5 rounded-2xl shadow-lg relative overflow-hidden space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -402,19 +390,23 @@ export function SalesGoals() {
             </span>
             <span
               className={`text-xs font-black px-2 py-0.5 rounded-full ${
-                activeStats.waPct >= 100
+                activeStats.waTarget === 0
+                  ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                  : activeStats.waPct >= 100
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
               }`}
             >
-              {activeStats.waPct}% Done
+              {activeStats.waTarget === 0 ? 'Optional' : `${activeStats.waPct}% Done`}
             </span>
           </div>
 
           <div className="flex items-baseline justify-between">
             <div>
               <span className="text-2xl font-black text-white">{activeStats.waAchieved}</span>
-              <span className="text-xs font-bold text-slate-400 ml-1.5">/ {activeStats.waTarget}</span>
+              <span className="text-xs font-bold text-slate-400 ml-1.5">
+                {activeStats.waTarget > 0 ? `/ ${activeStats.waTarget}` : 'sent'}
+              </span>
             </div>
             <span className="text-[11px] font-semibold text-slate-400">
               {isMonthView ? 'Month Total' : selectedDate}
@@ -427,7 +419,7 @@ export function SalesGoals() {
               className={`h-full rounded-full transition-all duration-500 ${
                 activeStats.waPct >= 100 ? 'bg-emerald-500' : 'bg-purple-500'
               }`}
-              style={{ width: `${Math.min(100, activeStats.waPct)}%` }}
+              style={{ width: `${activeStats.waTarget > 0 ? Math.min(100, activeStats.waPct) : 100}%` }}
             />
           </div>
 
@@ -444,56 +436,15 @@ export function SalesGoals() {
           </div>
         </div>
 
-        {/* CARD 3: PRODUCTS SHARED & QUOTES PIPELINE */}
+        {/* CARD 3: MONTHLY REVENUE TARGET (PRIMARY) */}
         <div className="crm-card bg-slate-900/90 border border-slate-800/90 p-5 rounded-2xl shadow-lg relative overflow-hidden space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Package size={14} className="text-purple-400" />
-              Products & Quotes
-            </span>
-            <span className="text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              {activeStats.quotesCount} Quotes
-            </span>
-          </div>
-
-          <div className="flex items-baseline justify-between">
-            <div>
-              <span className="text-2xl font-black text-white">₹{(activeStats.quotesAmount / 100000).toFixed(1)}L</span>
-              <span className="text-xs font-bold text-slate-400 ml-1.5">Quotes Val</span>
-            </div>
-            <span className="text-xs font-bold text-emerald-400">
-              ₹{(activeStats.pipelineValue / 100000).toFixed(1)}L Pipeline
-            </span>
-          </div>
-
-          {/* Mini progress / bar indicator */}
-          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
-              style={{ width: `${Math.min(100, (activeStats.quotesCount / 5) * 100)}%` }}
-            />
-          </div>
-
-          {/* Breakdown Pills: Products Shared & Quotes Generated */}
-          <div className="flex items-center justify-between text-[11px] pt-1 text-slate-300 border-t border-slate-800/60">
-            <span className="flex items-center gap-1 text-purple-400 font-bold">
-              <Package size={11} /> Products: {activeStats.productsShared}
-            </span>
-            <span className="flex items-center gap-1 text-amber-400 font-bold">
-              <FileText size={11} /> Quotes: {activeStats.quotesCount}
-            </span>
-          </div>
-        </div>
-
-        {/* CARD 4: LEAD INFLOW & REVENUE WON */}
-        <div className="crm-card bg-slate-900/90 border border-slate-800/90 p-5 rounded-2xl shadow-lg relative overflow-hidden space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Flame size={14} className="text-amber-400" />
-              Lead Inflow & Revenue
+              <DollarSign size={14} className="text-emerald-400" />
+              Monthly Revenue
             </span>
             <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              {activeStats.dealsWon} Won
+              {activeStats.dealsWon} Deals Won
             </span>
           </div>
 
@@ -505,7 +456,7 @@ export function SalesGoals() {
               </span>
             </div>
             <span className="text-xs font-bold text-indigo-400">
-              {activeStats.leadsReceived} Leads {isMonthView ? 'Month' : 'Today'}
+              {activeStats.revPct}% Quota
             </span>
           </div>
 
@@ -517,13 +468,64 @@ export function SalesGoals() {
             />
           </div>
 
-          {/* Breakdown: Deals won & Revenue */}
+          {/* Pipeline & Quotes info */}
           <div className="flex items-center justify-between text-[11px] pt-1 text-slate-300 border-t border-slate-800/60">
-            <span className="flex items-center gap-1 text-emerald-400 font-bold">
-              <CheckCircle2 size={11} /> Won: {activeStats.dealsWon} deals
+            <span className="flex items-center gap-1 text-purple-400 font-bold">
+              Pipeline: ₹{(activeStats.pipelineValue / 100000).toFixed(1)}L
             </span>
-            <span className="flex items-center gap-1 text-slate-400 font-bold">
-              Quota: {activeStats.revPct}%
+            <span className="flex items-center gap-1 text-amber-400 font-bold">
+              Quotes: ₹{(activeStats.quotesAmount / 1000).toFixed(0)}k
+            </span>
+          </div>
+        </div>
+
+        {/* CARD 4: MONTHLY MEETINGS & PIPELINE ACTIVITY */}
+        <div className="crm-card bg-slate-900/90 border border-slate-800/90 p-5 rounded-2xl shadow-lg relative overflow-hidden space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Video size={14} className="text-purple-400" />
+              Meetings & Proposals
+            </span>
+            <span
+              className={`text-xs font-black px-2 py-0.5 rounded-full ${
+                activeStats.meetingsTarget === 0
+                  ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                  : activeStats.meetingsPct >= 100
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+              }`}
+            >
+              {activeStats.meetingsTarget === 0 ? 'Optional' : `${activeStats.meetingsPct}% Done`}
+            </span>
+          </div>
+
+          <div className="flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-black text-white">{activeStats.meetingsAchieved}</span>
+              <span className="text-xs font-bold text-slate-400 ml-1.5">
+                {activeStats.meetingsTarget > 0 ? `/ ${activeStats.meetingsTarget}` : 'meetings'}
+              </span>
+            </div>
+            <span className="text-xs font-bold text-purple-400">
+              {activeStats.productsShared} Products Shared
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
+              style={{ width: `${activeStats.meetingsTarget > 0 ? Math.min(100, activeStats.meetingsPct) : 100}%` }}
+            />
+          </div>
+
+          {/* Breakdown Pills: Quotes & Leads Received */}
+          <div className="flex items-center justify-between text-[11px] pt-1 text-slate-300 border-t border-slate-800/60">
+            <span className="flex items-center gap-1 text-amber-400 font-bold">
+              <FileText size={11} /> Quotes: {activeStats.quotesCount}
+            </span>
+            <span className="flex items-center gap-1 text-slate-400 font-medium">
+              Leads: {activeStats.leadsReceived} Inflow
             </span>
           </div>
         </div>
@@ -552,7 +554,7 @@ export function SalesGoals() {
               </span>
             </h3>
             <p className="text-xs text-slate-400">
-              Rankings, calls breakdown, WhatsApp channels, product shares, quotation values, and pipeline metrics.
+              Fresh calls (1st touch), follow-up calls, WhatsApp channels, won revenue, and scheduled meetings.
             </p>
           </div>
 
@@ -594,11 +596,11 @@ export function SalesGoals() {
             <thead>
               <tr className="bg-slate-950/80 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
                 <th className="py-3 px-4 w-12 text-center">Rank</th>
-                <th className="py-3 px-4">Employee / Rep</th>
-                <th className="py-3 px-4">Calls (New / Follow-up)</th>
-                <th className="py-3 px-4">WhatsApp (Direct / Cloud)</th>
-                <th className="py-3 px-4">Products & Quotes</th>
-                <th className="py-3 px-4">Pipeline & Leads</th>
+                <th className="py-3 px-4">Sales Rep / TL</th>
+                <th className="py-3 px-4">Daily Calls (Fresh / FO)</th>
+                <th className="py-3 px-4">Daily WhatsApp (Direct / Cloud)</th>
+                <th className="py-3 px-4">Monthly Revenue</th>
+                <th className="py-3 px-4">Meetings & Proposals</th>
                 <th className="py-3 px-4 text-center">Completion</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -622,11 +624,10 @@ export function SalesGoals() {
                   const waDirect = isMonthView ? rep.monthlyWaDirect : rep.dateWaDirect;
                   const waCloud = isMonthView ? rep.monthlyWaCloud : rep.dateWaCloud;
 
+                  const meetings = isMonthView ? rep.monthlyMeetingsCount : rep.dateMeetingsCount;
                   const products = isMonthView ? rep.monthlyProductsShared : rep.dateProductsShared;
                   const quotesCount = isMonthView ? rep.monthlyQuotesCount : rep.dateQuotesCount;
                   const quotesAmt = isMonthView ? rep.monthlyQuotesAmount : rep.dateQuotesAmount;
-
-                  const leadsCount = isMonthView ? rep.monthlyLeadsReceived : rep.dateLeadsReceived;
 
                   return (
                     <tr
@@ -669,10 +670,10 @@ export function SalesGoals() {
                             <span className="text-slate-400">/ {callsTgt}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-[10px]">
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                              New: {newCalls}
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20" title="Fresh Calls (Lead First Touch)">
+                              Fresh: {newCalls}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-400 font-bold border border-indigo-500/20">
+                            <span className="px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-400 font-bold border border-indigo-500/20" title="Follow-up Calls">
                               FO: {foCalls}
                             </span>
                           </div>
@@ -684,7 +685,9 @@ export function SalesGoals() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between font-semibold">
                             <span className="text-white font-bold">{waAch}</span>
-                            <span className="text-slate-400">/ {waTgt}</span>
+                            <span className="text-slate-400">
+                              {waTgt > 0 ? `/ ${waTgt}` : '(Opt)'}
+                            </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-[10px]">
                             <span className="px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-300 font-bold border border-indigo-500/20">
@@ -697,27 +700,33 @@ export function SalesGoals() {
                         </div>
                       </td>
 
-                      {/* Products & Quotes */}
+                      {/* Monthly Revenue Target vs Achieved */}
                       <td className="py-3 px-4">
                         <div className="space-y-0.5">
-                          <p className="font-bold text-white flex items-center gap-1">
-                            <Package size={11} className="text-purple-400" />
-                            {products} Prods Shared
+                          <p className="font-bold text-emerald-400">
+                            ₹{(rep.monthlyRevenueWon / 100000).toFixed(1)}L
+                            <span className="text-slate-400 font-normal text-[10px] ml-1">
+                              / ₹{(rep.monthlyRevenueTarget / 100000).toFixed(1)}L
+                            </span>
                           </p>
-                          <p className="text-[10px] text-amber-400 font-semibold">
-                            {quotesCount} Quotes (₹{(quotesAmt / 1000).toFixed(0)}k)
+                          <p className="text-[10px] text-slate-400 font-medium">
+                            {rep.monthlyDealsWon} Deals Won · ₹{(rep.pipelineValue / 100000).toFixed(1)}L Pipeline
                           </p>
                         </div>
                       </td>
 
-                      {/* Pipeline & Leads */}
+                      {/* Meetings & Proposals */}
                       <td className="py-3 px-4">
                         <div className="space-y-0.5">
-                          <p className="font-bold text-emerald-400">
-                            ₹{(rep.pipelineValue / 100000).toFixed(1)}L Pipeline
+                          <p className="font-bold text-purple-400 flex items-center gap-1">
+                            <Video size={11} />
+                            {meetings} Meetings
+                            {rep.monthlyMeetingsTarget > 0 && (
+                              <span className="text-slate-400 font-normal text-[10px]">/ {rep.monthlyMeetingsTarget}</span>
+                            )}
                           </p>
-                          <p className="text-[10px] text-slate-400 font-medium">
-                            {leadsCount} Leads Inflow ({rep.monthlyDealsWon} Won)
+                          <p className="text-[10px] text-amber-400 font-semibold">
+                            {quotesCount} Quotes (₹{(quotesAmt / 1000).toFixed(0)}k) · {products} Prods
                           </p>
                         </div>
                       </td>
@@ -807,19 +816,19 @@ export function SalesGoals() {
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
                   <p className="text-[10px] font-bold uppercase text-slate-400">Daily Calls</p>
                   <p className="text-lg font-black text-white">{drilldownRep.dateCallsTotal} / {drilldownRep.dailyCallsTarget}</p>
-                  <p className="text-[10px] text-emerald-400">{drilldownRep.dateNewCalls} New · {drilldownRep.dateFollowupCalls} FO</p>
+                  <p className="text-[10px] text-emerald-400">{drilldownRep.dateNewCalls} Fresh · {drilldownRep.dateFollowupCalls} FO</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
                   <p className="text-[10px] font-bold uppercase text-slate-400">Daily WhatsApp</p>
-                  <p className="text-lg font-black text-white">{drilldownRep.dateWhatsappTotal} / {drilldownRep.dailyWhatsappTarget}</p>
+                  <p className="text-lg font-black text-white">{drilldownRep.dateWhatsappTotal} / {drilldownRep.dailyWhatsappTarget || 'Opt'}</p>
                   <p className="text-[10px] text-indigo-300">{drilldownRep.dateWaDirect} Direct · {drilldownRep.dateWaCloud} Cloud</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Products Shared</p>
-                  <p className="text-lg font-black text-purple-400">{drilldownRep.dateProductsShared}</p>
-                  <p className="text-[10px] text-slate-400">Month: {drilldownRep.monthlyProductsShared}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Meetings</p>
+                  <p className="text-lg font-black text-purple-400">{drilldownRep.dateMeetingsCount}</p>
+                  <p className="text-[10px] text-slate-400">Month: {drilldownRep.monthlyMeetingsCount}</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
@@ -832,16 +841,20 @@ export function SalesGoals() {
               {/* Monthly Overview Card */}
               <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                  <Briefcase size={14} className="text-indigo-400" /> Monthly Pipeline & Revenue Progress
+                  <Briefcase size={14} className="text-indigo-400" /> Monthly Revenue & Pipeline Performance
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <span className="text-slate-400 block">Pipeline Value:</span>
-                    <strong className="text-emerald-400 font-bold text-sm">₹{(drilldownRep.pipelineValue / 100000).toFixed(2)} Lakhs</strong>
+                    <span className="text-slate-400 block">Revenue Won / Target:</span>
+                    <strong className="text-emerald-400 font-bold text-sm">
+                      ₹{(drilldownRep.monthlyRevenueWon / 100000).toFixed(2)}L / ₹{(drilldownRep.monthlyRevenueTarget / 100000).toFixed(2)}L
+                    </strong>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">Monthly Deals Won:</span>
-                    <strong className="text-white font-bold text-sm">{drilldownRep.monthlyDealsWon} Deals (₹{(drilldownRep.monthlyRevenueWon / 100000).toFixed(2)}L)</strong>
+                    <span className="text-slate-400 block">Deals Won / Pipeline:</span>
+                    <strong className="text-white font-bold text-sm">
+                      {drilldownRep.monthlyDealsWon} Won · ₹{(drilldownRep.pipelineValue / 100000).toFixed(2)}L
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block">Monthly Leads Inflow:</span>
@@ -869,7 +882,6 @@ export function SalesGoals() {
         onClose={() => setIsSetGoalOpen(false)}
         globalSettings={globalSettings}
         userOverrides={rawCRMData?.goalsConfig?.userOverrides || []}
-        tlAssignments={tlAssignments}
         allUsers={records}
         onSave={handleSaveGoals}
       />

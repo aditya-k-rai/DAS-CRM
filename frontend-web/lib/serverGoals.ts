@@ -11,15 +11,10 @@ function getDataPaths() {
 }
 
 export interface GlobalGoalSettings {
-  dailyCallsTarget: number;
-  dailyWhatsappTarget: number;
-  dailyQuotesTarget: number;
-  dailyNewLeadsTarget: number;
-  monthlyRevenueTarget: number;
-  monthlyDealsTarget: number;
-  monthlyLeadsTarget: number;
-  monthlyQuotesTarget: number;
-  monthlyQuotesValueTarget: number;
+  dailyCallsTarget: number; // Required
+  dailyWhatsappTarget: number; // Optional (0 = disabled)
+  monthlyRevenueTarget: number; // Primary revenue quota (₹)
+  monthlyMeetingsTarget: number; // Optional meetings quota
   activeMonth: string; // e.g. "2026-10"
 }
 
@@ -27,18 +22,11 @@ export interface UserGoalTarget {
   userId: string;
   userName: string;
   userEmail: string;
-  userRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | string;
-  teamLeaderId?: string;
-  teamLeaderName?: string;
+  userRole: 'TEAM_LEADER' | 'SALES_EXEC' | string;
   dailyCallsTarget?: number;
   dailyWhatsappTarget?: number;
-  dailyQuotesTarget?: number;
-  dailyNewLeadsTarget?: number;
   monthlyRevenueTarget?: number;
-  monthlyDealsTarget?: number;
-  monthlyLeadsTarget?: number;
-  monthlyQuotesTarget?: number;
-  monthlyQuotesValueTarget?: number;
+  monthlyMeetingsTarget?: number;
   notes?: string;
   updatedAt?: string;
   updatedBy?: string;
@@ -47,56 +35,38 @@ export interface UserGoalTarget {
 export interface GoalsStoragePayload {
   globalSettings: GlobalGoalSettings;
   userOverrides: UserGoalTarget[];
-  tlAssignments?: Record<string, string[]>; // tlId -> repIds[]
   updatedAt: string;
 }
 
 export const DEFAULT_GLOBAL_SETTINGS: GlobalGoalSettings = {
   dailyCallsTarget: 40,
   dailyWhatsappTarget: 25,
-  dailyQuotesTarget: 2,
-  dailyNewLeadsTarget: 5,
   monthlyRevenueTarget: 500000,
-  monthlyDealsTarget: 10,
-  monthlyLeadsTarget: 60,
-  monthlyQuotesTarget: 20,
-  monthlyQuotesValueTarget: 1000000,
+  monthlyMeetingsTarget: 10,
   activeMonth: new Date().toISOString().slice(0, 7), // "YYYY-MM"
 };
 
 export const DEFAULT_USER_OVERRIDES: UserGoalTarget[] = [
   {
     userId: 'usr_tl',
-    userName: 'Team Leader',
-    userEmail: 'teamleader@das.com',
+    userName: 'Sachin Puri',
+    userEmail: 'sachin.puri@das.com',
     userRole: 'TEAM_LEADER',
-    dailyCallsTarget: 30,
+    dailyCallsTarget: 35,
     dailyWhatsappTarget: 20,
-    dailyQuotesTarget: 3,
-    dailyNewLeadsTarget: 8,
     monthlyRevenueTarget: 800000,
-    monthlyDealsTarget: 15,
-    monthlyLeadsTarget: 80,
-    monthlyQuotesTarget: 25,
-    monthlyQuotesValueTarget: 1500000,
+    monthlyMeetingsTarget: 15,
     updatedAt: new Date().toISOString(),
   },
   {
-    userId: 'usr_rep',
-    userName: 'Sales Executive',
-    userEmail: 'rep@das.com',
+    userId: 'usr_rep_1',
+    userName: 'Nandini Rastogi',
+    userEmail: 'rastoginandini92@gmail.com',
     userRole: 'SALES_EXEC',
-    teamLeaderId: 'usr_tl',
-    teamLeaderName: 'Team Leader',
-    dailyCallsTarget: 45,
-    dailyWhatsappTarget: 30,
-    dailyQuotesTarget: 2,
-    dailyNewLeadsTarget: 5,
-    monthlyRevenueTarget: 400000,
-    monthlyDealsTarget: 8,
-    monthlyLeadsTarget: 50,
-    monthlyQuotesTarget: 15,
-    monthlyQuotesValueTarget: 800000,
+    dailyCallsTarget: 50,
+    dailyWhatsappTarget: 25,
+    monthlyRevenueTarget: 450000,
+    monthlyMeetingsTarget: 10,
     updatedAt: new Date().toISOString(),
   },
 ];
@@ -112,7 +82,6 @@ export function getLocalGoals(): GoalsStoragePayload {
           return {
             globalSettings: { ...DEFAULT_GLOBAL_SETTINGS, ...(parsed.globalSettings || {}) },
             userOverrides: Array.isArray(parsed.userOverrides) ? parsed.userOverrides : DEFAULT_USER_OVERRIDES,
-            tlAssignments: parsed.tlAssignments || {},
             updatedAt: parsed.updatedAt || new Date().toISOString(),
           };
         }
@@ -125,7 +94,6 @@ export function getLocalGoals(): GoalsStoragePayload {
   return {
     globalSettings: DEFAULT_GLOBAL_SETTINGS,
     userOverrides: DEFAULT_USER_OVERRIDES,
-    tlAssignments: { usr_tl: ['usr_rep'] },
     updatedAt: new Date().toISOString(),
   };
 }
