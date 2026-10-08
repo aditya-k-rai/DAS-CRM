@@ -1039,6 +1039,257 @@ class ApiService {
     } catch {}
     return null;
   }
+
+  // ── Lead Distribution & Manager Allocation ──────────────────────────────────
+  async allocateLeadsToRep(
+    token: string | null,
+    leadIds: string[],
+    targetUserId: string
+  ): Promise<{ success: boolean; message?: string }> {
+    if (!token) return { success: false, message: 'No authentication token' };
+    try {
+      const res = await fetch(`${API_BASE}/leads/distribution/manager-allocate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          leadIds,
+          targetUserId,
+        }),
+      });
+      if (res.ok) {
+        return { success: true };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, message: data.message || 'Allocation failed' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Network error during allocation' };
+    }
+  }
+
+  // ── Follow-ups & Reminders Engine ──────────────────────────────────────────
+  async getFollowUps(token: string | null, queryParams?: Record<string, string>): Promise<any[]> {
+    if (!token) return [];
+    try {
+      const qs = queryParams ? '?' + new URLSearchParams(queryParams).toString() : '';
+      const res = await fetch(`${API_BASE}/follow-ups${qs}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.followUps || data.data || [];
+      }
+    } catch {}
+    return [];
+  }
+
+  async getTodayFollowUps(token: string | null): Promise<any> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/follow-ups/today`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  async createFollowUp(token: string | null, payload: any): Promise<any> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/follow-ups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  async updateFollowUp(token: string | null, id: string, payload: any): Promise<boolean> {
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/follow-ups/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }
+
+  async completeFollowUp(token: string | null, id: string, payload: any): Promise<boolean> {
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/follow-ups/${id}/complete`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }
+
+  async rescheduleFollowUp(token: string | null, id: string, payload: any): Promise<boolean> {
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/follow-ups/${id}/reschedule`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }
+
+  // ── Leaves Management Engine ───────────────────────────────────────────────
+  async getLeaveRequests(token: string | null): Promise<any[]> {
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_BASE}/leaves`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.leaves || [];
+      }
+    } catch {}
+    return [];
+  }
+
+  async updateLeaveStatus(token: string | null, id: string, status: 'APPROVED' | 'REJECTED'): Promise<boolean> {
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/leaves/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }
+
+  // ── Deals & Pipeline Engine ───────────────────────────────────────────────
+  async getDeals(token: string | null, queryParams?: Record<string, string>): Promise<any[]> {
+
+    if (!token) return [];
+    try {
+      const qs = queryParams ? '?' + new URLSearchParams(queryParams).toString() : '';
+      const res = await fetch(`${API_BASE}/deals${qs}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.deals || data.data || [];
+      }
+    } catch {}
+    return [];
+  }
+
+  async createDeal(token: string | null, payload: any): Promise<any> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/deals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  async moveDeal(token: string | null, id: string, stageId: string): Promise<boolean> {
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/deals/${id}/stage`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ stageId }),
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }
+
+  async getForecast(token: string | null): Promise<any> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/deals/forecast`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  async getPipelines(token: string | null): Promise<any[]> {
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_BASE}/deals/pipelines`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.pipelines || [];
+      }
+    } catch {}
+    return [];
+  }
 }
+
+
 
 export const apiService = new ApiService();

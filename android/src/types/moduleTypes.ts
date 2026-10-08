@@ -26,4 +26,7 @@ export type ModuleKey =
   | 'PROFILE'
   | 'SUPPORT'
   | 'ABOUT'
-  | 'ADMIN_CONTROL';
+  | 'ADMIN_CONTROL'
+  | 'LEAD_ASSIGNMENT'
+  | 'FOLLOW_UPS';
+

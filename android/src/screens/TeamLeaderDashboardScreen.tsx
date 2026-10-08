@@ -454,11 +454,12 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.quickHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-              onPress={() => navigation?.navigate('Leads')}
+              onPress={() => navigation?.navigate('Menu', { initialModule: 'LEAD_ASSIGNMENT' })}
               activeOpacity={0.8}
             >
-              <Text style={[styles.quickHeaderBtnText, { color: colors.text }]}>🎯 Distribute Leads</Text>
+              <Text style={[styles.quickHeaderBtnText, { color: colors.primary }]}>🎯 Distribution Hub</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.quickHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
               onPress={() => {

@@ -44,7 +44,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
-  const { currentUser } = useAuthStore();
+  const { currentUser, token } = useAuthStore();
 
   // 🎯 Revenue Goal State
   const [monthlyGoal, setMonthlyGoal] = useState<number>(300000);
@@ -71,25 +71,51 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
       if (stgs.length > 0) setNewDealStage(stgs[0].name);
     });
 
-    apiService.getLeads().then((leads) => {
-      if (Array.isArray(leads) && leads.length > 0) {
-        const mappedDeals: DealItem[] = leads.map((l, idx) => {
-          const rawVal = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || (35000 + (idx * 15000));
-          return {
-            id: `deal_${l.id}`,
-            name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Deal #${idx + 1}`,
-            company: l.company || l.organization || 'Enterprise Client',
-            val: `₹${rawVal.toLocaleString('en-IN')}`,
-            rawVal,
-            stage: l.status || 'Proposal Sent',
-            owner: l.owner || l.assignedRep || currentUser?.name || 'Sales Rep',
-            expectedClose: 'Next Month',
-          };
-        });
-        setDealsList(mappedDeals);
-      }
-    });
-  }, [currentUser]);
+    const loadDealsData = async () => {
+      try {
+        const backendDeals = await apiService.getDeals(token);
+        if (Array.isArray(backendDeals) && backendDeals.length > 0) {
+          const mapped: DealItem[] = backendDeals.map((d: any, idx: number) => {
+            const rawVal = typeof d.value === 'number' ? d.value : parseFloat(String(d.value || d.amount || '0').replace(/[^0-9.]/g, '')) || (45000 + (idx * 15000));
+            return {
+              id: d.id || `deal_${idx}`,
+              name: d.title || d.name || `Enterprise Deal #${idx + 1}`,
+              company: d.companyName || d.company?.name || d.company || 'Enterprise Client',
+              val: `₹${rawVal.toLocaleString('en-IN')}`,
+              rawVal,
+              stage: d.stage?.name || d.stageName || d.stage || 'Proposal Sent',
+              owner: d.owner?.name || d.assignedTo?.name || d.owner || currentUser?.name || 'Sales Rep',
+              expectedClose: d.expectedCloseDate ? d.expectedCloseDate.split('T')[0] : 'Next Month',
+            };
+          });
+          setDealsList(mapped);
+          return;
+        }
+      } catch {}
+
+      // Fallback from leads
+      apiService.getLeads(token).then((leads) => {
+        if (Array.isArray(leads) && leads.length > 0) {
+          const mappedDeals: DealItem[] = leads.map((l, idx) => {
+            const rawVal = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || (35000 + (idx * 15000));
+            return {
+              id: `deal_${l.id}`,
+              name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Deal #${idx + 1}`,
+              company: l.company || l.city || 'Enterprise Client',
+              val: `₹${rawVal.toLocaleString('en-IN')}`,
+              rawVal,
+              stage: l.status || 'Proposal Sent',
+              owner: l.owner || l.assignedRep || currentUser?.name || 'Sales Rep',
+              expectedClose: 'Next Month',
+            };
+          });
+          setDealsList(mappedDeals);
+        }
+      });
+    };
+
+    loadDealsData();
+  }, [currentUser, token]);
 
   const getStageProbability = (stgName: string) => {
     const s = (stgName || '').trim().toUpperCase();
@@ -101,9 +127,10 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
     setDealsList((prev) =>
       prev.map((d) => (d.id === dealId ? { ...d, stage: nextStage } : d))
     );
+    apiService.moveDeal(token, dealId, nextStage).catch(() => {});
   };
 
-  const handleCreateNewDeal = () => {
+  const handleCreateNewDeal = async () => {
     if (!newDealTitle.trim() || !newDealCompany.trim()) {
       Alert.alert('Missing Info', 'Please enter deal title and company name.');
       return;
@@ -119,6 +146,16 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
       owner: newDealOwner,
       expectedClose: 'Next Month',
     };
+
+    try {
+      await apiService.createDeal(token, {
+        title: newDeal.name,
+        companyName: newDeal.company,
+        value: newDeal.rawVal,
+        stage: newDeal.stage,
+      });
+    } catch {}
+
     setDealsList([newDeal, ...dealsList]);
     setNewDealTitle('');
     setNewDealCompany('');
@@ -126,6 +163,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
     setShowNewDealForm(false);
     Alert.alert('✅ Deal Registered', `Created new enterprise deal "${newDeal.name}" assigned to ${newDeal.owner}!`);
   };
+
 
   const handleSaveGoalTargets = () => {
     const mVal = parseFloat(inputMonthlyGoal) || 0;

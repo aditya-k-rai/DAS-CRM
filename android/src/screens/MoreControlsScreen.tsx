@@ -32,10 +32,14 @@ import NoticeBoardScreen from './NoticeBoardScreen';
 import AppSettingsScreen from './AppSettingsScreen';
 import AdminControlCenterScreen from './AdminControlCenterScreen';
 import { SalesGoalsScreen } from './SalesGoalsScreen';
+import { LeadDistributionScreen } from './LeadDistributionScreen';
+import { FollowUpsScreen } from './FollowUpsScreen';
+import { InterviewsHiringScreen } from './InterviewsHiringScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuthStore } from '../store/authStore';
 import { useModuleAccessStore } from '../store/moduleAccessStore';
+
 
 // ModuleKey is defined in shared types and re-exported for backward compatibility
 // with any existing imports from MoreControlsScreen across the codebase
@@ -101,11 +105,13 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'QUOTATIONS' || initMod === 'QUOTES') setActiveModal('QUOTES');
       else if (initMod === 'REPORTS') setActiveModal('REPORTS');
       else if (initMod === 'GOALS') setActiveModal('GOALS');
+      else if (initMod === 'LEAD_ASSIGNMENT' || initMod === 'DISTRIBUTION') setActiveModal('LEAD_ASSIGNMENT');
+      else if (initMod === 'FOLLOW_UPS' || initMod === 'TASKS') setActiveModal('FOLLOW_UPS');
       else if (initMod === 'ATTENDANCE') setActiveModal('ATTENDANCE');
       else if (initMod === 'PROFILE' || initMod === 'SALARY') {
         if (isAdmin) setActiveModal('PROFILE');
       }
-      else if (initMod === 'EMPLOYEES') setActiveModal('INTERVIEWS');
+      else if (initMod === 'EMPLOYEES' || initMod === 'INTERVIEWS') setActiveModal('INTERVIEWS');
       else if (initMod === 'AI_HUB') setActiveModal('AI_HUB');
       else if (initMod === 'AI_CONTROL' || initMod === 'AI_CUSTOMIZATION') setActiveModal('AI_CONTROL');
       else if (initMod === 'AUTOMATIONS' || initMod === 'WORKFLOW') setActiveModal('AUTOMATIONS');
@@ -133,9 +139,11 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     }
   };
 
-  // 20 Navigation Items in Exact Specified Order
+  // 22 Navigation Items in Exact Specified Order
   const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string; upcoming?: boolean }[] = [
     ...(isAdmin ? [{ key: 'ADMIN_CONTROL' as ModuleKey, icon: '🛡️', label: 'Admin Control Center' }] : []),
+    ...(role === 'TEAM_LEADER' || isAdmin ? [{ key: 'LEAD_ASSIGNMENT' as ModuleKey, icon: '🎯', label: 'Lead Distribution Hub' }] : []),
+    { key: 'FOLLOW_UPS', icon: '⏱️', label: 'Tasks & Follow-ups' },
     { key: 'PRODUCTS', icon: '📦', label: 'Product Catalogue' },
     { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
     { key: 'COMMUNICATIONS', icon: '☁️', label: 'WhatsApp Cloud' },
@@ -161,6 +169,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const getModuleLabel = (key: ModuleKey, defaultLabel: string): string => {
     switch (key) {
       case 'ADMIN_CONTROL': return 'Admin Control Center';
+      case 'LEAD_ASSIGNMENT': return 'Lead Distribution Hub';
+      case 'FOLLOW_UPS': return 'Tasks & Follow-ups';
       case 'PRODUCTS': return t.modProducts || defaultLabel;
       case 'QUOTES': return t.modQuotes || defaultLabel;
       case 'COMMUNICATIONS': return t.modComms || defaultLabel;
@@ -204,6 +214,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: 0 }}>
         {activeModal === 'ADMIN_CONTROL' && <AdminControlCenterScreen onClose={closeModal} />}
+        {activeModal === 'LEAD_ASSIGNMENT' && <LeadDistributionScreen onClose={closeModal} navigation={navigation} />}
+        {activeModal === 'FOLLOW_UPS' && <FollowUpsScreen onClose={closeModal} navigation={navigation} />}
         {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={closeModal} />}
         {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={closeModal} />}
         {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={closeModal} />}
@@ -230,27 +242,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         )}
 
         {activeModal === 'INTERVIEWS' && (
-          <View style={{ flex: 1 }}>
-            {renderBackBanner('Hiring & Candidate Pipeline')}
-            <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-              <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={[styles.kpiTitle, { color: colors.text }]}>👤 Active Candidate Pipeline</Text>
-                <Text style={[styles.kpiSub, { color: colors.textMuted }]}>Track scheduled interviews, scores, and candidate statuses</Text>
-              </View>
-
-              <View style={{ gap: 12, marginTop: 16 }}>
-                <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 28 }]}>
-                  <Text style={{ fontSize: 28, marginBottom: 8 }}>👥</Text>
-                  <Text style={[styles.kpiTitle, { color: colors.text, textAlign: 'center' }]}>No Scheduled Interviews</Text>
-                  <Text style={[styles.kpiSub, { color: colors.textMuted, textAlign: 'center', marginTop: 4 }]}>Your active candidate pipeline is currently clear.</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => Alert.alert('Schedule Interview', 'Opening candidate scheduler...')}>
-                <Text style={styles.actionBtnText}>+ Schedule New Candidate Interview</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+          <InterviewsHiringScreen onClose={closeModal} navigation={navigation} />
         )}
 
         {activeModal === 'UPCOMING_COMMS' && (
@@ -269,6 +261,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
                 <Text style={[styles.kpiTitle, { color: colors.text }]}>❓ Support & Help Desk</Text>
                 <Text style={[styles.kpiSub, { color: colors.textMuted }]}>24/7 Priority support, documentation, and live chat</Text>
               </View>
+
 
               <View style={{ gap: 12, marginTop: 16 }}>
                 <TouchableOpacity style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => Alert.alert('Live Chat', 'Connecting to DAS CRM Support Engineer...')}>

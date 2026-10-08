@@ -219,8 +219,38 @@ export default function HRDashboardScreen({ navigation }: any) {
                 </View>
               ))}
             </View>
+
+            {/* Candidate Hiring & Interview Pipeline Widget */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Candidate Hiring Pipeline</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'INTERVIEWS' })}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Manage Pipeline →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, padding: 14 }]}
+              onPress={() => navigation?.navigate('Menu', { initialModule: 'INTERVIEWS' })}
+              activeOpacity={0.8}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(99,102,241,0.15)', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16 }}>👤</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>Active Candidate Screening</Text>
+                    <Text style={{ fontSize: 11, color: colors.textMuted }}>3 Candidates in Interview & Offer Stages</Text>
+                  </View>
+                </View>
+                <View style={{ backgroundColor: 'rgba(16,185,129,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#10b981' }}>2 IN EVALUATION</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
         )}
+
 
         {/* ── ATTENDANCE TAB ───────────────────────────────────────────── */}
         {activeTab === 'attendance' && (
