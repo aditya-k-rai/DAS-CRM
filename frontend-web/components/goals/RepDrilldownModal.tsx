@@ -66,10 +66,8 @@ export function RepDrilldownModal({
   // Copied phone tracker
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  if (!isOpen || !rep) return null;
-
   // Filter activities for this rep based on timeframe (Date vs Month)
-  const allActivities = rep.activitiesList || [];
+  const allActivities = useMemo(() => rep?.activitiesList || [], [rep]);
   
   const timeframeActivities = useMemo(() => {
     return allActivities.filter(item => {
@@ -82,15 +80,15 @@ export function RepDrilldownModal({
   }, [allActivities, isMonth, selectedMonth, selectedDate]);
 
   // Counts for the 4 Category Buttons
-  const callsList = timeframeActivities.filter(a => a.category === 'CALL');
-  const freshCallsList = callsList.filter(a => a.callSubtype === 'FRESH');
-  const followupCallsList = callsList.filter(a => a.callSubtype === 'FOLLOWUP');
+  const callsList = useMemo(() => timeframeActivities.filter(a => a.category === 'CALL'), [timeframeActivities]);
+  const freshCallsList = useMemo(() => callsList.filter(a => a.callSubtype === 'FRESH'), [callsList]);
+  const followupCallsList = useMemo(() => callsList.filter(a => a.callSubtype === 'FOLLOWUP'), [callsList]);
 
-  const waList = timeframeActivities.filter(a => a.category === 'WHATSAPP');
-  const prodsList = timeframeActivities.filter(a => a.category === 'PRODUCT');
-  const quotesList = timeframeActivities.filter(a => a.category === 'QUOTE');
+  const waList = useMemo(() => timeframeActivities.filter(a => a.category === 'WHATSAPP'), [timeframeActivities]);
+  const prodsList = useMemo(() => timeframeActivities.filter(a => a.category === 'PRODUCT'), [timeframeActivities]);
+  const quotesList = useMemo(() => timeframeActivities.filter(a => a.category === 'QUOTE'), [timeframeActivities]);
 
-  const totalQuotesAmount = quotesList.reduce((sum, q) => sum + (q.quoteAmount || 0), 0);
+  const totalQuotesAmount = useMemo(() => quotesList.reduce((sum, q) => sum + (q.quoteAmount || 0), 0), [quotesList]);
 
   // Filter by active category & sub-filter & search
   const displayedActivities = useMemo(() => {
@@ -126,6 +124,8 @@ export function RepDrilldownModal({
       );
     });
   }, [activeCategory, callSubtype, freshCallsList, followupCallsList, callsList, waList, prodsList, quotesList, searchQuery]);
+
+  if (!isOpen || !rep) return null;
 
   const handleCopyPhone = (phone: string, id: string) => {
     navigator.clipboard.writeText(phone);

@@ -771,15 +771,17 @@ export function SalesGoals() {
       </div>
 
       {/* ─── REP DRILLDOWN MODAL ────────────────────────────────────────── */}
-      <RepDrilldownModal
-        isOpen={Boolean(drilldownRep)}
-        onClose={() => setDrilldownRep(null)}
-        rep={drilldownRep}
-        selectedDate={selectedDate}
-        selectedMonth={selectedMonth}
-        isMonthView={isMonthView}
-        onToggleTimeframe={(isM) => setIsMonthView(isM)}
-      />
+      {drilldownRep && (
+        <RepDrilldownModal
+          isOpen={true}
+          onClose={() => setDrilldownRep(null)}
+          rep={drilldownRep}
+          selectedDate={selectedDate}
+          selectedMonth={selectedMonth}
+          isMonthView={isMonthView}
+          onToggleTimeframe={(isM) => setIsMonthView(isM)}
+        />
+      )}
 
       {/* ─── SET GOAL MODAL ────────────────────────────────────────────── */}
       <SetGoalModal

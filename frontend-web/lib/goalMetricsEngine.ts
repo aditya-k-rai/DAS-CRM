@@ -724,15 +724,24 @@ export function calculatePerformanceRecords({
         { id: '3', name: 'Amit Sharma', phone: '+91 98222 30010', company: 'Sharma Logistics', status: 'Negotiation' },
         { id: '4', name: 'Sunil Verma', phone: '+91 98333 40011', company: 'Verma Traders', status: 'Contacted' },
         { id: '5', name: 'Neha Gupta', phone: '+91 98444 50012', company: 'Gupta Tech Corp', status: 'Won' },
+        { id: '6', name: 'Rajesh Khanna', phone: '+91 98555 60013', company: 'Apollo Security Systems', status: 'Qualified' },
+        { id: '7', name: 'Vikram Malhotra', phone: '+91 98666 70014', company: 'Zenith Retailers', status: 'Contacted' },
+        { id: '8', name: 'Deepak Mehta', phone: '+91 98777 80015', company: 'Mehta & Sons Enterprises', status: 'Proposal Sent' },
+        { id: '9', name: 'Ananya Sen', phone: '+91 98888 90016', company: 'Sen Digital Solutions', status: 'Qualified' },
+        { id: '10', name: 'Rohit Singhania', phone: '+91 98999 00017', company: 'Singhania Logistics Hub', status: 'Won' },
       ];
 
       const repLeads = userLeads.length > 0 ? userLeads : samplePool;
 
       const seedCalls = [
-        { lead: repLeads[0 % repLeads.length], isFresh: true, title: 'Fresh Discovery Call', outcome: 'Connected - Requirement Gathered', notes: 'Discussed CCTV & security installation across retail outlets. Client requested formal quote.' },
-        { lead: repLeads[1 % repLeads.length], isFresh: true, title: 'Fresh Inquiry Response', outcome: 'Connected - Positive Interest', notes: 'Inquired from website form. Interested in biometric access control system.' },
+        { lead: repLeads[0 % repLeads.length], isFresh: true, title: 'Fresh Discovery Call', outcome: 'Connected - Requirement Gathered', notes: 'Discussed CCTV & security installation across 4 retail branches. Client requested formal quote.' },
+        { lead: repLeads[1 % repLeads.length], isFresh: true, title: 'Fresh Inquiry Response', outcome: 'Connected - Positive Interest', notes: 'Inquired via website form. Interested in biometric access control system.' },
+        { lead: repLeads[5 % repLeads.length] || repLeads[0], isFresh: true, title: 'Fresh Inbound Call', outcome: 'Connected - Site Visit Scheduled', notes: 'First touch inquiry for warehouse perimeter security setup.' },
+        { lead: repLeads[6 % repLeads.length] || repLeads[1], isFresh: true, title: 'Fresh Outreach Call', outcome: 'Connected - Needs Commercial Terms', notes: 'Referred by existing client. Needs 16-camera IP setup.' },
         { lead: repLeads[2 % repLeads.length], isFresh: false, title: 'Commercial Follow-up Call', outcome: 'Follow-up Scheduled', notes: 'Followed up on proposal terms. Client requested 5% bulk discount consideration.' },
-        { lead: repLeads[3 % repLeads.length], isFresh: false, title: 'Technical Specification Call', outcome: 'Connected - Specs Approved', notes: 'Clarified camera resolution and cloud storage retention period.' },
+        { lead: repLeads[3 % repLeads.length], isFresh: false, title: 'Technical Specification Call', outcome: 'Connected - Specs Approved', notes: 'Clarified camera resolution, NVR channels, and cloud storage retention period.' },
+        { lead: repLeads[7 % repLeads.length] || repLeads[2], isFresh: false, title: 'Follow-up on Proposal Q-2026', outcome: 'Connected - Decision in 2 Days', notes: 'Discussed warranty terms and installation schedule with purchase head.' },
+        { lead: repLeads[8 % repLeads.length] || repLeads[3], isFresh: false, title: 'Payment & Delivery Follow-up', outcome: 'Connected - Advance Dispatched', notes: 'Confirmed purchase order processing and advance payment.' },
       ];
 
       seedCalls.forEach((sc, idx) => {
@@ -758,6 +767,7 @@ export function calculatePerformanceRecords({
         { lead: repLeads[0 % repLeads.length], notes: 'Shared PDF catalogue and standard pricing sheet for 4K NVR.' },
         { lead: repLeads[2 % repLeads.length], notes: 'Sent updated quotation PDF with 1-year AMC warranty terms.' },
         { lead: repLeads[4 % repLeads.length] || repLeads[0], notes: 'Confirmed site inspection date and technician arrival time.' },
+        { lead: repLeads[7 % repLeads.length] || repLeads[1], notes: 'Shared installation manual and product video demo link.' },
       ];
 
       seedWA.forEach((sw, idx) => {
@@ -780,6 +790,7 @@ export function calculatePerformanceRecords({
       const seedProds = [
         { lead: repLeads[0 % repLeads.length], prods: ['Hikvision 4K Dome Camera', '16-Channel POE NVR'], notes: 'Demonstrated camera zoom capabilities and AI motion detection features.' },
         { lead: repLeads[1 % repLeads.length], prods: ['ZKTeco Biometric Fingerprint & Face Scanner'], notes: 'Pitched multi-door access control package for head office.' },
+        { lead: repLeads[5 % repLeads.length] || repLeads[2], prods: ['CP Plus 32-Channel NVR', '4TB Surveillance HDD'], notes: 'Shared technical datasheet and compatibility matrix for expansion.' },
       ];
 
       seedProds.forEach((sp, idx) => {
@@ -804,6 +815,7 @@ export function calculatePerformanceRecords({
       const seedQuotes = [
         { lead: repLeads[0 % repLeads.length], quoteNo: 'QT-2026-0042', amount: 85000, status: 'SENT', notes: '4K CCTV 16-Camera Setup Package' },
         { lead: repLeads[2 % repLeads.length], quoteNo: 'QT-2026-0078', amount: 145000, status: 'ACCEPTED', notes: 'Biometric Access Control & Attendance System' },
+        { lead: repLeads[7 % repLeads.length] || repLeads[1], quoteNo: 'QT-2026-0105', amount: 220000, status: 'DRAFT', notes: 'Enterprise Surveillance & Access Gate Integration' },
       ];
 
       seedQuotes.forEach((sq, idx) => {
