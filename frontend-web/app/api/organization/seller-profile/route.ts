@@ -13,8 +13,27 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   try {
-    const profile = getLocalSellerProfile();
-    return NextResponse.json(profile, { headers: CORS_HEADERS });
+    const localProfile = getLocalSellerProfile();
+    if (localProfile && !localProfile.isDefault) {
+      return NextResponse.json(localProfile, { headers: CORS_HEADERS });
+    }
+
+    try {
+      const authHeader = req.headers.get('Authorization');
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const backendRes = await fetch(`${apiBase}/organizations/seller-profile`, {
+        headers: authHeader ? { Authorization: authHeader } : {},
+      }).catch(() => null);
+
+      if (backendRes && backendRes.ok) {
+        const backendData = await backendRes.json();
+        if (backendData && (backendData.logoUrl || backendData.gstNumber || (backendData.name && backendData.name !== 'Adorable Trading'))) {
+          return NextResponse.json(backendData, { headers: CORS_HEADERS });
+        }
+      }
+    } catch (_) {}
+
+    return NextResponse.json(localProfile, { headers: CORS_HEADERS });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to get seller profile' }, { status: 500, headers: CORS_HEADERS });
   }

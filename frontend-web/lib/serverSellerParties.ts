@@ -29,7 +29,7 @@ export interface SellerProfile {
   updatedAt: string;
 }
 
-const DEFAULT_SELLER: SellerProfile = {
+const DEFAULT_SELLER: SellerProfile & { isDefault?: boolean } = {
   id: 'seller-org',
   name: 'Adorable Trading',
   logoUrl: '',
@@ -46,16 +46,19 @@ const DEFAULT_SELLER: SellerProfile = {
     upiId: '',
   },
   updatedAt: new Date().toISOString(),
+  isDefault: true,
 };
 
-export function getLocalSellerProfile(): SellerProfile {
+export function getLocalSellerProfile(): SellerProfile & { isDefault?: boolean } {
   for (const dir of getDataPaths()) {
     try {
       const file = path.join(dir, 'seller-company.json');
       if (fs.existsSync(file)) {
         const content = fs.readFileSync(file, 'utf8');
         const parsed = JSON.parse(content);
-        if (parsed && (parsed.name || parsed.logoUrl || parsed.address)) return parsed;
+        if (parsed && (parsed.name || parsed.logoUrl || parsed.address || parsed.gstNumber)) {
+          return { ...parsed, isDefault: false };
+        }
       }
     } catch (_) {}
   }
@@ -63,12 +66,13 @@ export function getLocalSellerProfile(): SellerProfile {
 }
 
 export function saveLocalSellerProfile(profile: SellerProfile): void {
+  const cleanProfile = { ...profile, isDefault: false };
   for (const dir of getDataPaths()) {
     try {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(path.join(dir, 'seller-company.json'), JSON.stringify(profile, null, 2), 'utf8');
+      fs.writeFileSync(path.join(dir, 'seller-company.json'), JSON.stringify(cleanProfile, null, 2), 'utf8');
     } catch (_) {}
   }
 }

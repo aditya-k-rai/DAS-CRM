@@ -783,55 +783,93 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           apiBase = '/api';
         }
 
-        // Try Next.js /api/organization/seller-profile first (file-based persistent store)
-        let profile: any = null;
+        // 1. Check localStorage first for existing user-edited seller company
+        let cachedComp: CompanyDetails | null = null;
         try {
-          const res = await fetch('/api/organization/seller-profile');
-          if (res.ok) profile = await res.json();
+          if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem('das_crm_seller_companies') || localStorage.getItem('das_crm_company_profile');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              const list = Array.isArray(parsed) ? parsed : [parsed];
+              if (list.length > 0 && (list[0].name || list[0].logoUrl || list[0].address)) {
+                cachedComp = list[0];
+              }
+            }
+          }
         } catch (_) {}
 
-        // Fallback: Backend seller-profile (Prisma DB — cross-device)
-        if (!profile || !profile.name) {
+        let profile: any = null;
+
+        // 2. Fetch from backend seller-profile (Prisma DB / Organization — cross-device)
+        try {
+          const res = await fetch(`${apiBase}/organizations/seller-profile`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+          if (res.ok) {
+            const bData = await res.json();
+            if (bData && (bData.logoUrl || bData.gstNumber || bData.phone || (bData.name && bData.name !== 'Adorable Trading') || (bData.address && bData.address !== 'Registered Business Address'))) {
+              profile = bData;
+            }
+          }
+        } catch (_) {}
+
+        // 3. Fallback: Next.js /api/organization/seller-profile (file-based persistent store)
+        if (!profile) {
           try {
-            const res = await fetch(`${apiBase}/organizations/seller-profile`, {
-              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            });
+            const res = await fetch('/api/organization/seller-profile');
             if (res.ok) {
-              profile = await res.json();
+              const fData = await res.json();
+              if (fData && (fData.logoUrl || fData.gstNumber || fData.phone || (fData.name && fData.name !== 'Adorable Trading') || (fData.address && fData.address !== 'Registered Business Address'))) {
+                profile = fData;
+              }
             }
           } catch (_) {}
         }
 
-        if (profile && (profile.name || profile.address || profile.phone || profile.gstNumber || profile.logoUrl)) {
-          setCompanies(prev => {
-            const existing = prev[0] || {} as any;
-            // Never overwrite existing non-empty user logo or fields with empty defaults
-            const comp: CompanyDetails = {
-              id: profile.id || existing.id || 'comp-1',
-              name: profile.name || existing.name || 'Adorable Trading',
-              logoUrl: profile.logoUrl || existing.logoUrl || '',
-              address: profile.address || existing.address || 'Registered Business Address',
-              email: profile.email || existing.email || '',
-              phone: profile.phone || existing.phone || '',
-              gstNo: profile.gstNumber || profile.gstNo || existing.gstNo || '',
-              panNo: profile.panNumber || profile.panNo || existing.panNo || '',
-              bankName: profile.bankDetails?.bankName || existing.bankName || 'HDFC Bank',
-              accountNo: profile.bankDetails?.accountNo || existing.accountNo || '',
-              ifscCode: profile.bankDetails?.ifscCode || existing.ifscCode || '',
-              branch: profile.bankDetails?.branch || existing.branch || '',
-              upiId: profile.bankDetails?.upiId || existing.upiId || '',
-            };
-            try {
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('das_crm_seller_companies', JSON.stringify([comp]));
-              }
-            } catch (_) {}
-            return [comp];
-          });
-          setSelectedCompanyId(prev => prev || profile.id || 'comp-1');
-        }
+        // 4. Merge all sources giving highest priority to explicit user edits
+        setCompanies(prev => {
+          const existing = cachedComp || prev[0] || {} as any;
+          const mergedName = (profile?.name && profile.name !== 'Adorable Trading') ? profile.name : (existing.name || profile?.name || 'Adorable Trading');
+          const mergedLogo = (profile?.logoUrl && profile.logoUrl.trim()) ? profile.logoUrl.trim() : (existing.logoUrl || '');
+          const mergedAddress = (profile?.address && profile.address !== 'Registered Business Address') ? profile.address : (existing.address || profile?.address || 'Registered Business Address');
+          const mergedGst = profile?.gstNumber || profile?.gstNo || existing.gstNo || '';
+          const mergedPan = profile?.panNumber || profile?.panNo || existing.panNo || '';
+          const mergedEmail = profile?.email || existing.email || '';
+          const mergedPhone = profile?.phone || existing.phone || '';
+          const mergedBankName = profile?.bankDetails?.bankName || existing.bankName || 'HDFC Bank';
+          const mergedAcc = profile?.bankDetails?.accountNo || existing.accountNo || '';
+          const mergedIfsc = profile?.bankDetails?.ifscCode || existing.ifscCode || '';
+          const mergedBranch = profile?.bankDetails?.branch || existing.branch || '';
+          const mergedUpi = profile?.bankDetails?.upiId || existing.upiId || '';
+
+          const comp: CompanyDetails = {
+            id: profile?.id || existing.id || 'comp-1',
+            name: mergedName,
+            logoUrl: mergedLogo,
+            address: mergedAddress,
+            email: mergedEmail,
+            phone: mergedPhone,
+            gstNo: mergedGst,
+            panNo: mergedPan,
+            bankName: mergedBankName,
+            accountNo: mergedAcc,
+            ifscCode: mergedIfsc,
+            branch: mergedBranch,
+            upiId: mergedUpi,
+          };
+
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('das_crm_seller_companies', JSON.stringify([comp]));
+              localStorage.setItem('das_crm_company_profile', JSON.stringify(comp));
+            }
+          } catch (_) {}
+
+          return [comp];
+        });
+        setSelectedCompanyId(profile?.id || cachedComp?.id || 'comp-1');
       } catch (e) {
-        console.warn('Failed to load seller profile from backend:', e);
+        console.warn('Failed to load seller profile:', e);
       }
     };
     fetchSellerProfile();
@@ -2352,10 +2390,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     });
     setSelectedCompanyId(companyId);
 
-    // 2. Persist to localStorage immediately (instant cross-tab sync)
+    // 2. Persist to localStorage immediately (instant cross-tab sync and relogin safety)
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem('das_crm_seller_companies', JSON.stringify([updatedCompany]));
+        localStorage.setItem('das_crm_company_profile', JSON.stringify(updatedCompany));
       }
     } catch (_) {}
 
