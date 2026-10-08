@@ -8,6 +8,8 @@ import { Plus, List, Users, Building2 } from 'lucide-react';
 
 export default function QuotationsPage() {
   const [openHistoryTrigger, setOpenHistoryTrigger] = useState(false);
+  const [openCompaniesTrigger, setOpenCompaniesTrigger] = useState(false);
+  const [companiesInitialTab, setCompaniesInitialTab] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -15,13 +17,16 @@ export default function QuotationsPage() {
         title="Quotations"
         actions={
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <Link
-              href="/companies"
+            <button
+              onClick={() => {
+                setCompaniesInitialTab('ALL');
+                setOpenCompaniesTrigger(true);
+              }}
               className="btn-secondary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap flex items-center hover:text-indigo-400"
-              title="Go to Companies (Buyer & Seller Directory)"
+              title="Companies & Organizations Directory (Buyer & Seller Hub)"
             >
               <Building2 size={14} className="text-sky-400" /> <span className="hidden xs:inline sm:inline">Companies</span>
-            </Link>
+            </button>
             <button
               onClick={() => setOpenHistoryTrigger(true)}
               className="btn-secondary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap"
@@ -44,6 +49,9 @@ export default function QuotationsPage() {
         <QuotationBuilder
           externalOpenHistory={openHistoryTrigger}
           onExternalOpenHistoryHandled={() => setOpenHistoryTrigger(false)}
+          externalOpenCompanies={openCompaniesTrigger}
+          externalCompaniesInitialTab={companiesInitialTab}
+          onExternalOpenCompaniesHandled={() => setOpenCompaniesTrigger(false)}
         />
       </main>
     </div>

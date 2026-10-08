@@ -8,13 +8,13 @@ export default function ContactsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/companies?tab=BUYER');
+    router.replace('/quotes');
   }, [router]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] text-muted-foreground">
       <Loader2 size={24} className="animate-spin mb-2 text-indigo-500" />
-      <p className="text-xs">Redirecting to Companies &amp; Buyer Parties Hub...</p>
+      <p className="text-xs">Redirecting to Quotations &amp; Companies Hub...</p>
     </div>
   );
 }

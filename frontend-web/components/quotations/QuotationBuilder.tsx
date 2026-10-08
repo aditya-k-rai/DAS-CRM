@@ -186,9 +186,18 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [];
 export interface QuotationBuilderProps {
   externalOpenHistory?: boolean;
   onExternalOpenHistoryHandled?: () => void;
+  externalOpenCompanies?: boolean;
+  externalCompaniesInitialTab?: 'ALL' | 'SELLER' | 'BUYER';
+  onExternalOpenCompaniesHandled?: () => void;
 }
 
-export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHandled }: QuotationBuilderProps = {}) {
+export function QuotationBuilder({
+  externalOpenHistory,
+  onExternalOpenHistoryHandled,
+  externalOpenCompanies,
+  externalCompaniesInitialTab,
+  onExternalOpenCompaniesHandled,
+}: QuotationBuilderProps = {}) {
   // Document Type Flow
   const [docType, setDocType] = useState<DocumentType>('QUOTATION');
 
@@ -230,12 +239,25 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [historySearch, setHistorySearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'GENERATED_SENT' | 'QUOTATIONS' | 'INVOICES' | 'SHARED_LEADS'>('ALL');
 
+  // Companies & Parties Unified Management Hub Modal
+  const [companiesHubOpen, setCompaniesHubOpen] = useState<boolean>(false);
+  const [companiesHubTab, setCompaniesHubTab] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
+  const [companiesHubSearch, setCompaniesHubSearch] = useState<string>('');
+
   useEffect(() => {
     if (externalOpenHistory) {
       setHistoryDrawerOpen(true);
       if (onExternalOpenHistoryHandled) onExternalOpenHistoryHandled();
     }
   }, [externalOpenHistory, onExternalOpenHistoryHandled]);
+
+  useEffect(() => {
+    if (externalOpenCompanies) {
+      setCompaniesHubOpen(true);
+      if (externalCompaniesInitialTab) setCompaniesHubTab(externalCompaniesInitialTab);
+      if (onExternalOpenCompaniesHandled) onExternalOpenCompaniesHandled();
+    }
+  }, [externalOpenCompanies, externalCompaniesInitialTab, onExternalOpenCompaniesHandled]);
 
   // Fetch Quotes & Drafts with Firebase PDF links from Database & Local Vault
   useEffect(() => {
@@ -2681,6 +2703,55 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     setNewParty({});
   };
 
+  const handleDeleteCompany = async (compId: string, compName: string) => {
+    if (!confirm(`Are you sure you want to delete seller company "${compName}"?`)) return;
+    const next = companies.filter(c => c.id !== compId);
+    setCompanies(next);
+    if (selectedCompanyId === compId && next.length > 0) {
+      setSelectedCompanyId(next[0].id);
+    }
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('das_crm_seller_companies', JSON.stringify(next));
+        if (next.length > 0) {
+          localStorage.setItem('das_crm_company_profile', JSON.stringify(next[0]));
+        }
+      }
+      await fetch('/api/organization/seller-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companies: next }),
+      });
+      window.dispatchEvent(new CustomEvent('das_crm_seller_profile_updated'));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_company_channel');
+        bc.postMessage({ type: 'SELLER_PROFILE_UPDATED', companies: next });
+        bc.close();
+      }
+    } catch (_) {}
+  };
+
+  const handleDeleteParty = async (partyId: string, partyName: string) => {
+    if (!confirm(`Are you sure you want to delete client party "${partyName}"?`)) return;
+    const next = parties.filter(p => p.id !== partyId);
+    setParties(next);
+    if (selectedPartyId === partyId && next.length > 0) {
+      setSelectedPartyId(next[0].id);
+    }
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('das_crm_saved_parties', JSON.stringify(next));
+      }
+      await fetch(`/api/parties/${partyId}`, { method: 'DELETE' });
+      window.dispatchEvent(new CustomEvent('das_crm_parties_updated'));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_party_channel');
+        bc.postMessage({ type: 'PARTY_UPDATED', partyId, deleted: true });
+        bc.close();
+      }
+    } catch (_) {}
+  };
+
   const handleConvertDoc = (target: DocumentType) => {
     setDocType(target);
     const prefix = target === 'QUOTATION' ? 'EST' : target === 'PROFORMA_INVOICE' ? 'PI' : 'INV';
@@ -3743,14 +3814,18 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   >
                     <Plus size={12} /> <span className="hidden sm:inline">Add Company</span><span className="sm:hidden">Add</span>
                   </button>
-                  <Link
-                    href="/companies?tab=SELLER"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCompaniesHubTab('SELLER');
+                      setCompaniesHubOpen(true);
+                    }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-indigo-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-indigo-500/10 cursor-pointer"
-                    title="Manage all companies & seller entities"
+                    title="View & manage all seller companies in Companies Directory"
                   >
                     <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
-                  </Link>
+                  </button>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep2Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
@@ -3898,14 +3973,18 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   >
                     <Plus size={12} /> <span className="hidden sm:inline">Add Party</span><span className="sm:hidden">Add</span>
                   </button>
-                  <Link
-                    href="/companies?tab=BUYER"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCompaniesHubTab('BUYER');
+                      setCompaniesHubOpen(true);
+                    }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
-                    title="Manage all buyer / client companies in Companies hub"
+                    title="View & manage all buyer client companies in Companies Directory"
                   >
                     <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
-                  </Link>
+                  </button>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep3Done
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
@@ -5410,6 +5489,355 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               >
                 {editingPartyId ? 'Update Party' : 'Save Party'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏢 COMPANIES & ORGANIZATIONS DIRECTORY MODAL */}
+      {companiesHubOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6 transition-all">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl text-white overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 border-b border-slate-800 flex-shrink-0 gap-3 bg-slate-900/90">
+              <div>
+                <span className="text-[10px] font-black uppercase text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-0.5 rounded">
+                  QUOTATIONS DIRECTORY HUB
+                </span>
+                <h2 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
+                  <Building2 className="text-sky-400" size={20} /> Companies &amp; Organizations Directory
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Manage all Seller Branches / Profiles and Client Buyer Companies directly inside Quotations.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCompanyId(null);
+                    setNewComp({});
+                    setCompanyModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow cursor-pointer transition-all"
+                >
+                  <Plus size={13} /> Add Seller / Branch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPartyId(null);
+                    setNewParty({});
+                    setPartyModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow cursor-pointer transition-all"
+                >
+                  <Plus size={13} /> Add Client / Buyer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompaniesHubOpen(false)}
+                  className="p-1.5 text-muted-foreground hover:text-foreground bg-muted rounded-xl cursor-pointer transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="p-4 border-b border-slate-800 space-y-3 flex-shrink-0 bg-slate-950/40">
+              <div className="relative">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={companiesHubSearch}
+                  onChange={e => setCompaniesHubSearch(e.target.value)}
+                  placeholder="Search companies by name, GSTIN, PAN, email, phone, city, address..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none font-medium"
+                />
+              </div>
+
+              {/* Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                {[
+                  { id: 'ALL', label: `All Companies (${companies.length + parties.length})` },
+                  { id: 'SELLER', label: `Seller Profiles / Branches (${companies.length})` },
+                  { id: 'BUYER', label: `Client / Buyer Companies (${parties.length})` },
+                ].map(tabItem => (
+                  <button
+                    key={tabItem.id}
+                    type="button"
+                    onClick={() => setCompaniesHubTab(tabItem.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                      companiesHubTab === tabItem.id
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {tabItem.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid of Companies */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {(() => {
+                const searchLower = companiesHubSearch.toLowerCase().trim();
+
+                const filteredSellers = companies.filter(c => {
+                  if (companiesHubTab === 'BUYER') return false;
+                  if (!searchLower) return true;
+                  return (
+                    (c.name && c.name.toLowerCase().includes(searchLower)) ||
+                    (c.gstNo && c.gstNo.toLowerCase().includes(searchLower)) ||
+                    (c.panNo && c.panNo.toLowerCase().includes(searchLower)) ||
+                    (c.email && c.email.toLowerCase().includes(searchLower)) ||
+                    (c.phone && c.phone.toLowerCase().includes(searchLower)) ||
+                    (c.address && c.address.toLowerCase().includes(searchLower)) ||
+                    (c.bankName && c.bankName.toLowerCase().includes(searchLower))
+                  );
+                });
+
+                const filteredBuyers = parties.filter(p => {
+                  if (companiesHubTab === 'SELLER') return false;
+                  if (!searchLower) return true;
+                  return (
+                    (p.name && p.name.toLowerCase().includes(searchLower)) ||
+                    (p.contactPerson && p.contactPerson.toLowerCase().includes(searchLower)) ||
+                    (p.gstNo && p.gstNo.toLowerCase().includes(searchLower)) ||
+                    (p.panNo && p.panNo.toLowerCase().includes(searchLower)) ||
+                    (p.email && p.email.toLowerCase().includes(searchLower)) ||
+                    (p.phone && p.phone.toLowerCase().includes(searchLower)) ||
+                    (p.address && p.address.toLowerCase().includes(searchLower)) ||
+                    (p.shippingAddress && p.shippingAddress.toLowerCase().includes(searchLower))
+                  );
+                });
+
+                const totalResults = filteredSellers.length + filteredBuyers.length;
+
+                if (totalResults === 0) {
+                  return (
+                    <div className="text-center py-12 space-y-3 bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl">
+                      <Building2 size={36} className="mx-auto text-slate-600" />
+                      <p className="text-sm font-bold text-slate-400">No matching companies found</p>
+                      <p className="text-xs text-slate-500">Try adjusting your search terms or create a new company above.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {/* Seller Cards */}
+                    {filteredSellers.map(seller => {
+                      const isSelected = selectedCompanyId === seller.id;
+                      return (
+                        <div
+                          key={`seller-${seller.id}`}
+                          className={`bg-slate-950 border rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-indigo-500/60 shadow-lg ${
+                            isSelected ? 'border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-950/10' : 'border-slate-800/90'
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {/* Card Top: Logo / Avatar + Badges */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative w-9 h-9 rounded-xl overflow-hidden bg-[#002060] text-white flex items-center justify-center font-black text-xs border border-slate-700 flex-shrink-0">
+                                  {seller.logoUrl ? (
+                                    <img src={seller.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                                  ) : (
+                                    seller.name ? seller.name.slice(0, 2).toUpperCase() : 'CO'
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-black text-white truncate leading-tight">{seller.name || 'Seller Entity'}</h4>
+                                  <span className="text-[10px] text-indigo-400 font-medium truncate block">Your Seller Organization</span>
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex-shrink-0">
+                                SELLER ENTITY
+                              </span>
+                            </div>
+
+                            {/* Details List */}
+                            <div className="text-[11px] space-y-1 text-slate-400 border-t border-slate-900 pt-2.5">
+                              {seller.address && (
+                                <p className="flex items-start gap-1.5 leading-snug">
+                                  <span className="text-slate-600 flex-shrink-0">📍</span>
+                                  <span className="truncate">{seller.address}</span>
+                                </p>
+                              )}
+                              {seller.phone && (
+                                <p className="flex items-center gap-1.5">
+                                  <span className="text-slate-600 flex-shrink-0">📞</span>
+                                  <span>{seller.phone}</span>
+                                </p>
+                              )}
+                              {seller.email && (
+                                <p className="flex items-center gap-1.5 truncate">
+                                  <span className="text-slate-600 flex-shrink-0">✉️</span>
+                                  <span className="truncate">{seller.email}</span>
+                                </p>
+                              )}
+                              <div className="pt-1 flex items-center justify-between text-[10px] font-mono text-slate-300 font-bold border-t border-slate-900">
+                                <span>GSTIN: <strong className="text-indigo-300 font-bold">{seller.gstNo || 'N/A'}</strong></span>
+                                <span>PAN: <strong className="text-slate-300">{seller.panNo || 'N/A'}</strong></span>
+                              </div>
+                              {seller.bankName && (
+                                <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-2 text-[10px] text-slate-300 mt-2 space-y-0.5 font-mono">
+                                  <p className="font-bold text-indigo-300 font-sans">🏦 {seller.bankName}</p>
+                                  <p>A/C: {seller.accountNo || 'N/A'}</p>
+                                  <p>IFSC: {seller.ifscCode || 'N/A'}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Card Actions */}
+                          <div className="pt-3 mt-3 border-t border-slate-900 flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCompanyId(seller.id);
+                                setCompaniesHubOpen(false);
+                              }}
+                              className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40'
+                                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow'
+                              }`}
+                            >
+                              {isSelected ? '✓ Active Seller' : 'Use in Quote'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCompanyId(seller.id);
+                                setNewComp({ ...seller });
+                                setCompanyModalOpen(true);
+                              }}
+                              className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
+                              title="Edit Seller Company"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCompany(seller.id, seller.name)}
+                              className="p-1.5 bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
+                              title="Delete Seller Company"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Buyer Cards */}
+                    {filteredBuyers.map(buyer => {
+                      const isSelected = selectedPartyId === buyer.id;
+                      return (
+                        <div
+                          key={`buyer-${buyer.id}`}
+                          className={`bg-slate-950 border rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-emerald-500/60 shadow-lg ${
+                            isSelected ? 'border-emerald-500 ring-1 ring-emerald-500/40 bg-emerald-950/10' : 'border-slate-800/90'
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {/* Card Top */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center font-black text-xs flex-shrink-0">
+                                  {buyer.name ? buyer.name.slice(0, 2).toUpperCase() : 'BY'}
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-black text-white truncate leading-tight">{buyer.name || 'Client / Buyer'}</h4>
+                                  <span className="text-[10px] text-emerald-400 font-medium truncate block">Client / Buyer Organization</span>
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0">
+                                CLIENT / BUYER
+                              </span>
+                            </div>
+
+                            {/* Details */}
+                            <div className="text-[11px] space-y-1 text-slate-400 border-t border-slate-900 pt-2.5">
+                              {buyer.contactPerson && (
+                                <p className="flex items-center gap-1.5 font-medium text-slate-300">
+                                  <span className="text-slate-600 flex-shrink-0">👤</span>
+                                  <span>Attn: {buyer.contactPerson}</span>
+                                </p>
+                              )}
+                              {buyer.address && (
+                                <p className="flex items-start gap-1.5 leading-snug">
+                                  <span className="text-slate-600 flex-shrink-0">📍</span>
+                                  <span className="truncate">{buyer.address}</span>
+                                </p>
+                              )}
+                              {buyer.phone && (
+                                <p className="flex items-center gap-1.5">
+                                  <span className="text-slate-600 flex-shrink-0">📞</span>
+                                  <span>{buyer.phone}</span>
+                                </p>
+                              )}
+                              {buyer.email && (
+                                <p className="flex items-center gap-1.5 truncate">
+                                  <span className="text-slate-600 flex-shrink-0">✉️</span>
+                                  <span className="truncate">{buyer.email}</span>
+                                </p>
+                              )}
+                              <div className="pt-1 flex items-center justify-between text-[10px] font-mono text-slate-300 font-bold border-t border-slate-900">
+                                <span>GSTIN: <strong className="text-emerald-300 font-bold">{buyer.gstNo || 'N/A'}</strong></span>
+                                <span>PAN: <strong className="text-slate-300">{buyer.panNo || 'N/A'}</strong></span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Actions */}
+                          <div className="pt-3 mt-3 border-t border-slate-900 flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPartyId(buyer.id);
+                                setCompaniesHubOpen(false);
+                              }}
+                              className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40'
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'
+                              }`}
+                            >
+                              {isSelected ? '✓ Active Buyer' : 'Use in Quote'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingPartyId(buyer.id);
+                                setNewParty({ ...buyer });
+                                setPartyModalOpen(true);
+                              }}
+                              className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
+                              title="Edit Client Party"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteParty(buyer.id, buyer.name)}
+                              className="p-1.5 bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
+                              title="Delete Client Party"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

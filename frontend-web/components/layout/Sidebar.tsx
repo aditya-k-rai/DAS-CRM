@@ -90,7 +90,6 @@ const adminNavigation: NavItem[] = [
   { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
   { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Quotations & Invoices', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Companies', href: '/companies', icon: Building2, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Attendance', href: '/attendance', icon: Calendar, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER'] },
   { label: 'The Notice Board', href: '/notice-board', icon: Radio, roles: ['ADMIN', 'MANAGER', 'HR'] },
