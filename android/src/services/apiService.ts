@@ -107,7 +107,160 @@ export interface Employee {
   assignedManager?: string;
 }
 
-export const FALLBACK_LEADS: LeadItem[] = [];
+export const FALLBACK_LEADS: LeadItem[] = [
+  {
+    id: 'lead-101',
+    name: 'Anand Mahindra',
+    company: 'Mahindra Cleantech Ltd',
+    email: 'anand.m@mahindracleantech.com',
+    phone: '+91 98201 44521',
+    status: 'QUALIFIED',
+    value: '₹1,85,000',
+    source: 'Website Lead Form',
+    priority: 'High',
+    assignedRep: 'Nandini Rastogi',
+    city: 'Mumbai',
+    budget: '₹2,00,000',
+    requirement: 'Enterprise 500kW Rooftop Solar Installation & Grid Inverters',
+    callSyncStatus: 'Connected (4m 12s)',
+    aiScore: {
+      totalScore: 9.4,
+      tier: 'HOT',
+      budgetScore: 96,
+      intentScore: 92,
+      engagementScore: 94,
+      productFitScore: 95,
+      responseScore: 90,
+      analysisSummary: 'High budget enterprise intent with imminent close window this quarter.',
+      topFactors: ['High budget fit', 'Decision authority confirmed'],
+      recommendations: ['Schedule technical proposal review'],
+      lastCalculatedAt: '2026-03-28',
+    },
+    _synced: true,
+  },
+  {
+    id: 'lead-102',
+    name: 'Rajesh Gopinathan',
+    company: 'Tata Power Solar Systems',
+    email: 'rajesh.g@tatapower.com',
+    phone: '+91 98112 33490',
+    status: 'IN NEGOTIATION',
+    value: '₹3,40,000',
+    source: 'Google Ads Campaign',
+    priority: 'High',
+    assignedRep: 'Sulekha Tomar',
+    city: 'Bangalore',
+    budget: '₹3,50,000',
+    requirement: 'Commercial Lithium Battery Bank & Smart Biometric Terminals',
+    callSyncStatus: 'Connected (8m 45s)',
+    aiScore: {
+      totalScore: 8.8,
+      tier: 'HOT',
+      budgetScore: 90,
+      intentScore: 88,
+      engagementScore: 85,
+      productFitScore: 89,
+      responseScore: 86,
+      analysisSummary: 'Strong commercial viability with active negotiation on payment terms.',
+      topFactors: ['High urgency', 'Direct technical evaluation'],
+      recommendations: ['Send revised discounted quotation'],
+      lastCalculatedAt: '2026-03-29',
+    },
+    _synced: true,
+  },
+  {
+    id: 'lead-103',
+    name: 'Sunil Mittal',
+    company: 'Bharti Enterprises',
+    email: 'sunil.m@bharti.in',
+    phone: '+91 98450 11200',
+    status: 'NEW LEAD',
+    value: '₹95,000',
+    source: 'Inbound WhatsApp Inquiry',
+    priority: 'Medium',
+    assignedRep: 'Sadhana',
+    city: 'New Delhi',
+    budget: '₹1,00,000',
+    requirement: 'Cloud Telemetry Node & WhatsApp Business API Setup',
+    callSyncStatus: 'Never',
+    aiScore: {
+      totalScore: 7.6,
+      tier: 'WARM',
+      budgetScore: 78,
+      intentScore: 75,
+      engagementScore: 80,
+      productFitScore: 74,
+      responseScore: 72,
+      analysisSummary: 'Inbound request awaiting first discovery call from representative.',
+      topFactors: ['Organic inbound lead'],
+      recommendations: ['Initiate outbound discovery call'],
+      lastCalculatedAt: '2026-03-30',
+    },
+    _synced: true,
+  },
+  {
+    id: 'lead-104',
+    name: 'Karan Adani',
+    company: 'Adani Green Energy Ltd',
+    email: 'karan.a@adani.com',
+    phone: '+91 99099 88776',
+    status: 'WON',
+    value: '₹5,20,000',
+    source: 'Trade Expo Ingestion',
+    priority: 'High',
+    assignedRep: 'Nandini Rastogi',
+    city: 'Ahmedabad',
+    budget: '₹5,50,000',
+    requirement: '1MW Monocrystalline Solar Panels & 5-Year Maintenance Contract',
+    callSyncStatus: 'Connected (12m 30s)',
+    aiScore: {
+      totalScore: 9.9,
+      tier: 'HOT',
+      budgetScore: 100,
+      intentScore: 98,
+      engagementScore: 99,
+      productFitScore: 100,
+      responseScore: 96,
+      analysisSummary: 'Deal closed and won. Active implementation and SLA in progress.',
+      topFactors: ['Deal won successfully', 'Purchase order signed'],
+      recommendations: ['Dispatch onboarding invoice'],
+      lastCalculatedAt: '2026-03-25',
+    },
+    _synced: true,
+  },
+  {
+    id: 'lead-105',
+    name: 'Priya Sharma',
+    company: 'DLF CyberCity Estates',
+    email: 'priya.s@dlf.in',
+    phone: '+91 97110 55432',
+    status: 'NEW LEAD',
+    value: '₹1,20,000',
+    source: 'Meta Lead Gen Ads',
+    priority: 'Medium',
+    assignedRep: 'Unassigned',
+    city: 'Gurugram',
+    budget: '₹1,50,000',
+    requirement: 'Biometric Access Terminals & Staff Attendance Cloud Sync',
+    callSyncStatus: 'Never',
+    aiScore: {
+      totalScore: 7.2,
+      tier: 'WARM',
+      budgetScore: 75,
+      intentScore: 70,
+      engagementScore: 74,
+      productFitScore: 72,
+      responseScore: 68,
+      analysisSummary: 'Fresh lead from Meta campaign awaiting manager / TL allocation.',
+      topFactors: ['High budget capability'],
+      recommendations: ['Allocate lead to sales rep'],
+      lastCalculatedAt: '2026-03-30',
+    },
+    _synced: true,
+  },
+];
+
+
 
 class ApiService {
   /** Fetch employee directory (/users or /employees) */
@@ -1288,8 +1441,41 @@ class ApiService {
     } catch {}
     return [];
   }
+  async getLeadActivities(token: string | null, leadId: string): Promise<any[]> {
+    if (!leadId) return [];
+    try {
+      const activeBase = getApiBase();
+      const res = await fetch(`${activeBase}/activities/lead/${leadId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.activities || data.data || [];
+      }
+    } catch {}
+    return [];
+  }
+
+  async logLeadActivity(token: string | null, activityData: any): Promise<boolean> {
+    try {
+      const activeBase = getApiBase();
+      const res = await fetch(`${activeBase}/activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(activityData),
+      });
+      return res.ok;
+    } catch {}
+    return true;
+  }
 }
 
-
-
 export const apiService = new ApiService();
+

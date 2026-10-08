@@ -79,17 +79,17 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  // 4. Current host machine Wi-Fi LAN IP (Primary for real physical devices on local network)
+  candidates.push(CURRENT_LAN_API_URL);
+
+  // 5. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
   if (Platform.OS === 'android') {
     candidates.push(EMULATOR_API_URL);
   }
 
-  // 5. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
+  // 6. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
   candidates.push(LOCALHOST_API_URL);
   candidates.push('http://127.0.0.1:3001/api/v1');
-
-  // 6. Current host machine Wi-Fi LAN IP
-  candidates.push(CURRENT_LAN_API_URL);
 
   // 7. Enterprise Cloud Production Endpoints
   candidates.push(DEFAULT_CLOUD_API_URL);
@@ -107,10 +107,11 @@ export const getApiBaseUrl = (): string => {
     return `http://${expoIp}:3001/api/v1`;
   }
   if (Platform.OS === 'android') {
-    return EMULATOR_API_URL;
+    return CURRENT_LAN_API_URL;
   }
   return LOCALHOST_API_URL;
 };
+
 
 export let API_BASE: string = getApiBaseUrl();
 

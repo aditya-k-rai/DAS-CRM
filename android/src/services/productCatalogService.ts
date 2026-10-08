@@ -116,7 +116,108 @@ export const DEFAULT_CATEGORY_TREE: CategoryTree[] = [
   },
 ];
 
-export const INITIAL_PRODUCTS: CatalogProductItem[] = [];
+export const INITIAL_PRODUCTS: CatalogProductItem[] = [
+  {
+    id: 'prod-101',
+    name: 'DAS Enterprise CRM License (Per User / Year)',
+    sku: 'DAS-CRM-ENT-01',
+    category: 'CRM & Sales Software',
+    subCategory: 'Lead Management',
+    brand: 'DAS Technologies',
+    unit: 'License',
+    minPrice: 12000,
+    maxPrice: 15000,
+    currency: '₹',
+    stockQuantity: 150,
+    moq: 5,
+    taxRate: 18,
+    description: 'Complete enterprise CRM platform with live call sync, lead routing, and quotas.',
+    features: ['Real-Time Call Logging', 'WhatsApp Cloud API', 'Automatic Round-Robin Routing'],
+    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
+    status: 'ACTIVE',
+    createdAt: '2026-01-15',
+  },
+  {
+    id: 'prod-102',
+    name: 'AI Lead Scoring & Prediction Bot',
+    sku: 'DAS-AI-SCORE-02',
+    category: 'AI & Intelligence',
+    subCategory: 'AI Lead Scoring',
+    brand: 'DAS AI Labs',
+    unit: 'License',
+    minPrice: 25000,
+    maxPrice: 30000,
+    currency: '₹',
+    stockQuantity: 85,
+    moq: 1,
+    taxRate: 18,
+    description: 'Real-time multi-dimensional AI scoring engine that prioritizes hot prospects.',
+    features: ['Automated Call Sentiment', 'Engagement Velocity Model', 'Deal Conversion Probability'],
+    imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80',
+    status: 'ACTIVE',
+    createdAt: '2026-02-01',
+  },
+  {
+    id: 'prod-103',
+    name: 'Meta WhatsApp Cloud Business API Setup',
+    sku: 'DAS-WA-CLOUD-03',
+    category: 'Cloud & Communications',
+    subCategory: 'Meta WhatsApp Cloud API',
+    brand: 'Meta / DAS',
+    unit: 'Units',
+    minPrice: 18000,
+    maxPrice: 22000,
+    currency: '₹',
+    stockQuantity: 40,
+    moq: 1,
+    taxRate: 18,
+    description: 'Official WhatsApp Business Cloud API green tick registration with custom HSM templates.',
+    features: ['Unlimited Direct Outbound', 'Rich Media PDFs', 'Automated Bot Triggers'],
+    imageUrl: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80',
+    status: 'ACTIVE',
+    createdAt: '2026-02-10',
+  },
+  {
+    id: 'prod-104',
+    name: 'Biometric Punch Terminal & Cloud Sync',
+    sku: 'DAS-BIO-TERM-04',
+    category: 'Hardware & Infrastructure',
+    subCategory: 'Biometric Punch Terminal',
+    brand: 'SecureID',
+    unit: 'Pieces (Pcs)',
+    minPrice: 14500,
+    maxPrice: 17500,
+    currency: '₹',
+    stockQuantity: 24,
+    moq: 1,
+    taxRate: 18,
+    description: 'Enterprise fingerprint and facial recognition attendance terminal with live DAS CRM sync.',
+    features: ['Wi-Fi & 4G Connectivity', 'Anti-Spoofing Sensors', 'Instant Shift Audit'],
+    imageUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80',
+    status: 'ACTIVE',
+    createdAt: '2026-03-05',
+  },
+  {
+    id: 'prod-105',
+    name: 'Custom ERP & API Integration Pack',
+    sku: 'DAS-PRO-SRV-05',
+    category: 'Professional Services',
+    subCategory: 'Custom Integration & Setup',
+    brand: 'DAS Solutions',
+    unit: 'Hours (Hrs)',
+    minPrice: 35000,
+    maxPrice: 50000,
+    currency: '₹',
+    stockQuantity: 12,
+    moq: 1,
+    taxRate: 18,
+    description: 'Full-stack engineering hours to connect SAP, Tally, Zoho or customized internal pipelines.',
+    features: ['Dedicated Integration Engineer', 'Webhook Middleware', 'SLA 99.9% Uptime'],
+    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
+    status: 'ACTIVE',
+    createdAt: '2026-03-12',
+  },
+];
 
 
 export const PRESET_PRODUCT_IMAGES = [
@@ -214,14 +315,62 @@ class ProductCatalogService {
     if (!this.initialized) {
       await this.loadAll();
     }
-    return this.products;
+
+    // Background sync from backend /products if available
+    try {
+      const activeBase = getApiBase();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`${activeBase}/products`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        const serverProds = Array.isArray(data) ? data : data.products || data.data;
+        if (Array.isArray(serverProds) && serverProds.length > 0) {
+          const mapped: CatalogProductItem[] = serverProds.map((p: any) => ({
+            id: String(p.id),
+            name: p.name || 'Product Item',
+            sku: p.sku || `SKU-${p.id}`,
+            category: p.category || 'General',
+            subCategory: p.subCategory || 'General',
+            brand: p.brand || '',
+            unit: p.unit || 'Units',
+            minPrice: p.price || p.minPrice || 0,
+            maxPrice: p.maxPrice || p.price || 0,
+            currency: '₹',
+            stockQuantity: p.stock || p.stockQuantity || 10,
+            moq: p.moq || 1,
+            taxRate: p.tax || p.taxRate || 18,
+            description: p.description || '',
+            features: p.features || [],
+            imageUrl: p.imageUrl || p.image || PRESET_PRODUCT_IMAGES[0],
+            status: (p.status || (p.stockQuantity > 0 ? 'ACTIVE' : 'OUT_OF_STOCK')) as any,
+            createdAt: p.createdAt || new Date().toISOString().split('T')[0],
+          }));
+          this.products = mapped;
+          AsyncStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(mapped)).catch(() => {});
+          return mapped;
+        }
+      }
+    } catch (_) {}
+
+    return this.products.length > 0 ? this.products : INITIAL_PRODUCTS;
   }
 
   private async loadAll(): Promise<void> {
     try {
       const storedProds = await AsyncStorage.getItem(STORAGE_PRODUCTS_KEY);
       if (storedProds) {
-        this.products = JSON.parse(storedProds);
+        const parsed = JSON.parse(storedProds);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.products = parsed;
+        } else {
+          this.products = INITIAL_PRODUCTS;
+        }
+      } else {
+        this.products = INITIAL_PRODUCTS;
       }
       const storedCats = await AsyncStorage.getItem(STORAGE_CATS_KEY);
       if (storedCats) {
@@ -233,9 +382,11 @@ class ProductCatalogService {
       }
     } catch (err) {
       console.log('Failed to load products/categories/brands from storage:', err);
+      this.products = INITIAL_PRODUCTS;
     }
     this.initialized = true;
   }
+
 
   async saveCategories(newCats: CategoryTree[]): Promise<void> {
     this.categories = newCats;

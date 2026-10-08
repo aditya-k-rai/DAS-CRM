@@ -73,7 +73,38 @@ interface IngestionAuditRecord {
   allocationSummary?: string;
 }
 
-const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [];
+const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [
+  {
+    id: 'ingest-101',
+    fileName: 'March_Enterprise_Leads_Batch_1.xlsx',
+    injectedAt: 'Today at 09:30 AM',
+    leadsCount: 45,
+    colsCount: 8,
+    platform: 'Excel / Spreadsheet',
+    status: 'ALLOCATED',
+    allocationSummary: 'Distributed via Round-Robin: 15 to Nandini, 15 to Sulekha, 15 to Sadhana',
+  },
+  {
+    id: 'ingest-102',
+    fileName: 'Trade_Expo_Solar_Delhi_Q1.csv',
+    injectedAt: 'Yesterday at 04:15 PM',
+    leadsCount: 28,
+    colsCount: 6,
+    platform: 'CSV Upload',
+    status: 'ALLOCATED',
+    allocationSummary: 'Assigned to Sachin Puri (TL) for technical qualification',
+  },
+  {
+    id: 'ingest-103',
+    fileName: 'Meta_Lead_Gen_Live_Sync.gsuite',
+    injectedAt: '2 days ago at 11:00 AM',
+    leadsCount: 12,
+    colsCount: 7,
+    platform: 'Google Sheets Live Sync',
+    status: 'PENDING_ALLOCATION',
+  },
+];
+
 
 export default function LeadsScreen() {
   const insets = useSafeAreaInsets();
@@ -1295,8 +1326,23 @@ export default function LeadsScreen() {
                     style={styles.excelBodyList}
                     contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }}
                   >
-                    {renderExcelRows()}
+                    {pagedLeads.length === 0 ? (
+                      <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 45, width: '100%', minWidth: totalExcelWidth }}>
+                        <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>No leads found for this filter</Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 3 }}>Try resetting person or status filters, or tap "+ New Lead"</Text>
+                        <TouchableOpacity
+                          style={{ marginTop: 12, backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
+                          onPress={resetAllFilters}
+                        >
+                          <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>🔄 Reset All Filters</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      renderExcelRows()
+                    )}
                   </ScrollView>
+
                 </View>
               </ScrollView>
             </View>

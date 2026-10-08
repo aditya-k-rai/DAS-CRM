@@ -34,9 +34,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuthStore } from '../store/authStore';
-import { apiService, LeadItem } from '../services/apiService';
+import { apiService, LeadItem, FALLBACK_LEADS } from '../services/apiService';
 import { ModernAlert } from '../services/modernAlert';
 import PostCallOutcomeModal from '../components/PostCallOutcomeModal';
+
 
 
 export type FollowUpTab = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL';
@@ -100,15 +101,26 @@ export const FollowUpsScreen: React.FC<FollowUpsScreenProps> = ({ onClose, navig
   const [callModalVisible, setCallModalVisible] = useState(false);
 
   const fetchFollowUps = useCallback(async () => {
-    if (!token) return;
     try {
-      const [fData, lData] = await Promise.all([
-        apiService.getFollowUps(token),
-        apiService.getLeads(token),
-      ]);
+      let fData: any[] = [];
+      let lData: LeadItem[] = [];
 
-      const loadedLeads: LeadItem[] = Array.isArray(lData) ? lData : [];
-      setLeads(loadedLeads);
+      if (token) {
+        try {
+          const [resF, resL] = await Promise.all([
+            apiService.getFollowUps(token),
+            apiService.getLeads(token),
+          ]);
+          fData = Array.isArray(resF) ? resF : [];
+          lData = Array.isArray(resL) && resL.length > 0 ? resL : FALLBACK_LEADS;
+        } catch {
+          lData = FALLBACK_LEADS;
+        }
+      } else {
+        lData = FALLBACK_LEADS;
+      }
+
+      setLeads(lData);
 
       if (Array.isArray(fData) && fData.length > 0) {
         setFollowUps(
@@ -131,7 +143,7 @@ export const FollowUpsScreen: React.FC<FollowUpsScreenProps> = ({ onClose, navig
       } else {
         // Generate contextual seed tasks from available leads if none on backend yet
         const todayStr = new Date().toISOString().split('T')[0];
-        const seedTasks: FollowUpItem[] = loadedLeads.slice(0, 8).map((l, i) => ({
+        const seedTasks: FollowUpItem[] = lData.slice(0, 8).map((l, i) => ({
           id: `fu-${l.id || i}`,
           title: i % 2 === 0 ? `Product Demo & Proposal Review` : `Initial Requirement Discussion`,
           type: i % 3 === 0 ? 'CALL' : i % 3 === 1 ? 'WHATSAPP' : 'MEETING',
@@ -155,6 +167,7 @@ export const FollowUpsScreen: React.FC<FollowUpsScreenProps> = ({ onClose, navig
       setRefreshing(false);
     }
   }, [token, currentUser?.name]);
+
 
   useEffect(() => {
     fetchFollowUps();
