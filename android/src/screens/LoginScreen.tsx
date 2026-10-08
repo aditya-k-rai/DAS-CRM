@@ -338,53 +338,55 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     };
 
     try {
-      let activeBase = getApiBase();
+      const candidateBases = Array.from(
+        new Set([getApiBase(), ...getCandidateApiUrls()]),
+      ).filter(
+        (url) =>
+          url &&
+          typeof url === 'string' &&
+          url.startsWith('http') &&
+          !url.includes('onrender.com') &&
+          !url.includes('nexcrm'),
+      );
+
       let networkResponse: Response | null = null;
       let data: any = null;
 
-      // 1. Try currently active base URL
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const res = await fetch(`${activeBase}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(loginPayload),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        networkResponse = res;
-        data = await res.json().catch(() => null);
-      } catch (_) {
-        // Active base unreachable: attempt fast auto-discovery
-      }
+      // 1. Probe candidate backends in prioritized order
+      for (const baseUrl of candidateBases) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2500);
+          const res = await fetch(`${baseUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(loginPayload),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
 
-      // 2. If first attempt failed to connect OR returned 404 (wrong/stale endpoint), fast-race all candidate backends
-      if (!networkResponse || networkResponse.status === 404) {
-        const discoveredBase = await findFastestReachableEndpoint(3000);
-        if (discoveredBase && discoveredBase !== activeBase) {
-          activeBase = discoveredBase;
-          setApiBase(discoveredBase);
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3500);
-            const res = await fetch(`${discoveredBase}/auth/login`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(loginPayload),
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
+          const parsed = await res.json().catch(() => null);
+
+          // If the endpoint responded with an authentic auth response
+          if (
+            (res.ok && parsed?.accessToken) ||
+            (res.status === 403 && parsed) ||
+            ((res.status === 401 || res.status === 400) && parsed?.message)
+          ) {
             networkResponse = res;
-            data = await res.json().catch(() => null);
-          } catch (_) {}
+            data = parsed;
+            setApiBase(baseUrl);
+            break;
+          }
+        } catch (_) {
+          // Candidate failed or timed out, probe next candidate
         }
       }
 
       // ── Handle Backend Responses ──────────────────────────────────────────
 
-      // Case A: Unreachable server
-      if (!networkResponse) {
+      // Case A: Unreachable server (Network down or local server not started)
+      if (!networkResponse || !data) {
         // Offline demo fallback check for local evaluation / offline access
         const normalizedRole: UserRole = normalizeRoleStr(selectedRole);
         const demoUser = DEMO_USERS[normalizedRole];
@@ -393,7 +395,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           (email.trim().toLowerCase() === demoUser.email.toLowerCase() ||
             email.trim().toLowerCase().includes('demo') ||
             email.trim().toLowerCase().includes('adorable') ||
-            email.trim().toLowerCase().includes('admin'));
+            email.trim().toLowerCase().includes('admin') ||
+            email.trim().toLowerCase() === 'adorabletrading08@gmail.com');
 
         if (isDemoMatch && password.length >= 4) {
           const compName = selectedCompanyName || 'Adorable Trading';
@@ -416,13 +419,30 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             },
           };
 
+          if (rememberMe) {
+            const credsStr = JSON.stringify({
+              email: email.trim(),
+              password,
+              companyKey: companyKeyInput.trim(),
+              companyId: compId,
+              companyName: compName,
+              role: normalizedRole,
+              savedAt: new Date().toISOString(),
+            });
+            AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
+            AsyncStorage.setItem(
+              `${STORAGE_KEY_PREV_LOGIN}_${normalizedRole}`,
+              credsStr,
+            );
+          }
+
           await setAuthSession(
             {
               id: demoUser.id || 'usr_local_admin',
-              name: demoUser.name || 'Workspace Admin',
+              name: demoUser.name || 'Anurag Sharma',
               email: email.trim(),
               role: normalizedRole,
-              avatar: demoUser.avatar || 'WA',
+              avatar: demoUser.avatar || 'AS',
               companyId: compId,
               companyName: compName,
               hasAssignedRole: true,
@@ -438,7 +458,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         }
 
         setError(
-          'Cannot connect to the server. Please verify your network connection and try again.',
+          'Cannot connect to DAS CRM server. Please verify your network connection and server settings.',
         );
         setLoading(false);
         return;
@@ -461,11 +481,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         return;
       }
 
-      // Case C: Credentials / Key Rejected (HTTP 400, 401, 404, etc.)
+      // Case C: Credentials / Key Rejected (HTTP 400, 401, 403, etc.)
       if (!networkResponse.ok) {
-        const errMsg =
-          data?.message ||
-          'Authentication failed. Please check your credentials and Company Key.';
+        let errMsg = 'Authentication failed. Please check your credentials and Company Key.';
+        if (Array.isArray(data?.message)) {
+          errMsg = data.message.join(', ');
+        } else if (typeof data?.message === 'string') {
+          errMsg = data.message;
+        } else if (data?.error) {
+          errMsg = String(data.error);
+        }
         setError(errMsg);
         setLoading(false);
         return;

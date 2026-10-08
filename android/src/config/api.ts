@@ -51,11 +51,11 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const DEFAULT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
 export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
+export const DEFAULT_CLOUD_API_URL = CURRENT_LAN_API_URL;
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
-export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : DEFAULT_CLOUD_API_URL;
+export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : CURRENT_LAN_API_URL;
 
 /**
  * Returns prioritized list of backend URLs to probe
@@ -68,8 +68,8 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 2. Previously saved active API base from AsyncStorage
-  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http')) {
+  // 2. Previously saved active API base from AsyncStorage if valid and not dead host
+  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('onrender.com') && !API_BASE.includes('nexcrm')) {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
@@ -90,9 +90,6 @@ export function getCandidateApiUrls(): string[] {
   // 6. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
   candidates.push(LOCALHOST_API_URL);
   candidates.push('http://127.0.0.1:3001/api/v1');
-
-  // 7. Enterprise Cloud Production Endpoints
-  candidates.push(DEFAULT_CLOUD_API_URL);
 
   // Deduplicate preserving priority order
   return Array.from(new Set(candidates.filter(Boolean)));
@@ -116,7 +113,7 @@ export const getApiBaseUrl = (): string => {
 export let API_BASE: string = getApiBaseUrl();
 
 export function setApiBase(url: string) {
-  if (!url || typeof url !== 'string') return;
+  if (!url || typeof url !== 'string' || url.includes('onrender.com') || url.includes('nexcrm')) return;
   const normalized = normalizeApiUrl(url);
   API_BASE = normalized;
   try {
@@ -135,6 +132,9 @@ export async function testApiEndpoint(
   url: string,
   timeoutMs = 2500
 ): Promise<{ success: boolean; latencyMs: number; error?: string }> {
+  if (!url || !url.startsWith('http') || url.includes('onrender.com') || url.includes('nexcrm')) {
+    return { success: false, latencyMs: 0, error: 'Invalid or deprecated server address' };
+  }
   const normalized = normalizeApiUrl(url);
   const start = Date.now();
   try {
@@ -159,10 +159,13 @@ export async function testApiEndpoint(
 
     clearTimeout(timeoutId);
 
-    // Any HTTP response (including 200, 401, 403, 404) indicates that the server is reachable
-    if (res && (res.ok || res.status < 500)) {
-      const latencyMs = Date.now() - start;
-      return { success: true, latencyMs };
+    // Strict Check: Server MUST respond with 2xx OK AND parseable JSON body
+    if (res && res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && typeof data === 'object') {
+        const latencyMs = Date.now() - start;
+        return { success: true, latencyMs };
+      }
     }
     return { success: false, latencyMs: Date.now() - start, error: `HTTP ${res?.status || 'No Response'}` };
   } catch (err: any) {
@@ -179,9 +182,11 @@ export async function findFastestReachableEndpoint(timeoutMs = 2500): Promise<st
   if (!candidates || candidates.length === 0) return null;
 
   // 1. First test currently active API_BASE with very short timeout
-  const currentActiveTest = await testApiEndpoint(API_BASE, 1200);
-  if (currentActiveTest.success) {
-    return API_BASE;
+  if (API_BASE && !API_BASE.includes('onrender.com')) {
+    const currentActiveTest = await testApiEndpoint(API_BASE, 1200);
+    if (currentActiveTest.success) {
+      return API_BASE;
+    }
   }
 
   // 2. Race remaining candidate endpoints concurrently in parallel
@@ -216,10 +221,10 @@ export async function probeAndSetWorkingApiBase(): Promise<string | null> {
 try {
   AsyncStorage.getItem(STORAGE_KEY_API_BASE).then((saved) => {
     if (saved && typeof saved === 'string' && saved.startsWith('http')) {
-      if (saved.includes('nexcrm')) {
-        // Purge legacy/invalid host and reset to clean production endpoint
+      if (saved.includes('nexcrm') || saved.includes('onrender.com')) {
+        // Purge dead/invalid host and reset to clean LAN endpoint
         AsyncStorage.removeItem(STORAGE_KEY_API_BASE).catch(() => {});
-        API_BASE = DEFAULT_CLOUD_API_URL;
+        API_BASE = getApiBaseUrl();
       } else {
         API_BASE = normalizeApiUrl(saved);
       }

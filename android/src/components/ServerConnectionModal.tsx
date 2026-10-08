@@ -181,7 +181,7 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
               <TextInput
                 value={inputUrl}
                 onChangeText={setInputUrl}
-                placeholder="https://dascrm-backend.onrender.com/api/v1"
+                placeholder="http://192.168.29.26:3001/api/v1"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
                 autoCorrect={false}
