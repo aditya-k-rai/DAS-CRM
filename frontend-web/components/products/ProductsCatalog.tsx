@@ -172,43 +172,63 @@ export function getProductCoverImage(imgSrc?: string, id?: string, sku?: string)
 }
 
 /**
- * Ensures any uploaded product image is converted to 1:1 aspect ratio
- * and scaled/cropped to exactly 1080x1080p resolution.
+ * Processes uploaded product image: preserves original aspect ratio,
+ * scales proportionally if dimensions exceed max dimension (1920px),
+ * and compresses for fast upload and crisp display.
  */
-export function processImageTo1080pSquare(file: File): Promise<string> {
+export function processUploadedProductImage(file: File, maxDimension: number = 1920): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) {
+        resolve('');
+        return;
+      }
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1080;
-        canvas.height = 1080;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(e.target?.result as string);
+        let { width, height } = img;
+        if (width <= 0 || height <= 0) {
+          resolve(result);
           return;
         }
 
-        // Center square crop
-        const size = Math.min(img.width, img.height);
-        const sx = (img.width - size) / 2;
-        const sy = (img.height - size) / 2;
+        // Scale proportionally if either dimension exceeds maxDimension
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
 
-        ctx.fillStyle = '#020617';
-        ctx.fillRect(0, 0, 1080, 1080);
-        ctx.drawImage(img, sx, sy, size, size, 0, 0, 1080, 1080);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(result);
+          return;
+        }
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        // Draw image directly with natural aspect ratio (no square cropping!)
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const isPng = file.type === 'image/png';
+        const dataUrl = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.92);
         resolve(dataUrl);
       };
-      img.onerror = () => resolve(e.target?.result as string);
-      img.src = e.target?.result as string;
+      img.onerror = () => resolve(result);
+      img.src = result;
     };
     reader.onerror = () => reject(new Error('Failed to read image file'));
     reader.readAsDataURL(file);
   });
 }
+
+export const processImageTo1080pSquare = processUploadedProductImage;
 
 /**
  * Uploads a base64 image data-URL to disk and Firebase Storage via backend/API endpoints.
@@ -788,11 +808,11 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
     for (const file of Array.from(files)) {
       try {
-        const squareDataUrl = await processImageTo1080pSquare(file);
-        setNewProdImages(prev => [...prev, squareDataUrl]);
-        uploadProductImageToFirebase(squareDataUrl, 'product-gallery').then(url => {
-          if (url && url !== squareDataUrl) {
-            setNewProdImages(prev => prev.map(p => p === squareDataUrl ? url : p));
+        const dataUrl = await processUploadedProductImage(file);
+        setNewProdImages(prev => [...prev, dataUrl]);
+        uploadProductImageToFirebase(dataUrl, 'product-gallery').then(url => {
+          if (url && url !== dataUrl) {
+            setNewProdImages(prev => prev.map(p => p === dataUrl ? url : p));
           }
         }).catch(() => {});
       } catch {
@@ -832,11 +852,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     const finalCat = newProdCategory.trim() || 'General';
     const finalSubCat = newProdSubCategory.trim() || 'Standard';
 
-    // Fallback cover image if no images were uploaded (local high quality asset)
-    let fallbackCover = newProdImages[0] || '';
-    if (!fallbackCover || fallbackCover.includes('images.unsplash.com')) {
-      fallbackCover = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-    }
+    // Primary cover image from uploaded photos or fallback
+    const fallbackCover = newProdImages[0] || DEFAULT_PRODUCT_FALLBACK_IMAGE;
     const finalImages = newProdImages.length > 0 ? newProdImages : [fallbackCover];
 
     let createdId = 'p-' + Date.now().toString();
@@ -927,6 +944,15 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round(priceNum * 0.85) },
       ],
     };
+
+    try {
+      let customImagesMap: Record<string, { coverImage: string; images: string[] }> = {};
+      const s = localStorage.getItem('das_crm_custom_product_images');
+      if (s) customImagesMap = JSON.parse(s);
+      customImagesMap[newProd.id] = { coverImage: fallbackCover, images: finalImages };
+      customImagesMap[newProd.sku] = { coverImage: fallbackCover, images: finalImages };
+      localStorage.setItem('das_crm_custom_product_images', JSON.stringify(customImagesMap));
+    } catch (_) {}
 
     setProducts(prev => {
       const next = [newProd, ...prev.filter(p => p.sku !== newProd.sku)];
@@ -1043,21 +1069,21 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     setEditImageUploadError('');
-    if (file.size > 5 * 1024 * 1024) {
-      setEditImageUploadError(`⚠️ "${file.name}" exceeds 5MB limit. Please upload images under 5MB.`);
+    if (file.size > 10 * 1024 * 1024) {
+      setEditImageUploadError(`⚠️ "${file.name}" exceeds 10MB limit. Please upload images under 10MB.`);
       return;
     }
     try {
-      const squareDataUrl = await processImageTo1080pSquare(file);
+      const dataUrl = await processUploadedProductImage(file);
       // Immediately set the dataUrl for instant responsive feedback
-      setEditProdImages(prev => [squareDataUrl, ...prev.filter((_, idx) => idx !== 0)]);
-      uploadProductImageToFirebase(squareDataUrl, 'product-cover').then(url => {
-        if (url && url !== squareDataUrl) {
+      setEditProdImages(prev => [dataUrl, ...prev.filter((_, idx) => idx !== 0)]);
+      uploadProductImageToFirebase(dataUrl, 'product-cover').then(url => {
+        if (url && url !== dataUrl) {
           setEditProdImages(prev => [url, ...prev.filter((_, idx) => idx !== 0)]);
         }
       }).catch(err => console.warn('Firebase upload:', err));
     } catch {
-      setEditImageUploadError(`⚠️ Could not process "${file.name}" to 1080x1080 format.`);
+      setEditImageUploadError(`⚠️ Could not process "${file.name}". Please ensure it is a valid image file.`);
     }
   };
 
@@ -1077,14 +1103,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
     for (const file of Array.from(files)) {
       try {
-        const squareDataUrl = await processImageTo1080pSquare(file);
+        const dataUrl = await processUploadedProductImage(file);
         setEditProdImages(prev => {
           const cleanPrev = prev.filter(p => p && typeof p === 'string' && p.trim() !== '');
-          return [...cleanPrev, squareDataUrl];
+          return [...cleanPrev, dataUrl];
         });
-        uploadProductImageToFirebase(squareDataUrl, 'product-gallery').then(url => {
-          if (url && url !== squareDataUrl) {
-            setEditProdImages(prev => prev.map(p => p === squareDataUrl ? url : p));
+        uploadProductImageToFirebase(dataUrl, 'product-gallery').then(url => {
+          if (url && url !== dataUrl) {
+            setEditProdImages(prev => prev.map(p => p === dataUrl ? url : p));
           }
         }).catch(err => console.warn('Firebase upload:', err));
       } catch {
@@ -2015,13 +2041,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     className="p-4 rounded-2xl flex flex-col justify-between hover:border-indigo-500/60 hover:shadow-xl hover:shadow-indigo-500/10 transition-all cursor-pointer group relative overflow-hidden bg-slate-900/60 border border-slate-800/80"
                   >
                     <div className="space-y-3">
-                      {/* 1. Cover Image (Strict 1:1 Aspect Ratio 1080x1080p) */}
+                      {/* 1. Cover Image (Natural Aspect Ratio) */}
                       {cardConfig.showImage && (
-                        <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 shadow-inner">
+                        <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 shadow-inner flex items-center justify-center p-1">
                           <img
                             src={getProductCoverImage(p.coverImage, p.id, p.sku)}
                             alt={p.name}
-                            className="w-full h-full aspect-square object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                             onError={(e) => {
                               const target = e.currentTarget;
                               target.onerror = null;
@@ -2392,7 +2418,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             {/* Multi-Image Gallery */}
             {inspectorProduct.images && inspectorProduct.images.length > 0 && (
               <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Product Gallery ({inspectorProduct.images.length} Images - 1080x1080p 1:1)</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Product Gallery ({inspectorProduct.images.length} Photos)</span>
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {inspectorProduct.images.map((imgUri, idx) => (
                     <img
@@ -2952,19 +2978,19 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 </div>
               </div>
 
-              {/* Product Images (2 or more upload, under 1MB, 1080x1080px) */}
+              {/* Product Images (Upload any resolution / aspect ratio) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="block text-slate-300 font-bold">Product Images (2 or more required)</label>
-                    <p className="text-[10px] text-indigo-400 font-medium">Strict 1:1 Square (1080 × 1080 px) • Auto-scaled to square</p>
+                    <label className="block text-slate-300 font-bold">Product Images (2 or more recommended)</label>
+                    <p className="text-[10px] text-indigo-400 font-medium">Supports all aspect ratios (Portrait, Landscape &amp; Square)</p>
                   </div>
                   <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
                     newProdImages.length >= 2
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                       : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   }`}>
-                    {newProdImages.length >= 2 ? `✅ ${newProdImages.length} images uploaded` : `⚠️ ${newProdImages.length}/2 min required`}
+                    {newProdImages.length >= 2 ? `✅ ${newProdImages.length} images uploaded` : `📁 ${newProdImages.length} image(s)`}
                   </span>
                 </div>
 
@@ -2976,8 +3002,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer flex-1 flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-indigo-500/40 bg-slate-950 hover:bg-slate-900 transition-colors">
-                    <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Product Images (1:1 1080x1080)</span>
-                    <span className="text-[10px] text-slate-500 mt-0.5">Select multiple images (Auto-converted to 1080x1080p square)</span>
+                    <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Product Images</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Select multiple photos (Preserves natural aspect ratio &amp; clarity)</span>
                     <input
                       type="file"
                       multiple

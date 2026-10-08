@@ -2303,21 +2303,35 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       if (!result) return;
       const img = new Image();
       img.onload = () => {
+        let { width, height } = img;
+        if (width <= 0 || height <= 0) {
+          onSuccess(result);
+          return;
+        }
+
+        const maxDim = 1920;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
         const canvas = document.createElement('canvas');
-        canvas.width = 1080;
-        canvas.height = 1080;
+        canvas.width = width;
+        canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           onSuccess(result);
           return;
         }
-        const size = Math.min(img.width, img.height);
-        const sx = (img.width - size) / 2;
-        const sy = (img.height - size) / 2;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 1080, 1080);
-        ctx.drawImage(img, sx, sy, size, size, 0, 0, 1080, 1080);
-        onSuccess(canvas.toDataURL('image/jpeg', 0.92));
+        ctx.drawImage(img, 0, 0, width, height);
+        const isPng = file.type === 'image/png';
+        const dataUrl = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.92);
+        onSuccess(dataUrl);
       };
       img.onerror = () => onSuccess(result);
       img.src = result;
@@ -4104,7 +4118,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-2">
                             <div className="flex items-center justify-between">
                               <label className="text-[10.5px] font-bold text-sky-300 flex items-center gap-1">
-                                <Upload size={12} /> Product Image File Upload (Strict 1:1 Square 1080 × 1080 px)
+                                <Upload size={12} /> Product Image File Upload (Natural Aspect Ratio)
                               </label>
                               {item.imageUrl && (
                                 <button
@@ -4118,7 +4132,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             </div>
                             <div className="flex items-center gap-3">
                               <label className="cursor-pointer bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all">
-                                <Upload size={13} /> 📁 Pick &amp; Upload Image File (1080x1080)
+                                <Upload size={13} /> 📁 Pick &amp; Upload Image File
                                 <input
                                   type="file"
                                   accept="image/*"
