@@ -265,7 +265,7 @@ export function SalesGoals() {
   };
 
   const teamLeadersList = useMemo(() => {
-    return records.filter(r => r.userRole.includes('LEAD') || r.userRole.includes('TL') || r.userRole.includes('MANAGER'));
+    return records.filter(r => r.userRole.includes('LEAD') || r.userRole.includes('TL'));
   }, [records]);
 
   if (isLoading) {

@@ -124,10 +124,18 @@ export function SetGoalModal({
     }
   };
 
-  const teamLeaders = allUsers.filter(u => u.userRole.includes('LEAD') || u.userRole.includes('TL') || u.userRole.includes('MANAGER'));
-  const salesReps = allUsers.filter(u => !u.userRole.includes('ADMIN') && !u.userRole.includes('SUPER'));
+  const eligibleUsers = allUsers.filter(u => {
+    const r = (u.userRole || '').toUpperCase();
+    if (r.includes('ADMIN') || r.includes('SUPER') || r.includes('MANAGER') || r.includes('HR') || r.includes('OWNER')) {
+      return false;
+    }
+    return r.includes('SALES') || r.includes('EXEC') || r.includes('REP') || r.includes('LEAD') || r.includes('TL');
+  });
 
-  const selectedRep = allUsers.find(u => u.userId === selectedRepId) || allUsers[0];
+  const teamLeaders = eligibleUsers.filter(u => u.userRole.includes('LEAD') || u.userRole.includes('TL'));
+  const salesReps = eligibleUsers.filter(u => !u.userRole.includes('LEAD') && !u.userRole.includes('TL'));
+
+  const selectedRep = eligibleUsers.find(u => u.userId === selectedRepId) || eligibleUsers[0] || allUsers[0];
   const selectedOverride = userOverrides.find(o => o.userId === selectedRep?.userId);
 
   return (
@@ -327,7 +335,7 @@ export function SetGoalModal({
                 <div className="w-full md:w-1/3 space-y-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">Select Employee</label>
                   <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
-                    {allUsers.map(user => {
+                    {eligibleUsers.map(user => {
                       const isSel = user.userId === selectedRepId;
                       const hasOverride = userOverrides.some(o => o.userId === user.userId);
                       return (
