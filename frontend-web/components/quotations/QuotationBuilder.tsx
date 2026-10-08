@@ -17,7 +17,7 @@ import { uploadFileToGoogleDrive } from '../../lib/googleDriveService';
 export type SectionId = 'HEADER' | 'PARTY_INFO' | 'ITEMS_TABLE' | 'SUMMARY_AND_BANK' | 'FOOTER_TERMS';
 
 export const SECTION_METADATA: { id: SectionId; label: string; desc: string }[] = [
-  { id: 'HEADER', label: 'Header & Company Details', desc: 'Logo, Address, GSTIN, Title, Date & Document #' },
+  { id: 'HEADER', label: 'Header & Seller Party Details', desc: 'Logo, Address, GSTIN, Title, Date & Document #' },
   { id: 'PARTY_INFO', label: 'Buyer & Shipping Addresses', desc: 'Billed To, Shipped To Consignee, Tax Identifiers' },
   { id: 'ITEMS_TABLE', label: 'Line Items Table', desc: 'Product List, HSN Codes, Quantities, Rates & Tax' },
   { id: 'SUMMARY_AND_BANK', label: 'Bank Details & Financial Totals', desc: 'Bank A/C, Amount in Words, Tax & Grand Total' },
@@ -2704,7 +2704,7 @@ export function QuotationBuilder({
   };
 
   const handleDeleteCompany = async (compId: string, compName: string) => {
-    if (!confirm(`Are you sure you want to delete seller company "${compName}"?`)) return;
+    if (!confirm(`Are you sure you want to delete seller party "${compName}"?`)) return;
     const next = companies.filter(c => c.id !== compId);
     setCompanies(next);
     if (selectedCompanyId === compId && next.length > 0) {
@@ -3357,7 +3357,7 @@ export function QuotationBuilder({
               <div className="flex items-center gap-1.5">
                 <Sparkles size={13} className="text-sky-400 flex-shrink-0" />
                 <span>
-                  Setup in progress: <strong className="text-sky-200">{[!hasSeller && 'Seller', !hasBuyer && 'Buyer', !hasProduct && 'Product'].filter(Boolean).join(' • ')}</strong> pending. Click <strong>Save Draft</strong> anytime or quick-fill to finalize:
+                  Setup in progress: <strong className="text-sky-200">{[!hasSeller && 'Seller Party', !hasBuyer && 'Buyer Party', !hasProduct && 'Product'].filter(Boolean).join(' • ')}</strong> pending. Click <strong>Save Draft</strong> anytime or quick-fill to finalize:
                 </span>
               </div>
               <button
@@ -3365,13 +3365,13 @@ export function QuotationBuilder({
                 onClick={handleQuickFillSampleData}
                 className="text-[9.5px] font-extrabold uppercase px-2.5 py-1 rounded-md bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow transition-all cursor-pointer whitespace-nowrap active:scale-95 flex items-center gap-1 w-full sm:w-auto justify-center"
               >
-                <Sparkles size={11} /> Quick-Fill Buyer &amp; Item
+                <Sparkles size={11} /> Quick-Fill Buyer Party &amp; Item
               </button>
             </div>
           ) : (
             <div className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
               <CheckCircle size={12} className="text-emerald-400 flex-shrink-0" />
-              <span>Buyer, Seller &amp; Products Selected — Ready to Save &amp; Archive</span>
+              <span>Seller Party, Buyer Party &amp; Products Selected — Ready to Save &amp; Archive</span>
             </div>
           )}
 
@@ -3783,7 +3783,7 @@ export function QuotationBuilder({
                   <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
                     isStep2Done ? 'text-emerald-400' : 'text-indigo-400'
                   }`}>
-                    <Building2 size={15} /> 2. Your Company / Seller
+                    <Building2 size={15} /> 2. Seller Party (Your Organization)
                   </h3>
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-2">
@@ -3798,7 +3798,7 @@ export function QuotationBuilder({
                       }
                     }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
-                    title="Edit currently selected company details"
+                    title="Edit currently selected seller party details"
                   >
                     <Edit2 size={12} /> <span className="hidden sm:inline">Edit</span>
                   </button>
@@ -3812,7 +3812,7 @@ export function QuotationBuilder({
                     }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-sky-500/25 transition-all active:scale-95 shadow-sm shadow-sky-500/10 cursor-pointer"
                   >
-                    <Plus size={12} /> <span className="hidden sm:inline">Add Company</span><span className="sm:hidden">Add</span>
+                    <Plus size={12} /> <span className="hidden sm:inline">Add Seller Party</span><span className="sm:hidden">Add</span>
                   </button>
                   <button
                     type="button"
@@ -3822,9 +3822,9 @@ export function QuotationBuilder({
                       setCompaniesHubOpen(true);
                     }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-indigo-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-indigo-500/10 cursor-pointer"
-                    title="View & manage all seller companies in Companies Directory"
+                    title="View & manage all seller & buyer parties in Parties Directory"
                   >
-                    <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
+                    <Users size={12} /> <span className="hidden sm:inline">Parties</span>
                   </button>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep2Done
@@ -3853,11 +3853,11 @@ export function QuotationBuilder({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold cursor-pointer focus:border-indigo-500 focus:outline-none"
                   >
                     {companies.length === 0 ? (
-                      <option value="">No seller company profile found (Click '+ Add Company')</option>
+                      <option value="">No seller party profile found (Click '+ Add Seller Party')</option>
                     ) : (
                       companies.map((comp, idx) => (
                         <option key={comp.id} value={comp.id}>
-                          {idx === 0 ? `✨ (Recent) ${comp.name || 'Company Profile'}` : comp.name || 'Company Profile'} {comp.gstNo ? `— GSTIN: ${comp.gstNo}` : ''}
+                          {idx === 0 ? `✨ (Recent) ${comp.name || 'Seller Party'}` : comp.name || 'Seller Party'} {comp.gstNo ? `— GSTIN: ${comp.gstNo}` : ''}
                         </option>
                       ))
                     )}
@@ -3865,7 +3865,7 @@ export function QuotationBuilder({
 
                   {!activeCompany ? (
                     <div className="bg-slate-950/60 border border-dashed border-indigo-500/30 rounded-xl p-3 text-center">
-                      <p className="text-xs text-slate-400">No company details entered. Click <strong className="text-indigo-400">+ Add Company</strong> to setup your business profile.</p>
+                      <p className="text-xs text-slate-400">No seller party details entered. Click <strong className="text-indigo-400">+ Add Seller Party</strong> to setup your business profile.</p>
                     </div>
                   ) : (
                     <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
@@ -3893,7 +3893,7 @@ export function QuotationBuilder({
                           </div>
                         </div>
                         <div className="text-xs space-y-0.5 min-w-0 flex-1">
-                          <p className="font-extrabold text-white truncate">{activeCompany.name || 'Your Company'}</p>
+                          <p className="font-extrabold text-white truncate">{activeCompany.name || 'Your Seller Party'}</p>
                           <p className="text-[11px] text-slate-400 truncate">{activeCompany.address || 'Address not specified'}</p>
                           <p className="text-[10px] font-bold text-indigo-400 mt-1">GSTIN: {activeCompany.gstNo || 'N/A'} • PAN: {activeCompany.panNo || 'N/A'}</p>
                         </div>
@@ -3907,7 +3907,7 @@ export function QuotationBuilder({
                           setCompanyModalOpen(true);
                         }}
                         className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md cursor-pointer flex-shrink-0"
-                        title="Edit selected seller company"
+                        title="Edit selected seller party"
                       >
                         <Edit2 size={13} /> Edit Info
                       </button>
@@ -3942,7 +3942,7 @@ export function QuotationBuilder({
                   <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
                     isStep3Done ? 'text-emerald-400' : 'text-emerald-400'
                   }`}>
-                    <UserCheck size={15} /> 3. Select Client / Buyer Party
+                    <UserCheck size={15} /> 3. Select Buyer Party (Client)
                   </h3>
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-2">
@@ -3957,7 +3957,7 @@ export function QuotationBuilder({
                       }
                     }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
-                    title="Edit currently selected party details"
+                    title="Edit currently selected buyer party details"
                   >
                     <Edit2 size={12} /> <span className="hidden sm:inline">Edit</span>
                   </button>
@@ -3971,7 +3971,7 @@ export function QuotationBuilder({
                     }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
                   >
-                    <Plus size={12} /> <span className="hidden sm:inline">Add Party</span><span className="sm:hidden">Add</span>
+                    <Plus size={12} /> <span className="hidden sm:inline">Add Buyer Party</span><span className="sm:hidden">Add</span>
                   </button>
                   <button
                     type="button"
@@ -3981,9 +3981,9 @@ export function QuotationBuilder({
                       setCompaniesHubOpen(true);
                     }}
                     className="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 sm:px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
-                    title="View & manage all buyer client companies in Companies Directory"
+                    title="View & manage all seller & buyer parties in Parties Directory"
                   >
-                    <Building2 size={12} /> <span className="hidden sm:inline">Companies</span>
+                    <Users size={12} /> <span className="hidden sm:inline">Parties</span>
                   </button>
                   <span className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-all hidden xs:inline-block ${
                     isStep3Done
@@ -4012,11 +4012,11 @@ export function QuotationBuilder({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold cursor-pointer focus:border-emerald-500 focus:outline-none"
                   >
                     {parties.length === 0 ? (
-                      <option value="">No client / buyer parties saved yet (Click '+ Add Party')</option>
+                      <option value="">No buyer parties saved yet (Click '+ Add Buyer Party')</option>
                     ) : (
                       parties.map((party, idx) => (
                         <option key={party.id} value={party.id}>
-                          {idx === 0 ? `✨ (Recent) ${party.name}` : party.name} — GSTIN: {party.gstNo || 'N/A'}
+                          {idx === 0 ? `✨ (Recent) ${party.name || 'Buyer Party'}` : party.name || 'Buyer Party'} — GSTIN: {party.gstNo || 'N/A'}
                         </option>
                       ))
                     )}
@@ -4024,7 +4024,7 @@ export function QuotationBuilder({
 
                   {!activeParty ? (
                     <div className="bg-slate-950/60 border border-dashed border-emerald-500/30 rounded-xl p-3 text-center">
-                      <p className="text-xs text-slate-400">No client party selected. Click <strong className="text-emerald-400">+ Add Party</strong> above to create your first buyer.</p>
+                      <p className="text-xs text-slate-400">No buyer party selected. Click <strong className="text-emerald-400">+ Add Buyer Party</strong> above to create your first buyer.</p>
                     </div>
                   ) : (
                     <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between gap-3">
@@ -4042,7 +4042,7 @@ export function QuotationBuilder({
                           setPartyModalOpen(true);
                         }}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md cursor-pointer flex-shrink-0"
-                        title="Edit selected client party"
+                        title="Edit selected buyer party"
                       >
                         <Edit2 size={13} /> Edit Info
                       </button>
@@ -5264,17 +5264,17 @@ export function QuotationBuilder({
         {renderA4SheetDocument()}
       </div>
 
-      {/* ── MODAL: ADD / EDIT COMPANY ── */}
+      {/* ── MODAL: ADD / EDIT SELLER PARTY ── */}
       {companyModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white max-h-[92vh] overflow-y-auto">
             <h3 className="text-sm font-black text-indigo-400 flex items-center gap-2">
-              <Building2 size={18} /> {editingCompanyId ? 'Edit Seller Company' : 'Add New Seller Company'}
+              <Building2 size={18} /> {editingCompanyId ? 'Edit Seller Party' : 'Add New Seller Party'}
             </h3>
             <div className="space-y-2 text-xs">
               <input
                 type="text"
-                placeholder="Company Name *"
+                placeholder="Seller Party Name *"
                 value={newComp.name || ''}
                 onChange={e => setNewComp({ ...newComp, name: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-indigo-500 focus:outline-none"
@@ -5300,10 +5300,10 @@ export function QuotationBuilder({
                 />
               </div>
 
-              {/* 📁 DIRECT FILE UPLOAD FOR COMPANY LOGO */}
+              {/* 📁 DIRECT FILE UPLOAD FOR SELLER PARTY LOGO */}
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                 <label className="block text-[11px] font-bold text-slate-300">
-                  Company Logo (Upload File)
+                  Seller Party Logo (Upload File)
                 </label>
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all">
@@ -5332,7 +5332,7 @@ export function QuotationBuilder({
 
               <input
                 type="text"
-                placeholder="Company Address"
+                placeholder="Seller Party Address"
                 value={newComp.address || ''}
                 onChange={e => setNewComp({ ...newComp, address: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
@@ -5397,24 +5397,24 @@ export function QuotationBuilder({
                 onClick={handleSaveNewCompany}
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl"
               >
-                {editingCompanyId ? 'Update Company' : 'Save Company'}
+                {editingCompanyId ? 'Update Seller Party' : 'Save Seller Party'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL: ADD / EDIT PARTY ── */}
+      {/* ── MODAL: ADD / EDIT BUYER PARTY ── */}
       {partyModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white max-h-[92vh] overflow-y-auto">
             <h3 className="text-sm font-black text-emerald-400 flex items-center gap-2">
-              <UserCheck size={18} /> {editingPartyId ? 'Edit Client Party' : 'Add New Client Party'}
+              <UserCheck size={18} /> {editingPartyId ? 'Edit Buyer Party' : 'Add New Buyer Party'}
             </h3>
             <div className="space-y-2 text-xs">
               <input
                 type="text"
-                placeholder="Party / Company Name *"
+                placeholder="Buyer Party Name *"
                 value={newParty.name || ''}
                 onChange={e => setNewParty({ ...newParty, name: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-emerald-500 focus:outline-none"
@@ -5422,7 +5422,7 @@ export function QuotationBuilder({
               />
               <input
                 type="text"
-                placeholder="Contact Person Name"
+                placeholder="Contact Person / Authorized Representative"
                 value={newParty.contactPerson || ''}
                 onChange={e => setNewParty({ ...newParty, contactPerson: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
@@ -5447,14 +5447,14 @@ export function QuotationBuilder({
               </div>
               <input
                 type="text"
-                placeholder="Billing Address"
+                placeholder="Buyer Billing Address"
                 value={newParty.address || ''}
                 onChange={e => setNewParty({ ...newParty, address: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
               />
               <input
                 type="text"
-                placeholder="Shipping / Consignee Address (Optional)"
+                placeholder="Buyer Shipping / Consignee Address (Optional)"
                 value={newParty.shippingAddress || ''}
                 onChange={e => setNewParty({ ...newParty, shippingAddress: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
@@ -5487,14 +5487,14 @@ export function QuotationBuilder({
                 onClick={handleSaveNewParty}
                 className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl"
               >
-                {editingPartyId ? 'Update Party' : 'Save Party'}
+                {editingPartyId ? 'Update Buyer Party' : 'Save Buyer Party'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🏢 COMPANIES & ORGANIZATIONS DIRECTORY MODAL */}
+      {/* 🏢 SELLER & BUYER PARTIES DIRECTORY MODAL */}
       {companiesHubOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6 transition-all">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl text-white overflow-hidden animate-scale-in">
@@ -5505,10 +5505,10 @@ export function QuotationBuilder({
                   QUOTATIONS DIRECTORY HUB
                 </span>
                 <h2 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
-                  <Building2 className="text-sky-400" size={20} /> Companies &amp; Organizations Directory
+                  <Users className="text-sky-400" size={20} /> Parties Directory (Seller &amp; Buyer Hub)
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Manage all Seller Branches / Profiles and Client Buyer Companies directly inside Quotations.
+                  Manage all Seller Parties and Buyer Parties directly inside Quotations.
                 </p>
               </div>
 
@@ -5522,7 +5522,7 @@ export function QuotationBuilder({
                   }}
                   className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow cursor-pointer transition-all"
                 >
-                  <Plus size={13} /> Add Seller / Branch
+                  <Plus size={13} /> Add Seller Party
                 </button>
                 <button
                   type="button"
@@ -5533,7 +5533,7 @@ export function QuotationBuilder({
                   }}
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow cursor-pointer transition-all"
                 >
-                  <Plus size={13} /> Add Client / Buyer
+                  <Plus size={13} /> Add Buyer Party
                 </button>
                 <button
                   type="button"
@@ -5553,7 +5553,7 @@ export function QuotationBuilder({
                   type="text"
                   value={companiesHubSearch}
                   onChange={e => setCompaniesHubSearch(e.target.value)}
-                  placeholder="Search companies by name, GSTIN, PAN, email, phone, city, address..."
+                  placeholder="Search parties by name, GSTIN, PAN, email, phone, city, address..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none font-medium"
                 />
               </div>
@@ -5561,9 +5561,9 @@ export function QuotationBuilder({
               {/* Tabs */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
                 {[
-                  { id: 'ALL', label: `All Companies (${companies.length + parties.length})` },
-                  { id: 'SELLER', label: `Seller Profiles / Branches (${companies.length})` },
-                  { id: 'BUYER', label: `Client / Buyer Companies (${parties.length})` },
+                  { id: 'ALL', label: `All Parties (${companies.length + parties.length})` },
+                  { id: 'SELLER', label: `Seller Parties (${companies.length})` },
+                  { id: 'BUYER', label: `Buyer Parties (${parties.length})` },
                 ].map(tabItem => (
                   <button
                     key={tabItem.id}
@@ -5581,7 +5581,7 @@ export function QuotationBuilder({
               </div>
             </div>
 
-            {/* Grid of Companies */}
+            {/* Grid of Parties */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
               {(() => {
                 const searchLower = companiesHubSearch.toLowerCase().trim();
@@ -5620,9 +5620,9 @@ export function QuotationBuilder({
                 if (totalResults === 0) {
                   return (
                     <div className="text-center py-12 space-y-3 bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl">
-                      <Building2 size={36} className="mx-auto text-slate-600" />
-                      <p className="text-sm font-bold text-slate-400">No matching companies found</p>
-                      <p className="text-xs text-slate-500">Try adjusting your search terms or create a new company above.</p>
+                      <Users size={36} className="mx-auto text-slate-600" />
+                      <p className="text-sm font-bold text-slate-400">No matching parties found</p>
+                      <p className="text-xs text-slate-500">Try adjusting your search terms or create a new party above.</p>
                     </div>
                   );
                 }
@@ -5651,12 +5651,12 @@ export function QuotationBuilder({
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <h4 className="text-xs font-black text-white truncate leading-tight">{seller.name || 'Seller Entity'}</h4>
-                                  <span className="text-[10px] text-indigo-400 font-medium truncate block">Your Seller Organization</span>
+                                  <h4 className="text-xs font-black text-white truncate leading-tight">{seller.name || 'Seller Party'}</h4>
+                                  <span className="text-[10px] text-indigo-400 font-medium truncate block">Seller Party / Branch</span>
                                 </div>
                               </div>
                               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex-shrink-0">
-                                SELLER ENTITY
+                                SELLER PARTY
                               </span>
                             </div>
 
@@ -5708,7 +5708,7 @@ export function QuotationBuilder({
                                   : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow'
                               }`}
                             >
-                              {isSelected ? '✓ Active Seller' : 'Use in Quote'}
+                              {isSelected ? '✓ Active Seller Party' : 'Use in Quote'}
                             </button>
                             <button
                               type="button"
@@ -5718,7 +5718,7 @@ export function QuotationBuilder({
                                 setCompanyModalOpen(true);
                               }}
                               className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
-                              title="Edit Seller Company"
+                              title="Edit Seller Party"
                             >
                               <Edit2 size={12} />
                             </button>
@@ -5726,7 +5726,7 @@ export function QuotationBuilder({
                               type="button"
                               onClick={() => handleDeleteCompany(seller.id, seller.name)}
                               className="p-1.5 bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
-                              title="Delete Seller Company"
+                              title="Delete Seller Party"
                             >
                               <Trash2 size={12} />
                             </button>
@@ -5753,12 +5753,12 @@ export function QuotationBuilder({
                                   {buyer.name ? buyer.name.slice(0, 2).toUpperCase() : 'BY'}
                                 </div>
                                 <div className="min-w-0">
-                                  <h4 className="text-xs font-black text-white truncate leading-tight">{buyer.name || 'Client / Buyer'}</h4>
-                                  <span className="text-[10px] text-emerald-400 font-medium truncate block">Client / Buyer Organization</span>
+                                  <h4 className="text-xs font-black text-white truncate leading-tight">{buyer.name || 'Buyer Party'}</h4>
+                                  <span className="text-[10px] text-emerald-400 font-medium truncate block">Buyer Party / Client</span>
                                 </div>
                               </div>
                               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0">
-                                CLIENT / BUYER
+                                BUYER PARTY
                               </span>
                             </div>
 
@@ -5809,7 +5809,7 @@ export function QuotationBuilder({
                                   : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'
                               }`}
                             >
-                              {isSelected ? '✓ Active Buyer' : 'Use in Quote'}
+                              {isSelected ? '✓ Active Buyer Party' : 'Use in Quote'}
                             </button>
                             <button
                               type="button"
@@ -5819,7 +5819,7 @@ export function QuotationBuilder({
                                 setPartyModalOpen(true);
                               }}
                               className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
-                              title="Edit Client Party"
+                              title="Edit Buyer Party"
                             >
                               <Edit2 size={12} />
                             </button>
@@ -5827,7 +5827,7 @@ export function QuotationBuilder({
                               type="button"
                               onClick={() => handleDeleteParty(buyer.id, buyer.name)}
                               className="p-1.5 bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 rounded-lg text-xs cursor-pointer transition-all"
-                              title="Delete Client Party"
+                              title="Delete Buyer Party"
                             >
                               <Trash2 size={12} />
                             </button>
@@ -5982,14 +5982,14 @@ export function QuotationBuilder({
                             )}
                           </div>
 
-                          {/* 👤 BUYER & 🏢 SELLER DISPLAY */}
+                          {/* 👤 BUYER PARTY & 🏢 SELLER PARTY DISPLAY */}
                           <div className="text-xs space-y-0.5 pt-1">
                             <p className="text-[11.5px] font-bold text-slate-300 flex items-center gap-1.5 flex-wrap">
-                              <span className="text-emerald-400 font-extrabold flex-shrink-0">👤 Buyer (Client):</span>
+                              <span className="text-emerald-400 font-extrabold flex-shrink-0">👤 Buyer Party:</span>
                               <strong className="text-white font-extrabold truncate">{record.partyName}</strong>
                             </p>
                             <p className="text-[10.5px] text-slate-400 flex items-center gap-1.5 flex-wrap">
-                              <span className="text-indigo-400 font-bold flex-shrink-0">🏢 Seller (Company):</span>
+                              <span className="text-indigo-400 font-bold flex-shrink-0">🏢 Seller Party:</span>
                               <span className="text-slate-300 font-semibold truncate">{record.companyName}</span>
                             </p>
                           </div>

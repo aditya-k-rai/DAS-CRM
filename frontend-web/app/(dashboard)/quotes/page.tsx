@@ -23,9 +23,9 @@ export default function QuotationsPage() {
                 setOpenCompaniesTrigger(true);
               }}
               className="btn-secondary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap flex items-center hover:text-indigo-400"
-              title="Companies & Organizations Directory (Buyer & Seller Hub)"
+              title="Parties Directory (Seller Party & Buyer Party Hub)"
             >
-              <Building2 size={14} className="text-sky-400" /> <span className="hidden xs:inline sm:inline">Companies</span>
+              <Users size={14} className="text-sky-400" /> <span className="hidden xs:inline sm:inline">Parties</span>
             </button>
             <button
               onClick={() => setOpenHistoryTrigger(true)}
