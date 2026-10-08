@@ -4,7 +4,7 @@
  * Exclusively tracks and aggregates performance for Sales Representatives and Team Leaders.
  * Uses simplified, focused target metrics:
  * 1. Daily Calls Target (Required: Fresh Calls + Follow-ups)
- * 2. Daily WhatsApp Target (Optional: Direct WA + WhatsApp Cloud)
+ * 2. Daily WhatsApp Target (Optional: Direct Manual WhatsApp outreach — automated WA Cloud excluded)
  * 3. Monthly Revenue Target (Primary: ₹ Won Deals)
  * 4. Monthly Meetings Target (Optional: Scheduled / In-Person / Zoom meetings)
  *
@@ -34,9 +34,7 @@ export interface PerformanceRecord {
   dateCallsTotal: number;
   dateNewCalls: number; // Fresh Call (Lead First Call)
   dateFollowupCalls: number; // Followup Call
-  dateWhatsappTotal: number;
-  dateWaDirect: number; // WhatsApp Direct
-  dateWaCloud: number; // WhatsApp Cloud
+  dateWhatsappTotal: number; // Direct WhatsApp messages sent
   dateMeetingsCount: number; // Real meetings scheduled today
   dateProductsShared: number;
   dateQuotesCount: number;
@@ -47,9 +45,7 @@ export interface PerformanceRecord {
   monthlyCallsTotal: number;
   monthlyNewCalls: number;
   monthlyFollowupCalls: number;
-  monthlyWhatsappTotal: number;
-  monthlyWaDirect: number;
-  monthlyWaCloud: number;
+  monthlyWhatsappTotal: number; // Direct WhatsApp messages sent in month
   monthlyMeetingsCount: number;
   monthlyProductsShared: number;
   monthlyQuotesCount: number;
@@ -646,8 +642,6 @@ export function calculatePerformanceRecords({
       dateNewCalls,
       dateFollowupCalls,
       dateWhatsappTotal,
-      dateWaDirect,
-      dateWaCloud,
       dateMeetingsCount,
       dateProductsShared,
       dateQuotesCount,
@@ -658,8 +652,6 @@ export function calculatePerformanceRecords({
       monthlyNewCalls,
       monthlyFollowupCalls,
       monthlyWhatsappTotal,
-      monthlyWaDirect,
-      monthlyWaCloud,
       monthlyMeetingsCount,
       monthlyProductsShared,
       monthlyQuotesCount,
@@ -697,8 +689,6 @@ export function calculatePerformanceRecords({
     dateNewCalls: records.reduce((s, r) => s + r.dateNewCalls, 0),
     dateFollowupCalls: records.reduce((s, r) => s + r.dateFollowupCalls, 0),
     dateWhatsappTotal: records.reduce((s, r) => s + r.dateWhatsappTotal, 0),
-    dateWaDirect: records.reduce((s, r) => s + r.dateWaDirect, 0),
-    dateWaCloud: records.reduce((s, r) => s + r.dateWaCloud, 0),
     dateMeetingsCount: records.reduce((s, r) => s + r.dateMeetingsCount, 0),
     dateProductsShared: records.reduce((s, r) => s + r.dateProductsShared, 0),
     dateQuotesCount: records.reduce((s, r) => s + r.dateQuotesCount, 0),
@@ -709,8 +699,6 @@ export function calculatePerformanceRecords({
     monthlyNewCalls: records.reduce((s, r) => s + r.monthlyNewCalls, 0),
     monthlyFollowupCalls: records.reduce((s, r) => s + r.monthlyFollowupCalls, 0),
     monthlyWhatsappTotal: records.reduce((s, r) => s + r.monthlyWhatsappTotal, 0),
-    monthlyWaDirect: records.reduce((s, r) => s + r.monthlyWaDirect, 0),
-    monthlyWaCloud: records.reduce((s, r) => s + r.monthlyWaCloud, 0),
     monthlyMeetingsCount: records.reduce((s, r) => s + r.monthlyMeetingsCount, 0),
     monthlyProductsShared: records.reduce((s, r) => s + r.monthlyProductsShared, 0),
     monthlyQuotesCount: records.reduce((s, r) => s + r.monthlyQuotesCount, 0),

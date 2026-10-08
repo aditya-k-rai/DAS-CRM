@@ -184,8 +184,6 @@ export function SalesGoals() {
 
     const waAchieved = isM ? list.reduce((s, r) => s + r.monthlyWhatsappTotal, 0) : list.reduce((s, r) => s + r.dateWhatsappTotal, 0);
     const waTarget = isM ? list.reduce((s, r) => s + r.dailyWhatsappTarget * 22, 0) : list.reduce((s, r) => s + r.dailyWhatsappTarget, 0);
-    const waDirect = isM ? list.reduce((s, r) => s + r.monthlyWaDirect, 0) : list.reduce((s, r) => s + r.dateWaDirect, 0);
-    const waCloud = isM ? list.reduce((s, r) => s + r.monthlyWaCloud, 0) : list.reduce((s, r) => s + r.dateWaCloud, 0);
 
     const meetingsAchieved = isM ? list.reduce((s, r) => s + r.monthlyMeetingsCount, 0) : list.reduce((s, r) => s + r.dateMeetingsCount, 0);
     const meetingsTarget = isM ? list.reduce((s, r) => s + r.monthlyMeetingsTarget, 0) : list.reduce((s, r) => s + Math.max(1, Math.round(r.monthlyMeetingsTarget / 22)), 0);
@@ -213,8 +211,6 @@ export function SalesGoals() {
       callsPct,
       waAchieved,
       waTarget,
-      waDirect,
-      waCloud,
       waPct,
       meetingsAchieved,
       meetingsTarget,
@@ -423,15 +419,14 @@ export function SalesGoals() {
             />
           </div>
 
-          {/* Breakdown Pills: WA Direct vs WA Cloud */}
+          {/* Breakdown Pills: Direct Messages */}
           <div className="flex items-center justify-between text-[11px] pt-1 text-slate-300 border-t border-slate-800/60">
             <span className="flex items-center gap-1 text-indigo-300 font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-              WA Direct: {activeStats.waDirect}
+              Direct Sent: {activeStats.waAchieved}
             </span>
-            <span className="flex items-center gap-1 text-purple-300 font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-              WA Cloud: {activeStats.waCloud}
+            <span className="text-[10px] text-slate-400 font-medium">
+              Manual WA Chat
             </span>
           </div>
         </div>
@@ -598,7 +593,7 @@ export function SalesGoals() {
                 <th className="py-3 px-4 w-12 text-center">Rank</th>
                 <th className="py-3 px-4">Sales Rep / TL</th>
                 <th className="py-3 px-4">Daily Calls (Fresh / FO)</th>
-                <th className="py-3 px-4">Daily WhatsApp (Direct / Cloud)</th>
+                <th className="py-3 px-4">Daily WhatsApp (Direct)</th>
                 <th className="py-3 px-4">Monthly Revenue</th>
                 <th className="py-3 px-4">Meetings & Proposals</th>
                 <th className="py-3 px-4 text-center">Completion</th>
@@ -621,8 +616,6 @@ export function SalesGoals() {
 
                   const waAch = isMonthView ? rep.monthlyWhatsappTotal : rep.dateWhatsappTotal;
                   const waTgt = isMonthView ? rep.dailyWhatsappTarget * 22 : rep.dailyWhatsappTarget;
-                  const waDirect = isMonthView ? rep.monthlyWaDirect : rep.dateWaDirect;
-                  const waCloud = isMonthView ? rep.monthlyWaCloud : rep.dateWaCloud;
 
                   const meetings = isMonthView ? rep.monthlyMeetingsCount : rep.dateMeetingsCount;
                   const products = isMonthView ? rep.monthlyProductsShared : rep.dateProductsShared;
@@ -691,10 +684,7 @@ export function SalesGoals() {
                           </div>
                           <div className="flex items-center gap-1.5 text-[10px]">
                             <span className="px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-300 font-bold border border-indigo-500/20">
-                              Direct: {waDirect}
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-300 font-bold border border-purple-500/20">
-                              Cloud: {waCloud}
+                              Direct Sent: {waAch}
                             </span>
                           </div>
                         </div>
@@ -822,7 +812,7 @@ export function SalesGoals() {
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
                   <p className="text-[10px] font-bold uppercase text-slate-400">Daily WhatsApp</p>
                   <p className="text-lg font-black text-white">{drilldownRep.dateWhatsappTotal} / {drilldownRep.dailyWhatsappTarget || 'Opt'}</p>
-                  <p className="text-[10px] text-indigo-300">{drilldownRep.dateWaDirect} Direct · {drilldownRep.dateWaCloud} Cloud</p>
+                  <p className="text-[10px] text-indigo-300">Direct Sent Messages</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
