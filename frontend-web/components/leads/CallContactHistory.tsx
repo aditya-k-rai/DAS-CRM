@@ -702,6 +702,7 @@ export function CallContactHistory({
 }: CallContactHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
+  const [isCommercialsShrunk, setIsCommercialsShrunk] = useState<boolean>(false);
 
   // ── Clean & Deduplicate History Attempts ────────────────────────────────────
   const cleanHistory = deduplicateContactAttempts(history);
@@ -816,14 +817,28 @@ export function CallContactHistory({
         <div className="flex items-center gap-2 flex-wrap">
           {totalCommercialsCount > 0 && (
             <button
-              onClick={() => setFilterType(filterType === 'INTERESTED_PRODUCTS' ? 'ALL' : 'INTERESTED_PRODUCTS')}
+              type="button"
+              onClick={() => {
+                if (filterType === 'INTERESTED_PRODUCTS') {
+                  setIsCommercialsShrunk(!isCommercialsShrunk);
+                } else {
+                  setFilterType('INTERESTED_PRODUCTS');
+                  setIsCommercialsShrunk(false);
+                }
+              }}
               className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm ${
                 filterType === 'INTERESTED_PRODUCTS'
                   ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
                   : 'text-amber-300 bg-amber-500/15 border-amber-500/35 hover:bg-amber-500/25'
               }`}
+              title="Click to toggle / shrink Synced Interested Products & Invoices"
             >
               <span>📦</span> {totalCommercialsCount} Interested Product{totalCommercialsCount > 1 ? 's' : ''} / Invoice{totalCommercialsCount > 1 ? 's' : ''}
+              {filterType === 'INTERESTED_PRODUCTS' && (
+                <span className="text-[9px] bg-slate-950/40 text-amber-200 px-1.5 py-0.2 rounded font-mono">
+                  {isCommercialsShrunk ? '▾ expand' : '▴ shrink'}
+                </span>
+              )}
             </button>
           )}
           {quotationCount > 0 && (
@@ -874,7 +889,15 @@ export function CallContactHistory({
           <div
             key={stat.label}
             onClick={() => {
-              if (stat.key) {
+              if (stat.key === 'INTERESTED_PRODUCTS') {
+                if (filterType === 'INTERESTED_PRODUCTS') {
+                  // Toggle shrink / expand
+                  setIsCommercialsShrunk(!isCommercialsShrunk);
+                } else {
+                  setFilterType('INTERESTED_PRODUCTS');
+                  setIsCommercialsShrunk(false);
+                }
+              } else if (stat.key) {
                 setFilterType(filterType === stat.key ? 'ALL' : stat.key);
               }
             }}
@@ -882,7 +905,7 @@ export function CallContactHistory({
               filterType === stat.key ? 'ring-2 ring-amber-400 shadow-md scale-[1.02]' : 'hover:border-slate-600'
             }`}
             style={{ background: stat.bg, borderColor: stat.color + '40' }}
-            title={typeof stat.value === 'string' ? stat.value : undefined}
+            title={stat.key === 'INTERESTED_PRODUCTS' ? 'Click to filter and toggle / shrink Interested Products' : (typeof stat.value === 'string' ? stat.value : undefined)}
           >
             <div className="flex justify-center" style={{ color: stat.color }}>{stat.icon}</div>
             <p className="text-sm font-extrabold text-white truncate px-0.5 leading-tight" title={String(stat.value)}>
@@ -913,7 +936,16 @@ export function CallContactHistory({
         ].map(chip => (
           <button
             key={chip.key}
-            onClick={() => setFilterType(chip.key)}
+            onClick={() => {
+              if (chip.key === 'INTERESTED_PRODUCTS' && filterType === 'INTERESTED_PRODUCTS') {
+                setIsCommercialsShrunk(!isCommercialsShrunk);
+              } else {
+                setFilterType(chip.key);
+                if (chip.key === 'INTERESTED_PRODUCTS') {
+                  setIsCommercialsShrunk(false);
+                }
+              }
+            }}
             className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5"
             style={{
               background: filterType === chip.key ? `${chip.color}25` : 'rgba(15,23,42,0.8)',
@@ -928,10 +960,14 @@ export function CallContactHistory({
 
       {/* ── Synced Interested Products & Shared Invoices Ledger Panel ────────────── */}
       {(filterType === 'INTERESTED_PRODUCTS' || totalCommercialsCount > 0) && (
-        <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/25 via-slate-900/90 to-slate-950 border border-amber-500/35 space-y-3 shadow-lg animate-in fade-in duration-200">
+        <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/25 via-slate-900/90 to-slate-950 border border-amber-500/35 space-y-3 shadow-lg transition-all duration-300">
           <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-800/80">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+            <div
+              className="flex items-center gap-2.5 cursor-pointer select-none group"
+              onClick={() => setIsCommercialsShrunk(!isCommercialsShrunk)}
+              title="Click to shrink or expand Interested Products section"
+            >
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 group-hover:scale-105 transition-transform">
                 <Package size={16} />
               </div>
               <div>
@@ -947,73 +983,126 @@ export function CallContactHistory({
               </div>
             </div>
 
-            {onOpenShareQuoteInvoice && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 1-Tap Shrink / Expand Toggle Button */}
               <button
-                onClick={onOpenShareQuoteInvoice}
-                className="text-xs font-bold text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                type="button"
+                onClick={() => setIsCommercialsShrunk(!isCommercialsShrunk)}
+                className="text-xs font-bold text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
               >
-                <span>📄</span> + Share New Product / Invoice
+                {isCommercialsShrunk ? (
+                  <>
+                    <ChevronDown size={13} className="text-amber-400" />
+                    <span>Expand Products ({totalCommercialsCount})</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronUp size={13} className="text-amber-400" />
+                    <span>− Shrink / Collapse</span>
+                  </>
+                )}
               </button>
-            )}
+
+              {onOpenShareQuoteInvoice && (
+                <button
+                  type="button"
+                  onClick={onOpenShareQuoteInvoice}
+                  className="text-xs font-bold text-emerald-300 hover:text-white bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>📄</span> + Share New Product / Invoice
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Grid of Interested Products & Invoices */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-            {interestedCommercials.map((item, idx) => {
-              const { time, date } = formatTimestamp(item.sharedAt);
-              const isDoc = item.docType === 'INVOICE' || item.docType === 'QUOTATION';
+          {/* Shrunk Compact Strip vs Expanded Full Grid */}
+          {isCommercialsShrunk ? (
+            <div
+              onClick={() => setIsCommercialsShrunk(false)}
+              className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/25 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-500/50 transition-all flex-wrap group"
+            >
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                  <Package size={12} className="text-amber-400" /> Shrunk Summary:
+                </span>
+                {interestedCommercials.slice(0, 4).map((item, i) => (
+                  <span
+                    key={item.id || i}
+                    className="text-[10px] font-extrabold px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 flex items-center gap-1"
+                  >
+                    <span>{item.name}</span>
+                    {item.price && <span className="text-emerald-400 font-bold">{item.price}</span>}
+                  </span>
+                ))}
+                {totalCommercialsCount > 4 && (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    +{totalCommercialsCount - 4} more
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-extrabold text-amber-400 flex items-center gap-1 group-hover:text-amber-300">
+                Click to expand full details ▾
+              </span>
+            </div>
+          ) : (
+            /* Full Grid of Interested Products & Invoices */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 animate-in fade-in duration-200">
+              {interestedCommercials.map((item, idx) => {
+                const { time, date } = formatTimestamp(item.sharedAt);
+                const isDoc = item.docType === 'INVOICE' || item.docType === 'QUOTATION';
 
-              return (
-                <div
-                  key={item.id || idx}
-                  className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 transition-all space-y-2 flex flex-col justify-between"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg">{isDoc ? (item.docType === 'INVOICE' ? '🧾' : '📄') : '📦'}</span>
-                      <div>
-                        <h5 className="text-xs font-extrabold text-white flex items-center gap-1.5 flex-wrap">
-                          <span>{item.name}</span>
-                          {item.quantity && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              Qty: {item.quantity}
+                return (
+                  <div
+                    key={item.id || idx}
+                    className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 transition-all space-y-2 flex flex-col justify-between"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg">{isDoc ? (item.docType === 'INVOICE' ? '🧾' : '📄') : '📦'}</span>
+                        <div>
+                          <h5 className="text-xs font-extrabold text-white flex items-center gap-1.5 flex-wrap">
+                            <span>{item.name}</span>
+                            {item.quantity && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Qty: {item.quantity}
+                              </span>
+                            )}
+                          </h5>
+                          {item.docNo && (
+                            <span className="text-[10px] text-amber-400 font-mono font-bold block mt-0.5">
+                              Doc Ref: {item.docNo}
                             </span>
                           )}
-                        </h5>
-                        {item.docNo && (
-                          <span className="text-[10px] text-amber-400 font-mono font-bold block mt-0.5">
-                            Doc Ref: {item.docNo}
-                          </span>
-                        )}
+                        </div>
                       </div>
+
+                      {item.price && (
+                        <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                          {item.price}
+                        </span>
+                      )}
                     </div>
 
-                    {item.price && (
-                      <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-lg whitespace-nowrap">
-                        {item.price}
-                      </span>
+                    {item.discount && (
+                      <div className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                        🎉 {item.discount}
+                      </div>
                     )}
-                  </div>
 
-                  {item.discount && (
-                    <div className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-                      🎉 {item.discount}
+                    {/* Telemetry Footer */}
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex-wrap gap-1">
+                      <span className="flex items-center gap-1 text-slate-300">
+                        <User size={10} className="text-slate-400" /> {item.sharedBy}
+                      </span>
+                      <span className="flex items-center gap-1 text-amber-300/90">
+                        <span>{item.medium}</span> • <span>{date} @ {time}</span>
+                      </span>
                     </div>
-                  )}
-
-                  {/* Telemetry Footer */}
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex-wrap gap-1">
-                    <span className="flex items-center gap-1 text-slate-300">
-                      <User size={10} className="text-slate-400" /> {item.sharedBy}
-                    </span>
-                    <span className="flex items-center gap-1 text-amber-300/90">
-                      <span>{item.medium}</span> • <span>{date} @ {time}</span>
-                    </span>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
