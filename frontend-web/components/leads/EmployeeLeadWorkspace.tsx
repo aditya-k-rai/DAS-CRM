@@ -1750,6 +1750,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [productWaCustomNote, setProductWaCustomNote] = useState<string>('');
   const [isProductWaShared, setIsProductWaShared] = useState<boolean>(false);
   const [showProductWaPreview, setShowProductWaPreview] = useState<boolean>(true);
+  const [productWaIncludeUnitPrice, setProductWaIncludeUnitPrice] = useState<boolean>(true);
+  const [productWaGstRate, setProductWaGstRate] = useState<number>(5);
+  const [productWaGstPreset, setProductWaGstPreset] = useState<'0' | '5' | '12' | '18' | '28' | 'CUSTOM'>('5');
+  const [productWaCustomGstInput, setProductWaCustomGstInput] = useState<string>('');
 
   const generateProductWhatsAppMessage = (customNote?: string) => {
     const clientName = (!lead.name || lead.name.includes('Lead Prospect') || lead.name === 'Prospect' || lead.name === '—')
@@ -1763,11 +1767,37 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       : '';
     const qty = Math.max(1, selectedProductQuantity || 1);
     const unitName = pricing.unitName || 'Pieces (Pcs)';
-    const unitPriceFormatted = selectedProductObj ? `₹${pricing.unitPrice.toLocaleString('en-IN')}` : 'As discussed';
-    const totalPriceFormatted = selectedProductObj ? `₹${pricing.totalPrice.toLocaleString('en-IN')}` : 'As discussed';
+    
+    // Base pricing & GST calculation
+    const baseUnitPrice = pricing.unitPrice;
+    const baseTotalPrice = pricing.totalPrice;
+    const gstPct = productWaGstPreset === 'CUSTOM' ? (parseFloat(productWaCustomGstInput) || 0) : productWaGstRate;
+    const gstAmount = gstPct > 0 ? Math.round((baseTotalPrice * gstPct) / 100) : 0;
+    const finalTotalPrice = baseTotalPrice + gstAmount;
+
+    const unitPriceFormatted = selectedProductObj ? `₹${baseUnitPrice.toLocaleString('en-IN')}` : 'As discussed';
+    const unitPriceLine = productWaIncludeUnitPrice
+      ? `🏷️ *Unit Price:* ${unitPriceFormatted} / ${unitName}${gstPct > 0 ? ' (excl. GST)' : ''}\n`
+      : '';
+
     const discountStr = pricing.appliedTier && pricing.appliedTier.discountPct > 0 
       ? ` [Includes ${pricing.appliedTier.discountPct}% Volume Tier Discount]`
       : '';
+
+    let priceBlock = '';
+    if (selectedProductObj) {
+      if (gstPct > 0) {
+        priceBlock =
+          `💵 *Subtotal (Base Value):* ₹${baseTotalPrice.toLocaleString('en-IN')}${discountStr}\n` +
+          `📊 *GST Rate (${gstPct}%):* +₹${gstAmount.toLocaleString('en-IN')}\n` +
+          `💰 *Estimated Net Total (incl. ${gstPct}% GST):* *₹${finalTotalPrice.toLocaleString('en-IN')}*`;
+      } else {
+        priceBlock = `💰 *Estimated Total Value:* *₹${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
+      }
+    } else {
+      priceBlock = `💰 *Estimated Total Value:* As discussed`;
+    }
+
     const desc = selectedProductObj?.description ? `\n\n📝 *Product Specifications & Details:*\n${selectedProductObj.description.trim()}` : '';
     const repName = currentUser?.name || lead.owner || 'Sales Team';
     const companyName = typeof lead.company === 'string' && lead.company !== '—' ? lead.company : 'DAS CRM';
@@ -1779,8 +1809,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       `📦 *Product Name:* *${productName}*${skuText}\n` +
       (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
       `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
-      `🏷️ *Unit Price:* ${unitPriceFormatted} / ${unitName}\n` +
-      `💰 *Estimated Total Value:* *${totalPriceFormatted}*${discountStr}` +
+      unitPriceLine +
+      priceBlock +
       desc +
       extraNote +
       `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice.` +
@@ -1800,7 +1830,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       ? ` [${pricing.appliedTier.discountPct}% Vol. Discount]`
       : '';
     const qty = Math.max(1, selectedProductQuantity || 1);
-    const productInterestFormatted = `${prodName} (Qty: ${qty} ${pricing.unitName} · ₹${pricing.totalPrice.toLocaleString('en-IN')}${discountNote})`;
+    const gstPct = productWaGstPreset === 'CUSTOM' ? (parseFloat(productWaCustomGstInput) || 0) : productWaGstRate;
+    const gstAmount = gstPct > 0 ? Math.round((pricing.totalPrice * gstPct) / 100) : 0;
+    const finalTotalPrice = pricing.totalPrice + gstAmount;
+    const gstTag = gstPct > 0 ? ` (incl. ${gstPct}% GST)` : '';
+    const productInterestFormatted = `${prodName} (Qty: ${qty} ${pricing.unitName} · ₹${finalTotalPrice.toLocaleString('en-IN')}${gstTag}${discountNote})`;
 
     // 1. Launch WhatsApp Web / App
     window.open(`https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${encodeURIComponent(finalMsg)}`, '_blank');
@@ -4139,6 +4173,104 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                     value={productWaCustomNote}
                                     onChange={(e) => setProductWaCustomNote(e.target.value)}
                                   />
+                                </div>
+                              </div>
+
+                              {/* 🏷️ Per-Unit Price & 📊 GST Tax Controls */}
+                              <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/20 space-y-2.5">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  {/* Per Unit Price Toggle */}
+                                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={productWaIncludeUnitPrice}
+                                      onChange={(e) => setProductWaIncludeUnitPrice(e.target.checked)}
+                                      className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 accent-emerald-500 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1">
+                                      🏷️ Include Per-Unit Price in Message
+                                    </span>
+                                  </label>
+
+                                  {/* Live Total Badge */}
+                                  {selectedProductObj && (() => {
+                                    const pricing = calculateLeadProductPricing();
+                                    const gstPct = productWaGstPreset === 'CUSTOM' ? (parseFloat(productWaCustomGstInput) || 0) : productWaGstRate;
+                                    const gstAmt = gstPct > 0 ? Math.round((pricing.totalPrice * gstPct) / 100) : 0;
+                                    const finalTot = pricing.totalPrice + gstAmt;
+                                    return (
+                                      <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                        Total: ₹{finalTot.toLocaleString('en-IN')}
+                                        {gstPct > 0 && <span className="text-[9px] text-slate-400 font-normal"> (incl. {gstPct}% GST)</span>}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+
+                                {/* GST Rate Selector */}
+                                <div className="pt-2 border-t border-slate-800 flex items-center gap-2 flex-wrap">
+                                  <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                                    📊 GST Rate:
+                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {[
+                                      { key: '0', label: '0% (No GST)', val: 0 },
+                                      { key: '5', label: '5% (Default)', val: 5 },
+                                      { key: '12', label: '12%', val: 12 },
+                                      { key: '18', label: '18%', val: 18 },
+                                      { key: '28', label: '28%', val: 28 },
+                                    ].map((gst) => {
+                                      const isSelected = productWaGstPreset === gst.key;
+                                      return (
+                                        <button
+                                          key={gst.key}
+                                          type="button"
+                                          onClick={() => {
+                                            setProductWaGstPreset(gst.key as any);
+                                            setProductWaGstRate(gst.val);
+                                          }}
+                                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                            isSelected
+                                              ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/40 font-black'
+                                              : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-emerald-500/40'
+                                          }`}
+                                        >
+                                          {gst.label}
+                                        </button>
+                                      );
+                                    })}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setProductWaGstPreset('CUSTOM');
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                        productWaGstPreset === 'CUSTOM'
+                                          ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/40 font-black'
+                                          : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-emerald-500/40'
+                                      }`}
+                                    >
+                                      Custom %
+                                    </button>
+                                    {productWaGstPreset === 'CUSTOM' && (
+                                      <div className="flex items-center gap-1">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          step="0.5"
+                                          placeholder="e.g. 7.5"
+                                          value={productWaCustomGstInput}
+                                          onChange={(e) => {
+                                            setProductWaCustomGstInput(e.target.value);
+                                            setProductWaGstRate(parseFloat(e.target.value) || 0);
+                                          }}
+                                          className="crm-input text-xs h-7 w-20 px-2 py-0 font-mono text-emerald-300 border-emerald-500/40"
+                                        />
+                                        <span className="text-xs text-slate-400 font-bold">%</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 

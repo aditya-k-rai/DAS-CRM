@@ -7,9 +7,9 @@
  *    - 🗣️ Talked / Chat Completed Smoothly
  *    - ⏰ Will Call / Chat Later (15-Day Date Selector + Time Slot Selector)
  *    - 🤝 Talked & Said He Will Visit / Come (15-Day Expected Visit Date Selector)
- *    - 💡 Interested in Product & Product Shared (Quantity Stepper, Live Tiered Pricing & 1-Tap WhatsApp Sharing)
+ *    - 💡 Interested in Product & Product Shared (Quantity Stepper, Live Tiered Pricing, Unit Price Toggle & GST Selection)
  *    - 💬 WhatsApp Message Sent / Responded
- * 3. 📲 WhatsApp Product Details Dispatcher with Live Message Preview & 1-Tap Direct Timeline Logging.
+ * 3. 📲 WhatsApp Product Details Dispatcher with Live Message Preview, Custom Per-Unit Pricing Toggle, GST Rate Presets (5% default), & 1-Tap Direct Timeline Logging.
  * 4. Write Your Own Custom Notes Box.
  * 5. Save & Store directly to Lead Activity Telemetry.
  */
@@ -43,6 +43,10 @@ export interface CallOutcomeData {
   selectedProduct?: ProductItem | null;
   productQuantity?: number;
   productTotalPrice?: number;
+  baseTotalPrice?: number;
+  gstRate?: number;
+  gstAmount?: number;
+  includeUnitPrice?: boolean;
   isWaShared?: boolean;
   sentMessage?: string;
   waTargetPhone?: string;
@@ -116,6 +120,12 @@ export default function PostCallOutcomeModal({
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
   const [liveProducts, setLiveProducts] = useState<ProductItem[]>([]);
 
+  // 🏷️ Per-Unit Price & 📊 GST Settings
+  const [includeUnitPrice, setIncludeUnitPrice] = useState<boolean>(true);
+  const [gstPreset, setGstPreset] = useState<'0' | '5' | '12' | '18' | '28' | 'CUSTOM'>('5');
+  const [gstRate, setGstRate] = useState<number>(5);
+  const [customGstInput, setCustomGstInput] = useState<string>('');
+
   // WhatsApp Product Share State
   const [productWaTargetPhone, setProductWaTargetPhone] = useState<string>(phone || '');
   const [productWaCustomNote, setProductWaCustomNote] = useState<string>('');
@@ -160,7 +170,15 @@ export default function PostCallOutcomeModal({
 
   const calculateProductPricing = () => {
     if (!selectedProduct) {
-      return { unitPrice: 0, totalPrice: 0, discountPct: 0, unitLabel: 'Units' };
+      return {
+        unitPrice: 0,
+        baseTotalPrice: 0,
+        gstRate: 0,
+        gstAmount: 0,
+        finalTotalPrice: 0,
+        discountPct: 0,
+        unitLabel: 'Units',
+      };
     }
     const baseNum = parseFloat(String(selectedProduct.minPrice || '0').replace(/[^0-9.]/g, '')) || 0;
     const qty = Math.max(1, selectedQuantity || 1);
@@ -178,10 +196,18 @@ export default function PostCallOutcomeModal({
         }
       }
     }
-    const totalPrice = unitPrice * qty;
+
+    const baseTotalPrice = unitPrice * qty;
+    const effectiveGstPct = gstPreset === 'CUSTOM' ? (parseFloat(customGstInput) || 0) : gstRate;
+    const gstAmount = effectiveGstPct > 0 ? Math.round((baseTotalPrice * effectiveGstPct) / 100) : 0;
+    const finalTotalPrice = baseTotalPrice + gstAmount;
+
     return {
       unitPrice,
-      totalPrice,
+      baseTotalPrice,
+      gstRate: effectiveGstPct,
+      gstAmount,
+      finalTotalPrice,
       discountPct,
       unitLabel: 'Units',
     };
@@ -194,8 +220,24 @@ export default function PostCallOutcomeModal({
     const categoryText = selectedProduct?.category ? `📁 *Category:* ${selectedProduct.category}\n` : '';
     const qty = Math.max(1, selectedQuantity || 1);
     const unitPriceFormatted = `₹${pricing.unitPrice.toLocaleString('en-IN')}`;
-    const totalPriceFormatted = `₹${pricing.totalPrice.toLocaleString('en-IN')}`;
+    const baseTotalFormatted = `₹${pricing.baseTotalPrice.toLocaleString('en-IN')}`;
+    const finalTotalFormatted = `₹${pricing.finalTotalPrice.toLocaleString('en-IN')}`;
     const discountStr = pricing.discountPct > 0 ? ` [Includes ${pricing.discountPct}% Volume Tier Discount]` : '';
+    
+    const unitPriceLine = includeUnitPrice
+      ? `🏷️ *Unit Price:* ${unitPriceFormatted} / ${pricing.unitLabel}${pricing.gstRate > 0 ? ' (excl. GST)' : ''}\n`
+      : '';
+
+    let priceBlock = '';
+    if (pricing.gstRate > 0) {
+      priceBlock =
+        `💵 *Subtotal (Base Value):* ${baseTotalFormatted}${discountStr}\n` +
+        `📊 *GST Rate (${pricing.gstRate}%):* +₹${pricing.gstAmount.toLocaleString('en-IN')}\n` +
+        `💰 *Estimated Net Total (incl. ${pricing.gstRate}% GST):* *${finalTotalFormatted}*`;
+    } else {
+      priceBlock = `💰 *Estimated Total Value:* *${baseTotalFormatted}*${discountStr}`;
+    }
+
     const desc = selectedProduct?.description ? `\n\n📝 *Product Specifications & Details:*\n${selectedProduct.description.trim()}` : '';
     const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
 
@@ -205,8 +247,8 @@ export default function PostCallOutcomeModal({
       `📦 *Product Name:* *${prodName}*\n` +
       categoryText +
       `🔢 *Selected Quantity:* ${qty} ${pricing.unitLabel}\n` +
-      `🏷️ *Unit Price:* ${unitPriceFormatted} / ${pricing.unitLabel}\n` +
-      `💰 *Estimated Total Value:* *${totalPriceFormatted}*${discountStr}` +
+      unitPriceLine +
+      priceBlock +
       desc +
       extraNote +
       `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice.` +
@@ -237,6 +279,10 @@ export default function PostCallOutcomeModal({
     setProductSearch('');
     setSelectedProduct(null);
     setSelectedQuantity(1);
+    setIncludeUnitPrice(true);
+    setGstPreset('5');
+    setGstRate(5);
+    setCustomGstInput('');
     setIsProductWaShared(false);
     setProductWaCustomNote('');
     setNotes('');
@@ -266,7 +312,8 @@ export default function PostCallOutcomeModal({
     let baseNotes = notes.trim();
     if (subOption === 'INTERESTED' && selectedProduct) {
       const waStatus = isProductWaShared ? ' [Shared via WhatsApp Direct]' : '';
-      const prodTag = `Product: ${prodName} (Qty: ${qty} · ₹${pricing.totalPrice.toLocaleString('en-IN')})${waStatus}`;
+      const gstTag = pricing.gstRate > 0 ? ` incl. ${pricing.gstRate}% GST` : '';
+      const prodTag = `Product: ${prodName} (Qty: ${qty} · ₹${pricing.finalTotalPrice.toLocaleString('en-IN')}${gstTag})${waStatus}`;
       baseNotes = baseNotes ? `${baseNotes} • ${prodTag}` : prodTag;
     }
 
@@ -280,7 +327,11 @@ export default function PostCallOutcomeModal({
       scheduledTime: subOption === 'CALL_LATER' ? selectedTime : undefined,
       selectedProduct,
       productQuantity: selectedProduct ? qty : undefined,
-      productTotalPrice: selectedProduct ? pricing.totalPrice : undefined,
+      productTotalPrice: selectedProduct ? pricing.finalTotalPrice : undefined,
+      baseTotalPrice: selectedProduct ? pricing.baseTotalPrice : undefined,
+      gstRate: selectedProduct ? pricing.gstRate : undefined,
+      gstAmount: selectedProduct ? pricing.gstAmount : undefined,
+      includeUnitPrice,
       isWaShared: isProductWaShared,
       sentMessage: finalMsg,
       waTargetPhone: productWaTargetPhone,
@@ -295,7 +346,7 @@ export default function PostCallOutcomeModal({
 
     Alert.alert(
       '✅ Lead Status & Activity Saved',
-      `Outcome stored for ${leadName}:\n• Status: ${outcome.replace('_', ' ')}\n• Action: ${subOption ? subOption.replace('_', ' ') : 'Updated'}${selectedProduct ? '\n• Product Interested: ' + selectedProduct.name + ` (Qty: ${qty})` : ''}${isProductWaShared ? '\n• WhatsApp: Shared to Client' : ''}${selectedDate ? '\n• Scheduled Date: ' + selectedDate : ''}`
+      `Outcome stored for ${leadName}:\n• Status: ${outcome.replace('_', ' ')}\n• Action: ${subOption ? subOption.replace('_', ' ') : 'Updated'}${selectedProduct ? '\n• Product Interested: ' + selectedProduct.name + ` (Qty: ${qty} · ₹${pricing.finalTotalPrice.toLocaleString('en-IN')})` : ''}${isProductWaShared ? '\n• WhatsApp: Shared to Client' : ''}${selectedDate ? '\n• Scheduled Date: ' + selectedDate : ''}`
     );
   };
 
@@ -472,7 +523,7 @@ export default function PostCallOutcomeModal({
                   </View>
                 )}
 
-                {/* 🛍️ PRODUCT SEARCH, QUANTITY & WHATSAPP SHARING FOR "INTERESTED" */}
+                {/* 🛍️ PRODUCT SEARCH, QUANTITY, UNIT PRICE & GST SETTINGS */}
                 {subOption === 'INTERESTED' && (
                   <View style={styles.productSearchCard}>
                     <Text style={styles.schedulerTitle}>🔍 Search &amp; Select Interested Product:</Text>
@@ -506,92 +557,177 @@ export default function PostCallOutcomeModal({
                       })}
                     </View>
 
-                    {/* Quantity Stepper & Price Calculation */}
-                    {selectedProduct && (
-                      <View style={styles.pricingCard}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#cbd5e1' }}>Quantity:</Text>
-                          <View style={styles.quantityStepper}>
-                            <TouchableOpacity
-                              style={styles.stepBtn}
-                              onPress={() => setSelectedQuantity(q => Math.max(1, q - 1))}
-                            >
-                              <Text style={styles.stepBtnText}>−</Text>
-                            </TouchableOpacity>
-                            <Text style={styles.stepQtyText}>{selectedQuantity}</Text>
-                            <TouchableOpacity
-                              style={styles.stepBtn}
-                              onPress={() => setSelectedQuantity(q => q + 1)}
-                            >
-                              <Text style={styles.stepBtnText}>+</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>Total Value:</Text>
-                          <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>
-                            ₹{calculateProductPricing().totalPrice.toLocaleString('en-IN')}
-                            {calculateProductPricing().discountPct > 0 && (
-                              <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '800' }}>
-                                {' '}({calculateProductPricing().discountPct}% off)
-                              </Text>
-                            )}
-                          </Text>
-                        </View>
-
-                        {/* 📲 WHATSAPP PRODUCT SHARE SECTION */}
-                        <View style={styles.waShareCard}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '900', color: '#22c55e' }}>
-                              💬 Share on WhatsApp
-                            </Text>
-                            {isProductWaShared ? (
-                              <View style={styles.sharedBadge}>
-                                <Text style={styles.sharedBadgeText}>✓ Shared</Text>
-                              </View>
-                            ) : null}
+                    {/* Quantity Stepper, Per-Unit Price Toggle & GST Selection */}
+                    {selectedProduct && (() => {
+                      const pricing = calculateProductPricing();
+                      return (
+                        <View style={styles.pricingCard}>
+                          {/* Quantity Stepper */}
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#cbd5e1' }}>Quantity:</Text>
+                            <View style={styles.quantityStepper}>
+                              <TouchableOpacity
+                                style={styles.stepBtn}
+                                onPress={() => setSelectedQuantity(q => Math.max(1, q - 1))}
+                              >
+                                <Text style={styles.stepBtnText}>−</Text>
+                              </TouchableOpacity>
+                              <Text style={styles.stepQtyText}>{selectedQuantity}</Text>
+                              <TouchableOpacity
+                                style={styles.stepBtn}
+                                onPress={() => setSelectedQuantity(q => q + 1)}
+                              >
+                                <Text style={styles.stepBtnText}>+</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
 
-                          <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 2 }}>Target WhatsApp Phone:</Text>
-                          <TextInput
-                            style={styles.waPhoneInput}
-                            placeholder="+91 98765 43210"
-                            placeholderTextColor="#64748b"
-                            keyboardType="phone-pad"
-                            value={productWaTargetPhone}
-                            onChangeText={setProductWaTargetPhone}
-                          />
-
-                          <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 6, marginBottom: 2 }}>Custom Remarks / Special Note (Optional):</Text>
-                          <TextInput
-                            style={styles.waNoteInput}
-                            placeholder="e.g. Valid until Friday, Includes 1-yr warranty..."
-                            placeholderTextColor="#64748b"
-                            value={productWaCustomNote}
-                            onChangeText={setProductWaCustomNote}
-                          />
-
-                          {/* Message Preview */}
-                          <View style={styles.waPreviewBox}>
-                            <Text style={{ fontSize: 8, fontWeight: '800', color: '#22c55e', textTransform: 'uppercase', marginBottom: 4 }}>
-                              Live WhatsApp Preview:
-                            </Text>
-                            <Text style={styles.waPreviewText} numberOfLines={5}>
-                              {generateProductWhatsAppMessage(productWaCustomNote)}
-                            </Text>
-                          </View>
-
+                          {/* 🏷️ Per Unit Price Toggle */}
                           <TouchableOpacity
-                            style={styles.waShareBtn}
-                            onPress={handleShareProductViaWhatsApp}
-                            activeOpacity={0.85}
+                            style={styles.toggleRow}
+                            onPress={() => setIncludeUnitPrice(!includeUnitPrice)}
+                            activeOpacity={0.8}
                           >
-                            <Text style={styles.waShareBtnText}>📲 Send via WhatsApp Direct Now</Text>
+                            <View style={[styles.checkboxBox, includeUnitPrice && styles.checkboxBoxActive]}>
+                              {includeUnitPrice && <Text style={styles.checkboxCheck}>✓</Text>}
+                            </View>
+                            <Text style={styles.toggleLabel}>🏷️ Include Per-Unit Price in Message ({selectedProduct.minPrice} / unit)</Text>
                           </TouchableOpacity>
+
+                          {/* 📊 GST Rate Selector */}
+                          <View style={styles.gstContainer}>
+                            <Text style={styles.gstLabel}>📊 Select GST Tax Rate:</Text>
+                            <View style={styles.gstChipsRow}>
+                              {[
+                                { key: '0', label: '0% (No GST)', val: 0 },
+                                { key: '5', label: '5% (Default)', val: 5 },
+                                { key: '12', label: '12%', val: 12 },
+                                { key: '18', label: '18%', val: 18 },
+                                { key: '28', label: '28%', val: 28 },
+                              ].map((item) => (
+                                <TouchableOpacity
+                                  key={item.key}
+                                  style={[styles.gstChip, gstPreset === item.key && styles.gstChipActive]}
+                                  onPress={() => {
+                                    setGstPreset(item.key as any);
+                                    setGstRate(item.val);
+                                  }}
+                                >
+                                  <Text style={[styles.gstChipText, gstPreset === item.key && styles.gstChipTextActive]}>
+                                    {item.label}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                              <TouchableOpacity
+                                style={[styles.gstChip, gstPreset === 'CUSTOM' && styles.gstChipActive]}
+                                onPress={() => setGstPreset('CUSTOM')}
+                              >
+                                <Text style={[styles.gstChipText, gstPreset === 'CUSTOM' && styles.gstChipTextActive]}>
+                                  Custom %
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+
+                            {gstPreset === 'CUSTOM' && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 }}>
+                                <TextInput
+                                  style={styles.customGstInput}
+                                  placeholder="e.g. 7.5"
+                                  placeholderTextColor="#64748b"
+                                  keyboardType="numeric"
+                                  value={customGstInput}
+                                  onChangeText={(t) => {
+                                    setCustomGstInput(t);
+                                    setGstRate(parseFloat(t) || 0);
+                                  }}
+                                />
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#38bdf8' }}>% GST</Text>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Live Total Value Breakdown */}
+                          <View style={styles.totalBreakdownBox}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text style={{ fontSize: 10, color: '#94a3b8' }}>Base Subtotal:</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#cbd5e1' }}>
+                                ₹{pricing.baseTotalPrice.toLocaleString('en-IN')}
+                              </Text>
+                            </View>
+
+                            {pricing.gstRate > 0 && (
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                                <Text style={{ fontSize: 10, color: '#94a3b8' }}>GST ({pricing.gstRate}%):</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#38bdf8' }}>
+                                  +₹{pricing.gstAmount.toLocaleString('en-IN')}
+                                </Text>
+                              </View>
+                            )}
+
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#334155' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: '#ffffff' }}>Net Total:</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>
+                                ₹{pricing.finalTotalPrice.toLocaleString('en-IN')}
+                                {pricing.gstRate > 0 && (
+                                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '600' }}> (incl. {pricing.gstRate}% GST)</Text>
+                                )}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* 📲 WHATSAPP PRODUCT SHARE SECTION */}
+                          <View style={styles.waShareCard}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: '#22c55e' }}>
+                                💬 Share on WhatsApp
+                              </Text>
+                              {isProductWaShared ? (
+                                <View style={styles.sharedBadge}>
+                                  <Text style={styles.sharedBadgeText}>✓ Shared</Text>
+                                </View>
+                              ) : null}
+                            </View>
+
+                            <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 2 }}>Target WhatsApp Phone:</Text>
+                            <TextInput
+                              style={styles.waPhoneInput}
+                              placeholder="+91 98765 43210"
+                              placeholderTextColor="#64748b"
+                              keyboardType="phone-pad"
+                              value={productWaTargetPhone}
+                              onChangeText={setProductWaTargetPhone}
+                            />
+
+                            <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 6, marginBottom: 2 }}>Custom Remarks / Special Note (Optional):</Text>
+                            <TextInput
+                              style={styles.waNoteInput}
+                              placeholder="e.g. Valid until Friday, Includes 1-yr warranty..."
+                              placeholderTextColor="#64748b"
+                              value={productWaCustomNote}
+                              onChangeText={setProductWaCustomNote}
+                            />
+
+                            {/* Message Preview */}
+                            <View style={styles.waPreviewBox}>
+                              <Text style={{ fontSize: 8, fontWeight: '800', color: '#22c55e', textTransform: 'uppercase', marginBottom: 4 }}>
+                                Live WhatsApp Preview (Auto-Generated):
+                              </Text>
+                              <Text style={styles.waPreviewText} numberOfLines={7}>
+                                {generateProductWhatsAppMessage(productWaCustomNote)}
+                              </Text>
+                            </View>
+
+                            <TouchableOpacity
+                              style={styles.waShareBtn}
+                              onPress={handleShareProductViaWhatsApp}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.waShareBtnText}>📲 Send via WhatsApp Direct Now</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                    )}
+                      );
+                    })()}
                   </View>
                 )}
               </View>
@@ -713,6 +849,23 @@ const styles = StyleSheet.create({
   stepBtn: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center' },
   stepBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '900' },
   stepQtyText: { color: '#ffffff', fontSize: 12, fontWeight: '900', paddingHorizontal: 10 },
+
+  toggleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
+  checkboxBox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: '#475569', backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' },
+  checkboxBoxActive: { backgroundColor: '#10b981', borderColor: '#059669' },
+  checkboxCheck: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+  toggleLabel: { fontSize: 10, fontWeight: '700', color: '#cbd5e1' },
+
+  gstContainer: { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' },
+  gstLabel: { fontSize: 10, fontWeight: '800', color: '#38bdf8', marginBottom: 6 },
+  gstChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  gstChip: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  gstChipActive: { backgroundColor: '#10b981', borderColor: '#059669' },
+  gstChipText: { fontSize: 9, fontWeight: '700', color: '#cbd5e1' },
+  gstChipTextActive: { color: '#ffffff', fontWeight: '900' },
+  customGstInput: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, width: 70, color: '#ffffff', fontSize: 10 },
+
+  totalBreakdownBox: { backgroundColor: '#0f172a', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#1e293b', marginTop: 10 },
 
   waShareCard: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' },
   sharedBadge: { backgroundColor: 'rgba(34,197,94,0.2)', borderWidth: 1, borderColor: '#22c55e', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
