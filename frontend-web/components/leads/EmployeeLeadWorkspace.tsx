@@ -1798,9 +1798,30 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       priceBlock = `💰 *Estimated Total Value:* As discussed`;
     }
 
-    const desc = selectedProductObj?.description ? `\n\n📝 *Product Specifications & Details:*\n${selectedProductObj.description.trim()}` : '';
-    const repName = currentUser?.name || lead.owner || 'Sales Team';
-    const companyName = typeof lead.company === 'string' && lead.company !== '—' ? lead.company : 'DAS CRM';
+    // Resolve Real Company & Representative Name (Replacing demo references)
+    const repName = (currentUser?.name || currentUser?.fullName || lead.owner || 'Sales Executive').trim();
+    let rawCompany = (currentUser?.companyName || (currentUser as any)?.company?.name || (typeof lead.company === 'string' ? lead.company : '') || '').trim();
+    if (!rawCompany || rawCompany === '—' || rawCompany === 'Independent Business' || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedUser = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+          rawCompany = cachedUser.companyName || cachedUser.company || '';
+        } catch (_) {}
+      }
+    }
+    if (!rawCompany || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
+      rawCompany = 'Addroable';
+    }
+    const companyTeamLabel = rawCompany.toLowerCase().endsWith('team') ? `*${rawCompany}*` : `*${rawCompany} Team*`;
+
+    let cleanDescription = selectedProductObj?.description ? selectedProductObj.description.trim() : '';
+    if (cleanDescription) {
+      cleanDescription = cleanDescription
+        .replace(/DAS CRM Catalog/gi, `${rawCompany} Catalog`)
+        .replace(/DAS CRM/gi, rawCompany)
+        .replace(/DAS-CRM/gi, rawCompany);
+    }
+    const desc = cleanDescription ? `\n\n📝 *Product Specifications & Details:*\n${cleanDescription}` : '';
     const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
 
     return (
@@ -1813,8 +1834,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       priceBlock +
       desc +
       extraNote +
-      `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice.` +
-      `\n\nBest regards,\n*${repName}*\n${companyName}`
+      `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice. If you have any other requirements or need details on other products, please feel free to let us know!` +
+      `\n\nBest regards,\n*${repName}*\n${companyTeamLabel}`
     );
   };
 

@@ -31,6 +31,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOG_PRODUCTS, ProductItem } from '../services/whatsappTemplateEngine';
 import { productCatalogService } from '../services/productCatalogService';
+import { useAuthStore } from '../store/authStore';
 
 export interface CallOutcomeData {
   leadId: string;
@@ -105,6 +106,7 @@ export default function PostCallOutcomeModal({
 }: PostCallOutcomeModalProps) {
   const insets = useSafeAreaInsets();
   const next15Days = getNext15Days();
+  const { currentUser } = useAuthStore();
 
   // Modal Step State
   const [outcome, setOutcome] = useState<'PICKED_UP' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCHED_OFF' | 'WHATSAPP_CHAT' | null>('PICKED_UP');
@@ -238,7 +240,22 @@ export default function PostCallOutcomeModal({
       priceBlock = `💰 *Estimated Total Value:* *${baseTotalFormatted}*${discountStr}`;
     }
 
-    const desc = selectedProduct?.description ? `\n\n📝 *Product Specifications & Details:*\n${selectedProduct.description.trim()}` : '';
+    // Resolve Real Company & Representative Name (Replacing demo references)
+    const repName = (currentUser?.name || 'Sales Executive').trim();
+    let rawCompany = (currentUser?.companyName || 'Addroable').trim();
+    if (!rawCompany || rawCompany === '—' || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
+      rawCompany = 'Addroable';
+    }
+    const companyTeamLabel = rawCompany.toLowerCase().endsWith('team') ? `*${rawCompany}*` : `*${rawCompany} Team*`;
+
+    let cleanDescription = selectedProduct?.description ? selectedProduct.description.trim() : '';
+    if (cleanDescription) {
+      cleanDescription = cleanDescription
+        .replace(/DAS CRM Catalog/gi, `${rawCompany} Catalog`)
+        .replace(/DAS CRM/gi, rawCompany)
+        .replace(/DAS-CRM/gi, rawCompany);
+    }
+    const desc = cleanDescription ? `\n\n📝 *Product Specifications & Details:*\n${cleanDescription}` : '';
     const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
 
     return (
@@ -251,8 +268,8 @@ export default function PostCallOutcomeModal({
       priceBlock +
       desc +
       extraNote +
-      `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice.` +
-      `\n\nBest regards,\n*DAS CRM Team*`
+      `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice. If you have any other requirements or need details on other products, please feel free to let us know!` +
+      `\n\nBest regards,\n*${repName}*\n${companyTeamLabel}`
     );
   };
 
