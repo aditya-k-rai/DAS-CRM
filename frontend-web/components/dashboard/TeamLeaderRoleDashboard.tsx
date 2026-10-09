@@ -150,12 +150,12 @@ export function TeamLeaderRoleDashboard() {
               name: u.name,
               email: u.email,
               role: 'Sales Representative',
-              status: (idx % 3 === 0 ? 'ACTIVE' : idx % 3 === 1 ? 'MEETING' : 'FIELD') as any,
-              leadsAssigned: u.leads?.totalReceived || Math.floor(Math.random() * 8) + 6,
-              contactedCount: u.leads?.connected || Math.floor(Math.random() * 5) + 3,
-              dealsWon: u.leads?.won || Math.floor(Math.random() * 3) + 1,
-              revenueClosed: `₹${((u.leads?.won || idx + 2) * 125000).toLocaleString('en-IN')}`,
-              clockInTime: u.attendance?.todayInTime || '09:15 AM',
+              status: (u.attendance?.todayInTime ? 'ACTIVE' : 'FIELD') as any,
+              leadsAssigned: u.leads?.totalReceived || 0,
+              contactedCount: u.leads?.connected || 0,
+              dealsWon: u.leads?.won || 0,
+              revenueClosed: u.leads?.won ? `₹${(u.leads.won * 125000).toLocaleString('en-IN')}` : '₹0',
+              clockInTime: u.attendance?.todayInTime || '—',
               avatarBg: colors[idx % colors.length],
             }));
             setMembers(mappedMembers);
@@ -188,6 +188,33 @@ export function TeamLeaderRoleDashboard() {
         const leadsData = await leadsRes.json();
         const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
         
+        // Update member metrics with real lead counts from PostgreSQL
+        setMembers(prev => prev.map(m => {
+          const mLower = m.name.toLowerCase().trim();
+          const mLeads = items.filter((l: any) => {
+            const lOwnerId = String(l.ownerId || l.owner?.id || '');
+            const lOwnerName = (l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}` : '').toLowerCase();
+            return (m.id && lOwnerId === m.id) || (mLower && lOwnerName.includes(mLower));
+          });
+          const wonCount = mLeads.filter((l: any) => (l.status?.name || l.status || '').toUpperCase().includes('WON')).length;
+          const contactedCount = mLeads.filter((l: any) => {
+            const s = (l.status?.name || l.status || '').toUpperCase();
+            return s.includes('CONTACT') || s.includes('QUALIFIED') || s.includes('PROPOSAL') || s.includes('NEGOTIAT') || s.includes('WON');
+          }).length;
+          const totalRev = mLeads.reduce((acc: number, l: any) => {
+            const val = Number(l.customFields?.estimatedValue || l.estimatedValue || 0);
+            return (l.status?.name || l.status || '').toUpperCase().includes('WON') ? acc + val : acc;
+          }, 0);
+
+          return {
+            ...m,
+            leadsAssigned: mLeads.length,
+            contactedCount,
+            dealsWon: wonCount,
+            revenueClosed: totalRev > 0 ? `₹${totalRev.toLocaleString('en-IN')}` : wonCount > 0 ? `₹${(wonCount * 125000).toLocaleString('en-IN')}` : '₹0',
+          };
+        }));
+
         // 1. Team Leads (Assigned leads)
         const mappedLeads: TeamLead[] = items.slice(0, 50).map((l: any, idx: number) => {
           const norm = normalizeLead(l, idx);
