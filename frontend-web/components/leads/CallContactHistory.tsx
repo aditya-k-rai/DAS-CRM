@@ -5,7 +5,7 @@ import {
   Phone, PhoneOff, PhoneMissed, PhoneIncoming, MessageSquare,
   Mail, Clock, User, Mic, Calendar, ChevronDown, ChevronUp,
   Activity, TrendingUp, CheckCircle2, XCircle, AlertCircle,
-  Package, FileText, BarChart2, ArrowRight, Receipt, ExternalLink, Send
+  Package, FileText, BarChart2, ArrowRight, Receipt, ExternalLink, Send, Target
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -62,6 +62,8 @@ export interface ContactAttempt {
   durationSeconds?: number;      // Call duration in seconds
   notes?: string;                // What was discussed / outcome notes
   productInterest?: string;      // Product discussed
+  title?: string;                // Task / Follow-up title
+  purpose?: string;              // Task / Follow-up purpose
   followUpDate?: string;         // Scheduled callback date
   followUpTime?: string;
   sentMessage?: string;          // WA/Email message snippet
@@ -728,13 +730,25 @@ export function CallContactHistory({
 
                 // Fallback resolution for followUpDate and followUpTime if missing from direct attempt object
                 const resolvedFollowUpDate = attempt?.followUpDate || (() => {
-                  const match = (attempt?.notes || attempt?.sentMessage || '').match(/(?:Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+|due:\s*|on\s+)(\d{4}-\d{2}-\d{2})/i);
+                  const match = (attempt?.notes || attempt?.sentMessage || '').match(/(?:Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+|due:\s*|on\s+|to\s+)(\d{4}-\d{2}-\d{2})/i);
                   return match ? match[1] : undefined;
                 })();
 
                 const resolvedFollowUpTime = attempt?.followUpTime || (() => {
-                  const match = (attempt?.notes || attempt?.sentMessage || '').match(/(?:at\s+|time:\s*)(\d{1,2}:\d{2}(?:\s*[AP]M)?)/i);
+                  const match = (attempt?.notes || attempt?.sentMessage || '').match(/(?:at\s+|time:\s*|@\s*)(\d{1,2}:\d{2}(?:\s*[AP]M)?)/i);
                   return match ? match[1] : undefined;
+                })();
+
+                const resolvedFollowUpAction = attempt?.purpose || attempt?.title || (() => {
+                  const text = attempt?.notes || attempt?.sentMessage || '';
+                  const match = text.match(/(?:Follow-up created:\s*(?:📞|📅|🏢|🤝)?\s*|Follow-up scheduled:\s*|Follow-up rescheduled:\s*)([^:\n]+)/i);
+                  if (match && match[1]) {
+                    const clean = match[1].replace(/\s*\([^)]*\)\s*$/, '').trim();
+                    if (clean && !clean.toLowerCase().includes('follow-up created')) {
+                      return clean;
+                    }
+                  }
+                  return undefined;
                 })();
 
                 const isFollowUpAction = attempt?.type?.startsWith('FOLLOWUP_') || attempt?.outcome?.startsWith('FOLLOW_UP_') || isMeeting || Boolean(resolvedFollowUpDate);
@@ -910,14 +924,34 @@ export function CallContactHistory({
                                 🔄 Callback Rescheduled
                               </span>
                             )}
+                            {/* Product Discussed Badge */}
                             {Boolean(attempt.productInterest && typeof attempt.productInterest === 'string' && attempt.productInterest.trim()) && (
                               <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 flex items-center gap-1 shadow-sm">
                                 <Package size={9} className="text-emerald-400" /> {attempt.productInterest!.trim()}
                               </span>
                             )}
-                            {Boolean(resolvedFollowUpDate && attempt.type !== 'FOLLOWUP_SCHEDULED' && attempt.type !== 'FOLLOWUP_RESCHEDULED') && (
-                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/35 flex items-center gap-1 shadow-sm">
-                                <Clock size={9} className="text-sky-400" /> Follow-up: {resolvedFollowUpDate} {resolvedFollowUpTime ? `@ ${resolvedFollowUpTime}` : ''}
+
+                            {/* Action / Purpose Pill if no product badge */}
+                            {Boolean(resolvedFollowUpAction && (!attempt.productInterest || !attempt.productInterest.trim())) && (
+                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/35 flex items-center gap-1 shadow-sm">
+                                <Target size={9} className="text-indigo-400" /> {resolvedFollowUpAction}
+                              </span>
+                            )}
+
+                            {/* Scheduled Date & Time Pill Badge — "When to Connect" */}
+                            {Boolean(resolvedFollowUpDate) && (
+                              <span
+                                className="text-[9px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm"
+                                style={{
+                                  background: isMeeting ? 'rgba(168,85,247,0.15)' : 'rgba(14,165,233,0.15)',
+                                  color: isMeeting ? '#c084fc' : '#7dd3fc',
+                                  border: isMeeting ? '1px solid rgba(168,85,247,0.35)' : '1px solid rgba(14,165,233,0.35)',
+                                }}
+                              >
+                                <Clock size={9} className={isMeeting ? 'text-purple-400' : 'text-sky-400'} />
+                                <span>{isMeeting ? 'Meeting' : 'Follow-up'}:</span>
+                                <span className="font-black text-white">{resolvedFollowUpDate}</span>
+                                {resolvedFollowUpTime && <span className="font-bold text-sky-200">@{resolvedFollowUpTime}</span>}
                               </span>
                             )}
                             {attempt.durationSeconds !== undefined && attempt.durationSeconds > 0 && (

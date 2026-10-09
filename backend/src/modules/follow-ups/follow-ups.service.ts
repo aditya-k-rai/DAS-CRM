@@ -412,7 +412,17 @@ export class FollowUpsService {
           userId,
           leadId: validLeadId,
           description: `Follow-up created: ${dto.title.trim()} (${followUpType})`,
-          metadata: { followUpId: followUp.id, followUpType },
+          metadata: {
+            followUpId: followUp.id,
+            followUpType,
+            dueAt: dueAt ? dueAt.toISOString() : undefined,
+            followUpDate: dto.scheduledDate,
+            followUpTime: dto.scheduledTime,
+            title: dto.title.trim(),
+            purpose: dto.purpose,
+            notes: dto.notes,
+            priority,
+          },
         },
       }).catch(() => null);
     }
@@ -557,7 +567,10 @@ export class FollowUpsService {
           description: `Follow-up completed: ${existing.title}. Outcome: ${dto.outcome || 'N/A'}`,
           metadata: {
             followUpId: id,
+            title: existing.title,
+            purpose: existing.purpose,
             outcome: dto.outcome,
+            completionNotes: dto.completionNotes,
             nextAction: dto.nextAction,
           },
         },
@@ -658,8 +671,12 @@ export class FollowUpsService {
           description: `Follow-up rescheduled: ${existing.title} to ${dto.newDate}`,
           metadata: {
             followUpId: id,
+            title: existing.title,
+            purpose: existing.purpose,
             originalDate: existing.dueAt,
             newDate: newDueAt,
+            followUpDate: dto.newDate,
+            followUpTime: dto.newTime,
             reason: dto.reason,
           },
         },
@@ -717,6 +734,8 @@ export class FollowUpsService {
           description: `Follow-up cancelled: ${existing.title}. Reason: ${dto.reason || 'N/A'}`,
           metadata: {
             followUpId: id,
+            title: existing.title,
+            purpose: existing.purpose,
             cancelledBy: userId,
             reason: dto.reason,
           },

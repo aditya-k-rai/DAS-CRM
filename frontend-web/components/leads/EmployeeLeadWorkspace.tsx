@@ -124,6 +124,36 @@ function mapServerActivitiesToContactHistory(
   const seenIds = new Set<string>();
   const seenScheduledKeys = new Set<string>();
 
+  // Pre-index tasks map from PostgreSQL and localStorage so activities can resolve task metadata
+  const allTasksMap = new Map<string, any>();
+  if (Array.isArray(tasks)) {
+    for (const t of tasks) {
+      if (t && t.id) allTasksMap.set(String(t.id), t);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const cachedRaw = localStorage.getItem('das_crm_followup_tasks_cache');
+      if (cachedRaw) {
+        const cachedList = JSON.parse(cachedRaw);
+        if (Array.isArray(cachedList)) {
+          for (const item of cachedList) {
+            if (!item) continue;
+            const matchesLead =
+              (leadInfo.leadId && String(item.leadId) === String(leadInfo.leadId)) ||
+              (leadInfo.phone && item.leadPhone && item.leadPhone.replace(/\D/g, '') === leadInfo.phone.replace(/\D/g, '')) ||
+              (leadInfo.name && item.leadName && item.leadName.toLowerCase() === leadInfo.name.toLowerCase());
+            if (matchesLead && item.id) {
+              const existing = allTasksMap.get(String(item.id));
+              allTasksMap.set(String(item.id), { ...(existing || {}), ...item });
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   // 1. Process explicit Activity records from PostgreSQL
   if (Array.isArray(activities)) {
     for (const act of activities) {
@@ -311,6 +341,42 @@ function mapServerActivitiesToContactHistory(
           targetTimeStr = meta.followUpTime;
         }
 
+        // Cross-check with linked tasks if available
+        if (!targetDateStr && meta.followUpId && allTasksMap.has(String(meta.followUpId))) {
+          const t = allTasksMap.get(String(meta.followUpId));
+          if (t.dueAt) {
+            const td = new Date(t.dueAt);
+            if (!isNaN(td.getTime())) {
+              const pad = (n: number) => String(n).padStart(2, '0');
+              targetDateStr = `${td.getFullYear()}-${pad(td.getMonth() + 1)}-${pad(td.getDate())}`;
+              targetTimeStr = `${pad(td.getHours())}:${pad(td.getMinutes())}`;
+            }
+          }
+          if (t.scheduledDate) targetDateStr = t.scheduledDate;
+          if (t.scheduledTime) targetTimeStr = t.scheduledTime;
+        }
+
+        // Regex fallback from description (e.g. for "2026-10-10 at 10:30")
+        if (!targetDateStr && act.description) {
+          const dMatch = act.description.match(/(\d{4}-\d{2}-\d{2})/);
+          if (dMatch) targetDateStr = dMatch[1];
+          const tMatch = act.description.match(/(?:at\s+|time:\s*|@\s*)(\d{1,2}:\d{2}(?:\s*[ap]m)?)/i);
+          if (tMatch) targetTimeStr = tMatch[1];
+        }
+
+        // Extract product interest or follow-up action title from description or metadata
+        let productStr = meta.productInterest;
+        if (!productStr && act.description) {
+          const prodMatch = act.description.match(/\(([^)]+)\)/);
+          if (prodMatch && prodMatch[1] && !['call', 'whatsapp', 'email', 'task', 'meeting', 'general'].includes(prodMatch[1].toLowerCase())) {
+            productStr = prodMatch[1].trim();
+          }
+        }
+        if (!productStr && meta.title && meta.title.includes('(')) {
+          const titleMatch = meta.title.match(/\(([^)]+)\)/);
+          if (titleMatch && titleMatch[1]) productStr = titleMatch[1].trim();
+        }
+
         const isRescheduled = Boolean(
           (act.description && act.description.toLowerCase().includes('rescheduled')) ||
           meta.action === 'RESCHEDULED' ||
@@ -339,6 +405,9 @@ function mapServerActivitiesToContactHistory(
             byRole: cleanRole,
             timestamp: actTime,
             notes: act.description || `Follow-up rescheduled to ${targetDateStr || ''}`,
+            productInterest: productStr,
+            title: meta.title,
+            purpose: meta.purpose,
             followUpDate: targetDateStr,
             followUpTime: targetTimeStr,
             isRescheduled: true,
@@ -358,6 +427,9 @@ function mapServerActivitiesToContactHistory(
             byRole: cleanRole,
             timestamp: actTime,
             notes: act.description || 'Follow-up touchpoint completed',
+            productInterest: productStr,
+            title: meta.title,
+            purpose: meta.purpose,
             isCompleted: true,
             completedAt: actTime,
             completedByName: userName,
@@ -374,6 +446,8 @@ function mapServerActivitiesToContactHistory(
             byRole: cleanRole,
             timestamp: actTime,
             notes: act.description || 'Follow-up cancelled',
+            title: meta.title,
+            purpose: meta.purpose,
             isCancelled: true,
             cancelledAt: actTime,
             cancelledByName: userName,
@@ -385,11 +459,14 @@ function mapServerActivitiesToContactHistory(
             id: act.id,
             type: 'FOLLOWUP_SCHEDULED',
             outcome: 'FOLLOW_UP_SCHEDULED',
-            scheduledType: (meta.followUpType || 'CALL') as any,
+            scheduledType: (meta.followUpType || (act.description && act.description.toLowerCase().includes('meeting') ? 'MEETING' : 'CALL')) as any,
             by: userName,
             byRole: cleanRole,
             timestamp: actTime,
             notes: act.description || 'Follow-up touchpoint scheduled',
+            productInterest: productStr,
+            title: meta.title,
+            purpose: meta.purpose,
             followUpDate: targetDateStr,
             followUpTime: targetTimeStr,
           });
@@ -431,35 +508,6 @@ function mapServerActivitiesToContactHistory(
   }
 
   // 3. Process PostgreSQL Tasks & Local Follow-up Cache to ensure lifecycle sync
-  const allTasksMap = new Map<string, any>();
-  if (Array.isArray(tasks)) {
-    for (const t of tasks) {
-      if (t && t.id) allTasksMap.set(String(t.id), t);
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    try {
-      const cachedRaw = localStorage.getItem('das_crm_followup_tasks_cache');
-      if (cachedRaw) {
-        const cachedList = JSON.parse(cachedRaw);
-        if (Array.isArray(cachedList)) {
-          for (const item of cachedList) {
-            if (!item) continue;
-            const matchesLead =
-              (leadInfo.leadId && String(item.leadId) === String(leadInfo.leadId)) ||
-              (leadInfo.phone && item.leadPhone && item.leadPhone.replace(/\D/g, '') === leadInfo.phone.replace(/\D/g, '')) ||
-              (leadInfo.name && item.leadName && item.leadName.toLowerCase() === leadInfo.name.toLowerCase());
-            if (matchesLead && item.id) {
-              const existing = allTasksMap.get(String(item.id));
-              allTasksMap.set(String(item.id), { ...(existing || {}), ...item });
-            }
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
   const tasksList = Array.from(allTasksMap.values());
   for (const task of tasksList) {
     if (!task) continue;
@@ -613,6 +661,9 @@ function mapServerActivitiesToContactHistory(
             byRole: taskRole,
             timestamp: task.createdAt ? (typeof task.createdAt === 'string' ? task.createdAt : new Date(task.createdAt).toISOString()) : new Date().toISOString(),
             notes: task.purpose || task.description || task.title || 'Follow-up touchpoint scheduled',
+            productInterest: task.productInterest || (task.title && task.title.includes('(') ? task.title.match(/\(([^)]+)\)/)?.[1] : undefined),
+            title: task.title,
+            purpose: task.purpose,
             followUpDate: taskDateStr,
             followUpTime: taskTimeStr,
           });
