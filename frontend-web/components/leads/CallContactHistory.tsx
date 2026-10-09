@@ -528,6 +528,169 @@ interface CallContactHistoryProps {
   onOpenShareQuoteInvoice?: () => void;
 }
 
+// ─── Commercials & Product Interest Extraction Helper ─────────────────────────
+
+export interface InterestedCommercialItem {
+  id: string;
+  name: string;
+  quantity?: string;
+  price?: string;
+  discount?: string;
+  docType?: 'PRODUCT' | 'INVOICE' | 'QUOTATION';
+  docNo?: string;
+  docAmount?: number;
+  sharedAt: string;
+  sharedBy: string;
+  medium: string;
+  notes?: string;
+  sentMessage?: string;
+}
+
+export function extractInterestedCommercials(
+  history: ContactAttempt[] = [],
+  leadRequirement?: string
+): InterestedCommercialItem[] {
+  const items: InterestedCommercialItem[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const h of history) {
+    if (!h) continue;
+    const med = resolveAttemptMedium(h).label;
+    const rep = h.by || 'Sales Rep';
+    const ts = h.timestamp || new Date().toISOString();
+
+    // 1. Direct productInterest field from Call Funnel or WhatsApp
+    if (h.productInterest && typeof h.productInterest === 'string' && h.productInterest.trim() && h.productInterest !== '—') {
+      const raw = h.productInterest.trim();
+      const parts = raw.split(/;\s*|\n+/);
+      for (const part of parts) {
+        const clean = part.trim();
+        if (!clean || clean.length < 2) continue;
+        const key = `${clean.toLowerCase()}_${ts.slice(0, 13)}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+
+          const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
+          const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
+          const discMatch = clean.match(/\[([^\]]+)\]/);
+          const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+
+          items.push({
+            id: `prod_${h.id}_${items.length}`,
+            name: nameClean || clean,
+            quantity: qtyMatch ? qtyMatch[1].replace(/[()]/g, '').trim() : undefined,
+            price: priceMatch ? `₹${priceMatch[1]}` : undefined,
+            discount: discMatch ? discMatch[1].trim() : undefined,
+            docType: 'PRODUCT',
+            sharedAt: ts,
+            sharedBy: rep,
+            medium: med,
+            notes: h.notes,
+            sentMessage: h.sentMessage,
+          });
+        }
+      }
+    }
+
+    // 2. Extract from notes or sentMessage (e.g. WhatsApp Product Share / Proposals)
+    const fullText = `${h.notes || ''} ${h.sentMessage || ''}`;
+    if (
+      fullText.includes('Product details shared via WhatsApp:') ||
+      fullText.includes('Selected Products & Specifications:') ||
+      fullText.includes('Interested in')
+    ) {
+      const shareMatch = fullText.match(/Product details shared via WhatsApp:\s*([^;\n]+)/i);
+      if (shareMatch && shareMatch[1]) {
+        const clean = shareMatch[1].trim();
+        const key = `${clean.toLowerCase()}_${ts.slice(0, 13)}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
+          const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
+          const discMatch = clean.match(/\[([^\]]+)\]/);
+          const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+
+          items.push({
+            id: `prod_wa_${h.id}_${items.length}`,
+            name: nameClean || clean,
+            quantity: qtyMatch ? qtyMatch[1].replace(/[()]/g, '').trim() : undefined,
+            price: priceMatch ? `₹${priceMatch[1]}` : undefined,
+            discount: discMatch ? discMatch[1].trim() : undefined,
+            docType: 'PRODUCT',
+            sharedAt: ts,
+            sharedBy: rep,
+            medium: med,
+            notes: h.notes,
+            sentMessage: h.sentMessage,
+          });
+        }
+      }
+
+      const proposalMatches = Array.from(fullText.matchAll(/•\s*([^(\n]+)(?:\(Qty:\s*([^)]+)\))?(?:\s*@\s*([^=\n]+)\s*=\s*([^\n]+))?/gi));
+      for (const m of proposalMatches) {
+        const pName = m[1]?.trim();
+        if (pName && pName.length > 2 && !pName.toLowerCase().includes('http') && !pName.toLowerCase().includes('selected products')) {
+          const key = `${pName.toLowerCase()}_${ts.slice(0, 13)}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            items.push({
+              id: `prod_prop_${h.id}_${items.length}`,
+              name: pName,
+              quantity: m[2]?.trim(),
+              price: m[4]?.trim() || m[3]?.trim(),
+              docType: 'PRODUCT',
+              sharedAt: ts,
+              sharedBy: rep,
+              medium: med,
+              notes: h.notes,
+              sentMessage: h.sentMessage,
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Document / Invoice / Quotation tracking
+    const isInvoice = h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || (h.notes && /invoice/i.test(h.notes));
+    const isQuotation = h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || (h.notes && /quotation/i.test(h.notes));
+
+    if ((isInvoice || isQuotation || h.docNo) && (h.docNo || h.docAmount || isInvoice || isQuotation)) {
+      const docLabel = h.docNo ? `${isInvoice ? 'Tax Invoice' : 'Commercial Quotation'} (${h.docNo})` : (isInvoice ? 'Tax Invoice' : 'Commercial Quotation');
+      const key = `doc_${(h.docNo || docLabel).toLowerCase()}_${ts.slice(0, 13)}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        items.push({
+          id: `doc_${h.id}_${items.length}`,
+          name: docLabel,
+          docType: isInvoice ? 'INVOICE' : 'QUOTATION',
+          docNo: h.docNo,
+          docAmount: h.docAmount,
+          price: h.docAmount ? `₹${Number(h.docAmount).toLocaleString('en-IN')}` : undefined,
+          sharedAt: ts,
+          sharedBy: rep,
+          medium: med,
+          notes: h.notes,
+          sentMessage: h.sentMessage,
+        });
+      }
+    }
+  }
+
+  // Fallback to non-dummy leadRequirement if no items found in history
+  if (items.length === 0 && leadRequirement && leadRequirement !== '—' && !leadRequirement.toLowerCase().includes('enterprise') && !leadRequirement.toLowerCase().includes('das crm')) {
+    items.push({
+      id: 'req_lead',
+      name: leadRequirement,
+      docType: 'PRODUCT',
+      sharedAt: new Date().toISOString(),
+      sharedBy: 'Lead Requirement',
+      medium: 'Lead Requirement Profile',
+    });
+  }
+
+  return items;
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export function CallContactHistory({
@@ -542,6 +705,10 @@ export function CallContactHistory({
 
   // ── Clean & Deduplicate History Attempts ────────────────────────────────────
   const cleanHistory = deduplicateContactAttempts(history);
+
+  // ── Extract All Interested Products & Shared Commercials ─────────────────────
+  const interestedCommercials = extractInterestedCommercials(cleanHistory, interestedProduct);
+  const totalCommercialsCount = interestedCommercials.length;
 
   // ── Computed Stats ──────────────────────────────────────────────────────────
   const totalAttempts = cleanHistory.length;
@@ -579,14 +746,31 @@ export function CallContactHistory({
   const invoiceCount = cleanHistory.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes))).length;
   const totalTalkSecs = cleanHistory.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
   
-  // Resolve Interested Product / Service (from lead profile or logged history)
-  const displayProduct = (interestedProduct && interestedProduct !== '—' && interestedProduct.trim())
-    ? interestedProduct
-    : (cleanHistory.find(h => h.productInterest)?.productInterest || '—');
+  // Resolve Live Dynamic Interested Product Summary for Top Metric Card
+  const primaryCommercial = interestedCommercials[0];
+  const displayProduct = primaryCommercial
+    ? (primaryCommercial.quantity && primaryCommercial.price
+        ? `${primaryCommercial.name} (${primaryCommercial.quantity} · ${primaryCommercial.price})`
+        : totalCommercialsCount > 1
+        ? `${primaryCommercial.name} (+${totalCommercialsCount - 1} more)`
+        : primaryCommercial.name)
+    : (interestedProduct && interestedProduct !== '—' && !interestedProduct.toLowerCase().includes('enterprise')
+        ? interestedProduct
+        : 'No Products Yet');
 
   // ── Filter ──────────────────────────────────────────────────────────────────
   const filtered = filterType === 'ALL'
     ? cleanHistory
+    : filterType === 'INTERESTED_PRODUCTS'
+    ? cleanHistory.filter(h =>
+        Boolean(h.productInterest && h.productInterest !== '—') ||
+        h.type === 'QUOTATION' ||
+        h.type === 'INVOICE' ||
+        h.outcome === 'QUOTATION_SHARED' ||
+        h.outcome === 'INVOICE_SHARED' ||
+        Boolean(h.docNo) ||
+        Boolean(h.notes && /product|jacket|sku|quote|invoice|proposal|pricing|shared via whatsapp/i.test(h.notes))
+      )
     : filterType === 'MEETING'
     ? cleanHistory.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
     : filterType === 'CALLS'
@@ -630,6 +814,18 @@ export function CallContactHistory({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {totalCommercialsCount > 0 && (
+            <button
+              onClick={() => setFilterType(filterType === 'INTERESTED_PRODUCTS' ? 'ALL' : 'INTERESTED_PRODUCTS')}
+              className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm ${
+                filterType === 'INTERESTED_PRODUCTS'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                  : 'text-amber-300 bg-amber-500/15 border-amber-500/35 hover:bg-amber-500/25'
+              }`}
+            >
+              <span>📦</span> {totalCommercialsCount} Interested Product{totalCommercialsCount > 1 ? 's' : ''} / Invoice{totalCommercialsCount > 1 ? 's' : ''}
+            </button>
+          )}
           {quotationCount > 0 && (
             <span className="text-[11px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
               <span>📄</span> {quotationCount} Quotation{quotationCount > 1 ? 's' : ''}
@@ -668,16 +864,23 @@ export function CallContactHistory({
       {/* ── Stats Summary Grid ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {[
-          { label: 'Connected', value: connectedCalls, color: '#34d399', bg: 'rgba(52,211,153,0.12)', icon: <Phone size={13} /> },
-          { label: 'Missed/No Ans', value: missedOrNoAnswer, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', icon: <PhoneMissed size={13} /> },
-          { label: 'WhatsApp', value: waTotalCount, color: '#4ade80', bg: 'rgba(74,222,128,0.12)', icon: <MessageSquare size={13} /> },
-          { label: 'Email', value: emailTotalCount, color: '#818cf8', bg: 'rgba(129,140,248,0.12)', icon: <Mail size={13} /> },
-          { label: 'Talk Time', value: formatDuration(totalTalkSecs), color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', icon: <Mic size={13} /> },
-          { label: 'Interested Product / Service', value: displayProduct, color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <Package size={13} /> },
+          { label: 'Connected', value: connectedCalls, color: '#34d399', bg: 'rgba(52,211,153,0.12)', icon: <Phone size={13} />, key: 'CALLS' },
+          { label: 'Missed/No Ans', value: missedOrNoAnswer, color: '#ef4444', bg: 'rgba(239,68,68,0.12)', icon: <PhoneMissed size={13} />, key: 'CALL_BUSY' },
+          { label: 'WhatsApp', value: waTotalCount, color: '#4ade80', bg: 'rgba(74,222,128,0.12)', icon: <MessageSquare size={13} />, key: 'WHATSAPP_DIRECT' },
+          { label: 'Email', value: emailTotalCount, color: '#818cf8', bg: 'rgba(129,140,248,0.12)', icon: <Mail size={13} />, key: 'EMAIL_DIRECT' },
+          { label: 'Talk Time', value: formatDuration(totalTalkSecs), color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', icon: <Mic size={13} />, key: 'CALLS' },
+          { label: 'Interested Product / Service', value: displayProduct, color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <Package size={13} />, key: 'INTERESTED_PRODUCTS', isClickable: true },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="p-2.5 rounded-xl border text-center space-y-0.5 min-w-0 flex flex-col justify-between"
+            onClick={() => {
+              if (stat.key) {
+                setFilterType(filterType === stat.key ? 'ALL' : stat.key);
+              }
+            }}
+            className={`p-2.5 rounded-xl border text-center space-y-0.5 min-w-0 flex flex-col justify-between transition-all cursor-pointer ${
+              filterType === stat.key ? 'ring-2 ring-amber-400 shadow-md scale-[1.02]' : 'hover:border-slate-600'
+            }`}
             style={{ background: stat.bg, borderColor: stat.color + '40' }}
             title={typeof stat.value === 'string' ? stat.value : undefined}
           >
@@ -696,6 +899,7 @@ export function CallContactHistory({
       <div className="flex gap-2 flex-wrap">
         {[
           { key: 'ALL', label: `All (${totalAttempts})`, color: '#818cf8' },
+          { key: 'INTERESTED_PRODUCTS', label: `📦 Interested Products & Invoices (${totalCommercialsCount})`, color: '#f97316' },
           { key: 'MEETING', label: `🏢 Meetings (${meetingCount})`, color: '#c084fc' },
           { key: 'CALLS', label: `📞 Calls (${totalCalls})`, color: '#34d399' },
           { key: 'FOLLOW_UP', label: `⏱️ Follow-ups (${followUpCount})`, color: '#38bdf8' },
@@ -710,7 +914,7 @@ export function CallContactHistory({
           <button
             key={chip.key}
             onClick={() => setFilterType(chip.key)}
-            className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer"
+            className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5"
             style={{
               background: filterType === chip.key ? `${chip.color}25` : 'rgba(15,23,42,0.8)',
               borderColor: filterType === chip.key ? `${chip.color}60` : 'rgb(30,41,59)',
@@ -721,6 +925,97 @@ export function CallContactHistory({
           </button>
         ))}
       </div>
+
+      {/* ── Synced Interested Products & Shared Invoices Ledger Panel ────────────── */}
+      {(filterType === 'INTERESTED_PRODUCTS' || totalCommercialsCount > 0) && (
+        <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/25 via-slate-900/90 to-slate-950 border border-amber-500/35 space-y-3 shadow-lg animate-in fade-in duration-200">
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <Package size={16} />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>Synced Interested Products &amp; Shared Commercials</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {totalCommercialsCount} Item{totalCommercialsCount !== 1 ? 's' : ''} Synced
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Live timeline of all products, quantities, prices &amp; invoices shared across WhatsApp, phone calls, and email.
+                </p>
+              </div>
+            </div>
+
+            {onOpenShareQuoteInvoice && (
+              <button
+                onClick={onOpenShareQuoteInvoice}
+                className="text-xs font-bold text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <span>📄</span> + Share New Product / Invoice
+              </button>
+            )}
+          </div>
+
+          {/* Grid of Interested Products & Invoices */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+            {interestedCommercials.map((item, idx) => {
+              const { time, date } = formatTimestamp(item.sharedAt);
+              const isDoc = item.docType === 'INVOICE' || item.docType === 'QUOTATION';
+
+              return (
+                <div
+                  key={item.id || idx}
+                  className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 transition-all space-y-2 flex flex-col justify-between"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-lg">{isDoc ? (item.docType === 'INVOICE' ? '🧾' : '📄') : '📦'}</span>
+                      <div>
+                        <h5 className="text-xs font-extrabold text-white flex items-center gap-1.5 flex-wrap">
+                          <span>{item.name}</span>
+                          {item.quantity && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              Qty: {item.quantity}
+                            </span>
+                          )}
+                        </h5>
+                        {item.docNo && (
+                          <span className="text-[10px] text-amber-400 font-mono font-bold block mt-0.5">
+                            Doc Ref: {item.docNo}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.price && (
+                      <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                        {item.price}
+                      </span>
+                    )}
+                  </div>
+
+                  {item.discount && (
+                    <div className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                      🎉 {item.discount}
+                    </div>
+                  )}
+
+                  {/* Telemetry Footer */}
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex-wrap gap-1">
+                    <span className="flex items-center gap-1 text-slate-300">
+                      <User size={10} className="text-slate-400" /> {item.sharedBy}
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-300/90">
+                      <span>{item.medium}</span> • <span>{date} @ {time}</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Date-Grouped Timeline ──────────────────────────────────────────────── */}
       <div className="space-y-5">

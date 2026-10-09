@@ -272,6 +272,24 @@ function mapServerActivitiesToContactHistory(
           ? 'QUOTATION_SHARED'
           : ((meta.outcome || 'WA_SENT') as ContactOutcome);
 
+        // Extract product interest from metadata, description, or notes
+        let waProduct = meta.productInterest || meta.product || undefined;
+        if (!waProduct && (desc || rawNote)) {
+          const prodShareMatch = (desc || rawNote).match(/Product details shared via WhatsApp:\s*([^;\n]+)/i);
+          if (prodShareMatch && prodShareMatch[1]) {
+            waProduct = prodShareMatch[1].trim();
+          } else {
+            const intMatch = (desc || rawNote).match(/Interested in\s+([^\n.]+?)(?:\s*·|\s*$|\.)/i);
+            if (intMatch && intMatch[1]) {
+              waProduct = intMatch[1].trim();
+            }
+          }
+        }
+
+        const docNo = meta.docNo || meta.quoteNumber || meta.invoiceNo || (desc.match(/(?:Ref|Invoice Ref|Quote Ref|Document Ref):\s*([A-Z0-9_-]+)/i)?.[1]);
+        const docType = meta.docType || (isInvoiceDoc ? 'INVOICE' : isQuotationDoc ? 'QUOTATION' : undefined);
+        const docAmount = meta.docAmount || Number(meta.totalAmount) || undefined;
+
         attempts.push({
           id: act.id,
           type: isCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP',
@@ -282,6 +300,10 @@ function mapServerActivitiesToContactHistory(
           byRole: cleanRole,
           timestamp: actTime,
           notes: displayNote,
+          productInterest: waProduct,
+          docNo,
+          docType,
+          docAmount,
           sentMessage: meta.sentMessage || undefined,
           followUpDate: fuDate,
           followUpTime: fuTime,
@@ -3068,7 +3090,20 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       : (isScheduled && isMeeting ? 'Meeting Scheduled' : (isScheduled ? 'Follow-up Scheduled' : lead.status));
     const newStatus = shouldUpdateStatus ? effectiveTargetStatus : lead.status;
 
-    // 4. Record contact attempt
+    // 4. Resolve Active Product Interest from selected products or attached invoices
+    let activeProductInterest: string | undefined = undefined;
+    const selectedEntries = Object.entries(selectedProductQuantities).filter(([_, q]) => q > 0);
+    if (selectedEntries.length > 0) {
+      const pSummary = selectedEntries.map(([pId, qty]) => {
+        const prod = catalogProducts.find(p => p.id === pId);
+        return prod ? `${prod.name} (Qty: ${qty} ${prod.unit || 'Pcs'}) · ₹${(prod.price * qty).toLocaleString('en-IN')}` : `Product #${pId} (Qty: ${qty})`;
+      }).join('; ');
+      activeProductInterest = pSummary;
+    } else if (isInvoiceCategory && selectedInvoice) {
+      activeProductInterest = `${selectedInvoice.itemsSummary || 'Commercial Solutions'} (${selectedInvoice.quoteNumber || 'Invoice'})`;
+    }
+
+    // Record contact attempt
     const newContactAttempt: ContactAttempt = {
       id: `attempt_wa_${Date.now()}`,
       type: 'WHATSAPP',
@@ -3080,11 +3115,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       timestamp: new Date().toISOString(),
       notes: waDirectNotes ? `WhatsApp Direct (${effectiveTitle}): ${waDirectNotes}` : `WhatsApp Direct (${effectiveTitle})`,
       sentMessage: finalMsg,
+      productInterest: activeProductInterest,
       followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : undefined,
       followUpTime: isScheduled && meetingScheduledTime ? meetingScheduledTime : undefined,
       docType: isInvoiceCategory ? 'INVOICE' : isProposalCategory ? 'QUOTATION' : undefined,
       docNo: (isInvoiceCategory && selectedInvoice) ? (selectedInvoice.quoteNumber || selectedInvoice.id) : undefined,
-      docAmount: (isInvoiceCategory && selectedInvoice) ? selectedInvoice.totalAmount : undefined,
+      docAmount: (isInvoiceCategory && selectedInvoice) ? selectedInvoice.totalAmount : (isProposalCategory && proposalGrandTotal > 0 ? proposalGrandTotal : undefined),
     };
 
     // 4b. Sync Scheduled Meeting or Follow-up to CRM Follow-up Section (Like Call Funnel)
@@ -3108,15 +3144,16 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       } catch (_) {}
     }
 
-    // 5. Update lead status if selected status differs from current status (matching Call Funnel)
+    // 5. Update lead requirement and status if changed
     const effectiveLeadId = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
       ? lead.id
       : (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('das_crm_active_lead') || '{}').id || lead.id || '1') : (lead.id || '1'));
 
-    if (shouldUpdateStatus && effectiveTargetStatus !== lead.status) {
+    if (activeProductInterest || (shouldUpdateStatus && effectiveTargetStatus !== lead.status)) {
       setLead(prev => ({
         ...prev,
-        status: effectiveTargetStatus,
+        requirement: activeProductInterest || prev.requirement,
+        status: shouldUpdateStatus ? effectiveTargetStatus : prev.status,
         nextFollowUp: (isScheduled && meetingScheduledDate) ? `${meetingScheduledDate}T${meetingScheduledTime || '11:30'}:00` : prev.nextFollowUp,
         followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : prev.followUpDate,
         followUpTime: isScheduled && meetingScheduledTime ? meetingScheduledTime : prev.followUpTime,
@@ -3128,7 +3165,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           const updatedLead = {
             ...lead,
             id: effectiveLeadId,
-            status: effectiveTargetStatus,
+            requirement: activeProductInterest || lead.requirement,
+            status: shouldUpdateStatus ? effectiveTargetStatus : lead.status,
             lastActivityAt: new Date().toISOString(),
             nextFollowUp: (isScheduled && meetingScheduledDate) ? `${meetingScheduledDate}T${meetingScheduledTime || '11:30'}:00` : lead.nextFollowUp,
             followUpDate: isScheduled && meetingScheduledDate ? meetingScheduledDate : lead.followUpDate,
@@ -3143,7 +3181,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const allLeads = JSON.parse(allLeadsRaw);
             const updatedAll = allLeads.map((item: any) =>
               String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
-                ? { ...item, status: effectiveTargetStatus, stage: effectiveTargetStatus, lastActivityAt: new Date().toISOString() }
+                ? { ...item, ...updatedLead }
                 : item
             );
             localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
@@ -3154,7 +3192,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const dirLeads = JSON.parse(dirLeadsRaw);
             const updatedDir = dirLeads.map((item: any) =>
               String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
-                ? { ...item, status: effectiveTargetStatus, stage: effectiveTargetStatus, lastActivityAt: new Date().toISOString() }
+                ? { ...item, ...updatedLead }
                 : item
             );
             localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
@@ -3169,19 +3207,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         } catch (_) {}
       }
 
-      // Synchronize Status using dedicated backend status controller endpoint (matching Call Funnel)
-      apiFetch(`/leads/${effectiveLeadId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          statusId: effectiveTargetStatus,
-          notes: `WhatsApp Direct Outreach: ${effectiveTitle}. Notes: ${waDirectNotes || 'Status updated via WhatsApp Direct'}`,
-        }),
-      }).catch(() => {});
+      if (shouldUpdateStatus && effectiveTargetStatus !== lead.status) {
+        apiFetch(`/leads/${effectiveLeadId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            statusId: effectiveTargetStatus,
+            notes: `WhatsApp Direct Outreach: ${effectiveTitle}. Notes: ${waDirectNotes || 'Status updated via WhatsApp Direct'}`,
+          }),
+        }).catch(() => {});
+      }
 
       apiFetch(`/leads/${effectiveLeadId}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          status: effectiveTargetStatus,
+          requirement: activeProductInterest || lead.requirement,
+          status: shouldUpdateStatus ? effectiveTargetStatus : lead.status,
           lastActivityAt: new Date().toISOString(),
         }),
       }).catch(() => {});
@@ -3199,6 +3239,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           channel: 'WHATSAPP',
           type: newContactAttempt.type,
           outcome: newContactAttempt.outcome,
+          productInterest: activeProductInterest,
           scheduledType: newContactAttempt.scheduledType,
           followUpDate: newContactAttempt.followUpDate,
           followUpTime: newContactAttempt.followUpTime,
@@ -3206,6 +3247,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           template: effectiveTitle,
           status: newStatus,
           targetStatus: effectiveTargetStatus,
+          docType: newContactAttempt.docType,
+          docNo: newContactAttempt.docNo,
+          docAmount: newContactAttempt.docAmount,
           sentMessage: finalMsg,
           notes: newContactAttempt.notes,
           by: currentUser?.name || lead.owner,
