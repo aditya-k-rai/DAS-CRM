@@ -508,7 +508,23 @@ class OfflineSyncEngine {
       const raw = await AsyncStorage.getItem(CACHED_LEADS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const isMockLead = (l: any) => {
+            if (!l) return true;
+            const id = String(l.id || '');
+            const name = String(l.name || '').toLowerCase();
+            return (
+              id.startsWith('lead-10') ||
+              id === 'lead-1' ||
+              name.includes('anand mahindra') ||
+              name.includes('rajesh gopinathan') ||
+              name.includes('sunil mittal') ||
+              name.includes('karan adani') ||
+              name.includes('priya sharma')
+            );
+          };
+          return parsed.filter(l => !isMockLead(l));
+        }
       }
     } catch (_) {}
     return [];

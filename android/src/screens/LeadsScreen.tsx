@@ -23,6 +23,8 @@ import {
   Alert,
   ScrollView,
   Platform,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -127,7 +129,9 @@ export default function LeadsScreen() {
   // ── COLLECTIONS & SEARCH STATE ──────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL');
-  const [leadsList, setLeadsList] = useState<LeadItem[]>(FALLBACK_LEADS);
+  const [leadsList, setLeadsList] = useState<LeadItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const { managedUsers } = useModuleAccessStore();
 
@@ -188,13 +192,22 @@ export default function LeadsScreen() {
   const [filterDate, setFilterDate] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [configuredStatuses, setConfiguredStatuses] = useState<LeadStatusItem[]>(DEFAULT_ANDROID_STATUSES);
-  const [statusFilterOptions, setStatusFilterOptions] = useState<string[]>(['ALL', 'NEW LEAD', 'QUALIFIED', 'IN NEGOTIATION', 'WON']);
+  const [statusFilterOptions, setStatusFilterOptions] = useState<string[]>([
+    'ALL',
+    'NEW LEAD',
+    'CONTACTED',
+    'QUALIFIED',
+    'PROPOSAL',
+    'IN NEGOTIATION',
+    'WON',
+    'LOST',
+  ]);
 
   useEffect(() => {
     getStoredStatuses().then((list) => {
       if (list && list.length > 0) {
         setConfiguredStatuses(list);
-        setStatusFilterOptions(['ALL', ...list.map(s => s.name)]);
+        setStatusFilterOptions(['ALL', ...list.map(s => s.name.toUpperCase())]);
       }
     });
   }, []);
@@ -371,30 +384,39 @@ export default function LeadsScreen() {
 
   useEffect(() => {
     loadLeads();
-  }, []);
+  }, [token]);
 
-  const loadLeads = async () => {
-    const data = await apiService.getLeads(token || '');
-    if (data && data.length > 0) {
-      setLeadsList(data);
+  const loadLeads = async (isPullToRefresh = false) => {
+    if (isPullToRefresh) {
+      setRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    try {
+      const data = await apiService.getLeads(token || '');
+      setLeadsList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Failed to load leads:', err);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleCreateLead = () => {
+  const handleCreateLead = async () => {
     if (!newName.trim() || !newPhone.trim()) {
       Alert.alert('Missing Fields', 'Please fill in Name and Phone Number.');
       return;
     }
 
-    const newLead: LeadItem = {
-      id: 'lead-' + Date.now(),
+    const payload: Partial<LeadItem> = {
       name: newName.trim(),
       company: newCompany.trim() || 'Independent Prospect',
-      email: newEmail.trim() || 'No Email Provided',
+      email: newEmail.trim() || '',
       phone: newPhone.trim(),
       status: 'NEW LEAD',
       value: newValue.trim() ? (newValue.startsWith('₹') || newValue.startsWith('$') ? newValue : '₹' + newValue) : '₹0',
-      source: newSource,
+      source: newSource || 'Manual Entry',
       priority: 'Medium',
       assignedRep: 'Unassigned',
       city: '—',
@@ -403,20 +425,24 @@ export default function LeadsScreen() {
       callSyncStatus: 'Never',
     };
 
-    setLeadsList((prev) => [newLead, ...prev]);
+    const res = await apiService.createLead(token || '', payload);
+    if (res && res.lead) {
+      setLeadsList((prev) => [res.lead, ...prev.filter((l) => l.id !== res.lead.id)]);
+    }
     setInsertModalOpen(false);
     setNewName('');
     setNewCompany('');
     setNewEmail('');
     setNewPhone('');
     setNewValue('');
-    Alert.alert('Lead Created', `Added ${newLead.name} to workspace collection.`);
+    Alert.alert('Lead Created', `Added ${newName.trim()} to workspace collection.`);
   };
 
   const [rawCsvInput, setRawCsvInput] = useState('');
 
-  const handleSaveEditedLead = () => {
+  const handleSaveEditedLead = async () => {
     if (!editingLead) return;
+    await apiService.updateLead(token || '', editingLead.id, editingLead);
     setLeadsList((prev) => prev.map((l) => (l.id === editingLead.id ? editingLead : l)));
     setEditingLead(null);
     Alert.alert('Lead Updated', 'Successfully updated lead details.');
@@ -474,8 +500,9 @@ export default function LeadsScreen() {
     );
   };
 
-  const handleReassignLeadItem = (leadId: string, newAssignee: string) => {
+  const handleReassignLeadItem = async (leadId: string, newAssignee: string) => {
     setLeadsList(prev => prev.map(item => item.id === leadId ? { ...item, assignedRep: newAssignee } : item));
+    await apiService.updateLead(token || '', leadId, { assignedRep: newAssignee });
     Alert.alert('👤 Assignee Updated', `Lead successfully assigned to ${newAssignee}.`);
   };
 
@@ -497,18 +524,6 @@ export default function LeadsScreen() {
   };
 
   const filteredLeads = leadsList.filter((item) => {
-    // 🔒 Role-Based Data Isolation Scoping (Except Admin)
-    if (!userRole.includes('ADMIN')) {
-      if (userRole.includes('MANAGER')) {
-        if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase()) && !item.assignedRep.includes('Manager A')) return false;
-      } else if (userRole.includes('TL') || userRole.includes('LEADER')) {
-        if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase()) && !item.assignedRep.includes('TL A')) return false;
-      } else {
-        // Sales Rep: can ONLY see leads assigned to them
-        if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase())) return false;
-      }
-    }
-
     // 1. Person-Wise Filter (Assigned Rep)
     if (filterPerson !== 'ALL') {
       if (filterPerson === 'UNASSIGNED') {
@@ -1325,12 +1340,27 @@ export default function LeadsScreen() {
                     nestedScrollEnabled
                     style={styles.excelBodyList}
                     contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }}
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => loadLeads(true)}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
+                      />
+                    }
                   >
-                    {pagedLeads.length === 0 ? (
+                    {isLoading && leadsList.length === 0 ? (
+                      <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 45, width: '100%', minWidth: totalExcelWidth }}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: 10 }}>
+                          Syncing live workspace leads...
+                        </Text>
+                      </View>
+                    ) : pagedLeads.length === 0 ? (
                       <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 45, width: '100%', minWidth: totalExcelWidth }}>
                         <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>No leads found for this filter</Text>
-                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 3 }}>Try resetting person or status filters, or tap "+ New Lead"</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>No leads found in workspace</Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 3 }}>Try resetting filters, pull to refresh, or tap "+ New Lead"</Text>
                         <TouchableOpacity
                           style={{ marginTop: 12, backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
                           onPress={resetAllFilters}
@@ -1353,6 +1383,38 @@ export default function LeadsScreen() {
               data={pagedLeads}
               keyExtractor={(item) => item.id}
               contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => loadLeads(true)}
+                  colors={[colors.primary]}
+                  tintColor={colors.primary}
+                />
+              }
+              ListEmptyComponent={() => (
+                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 45, width: '100%' }}>
+                  {isLoading && leadsList.length === 0 ? (
+                    <>
+                      <ActivityIndicator size="large" color={colors.primary} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: 10 }}>
+                        Syncing live workspace leads...
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>No leads found in workspace</Text>
+                      <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 3 }}>Try resetting filters, pull to refresh, or tap "+ New Lead"</Text>
+                      <TouchableOpacity
+                        style={{ marginTop: 12, backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
+                        onPress={resetAllFilters}
+                      >
+                        <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>🔄 Reset All Filters</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              )}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[styles.leadCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}

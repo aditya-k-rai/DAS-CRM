@@ -107,158 +107,7 @@ export interface Employee {
   assignedManager?: string;
 }
 
-export const FALLBACK_LEADS: LeadItem[] = [
-  {
-    id: 'lead-101',
-    name: 'Anand Mahindra',
-    company: 'Mahindra Cleantech Ltd',
-    email: 'anand.m@mahindracleantech.com',
-    phone: '+91 98201 44521',
-    status: 'QUALIFIED',
-    value: '₹1,85,000',
-    source: 'Website Lead Form',
-    priority: 'High',
-    assignedRep: 'Nandini Rastogi',
-    city: 'Mumbai',
-    budget: '₹2,00,000',
-    requirement: 'Enterprise 500kW Rooftop Solar Installation & Grid Inverters',
-    callSyncStatus: 'Connected (4m 12s)',
-    aiScore: {
-      totalScore: 9.4,
-      tier: 'HOT',
-      budgetScore: 96,
-      intentScore: 92,
-      engagementScore: 94,
-      productFitScore: 95,
-      responseScore: 90,
-      analysisSummary: 'High budget enterprise intent with imminent close window this quarter.',
-      topFactors: ['High budget fit', 'Decision authority confirmed'],
-      recommendations: ['Schedule technical proposal review'],
-      lastCalculatedAt: '2026-03-28',
-    },
-    _synced: true,
-  },
-  {
-    id: 'lead-102',
-    name: 'Rajesh Gopinathan',
-    company: 'Tata Power Solar Systems',
-    email: 'rajesh.g@tatapower.com',
-    phone: '+91 98112 33490',
-    status: 'IN NEGOTIATION',
-    value: '₹3,40,000',
-    source: 'Google Ads Campaign',
-    priority: 'High',
-    assignedRep: 'Sulekha Tomar',
-    city: 'Bangalore',
-    budget: '₹3,50,000',
-    requirement: 'Commercial Lithium Battery Bank & Smart Biometric Terminals',
-    callSyncStatus: 'Connected (8m 45s)',
-    aiScore: {
-      totalScore: 8.8,
-      tier: 'HOT',
-      budgetScore: 90,
-      intentScore: 88,
-      engagementScore: 85,
-      productFitScore: 89,
-      responseScore: 86,
-      analysisSummary: 'Strong commercial viability with active negotiation on payment terms.',
-      topFactors: ['High urgency', 'Direct technical evaluation'],
-      recommendations: ['Send revised discounted quotation'],
-      lastCalculatedAt: '2026-03-29',
-    },
-    _synced: true,
-  },
-  {
-    id: 'lead-103',
-    name: 'Sunil Mittal',
-    company: 'Bharti Enterprises',
-    email: 'sunil.m@bharti.in',
-    phone: '+91 98450 11200',
-    status: 'NEW LEAD',
-    value: '₹95,000',
-    source: 'Inbound WhatsApp Inquiry',
-    priority: 'Medium',
-    assignedRep: 'Sadhana',
-    city: 'New Delhi',
-    budget: '₹1,00,000',
-    requirement: 'Cloud Telemetry Node & WhatsApp Business API Setup',
-    callSyncStatus: 'Never',
-    aiScore: {
-      totalScore: 7.6,
-      tier: 'WARM',
-      budgetScore: 78,
-      intentScore: 75,
-      engagementScore: 80,
-      productFitScore: 74,
-      responseScore: 72,
-      analysisSummary: 'Inbound request awaiting first discovery call from representative.',
-      topFactors: ['Organic inbound lead'],
-      recommendations: ['Initiate outbound discovery call'],
-      lastCalculatedAt: '2026-03-30',
-    },
-    _synced: true,
-  },
-  {
-    id: 'lead-104',
-    name: 'Karan Adani',
-    company: 'Adani Green Energy Ltd',
-    email: 'karan.a@adani.com',
-    phone: '+91 99099 88776',
-    status: 'WON',
-    value: '₹5,20,000',
-    source: 'Trade Expo Ingestion',
-    priority: 'High',
-    assignedRep: 'Nandini Rastogi',
-    city: 'Ahmedabad',
-    budget: '₹5,50,000',
-    requirement: '1MW Monocrystalline Solar Panels & 5-Year Maintenance Contract',
-    callSyncStatus: 'Connected (12m 30s)',
-    aiScore: {
-      totalScore: 9.9,
-      tier: 'HOT',
-      budgetScore: 100,
-      intentScore: 98,
-      engagementScore: 99,
-      productFitScore: 100,
-      responseScore: 96,
-      analysisSummary: 'Deal closed and won. Active implementation and SLA in progress.',
-      topFactors: ['Deal won successfully', 'Purchase order signed'],
-      recommendations: ['Dispatch onboarding invoice'],
-      lastCalculatedAt: '2026-03-25',
-    },
-    _synced: true,
-  },
-  {
-    id: 'lead-105',
-    name: 'Priya Sharma',
-    company: 'DLF CyberCity Estates',
-    email: 'priya.s@dlf.in',
-    phone: '+91 97110 55432',
-    status: 'NEW LEAD',
-    value: '₹1,20,000',
-    source: 'Meta Lead Gen Ads',
-    priority: 'Medium',
-    assignedRep: 'Unassigned',
-    city: 'Gurugram',
-    budget: '₹1,50,000',
-    requirement: 'Biometric Access Terminals & Staff Attendance Cloud Sync',
-    callSyncStatus: 'Never',
-    aiScore: {
-      totalScore: 7.2,
-      tier: 'WARM',
-      budgetScore: 75,
-      intentScore: 70,
-      engagementScore: 74,
-      productFitScore: 72,
-      responseScore: 68,
-      analysisSummary: 'Fresh lead from Meta campaign awaiting manager / TL allocation.',
-      topFactors: ['High budget capability'],
-      recommendations: ['Allocate lead to sales rep'],
-      lastCalculatedAt: '2026-03-30',
-    },
-    _synced: true,
-  },
-];
+export const FALLBACK_LEADS: LeadItem[] = [];
 
 
 
@@ -456,19 +305,42 @@ class ApiService {
 
   /** Fetch list of leads for active workspace (/leads) with cache-first offline support and smart conflict merge */
   async getLeads(token?: string | null): Promise<LeadItem[]> {
-    // 1. Immediately read cached leads for instant offline display
-    const cachedLeads: LeadItem[] = await offlineSyncEngine.getCachedLeads();
+    const isMockLead = (l: any) => {
+      if (!l) return true;
+      const id = String(l.id || '');
+      const name = String(l.name || '').toLowerCase();
+      return (
+        id.startsWith('lead-10') ||
+        id === 'lead-1' ||
+        name.includes('anand mahindra') ||
+        name.includes('rajesh gopinathan') ||
+        name.includes('sunil mittal') ||
+        name.includes('karan adani') ||
+        name.includes('priya sharma')
+      );
+    };
+
+    // 1. Immediately read cached leads and purge any legacy mock billionaire entries
+    const rawCachedLeads: LeadItem[] = await offlineSyncEngine.getCachedLeads();
+    const cachedLeads: LeadItem[] = (rawCachedLeads || []).filter((l) => !isMockLead(l));
+
+    let authToken = token;
+    if (!authToken) {
+      try {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
 
     try {
       const activeBase = getApiBase();
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      const res = await fetch(`${activeBase}/leads`, {
+      const res = await fetch(`${activeBase}/leads?limit=500`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         signal: controller.signal,
       });
@@ -476,58 +348,151 @@ class ApiService {
 
       if (res.ok) {
         const result = await res.json();
-        const rawList = Array.isArray(result) ? result : (result.data || []);
-        if (rawList.length > 0) {
-          const serverLeads: LeadItem[] = rawList.map((item: any) => ({
+        const rawList = Array.isArray(result) ? result : (result.data || result.leads || []);
+        
+        const serverLeads: LeadItem[] = (rawList || [])
+          .filter((item: any) => !isMockLead(item))
+          .map((item: any) => ({
             id: String(item.id),
             name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Lead',
-            company: item.companyName || item.company || '—',
-            email: item.email || 'No Email Provided',
+            company: (typeof item.company === 'object' ? item.company?.name : item.company) || item.companyName || '—',
+            email: item.email || '—',
             phone: item.phone || item.mobile || '—',
-            status: (item.stage || item.status || 'NEW LEAD').toUpperCase(),
-            value: item.estimatedValue ? `$${Number(item.estimatedValue).toLocaleString()}` : (item.value || '$5,000'),
-            source: item.source || 'Direct',
+            status: (typeof item.status === 'object' ? item.status?.name : (item.stage || item.status || 'NEW LEAD')).toUpperCase(),
+            value: item.estimatedValue
+              ? `₹${Number(item.estimatedValue).toLocaleString('en-IN')}`
+              : (item.value ? (String(item.value).startsWith('₹') ? item.value : `₹${item.value}`) : '₹0'),
+            source: (typeof item.source === 'object' ? item.source?.name : item.source) || 'Direct',
             priority: item.priority || 'Medium',
-            assignedRep: item.assignedRep || item.assignedTo || 'Unassigned',
-            city: item.city || '—',
-            budget: item.budget || '—',
-            requirement: item.requirement || '—',
-            callSyncStatus: item.callSyncStatus || 'Never',
+            assignedRep: item.owner
+              ? (typeof item.owner === 'object' ? `${item.owner.firstName || ''} ${item.owner.lastName || ''}`.trim() || item.owner.name : String(item.owner))
+              : (item.assignedRep || item.assignedTo || 'Unassigned'),
+            city: item.city || item.customFields?.city || '—',
+            budget: item.budget || item.customFields?.budget || '—',
+            requirement: item.requirement || item.customFields?.requirement || '—',
+            callSyncStatus: item.callSyncStatus || (Array.isArray(item.activities) && item.activities.length > 0 ? `Activity (${item.activities.length})` : 'Never'),
             aiScore: item.aiScore,
+            customFields: item.customFields,
             _synced: true,
             _isOfflineDraft: false,
             _updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
           }));
 
-          // Smart merge: Preserve any local offline drafts that haven't been pushed yet
-          const pendingDrafts = cachedLeads.filter(
-            (c) => c._isOfflineDraft || c.id.startsWith('lead-local-') || c._synced === false
-          );
+        // Smart merge: Preserve any local offline drafts that haven't been pushed yet
+        const pendingDrafts = cachedLeads.filter(
+          (c) => c._isOfflineDraft || c.id.startsWith('lead-local-') || c._synced === false
+        );
 
-          // For server leads that exist in cachedLeads, check if local has unsynced field updates
-          const mergedServerLeads = serverLeads.map((sLead) => {
-            const localVersion = cachedLeads.find((c) => c.id === sLead.id);
-            if (localVersion && localVersion._synced === false && (localVersion._updatedAt || 0) > (sLead._updatedAt || 0)) {
-              return { ...sLead, ...localVersion, _synced: false };
-            }
-            return sLead;
-          });
+        // For server leads that exist in cachedLeads, check if local has unsynced field updates
+        const mergedServerLeads = serverLeads.map((sLead) => {
+          const localVersion = cachedLeads.find((c) => c.id === sLead.id);
+          if (localVersion && localVersion._synced === false && (localVersion._updatedAt || 0) > (sLead._updatedAt || 0)) {
+            return { ...sLead, ...localVersion, _synced: false };
+          }
+          return sLead;
+        });
 
-          // Unique combined list with pending local drafts pinned at top
-          const serverIds = new Set(mergedServerLeads.map((l) => l.id));
-          const uniquePending = pendingDrafts.filter((d) => !serverIds.has(d.id));
-          const finalLeads = [...uniquePending, ...mergedServerLeads];
+        // Unique combined list with pending local drafts pinned at top
+        const serverIds = new Set(mergedServerLeads.map((l) => l.id));
+        const uniquePending = pendingDrafts.filter((d) => !serverIds.has(d.id));
+        const finalLeads = [...uniquePending, ...mergedServerLeads];
 
-          // Persist to local cache for instant future loads
-          await offlineSyncEngine.saveCachedLeads(finalLeads);
-          return finalLeads;
-        }
+        // Persist to local cache for instant future loads
+        await offlineSyncEngine.saveCachedLeads(finalLeads);
+        return finalLeads;
       }
     } catch {
-      // Backend unreachable or offline: gracefully return cache
+      // Backend unreachable or offline: gracefully return cached real leads
     }
 
-    return cachedLeads.length > 0 ? cachedLeads : FALLBACK_LEADS;
+    return cachedLeads;
+  }
+
+  /** Fetch a single lead by ID with backend API lookup and cache fallback */
+  async getLeadById(token: string | null, leadId: string): Promise<LeadItem | null> {
+    const cleanId = String(leadId || '').trim();
+    if (!cleanId) return null;
+
+    const isMockLead = (l: any) => {
+      if (!l) return true;
+      const id = String(l.id || '');
+      const name = String(l.name || '').toLowerCase();
+      return (
+        id.startsWith('lead-10') ||
+        id === 'lead-1' ||
+        name.includes('anand mahindra') ||
+        name.includes('rajesh gopinathan') ||
+        name.includes('sunil mittal') ||
+        name.includes('karan adani') ||
+        name.includes('priya sharma')
+      );
+    };
+
+    // 1. Check local cache
+    const rawCached = await offlineSyncEngine.getCachedLeads();
+    const cachedLeads = (rawCached || []).filter((l) => !isMockLead(l));
+    const cachedMatch = cachedLeads.find(
+      (l) => l.id === cleanId || l.name?.toLowerCase() === cleanId.toLowerCase()
+    );
+
+    let authToken = token;
+    if (!authToken) {
+      try {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
+
+    try {
+      const activeBase = getApiBase();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+      const res = await fetch(`${activeBase}/leads/${encodeURIComponent(cleanId)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const item = await res.json();
+        if (item && item.id) {
+          const mappedLead: LeadItem = {
+            id: String(item.id),
+            name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Lead',
+            company: (typeof item.company === 'object' ? item.company?.name : item.company) || item.companyName || '—',
+            email: item.email || '—',
+            phone: item.phone || item.mobile || '—',
+            status: (typeof item.status === 'object' ? item.status?.name : (item.stage || item.status || 'NEW LEAD')).toUpperCase(),
+            value: item.estimatedValue
+              ? `₹${Number(item.estimatedValue).toLocaleString('en-IN')}`
+              : (item.value ? (String(item.value).startsWith('₹') ? item.value : `₹${item.value}`) : '₹0'),
+            source: (typeof item.source === 'object' ? item.source?.name : item.source) || 'Direct',
+            priority: item.priority || 'Medium',
+            assignedRep: item.owner
+              ? (typeof item.owner === 'object' ? `${item.owner.firstName || ''} ${item.owner.lastName || ''}`.trim() || item.owner.name : String(item.owner))
+              : (item.assignedRep || item.assignedTo || 'Unassigned'),
+            city: item.city || item.customFields?.city || '—',
+            budget: item.budget || item.customFields?.budget || '—',
+            requirement: item.requirement || item.customFields?.requirement || '—',
+            callSyncStatus: item.callSyncStatus || (Array.isArray(item.activities) && item.activities.length > 0 ? `Activity (${item.activities.length})` : 'Never'),
+            aiScore: item.aiScore,
+            customFields: item.customFields,
+            _synced: true,
+            _isOfflineDraft: false,
+            _updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
+          };
+
+          await offlineSyncEngine.upsertCachedLead(mappedLead);
+          return mappedLead;
+        }
+      }
+    } catch (_) {}
+
+    return cachedMatch || null;
   }
 
   /** Create a new lead with optimistic local cache and offline queue */
@@ -564,19 +529,27 @@ class ApiService {
       stage: newLead.status,
       source: newLead.source,
       priority: newLead.priority,
-      estimatedValue: Number(newLead.value.replace(/[^0-9.]/g, '')) || 5000,
+      estimatedValue: Number(newLead.value.replace(/[^0-9.]/g, '')) || 0,
     };
 
-    // 2. If online and authenticated, push to backend
-    if (token) {
+    let authToken = token;
+    if (!authToken) {
       try {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
+
+    // 2. If online and authenticated, push to backend
+    if (authToken) {
+      try {
+        const activeBase = getApiBase();
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const res = await fetch(`${API_BASE}/leads`, {
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(`${activeBase}/leads`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify(payload),
           signal: controller.signal,
@@ -643,15 +616,23 @@ class ApiService {
       } : {}),
     };
 
-    if (token && !leadId.startsWith('lead-local-')) {
+    let authToken = token;
+    if (!authToken) {
       try {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
+
+    if (authToken && !leadId.startsWith('lead-local-')) {
+      try {
+        const activeBase = getApiBase();
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const res = await fetch(`${API_BASE}/leads/${leadId}`, {
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(`${activeBase}/leads/${encodeURIComponent(leadId)}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify(payload),
           signal: controller.signal,
@@ -677,7 +658,7 @@ class ApiService {
   }
 
   /** Update lead status with optimistic local cache and offline queue */
-  async updateLeadStatus(token: string | null, leadId: string, newStatus: string): Promise<boolean> {
+  async updateLeadStatus(token: string | null, leadId: string, newStatus: string, notes?: string): Promise<boolean> {
     const cachedLeads = await offlineSyncEngine.getCachedLeads();
     const existing = cachedLeads.find((l) => l.id === leadId);
     if (existing) {
@@ -687,17 +668,27 @@ class ApiService {
       await offlineSyncEngine.upsertCachedLead(existing, true);
     }
 
-    if (token && !leadId.startsWith('lead-local-')) {
+    let authToken = token;
+    if (!authToken) {
       try {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
+
+    const payload = { statusId: newStatus, status: newStatus, newStatus, notes };
+
+    if (authToken && !leadId.startsWith('lead-local-')) {
+      try {
+        const activeBase = getApiBase();
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const res = await fetch(`${API_BASE}/leads/${leadId}/status`, {
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(`${activeBase}/leads/${encodeURIComponent(leadId)}/status`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
-          body: JSON.stringify({ statusId: newStatus, status: newStatus }),
+          body: JSON.stringify(payload),
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
@@ -713,7 +704,7 @@ class ApiService {
       action: 'UPDATE_LEAD_STATUS',
       endpoint: `/leads/${leadId}/status`,
       method: 'PATCH',
-      payload: { statusId: newStatus, status: newStatus },
+      payload,
       entityId: leadId,
     });
 
@@ -724,13 +715,21 @@ class ApiService {
   async deleteLead(token: string | null, leadId: string): Promise<boolean> {
     await offlineSyncEngine.removeCachedLead(leadId);
 
-    if (token && !leadId.startsWith('lead-local-')) {
+    let authToken = token;
+    if (!authToken) {
       try {
-        const res = await fetch(`${API_BASE}/leads/${leadId}`, {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
+
+    if (authToken && !leadId.startsWith('lead-local-')) {
+      try {
+        const activeBase = getApiBase();
+        const res = await fetch(`${activeBase}/leads/${encodeURIComponent(leadId)}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
         });
         if (res.ok) return true;

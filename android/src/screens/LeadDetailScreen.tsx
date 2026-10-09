@@ -29,7 +29,7 @@ import { LeadsStackParamList } from '../../App';
 import { callSyncEngine, LeadCallSummary } from '../services/callSyncEngine';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
-import { apiService, FALLBACK_LEADS, AIScoreData } from '../services/apiService';
+import { apiService, LeadItem, AIScoreData } from '../services/apiService';
 import { AIScoreDetailModal } from '../components/AIScoreComponents';
 import {
   whatsappTemplateEngine,
@@ -77,20 +77,90 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     }
   } catch {}
 
-  const leadId = lead?.id || 'lead-1';
-  const leadName = lead?.name || 'Lead Details';
+  const leadId = String(lead?.id || 'lead-1');
+  const [leadData, setLeadData] = useState<LeadItem | null>(lead || null);
+  const [isLoadingLead, setIsLoadingLead] = useState<boolean>(true);
 
-  // Match lead from FALLBACK_LEADS by ID or name
-  const matchedLead = FALLBACK_LEADS.find(
-    (l) => (leadId && l.id === leadId) || (leadName && l.name.toLowerCase() === leadName.toLowerCase())
-  );
-
-  const leadPhone = lead?.phone || matchedLead?.phone || '';
-  const leadCompany = lead?.company || matchedLead?.company || '—';
-  const leadValue = lead?.value || matchedLead?.value || '₹0';
+  const leadName = leadData?.name || lead?.name || 'Lead Details';
+  const leadPhone = leadData?.phone || lead?.phone || '';
+  const leadCompany = leadData?.company || lead?.company || '—';
+  const leadValue = leadData?.value || lead?.value || '₹0';
+  const leadEmail = leadData?.email || lead?.email || '—';
+  const leadRequirement = leadData?.requirement || lead?.requirement || '—';
+  const leadBudget = leadData?.budget || lead?.budget || '—';
+  const leadCity = leadData?.city || lead?.city || '—';
 
   // Lead Assigned Rep State & Reassignment (TL + Sales Exec only)
-  const [leadAssignedRep, setLeadAssignedRep] = useState<string>(lead?.assignedRep || matchedLead?.assignedRep || 'Unassigned');
+  const [leadAssignedRep, setLeadAssignedRep] = useState<string>(leadData?.assignedRep || lead?.assignedRep || 'Unassigned');
+
+  // Dynamic Lead Status State
+  const [leadStatusState, setLeadStatusState] = useState<string>(leadData?.status || lead?.status || 'NEW LEAD');
+
+  // ⚡ Track Last Updated Status, Medium, and Timestamp
+  const [lastStatusUpdate, setLastStatusUpdate] = useState<{
+    status: string;
+    medium: string;
+    time: string;
+  }>({
+    status: leadData?.status || lead?.status || 'NEW LEAD',
+    medium: '—',
+    time: 'Never',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingLead(true);
+    apiService.getLeadById(token, leadId).then((fetched) => {
+      if (isMounted && fetched) {
+        setLeadData(fetched);
+        setLeadAssignedRep(fetched.assignedRep || 'Unassigned');
+        setLeadStatusState(fetched.status || 'NEW LEAD');
+        setLastStatusUpdate({
+          status: fetched.status || 'NEW LEAD',
+          medium: 'Database Synced',
+          time: 'Synced',
+        });
+      }
+      setIsLoadingLead(false);
+    }).catch(() => {
+      if (isMounted) setIsLoadingLead(false);
+    });
+
+    return () => { isMounted = false; };
+  }, [leadId, token]);
+
+  // Live Call Telemetry State
+  const [telemetry, setTelemetry] = useState<LeadCallSummary>({
+    lastCalledAt: 'Never',
+    connectionStatus: 'NONE',
+    lastDurationStr: '0s',
+    totalTalkTimeSeconds: 0,
+    incomingCount: 0,
+    outgoingCount: 0,
+    lastFollowupAt: 'Never',
+  });
+
+  const [hoursToMidnight, setHoursToMidnight] = useState(7);
+
+  // 📞 Post-Call Outcome & Status Modal State & History
+  const [postCallModalOpen, setPostCallModalOpen] = useState(false);
+  const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([]);
+
+  // 💬 WhatsApp Direct Engine State & Unified Dispatcher Workflow
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waCategory, setWaCategory] = useState<TemplateCategory>('OUTREACH');
+  const [waAttachmentMode, setWaAttachmentMode] = useState<'PRODUCT' | 'INVOICE'>('PRODUCT');
+  const [waCustomMode, setWaCustomMode] = useState(false);
+  const [waCustomTitle, setWaCustomTitle] = useState('Custom Lead Message');
+  const [waTargetStatus, setWaTargetStatus] = useState('Contacted');
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
+  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(DEFAULT_TEMPLATES[0]);
+  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(CATALOG_PRODUCTS[0]);
+  const [productQuantity, setProductQuantity] = useState<number>(1);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(SAMPLE_INVOICES[0]);
+  const [availableInvoices] = useState<InvoiceItem[]>(SAMPLE_INVOICES);
+  const [customMsgText, setCustomMsgText] = useState('');
+  const [saveCustomToLib, setSaveCustomToLib] = useState(true);
 
   const assignableRepOptions = React.useMemo(() => {
     const validUsers = (managedUsers || []).filter(u => isBatchAssignableRole(u.role));
@@ -101,7 +171,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         return `${u.name} (${tag})`;
       });
     }
-    return ['Team Leader A (TL)', 'Sales Rep 1 (Sales Exec)', 'Sales Rep 2 (Sales Exec)'];
+    return ['Sachin Puri (TL)', 'Nandini Rastogi (Sales Exec)', 'Sulekha Tomar (Sales Exec)', 'Sadhana (Sales Exec)'];
   }, [managedUsers]);
 
   const handleReassignLead = () => {
@@ -142,53 +212,6 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     );
   };
 
-  // Dynamic Lead Status State
-  const [leadStatusState, setLeadStatusState] = useState<string>(lead?.status || 'NEW LEAD');
-
-  // ⚡ Track Last Updated Status, Medium, and Timestamp
-  const [lastStatusUpdate, setLastStatusUpdate] = useState<{
-    status: string;
-    medium: string;
-    time: string;
-  }>({
-    status: lead?.status || matchedLead?.status || 'NEW LEAD',
-    medium: '—',
-    time: 'Never',
-  });
-
-  // Live Call Telemetry State
-  const [telemetry, setTelemetry] = useState<LeadCallSummary>({
-    lastCalledAt: 'Never',
-    connectionStatus: 'NONE',
-    lastDurationStr: '0s',
-    totalTalkTimeSeconds: 0,
-    incomingCount: 0,
-    outgoingCount: 0,
-    lastFollowupAt: 'Never',
-  });
-
-  const [hoursToMidnight, setHoursToMidnight] = useState(7);
-
-  // 📞 Post-Call Outcome & Status Modal State & History
-  const [postCallModalOpen, setPostCallModalOpen] = useState(false);
-  const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([]);
-
-  // 💬 WhatsApp Direct Engine State & Unified Dispatcher Workflow
-  const [waModalOpen, setWaModalOpen] = useState(false);
-  const [waCategory, setWaCategory] = useState<TemplateCategory>('OUTREACH');
-  const [waAttachmentMode, setWaAttachmentMode] = useState<'PRODUCT' | 'INVOICE'>('PRODUCT');
-  const [waCustomMode, setWaCustomMode] = useState(false);
-  const [waCustomTitle, setWaCustomTitle] = useState('Custom Lead Message');
-  const [waTargetStatus, setWaTargetStatus] = useState('Contacted');
-  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
-  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(DEFAULT_TEMPLATES[0]);
-  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(CATALOG_PRODUCTS[0]);
-  const [productQuantity, setProductQuantity] = useState<number>(1);
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(SAMPLE_INVOICES[0]);
-  const [availableInvoices] = useState<InvoiceItem[]>(SAMPLE_INVOICES);
-  const [customMsgText, setCustomMsgText] = useState('');
-  const [saveCustomToLib, setSaveCustomToLib] = useState(true);
-
   useEffect(() => {
     callSyncEngine.checkAndPurgeMidnightLogs();
     const secs = callSyncEngine.getSecondsUntilMidnight();
@@ -222,41 +245,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           durationStr: a.durationSeconds ? `${Math.floor(a.durationSeconds / 60)}m ${a.durationSeconds % 60}s` : '2m 15s',
           callerName: a.user?.name || a.performedBy || 'Sales Executive',
           callerRole: a.user?.role || 'SALES_EXEC',
-          dateLabel: a.createdAt ? new Date(a.createdAt).toLocaleDateString() : 'Yesterday',
-          timestamp: a.createdAt ? new Date(a.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '11:30 AM',
+          dateLabel: a.createdAt ? new Date(a.createdAt).toLocaleDateString() : 'Today',
+          timestamp: a.createdAt ? new Date(a.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
         }));
         setRecentOutcomes(mapped);
       } else {
-        setRecentOutcomes([
-          {
-            leadId,
-            leadName,
-            phone: leadPhone,
-            outcome: 'PICKED_UP',
-            subOption: 'TALKED',
-            notes: `Initial discovery call with ${leadName}. Discussed enterprise requirements and timeline.`,
-            durationStr: '4m 12s',
-            callerName: 'Nandini Rastogi',
-            callerRole: 'SALES_EXEC',
-            dateLabel: 'Yesterday',
-            timestamp: '03:45 PM',
-          },
-          {
-            leadId,
-            leadName,
-            phone: leadPhone,
-            outcome: 'WHATSAPP_CHAT',
-            subOption: 'CATALOGUE_SHARED',
-            notes: 'Product catalogue and technical specifications shared via WhatsApp Direct.',
-            callerName: 'Sachin Puri',
-            callerRole: 'TEAM_LEADER',
-            dateLabel: '2 days ago',
-            timestamp: '11:15 AM',
-          },
-        ]);
+        setRecentOutcomes([]);
       }
     });
-  }, []);
+  }, [leadId, token]);
 
 
   const handleBack = () => {
@@ -637,15 +634,13 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   // 🤖 AI Lead Score Modal & Full Breakdown Data
   const [aiScoreModalOpen, setAiScoreModalOpen] = useState(false);
 
-  const rawAiScore = lead?.score || lead?.aiScore?.totalScore || lead?.aiScore?.overall || matchedLead?.aiScore?.totalScore || 8.7;
+  const rawAiScore = leadData?.aiScore?.totalScore || (lead as any)?.aiScore?.totalScore || (lead as any)?.score || 8.7;
   const aiScoreDisplay = typeof rawAiScore === 'number' ? rawAiScore.toFixed(1) : String(rawAiScore);
 
   const aiScoreData: AIScoreData = React.useMemo(() => {
-    if (lead?.aiScore && typeof lead.aiScore === 'object' && 'totalScore' in lead.aiScore) {
-      return lead.aiScore as AIScoreData;
-    }
-    if (matchedLead?.aiScore) {
-      return matchedLead.aiScore;
+    const candidateScore = leadData?.aiScore || lead?.aiScore;
+    if (candidateScore && typeof candidateScore === 'object' && 'totalScore' in candidateScore) {
+      return candidateScore as AIScoreData;
     }
     const scoreNum = typeof rawAiScore === 'number' ? rawAiScore : 8.7;
     return {
@@ -662,7 +657,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       recommendations: ['Schedule follow-up call today', 'Share enterprise case studies'],
       lastCalculatedAt: new Date().toISOString(),
     };
-  }, [lead, matchedLead, rawAiScore]);
+  }, [lead, leadData, rawAiScore]);
 
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
