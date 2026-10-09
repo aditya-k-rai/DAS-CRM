@@ -16,6 +16,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ModuleKey } from '../types/moduleTypes';
+import { getApiBase } from '../config/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,14 @@ export const isRoleDefaultModule = (role: UserRole, key: ModuleKey): boolean =>
 export const STORAGE_KEY = '@das_crm_module_policies_v1';
 export const USERS_CACHE_KEY = '@das_crm_managed_users_cache_v1';
 
+const getNormalizedKeys = (key: string): string[] => {
+  if (key === 'FOLLOW_UPS' || key === 'TASKS') return ['FOLLOW_UPS', 'TASKS'];
+  if (key === 'COMMUNICATIONS' || key === 'COMMS') return ['COMMUNICATIONS', 'COMMS'];
+  if (key === 'QUOTES' || key === 'QUOTATIONS') return ['QUOTES', 'QUOTATIONS'];
+  if (key === 'LEAD_ASSIGNMENT' || key === 'DISTRIBUTION') return ['LEAD_ASSIGNMENT', 'DISTRIBUTION'];
+  return [key];
+};
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 interface ModuleAccessState {
@@ -90,7 +99,8 @@ interface ModuleAccessState {
   isHydrated: boolean;
 
   // Actions
-  hydrate: () => Promise<void>;
+  hydrate: (compId?: string, token?: string) => Promise<void>;
+  syncWithServer: (compId?: string, token?: string) => Promise<void>;
   getPermission: (userId: string, role: UserRole, moduleKey: ModuleKey, userEmail?: string) => ModulePermission;
   setPermission: (userId: string, moduleKey: ModuleKey, perm: Partial<ModulePermission>, userEmail?: string) => Promise<void>;
   setPolicies: (policies: Record<PolicyKey, ModulePermission>) => Promise<void>;
@@ -105,7 +115,7 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
   managedUsers: [],
   isHydrated: false,
 
-  hydrate: async () => {
+  hydrate: async (compId?: string, token?: string) => {
     try {
       const [rawPolicies, rawUsers] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY),
@@ -117,6 +127,41 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
     } catch {
       set({ isHydrated: true });
     }
+
+    if (compId || token) {
+      get().syncWithServer(compId, token).catch(() => null);
+    }
+  },
+
+  syncWithServer: async (compId?: string, token?: string) => {
+    try {
+      const apiBase = getApiBase();
+      let cleanOrgId = compId || '';
+      if (cleanOrgId === 'comp_das' || cleanOrgId === 'comp_default' || cleanOrgId === 'platform_system') {
+        cleanOrgId = '';
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(cleanOrgId ? { 'x-organization-id': cleanOrgId } : {}),
+      };
+
+      const fetchUrl = cleanOrgId
+        ? `${apiBase}/users/module-policies?organizationId=${cleanOrgId}`
+        : `${apiBase}/users/module-policies`;
+
+      const res = await fetch(fetchUrl, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.policies && Object.keys(data.policies).length > 0) {
+          const current = get().policies;
+          const merged = { ...current, ...data.policies };
+          set({ policies: merged });
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        }
+      }
+    } catch (_) {}
   },
 
   getPermission: (userId, role, moduleKey, userEmail) => {
@@ -133,16 +178,21 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
     }
 
     const { policies } = get();
-    const key: PolicyKey = `${userId}:${moduleKey}`;
-    if (policies[key] !== undefined) return policies[key];
+    const keysToCheck = getNormalizedKeys(moduleKey);
 
-    if (userEmail) {
-      const emailKey: PolicyKey = `${userEmail.toLowerCase().trim()}:${moduleKey}`;
-      if (policies[emailKey] !== undefined) return policies[emailKey];
+    for (const k of keysToCheck) {
+      const key: PolicyKey = `${userId}:${k}`;
+      if (policies[key] !== undefined) return policies[key];
+
+      if (userEmail) {
+        const emailKey: PolicyKey = `${userEmail.toLowerCase().trim()}:${k}`;
+        if (policies[emailKey] !== undefined) return policies[emailKey];
+      }
     }
 
     // Fresh user without explicit override: ONLY access role's default modules!
-    const isDefault = (DEFAULT_MODULE_KEYS_BY_ROLE[role] ?? []).includes(moduleKey);
+    const defaultList = DEFAULT_MODULE_KEYS_BY_ROLE[role] ?? [];
+    const isDefault = keysToCheck.some((k) => defaultList.includes(k as ModuleKey));
     return {
       active: isDefault,
       canView: isDefault,

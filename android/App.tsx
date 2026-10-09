@@ -248,6 +248,14 @@ function MainTabNavigator({
   const { currentUser } = useAuthStore();
   const { colors, isDark, theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
+  const { getPermission } = useModuleAccessStore();
+
+  const userId = currentUser?.id || '';
+  const rawRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+  const userRole = (rawRole === 'SUPER_ADMIN' ? 'ADMIN' : rawRole) as import('./src/store/moduleAccessStore').UserRole;
+  const userEmail = currentUser?.email;
+  const isAdmin = userRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole.includes('ADMIN');
+
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
   const topPadding = Math.max(insets.top, 12);
 
@@ -292,11 +300,19 @@ function MainTabNavigator({
 
       <Tab.Navigator
         tabBar={(props) => {
-          const isSalesExec = (currentUser?.role || '').toUpperCase() === 'SALES_EXEC';
           const filteredRoutes = props.state.routes.filter((r) => {
             if (isUnassigned) return r.name === 'Home';
             if (r.name === 'WorkflowBuilder') return false;
-            if (r.name === 'Employees' && isSalesExec) return false;
+            if (r.name === 'Home' || r.name === 'Menu') return true;
+            if (r.name === 'Leads') {
+              return isAdmin || getPermission(userId, userRole, 'LEADS', userEmail).active;
+            }
+            if (r.name === 'Employees') {
+              return isAdmin || getPermission(userId, userRole, 'EMPLOYEES', userEmail).active;
+            }
+            if (r.name === 'Attendance') {
+              return isAdmin || getPermission(userId, userRole, 'ATTENDANCE', userEmail).active;
+            }
             return true;
           });
           const currentRoute = props.state.routes[props.state.index];
@@ -496,11 +512,11 @@ function RootAppContent() {
     }
   }, [token]);
 
-  // 🛡️ Hydrate module access store (Admin Control Center permissions) on startup
+  // 🛡️ Hydrate module access store (Admin Control Center permissions) on startup & sync with server
   const hydrateModuleAccess = useModuleAccessStore((s) => s.hydrate);
   useEffect(() => {
-    hydrateModuleAccess();
-  }, []);
+    hydrateModuleAccess(currentUser?.companyId, token || undefined);
+  }, [currentUser?.companyId, token]);
 
   /**
    * Forces the user back to the LoginScreen by clearing the persisted

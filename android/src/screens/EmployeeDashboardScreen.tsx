@@ -144,8 +144,20 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const userId = currentUser?.id || '';
   const rawRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const userRole = (rawRole === 'SUPER_ADMIN' ? 'ADMIN' : rawRole) as import('../store/moduleAccessStore').UserRole;
-  const productsPerm = accessStore.getPermission(userId, userRole, 'PRODUCTS');
-  const pdfPerm = accessStore.getPermission(userId, userRole, 'PDF_CATALOG');
+  const userEmail = currentUser?.email;
+
+  const leadsPerm = accessStore.getPermission(userId, userRole, 'LEADS', userEmail);
+  const tasksPerm = accessStore.getPermission(userId, userRole, 'TASKS', userEmail);
+  const followUpsPerm = accessStore.getPermission(userId, userRole, 'FOLLOW_UPS', userEmail);
+  const hasTasksAccess = tasksPerm.active || followUpsPerm.active;
+  const goalsPerm = accessStore.getPermission(userId, userRole, 'GOALS', userEmail);
+  const reportsPerm = accessStore.getPermission(userId, userRole, 'REPORTS', userEmail);
+  const hasGoalsAccess = goalsPerm.active || reportsPerm.active;
+  const dealsPerm = accessStore.getPermission(userId, userRole, 'DEALS', userEmail);
+  const attendancePerm = accessStore.getPermission(userId, userRole, 'ATTENDANCE', userEmail);
+  const noticePerm = accessStore.getPermission(userId, userRole, 'UPCOMING_COMMS', userEmail);
+  const productsPerm = accessStore.getPermission(userId, userRole, 'PRODUCTS', userEmail);
+  const pdfPerm = accessStore.getPermission(userId, userRole, 'PDF_CATALOG', userEmail);
 
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Sales Rep';
 
@@ -518,501 +530,520 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         </View>
 
         {/* ── 2. My Leads Overview ──────────────────────────────────────────── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>🎯 My Leads Overview</Text>
-          <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All ({scopedLeads.length}) →</Text>
-          </TouchableOpacity>
-        </View>
+        {leadsPerm.active && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>🎯 My Leads Overview</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All ({scopedLeads.length}) →</Text>
+              </TouchableOpacity>
+            </View>
 
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(99,102,241,0.3)' }]}>
-            <Text style={[styles.statVal, { color: colors.text }]}>{scopedLeads.length}</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Total Leads</Text>
-            <Text style={[styles.statSub, { color: '#818cf8' }]}>Scoped</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(16,185,129,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#34d399' }]}>{newLeads.length}</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>New Leads</Text>
-            <Text style={[styles.statSub, { color: '#34d399' }]}>Action due</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(56,189,248,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{contactedLeads.length}</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Contacted</Text>
-            <Text style={[styles.statSub, { color: '#38bdf8' }]}>In outreach</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(168,85,247,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>{wonLeads.length}</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Won Deals</Text>
-            <Text style={[styles.statSub, { color: '#c084fc' }]}>Closed</Text>
-          </View>
-        </View>
+            <View style={styles.statsGrid}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(99,102,241,0.3)' }]}>
+                <Text style={[styles.statVal, { color: colors.text }]}>{scopedLeads.length}</Text>
+                <Text style={[styles.statLbl, { color: colors.textMuted }]}>Total Leads</Text>
+                <Text style={[styles.statSub, { color: '#818cf8' }]}>Scoped</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(16,185,129,0.3)' }]}>
+                <Text style={[styles.statVal, { color: '#34d399' }]}>{newLeads.length}</Text>
+                <Text style={[styles.statLbl, { color: colors.textMuted }]}>New Leads</Text>
+                <Text style={[styles.statSub, { color: '#34d399' }]}>Action due</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(56,189,248,0.3)' }]}>
+                <Text style={[styles.statVal, { color: '#38bdf8' }]}>{contactedLeads.length}</Text>
+                <Text style={[styles.statLbl, { color: colors.textMuted }]}>Contacted</Text>
+                <Text style={[styles.statSub, { color: '#38bdf8' }]}>In outreach</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(168,85,247,0.3)' }]}>
+                <Text style={[styles.statVal, { color: '#c084fc' }]}>{wonLeads.length}</Text>
+                <Text style={[styles.statLbl, { color: colors.textMuted }]}>Won Deals</Text>
+                <Text style={[styles.statSub, { color: '#c084fc' }]}>Closed</Text>
+              </View>
+            </View>
 
-        {/* ── 3. New Leads Cards (Direct Outreach Actions) ───────────────────── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>🌱 New Leads</Text>
-          <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All New Leads →</Text>
-          </TouchableOpacity>
-        </View>
+            {/* ── 3. New Leads Cards (Direct Outreach Actions) ───────────────────── */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>🌱 New Leads</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All New Leads →</Text>
+              </TouchableOpacity>
+            </View>
 
-        {newLeads.length === 0 ? (
-          <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 18 }]}>
-            <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic' }}>
-              No pending new leads. Great job on clearing outreach!
-            </Text>
-          </View>
-        ) : (
-          <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
-            {newLeads.slice(0, 3).map((lead, idx) => {
-              const name = lead.name || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || `Lead #${idx + 1}`;
-              const phone = lead.phone || '9876543210';
-              const company = lead.company || lead.organization || 'Direct Buyer';
-              return (
-                <View
-                  key={lead.id || idx}
-                  style={[styles.leadActionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                      <View style={[styles.leadAvatarCircle, { backgroundColor: 'rgba(16,185,129,0.2)' }]}>
-                        <Text style={{ color: '#34d399', fontWeight: '900', fontSize: 12 }}>
-                          {name.slice(0, 2).toUpperCase()}
-                        </Text>
+            {newLeads.length === 0 ? (
+              <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 18 }]}>
+                <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic' }}>
+                  No pending new leads. Great job on clearing outreach!
+                </Text>
+              </View>
+            ) : (
+              <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
+                {newLeads.slice(0, 3).map((lead, idx) => {
+                  const name = lead.name || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || `Lead #${idx + 1}`;
+                  const phone = lead.phone || '9876543210';
+                  const company = lead.company || lead.organization || 'Direct Buyer';
+                  return (
+                    <View
+                      key={lead.id || idx}
+                      style={[styles.leadActionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                          <View style={[styles.leadAvatarCircle, { backgroundColor: 'rgba(16,185,129,0.2)' }]}>
+                            <Text style={{ color: '#34d399', fontWeight: '900', fontSize: 12 }}>
+                              {name.slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <TouchableOpacity onPress={() => handleOpenLead(String(lead.id))}>
+                              <Text style={[styles.leadCardName, { color: colors.text }]} numberOfLines={1}>
+                                {name} ↗
+                              </Text>
+                            </TouchableOpacity>
+                            <Text style={[styles.leadCardSub, { color: colors.textMuted }]} numberOfLines={1}>
+                              🏢 {company} · 📞 {phone}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={[styles.newBadge, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)' }]}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>NEW</Text>
+                        </View>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <TouchableOpacity onPress={() => handleOpenLead(String(lead.id))}>
-                          <Text style={[styles.leadCardName, { color: colors.text }]} numberOfLines={1}>
-                            {name} ↗
-                          </Text>
+
+                      {/* Actions Row */}
+                      <View style={styles.leadButtonsRow}>
+                        <TouchableOpacity
+                          style={[styles.leadBtnCall, { backgroundColor: '#10b981' }]}
+                          onPress={() => handleDial({ id: String(lead.id), name, phone })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.leadBtnText}>📞 Call Lead</Text>
                         </TouchableOpacity>
-                        <Text style={[styles.leadCardSub, { color: colors.textMuted }]} numberOfLines={1}>
-                          🏢 {company} · 📞 {phone}
-                        </Text>
+                        <TouchableOpacity
+                          style={[styles.leadBtnWa, { backgroundColor: '#25D366' }]}
+                          onPress={() => handleWhatsApp(phone, name)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.leadBtnText}>💬 WhatsApp</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.leadBtnDetails, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                          onPress={() => handleOpenLead(String(lead.id))}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.leadBtnDetailsText, { color: colors.text }]}>Details</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
-                    <View style={[styles.newBadge, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)' }]}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>NEW</Text>
-                    </View>
-                  </View>
-
-                  {/* Actions Row */}
-                  <View style={styles.leadButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.leadBtnCall, { backgroundColor: '#10b981' }]}
-                      onPress={() => handleDial({ id: String(lead.id), name, phone })}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.leadBtnText}>📞 Call Lead</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.leadBtnWa, { backgroundColor: '#25D366' }]}
-                      onPress={() => handleWhatsApp(phone, name)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.leadBtnText}>💬 WhatsApp</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.leadBtnDetails, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-                      onPress={() => handleOpenLead(String(lead.id))}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.leadBtnDetailsText, { color: colors.text }]}>Details</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
         )}
 
         {/* ── 4. Follow-ups Due Today ───────────────────────────────────────── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Follow-up Hub →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {hasTasksAccess && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Follow-up Hub →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
-            {(['ALL', 'DUE', 'OVERDUE', 'COMPLETED'] as const).map((filterKey) => (
-              <TouchableOpacity
-                key={filterKey}
-                style={[
-                  styles.filterTag,
-                  { backgroundColor: colors.cardBgElevated },
-                  followUpFilter === filterKey && { backgroundColor: colors.primary },
-                ]}
-                onPress={() => setFollowUpFilter(filterKey)}
-              >
-                <Text style={[styles.filterTagText, followUpFilter === filterKey ? { color: '#fff', fontWeight: '900' } : { color: colors.textMuted }]}>
-                  {filterKey}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {followUps.length === 0 ? (
-            <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 10 }}>
-              No follow-ups recorded for this selection.
-            </Text>
-          ) : (
-            followUps
-              .filter((fu) => {
-                if (followUpFilter === 'DUE') return !fu.isCompleted && !fu.isOverdue;
-                if (followUpFilter === 'OVERDUE') return fu.isOverdue;
-                if (followUpFilter === 'COMPLETED') return fu.isCompleted;
-                return true;
-              })
-              .map((fu, idx) => (
-                <View
-                  key={fu.id}
-                  style={[
-                    styles.followupRow,
-                    idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
-                  ]}
-                >
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
+                {(['ALL', 'DUE', 'OVERDUE', 'COMPLETED'] as const).map((filterKey) => (
                   <TouchableOpacity
+                    key={filterKey}
                     style={[
-                      styles.checkboxBox,
-                      { borderColor: colors.border, backgroundColor: colors.cardBgElevated },
-                      fu.isCompleted && { backgroundColor: '#10b981', borderColor: '#10b981' },
+                      styles.filterTag,
+                      { backgroundColor: colors.cardBgElevated },
+                      followUpFilter === filterKey && { backgroundColor: colors.primary },
                     ]}
-                    onPress={() => toggleFollowUp(fu.id)}
+                    onPress={() => setFollowUpFilter(filterKey)}
                   >
-                    {fu.isCompleted && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>✓</Text>}
+                    <Text style={[styles.filterTagText, followUpFilter === filterKey ? { color: '#fff', fontWeight: '900' } : { color: colors.textMuted }]}>
+                      {filterKey}
+                    </Text>
                   </TouchableOpacity>
+                ))}
+              </View>
+              {followUps.length === 0 ? (
+                <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 10 }}>
+                  No follow-ups recorded for this selection.
+                </Text>
+              ) : (
+                followUps
+                  .filter((fu) => {
+                    if (followUpFilter === 'DUE') return !fu.isCompleted && !fu.isOverdue;
+                    if (followUpFilter === 'OVERDUE') return fu.isOverdue;
+                    if (followUpFilter === 'COMPLETED') return fu.isCompleted;
+                    return true;
+                  })
+                  .map((fu, idx) => (
+                    <View
+                      key={fu.id}
+                      style={[
+                        styles.followupRow,
+                        idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.checkboxBox,
+                          { borderColor: colors.border, backgroundColor: colors.cardBgElevated },
+                          fu.isCompleted && { backgroundColor: '#10b981', borderColor: '#10b981' },
+                        ]}
+                        onPress={() => toggleFollowUp(fu.id)}
+                      >
+                        {fu.isCompleted && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>✓</Text>}
+                      </TouchableOpacity>
 
-                  <View style={{ flex: 1, paddingHorizontal: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text
-                        style={[
-                          styles.fuLeadName,
-                          { color: colors.text },
-                          fu.isCompleted && { textDecorationLine: 'line-through', color: colors.textMuted },
-                        ]}
-                      >
-                        {fu.leadName}
-                      </Text>
-                      <View
-                        style={[
-                          styles.priorityBadge,
-                          fu.priority === 'HIGH'
-                            ? { backgroundColor: 'rgba(239,68,68,0.2)' }
-                            : fu.priority === 'MEDIUM'
-                            ? { backgroundColor: 'rgba(245,158,11,0.2)' }
-                            : { backgroundColor: 'rgba(59,130,246,0.2)' },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 8,
-                            fontWeight: '800',
-                            color: fu.priority === 'HIGH' ? '#f87171' : fu.priority === 'MEDIUM' ? '#fbbf24' : '#60a5fa',
-                          }}
-                        >
-                          {fu.priority}
+                      <View style={{ flex: 1, paddingHorizontal: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Text
+                            style={[
+                              styles.fuLeadName,
+                              { color: colors.text },
+                              fu.isCompleted && { textDecorationLine: 'line-through', color: colors.textMuted },
+                            ]}
+                          >
+                            {fu.leadName}
+                          </Text>
+                          <View
+                            style={[
+                              styles.priorityBadge,
+                              fu.priority === 'HIGH'
+                                ? { backgroundColor: 'rgba(239,68,68,0.2)' }
+                                : fu.priority === 'MEDIUM'
+                                ? { backgroundColor: 'rgba(245,158,11,0.2)' }
+                                : { backgroundColor: 'rgba(59,130,246,0.2)' },
+                            ]}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 8,
+                                fontWeight: '800',
+                                color: fu.priority === 'HIGH' ? '#f87171' : fu.priority === 'MEDIUM' ? '#fbbf24' : '#60a5fa',
+                              }}
+                            >
+                              {fu.priority}
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 9, color: fu.isOverdue ? '#f87171' : '#fbbf24', fontWeight: '800' }}>
+                            ⏰ {fu.dueTime} ({fu.dueDate})
+                          </Text>
+                        </View>
+                        <Text style={[styles.fuObjective, { color: colors.textMuted }]} numberOfLines={1}>
+                          {fu.objective}
                         </Text>
                       </View>
-                      <Text style={{ fontSize: 9, color: fu.isOverdue ? '#f87171' : '#fbbf24', fontWeight: '800' }}>
-                        ⏰ {fu.dueTime} ({fu.dueDate})
-                      </Text>
-                    </View>
-                    <Text style={[styles.fuObjective, { color: colors.textMuted }]} numberOfLines={1}>
-                      {fu.objective}
-                    </Text>
-                  </View>
 
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <TouchableOpacity
-                      style={[styles.smallActionCircle, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
-                      onPress={() => handleDial({ id: fu.leadId, name: fu.leadName, phone: fu.phone })}
-                    >
-                      <Text style={{ fontSize: 11 }}>📞</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.smallActionCircle, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
-                      onPress={() => handleWhatsApp(fu.phone, fu.leadName)}
-                    >
-                      <Text style={{ fontSize: 11 }}>💬</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
-          )}
-        </View>
-
-        {/* ── 4.5. Meetings (Product Demonstrations & Discovery Calls) ──────── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Meetings</Text>
-          <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Meetings Hub →</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
-          {meetings.length === 0 ? (
-            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 14 }]}>
-              <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
-                No meetings scheduled today.
-              </Text>
-            </View>
-          ) : (
-            meetings.map((m) => (
-              <View
-                key={m.id}
-                style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={[styles.oppTitle, { color: colors.text }]}>{m.leadName}</Text>
-                      <View style={[styles.newBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8' }}>🎥 {m.platform}</Text>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.smallActionCircle, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                          onPress={() => handleDial({ id: fu.leadId, name: fu.leadName, phone: fu.phone })}
+                        >
+                          <Text style={{ fontSize: 11 }}>📞</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.smallActionCircle, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
+                          onPress={() => handleWhatsApp(fu.phone, fu.leadName)}
+                        >
+                          <Text style={{ fontSize: 11 }}>💬</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
-                    <Text style={[styles.oppSub, { color: colors.textMuted }]}>
-                      🏢 {m.company} · 📞 {m.phone}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#38bdf8' }}>⏰ {m.time}</Text>
-                    <Text style={{ fontSize: 9, color: colors.textMuted }}>{m.date}</Text>
-                  </View>
-                </View>
+                  ))
+              )}
+            </View>
 
-                <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: isDark ? 'rgba(56,189,248,0.08)' : 'rgba(56,189,248,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.2)' : 'rgba(56,189,248,0.12)' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>
-                    📋 {m.title}
+            {/* ── 4.5. Meetings (Product Demonstrations & Discovery Calls) ──────── */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Meetings</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Meetings Hub →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
+              {meetings.length === 0 ? (
+                <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 14 }]}>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
+                    No meetings scheduled today.
                   </Text>
                 </View>
-
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <TouchableOpacity
-                    style={[styles.smallIconBtn, { backgroundColor: m.isCompleted ? 'rgba(16,185,129,0.2)' : colors.cardBgElevated }]}
-                    onPress={() => setMeetings(prev => prev.map(item => item.id === m.id ? { ...item, isCompleted: !item.isCompleted } : item))}
+              ) : (
+                meetings.map((m) => (
+                  <View
+                    key={m.id}
+                    style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
                   >
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: m.isCompleted ? '#34d399' : colors.text }}>
-                      {m.isCompleted ? '✓ Completed' : 'Mark Held'}
-                    </Text>
-                  </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Text style={[styles.oppTitle, { color: colors.text }]}>{m.leadName}</Text>
+                          <View style={[styles.newBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
+                            <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8' }}>🎥 {m.platform}</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.oppSub, { color: colors.textMuted }]}>
+                          🏢 {m.company} · 📞 {m.phone}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#38bdf8' }}>⏰ {m.time}</Text>
+                        <Text style={{ fontSize: 9, color: colors.textMuted }}>{m.date}</Text>
+                      </View>
+                    </View>
 
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <TouchableOpacity
-                      style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
-                      onPress={() => handleDial({ id: m.leadId, name: m.leadName, phone: m.phone })}
-                    >
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
-                    </TouchableOpacity>
-                    {m.meetUrl && (
+                    <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: isDark ? 'rgba(56,189,248,0.08)' : 'rgba(56,189,248,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.2)' : 'rgba(56,189,248,0.12)' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>
+                        📋 {m.title}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
                       <TouchableOpacity
-                        style={[styles.smallIconBtn, { backgroundColor: '#0284c7' }]}
-                        onPress={() => Linking.openURL(m.meetUrl!).catch(() => Alert.alert('Meeting', 'Joining video call...'))}
+                        style={[styles.smallIconBtn, { backgroundColor: m.isCompleted ? 'rgba(16,185,129,0.2)' : colors.cardBgElevated }]}
+                        onPress={() => setMeetings(prev => prev.map(item => item.id === m.id ? { ...item, isCompleted: !item.isCompleted } : item))}
                       >
-                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#ffffff' }}>🎥 Join Video Call</Text>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: m.isCompleted ? '#34d399' : colors.text }}>
+                          {m.isCompleted ? '✓ Completed' : 'Mark Held'}
+                        </Text>
                       </TouchableOpacity>
-                    )}
+
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                          onPress={() => handleDial({ id: m.leadId, name: m.leadName, phone: m.phone })}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
+                        </TouchableOpacity>
+                        {m.meetUrl && (
+                          <TouchableOpacity
+                            style={[styles.smallIconBtn, { backgroundColor: '#0284c7' }]}
+                            onPress={() => Linking.openURL(m.meetUrl!).catch(() => Alert.alert('Meeting', 'Joining video call...'))}
+                          >
+                            <Text style={{ fontSize: 9, fontWeight: '900', color: '#ffffff' }}>🎥 Join Video Call</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
+                ))
+              )}
+            </View>
+          </>
+        )}
 
         {/* ── 5. Performance & Goals (Target Bars + Drilldown Trigger) ────────── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>🌟 Performance & Goals</Text>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <TouchableOpacity
-              style={[styles.drilldownButton, { backgroundColor: colors.primary }]}
-              onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.drilldownButtonText}>📈 Goals & Targets</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => setDrilldownModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.drilldownButtonText, { color: colors.text }]}>🔍 Drill-Down</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {/* Daily Calls Target */}
-          <View style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
-                📞 Daily Calls Target (Fresh + Follow-ups)
-              </Text>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>
-                {scopedLeads.length} / 30 Calls ({Math.min(100, Math.round((scopedLeads.length / 30) * 100))}%)
-              </Text>
+        {hasGoalsAccess && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>🌟 Performance & Goals</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={[styles.drilldownButton, { backgroundColor: colors.primary }]}
+                  onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.drilldownButtonText}>📈 Goals & Targets</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
+                  onPress={() => setDrilldownModalOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.drilldownButtonText, { color: colors.text }]}>🔍 Drill-Down</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    backgroundColor: '#10b981',
-                    width: `${Math.min(100, Math.round((scopedLeads.length / 30) * 100))}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
 
-          {/* Monthly Revenue Target */}
-          <View style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
-                💰 Monthly Revenue Target
-              </Text>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
-                ₹{(wonRevenue / 1000).toFixed(0)}k / ₹300k ({Math.min(100, Math.round((wonRevenue / 300000) * 100))}%)
-              </Text>
-            </View>
-            <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    backgroundColor: '#a855f7',
-                    width: `${Math.min(100, Math.round((wonRevenue / 300000) * 100))}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-
-          {/* Goal & Target Hub Banner */}
-          <TouchableOpacity
-            style={[styles.drilldownFullBar, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.3)', marginBottom: 8 }]}
-            onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
-            activeOpacity={0.8}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 14 }}>📈</Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
-                Open Goals & Targets Hub (Quota telemetry & targets)
-              </Text>
-            </View>
-            <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
-          </TouchableOpacity>
-
-          {/* Drilldown Trigger Link */}
-          <TouchableOpacity
-            style={[styles.drilldownFullBar, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-            onPress={() => setDrilldownModalOpen(true)}
-            activeOpacity={0.8}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 14 }}>📊</Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
-                View 4-Category Activity Breakdown (Calls, WhatsApp Cloud, Product Catalogue, Quotations & Invoices)
-              </Text>
-            </View>
-            <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
-          </TouchableOpacity>
-        </View>
-
-
-        {/* ── 6. Active Opportunities ────────────────────────────────────────── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>💼 Active Opportunities</Text>
-          <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}>
-            <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
-              Deals & Opportunities → (₹{(pipelineValue / 1000).toFixed(0)}k)
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
-          {opportunities.map((opp) => (
-            <View
-              key={opp.id}
-              style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.oppTitle, { color: colors.text }]}>{opp.dealTitle}</Text>
-                  <Text style={[styles.oppSub, { color: colors.textMuted }]}>
-                    🏢 {opp.company} · Lead: {opp.leadName}
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              {/* Daily Calls Target */}
+              <View style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
+                    📞 Daily Calls Target (Fresh + Follow-ups)
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>
+                    {scopedLeads.length} / 30 Calls ({Math.min(100, Math.round((scopedLeads.length / 30) * 100))}%)
                   </Text>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>{opp.value}</Text>
+                <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        backgroundColor: '#10b981',
+                        width: `${Math.min(100, Math.round((scopedLeads.length / 30) * 100))}%`,
+                      },
+                    ]}
+                  />
+                </View>
               </View>
 
-              <View style={{ marginTop: 8 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <Text style={{ fontSize: 9, color: colors.textMuted, fontWeight: '700' }}>Stage: {opp.stage}</Text>
-                  <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>{opp.probability}% Win Probability</Text>
+              {/* Monthly Revenue Target */}
+              <View style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
+                    💰 Monthly Revenue Target
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
+                    ₹{(wonRevenue / 1000).toFixed(0)}k / ₹300k ({Math.min(100, Math.round((wonRevenue / 300000) * 100))}%)
+                  </Text>
                 </View>
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
-                  <View style={[styles.progressBarFill, { backgroundColor: '#6366f1', width: `${opp.probability}%` }]} />
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        backgroundColor: '#a855f7',
+                        width: `${Math.min(100, Math.round((wonRevenue / 300000) * 100))}%`,
+                      },
+                    ]}
+                  />
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-                <Text style={{ fontSize: 9, color: colors.textMuted }}>📌 Next: {opp.nextStep}</Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <TouchableOpacity
-                    style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
-                    onPress={() => handleDial({ id: opp.leadId, name: opp.leadName, phone: opp.phone })}
-                  >
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.smallIconBtn, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
-                    onPress={() => handleWhatsApp(opp.phone, opp.leadName)}
-                  >
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#25D366' }}>💬 WA</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.smallIconBtn, { backgroundColor: 'rgba(168,85,247,0.15)' }]}
-                    onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}
-                  >
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#c084fc' }}>💼 View Deal</Text>
-                  </TouchableOpacity>
+              {/* Goal & Target Hub Banner */}
+              <TouchableOpacity
+                style={[styles.drilldownFullBar, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.3)', marginBottom: 8 }]}
+                onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 14 }}>📈</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
+                    Open Goals & Targets Hub (Quota telemetry & targets)
+                  </Text>
                 </View>
-              </View>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
+              </TouchableOpacity>
+
+              {/* Drilldown Trigger Link */}
+              <TouchableOpacity
+                style={[styles.drilldownFullBar, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                onPress={() => setDrilldownModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 14 }}>📊</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
+                    View 4-Category Activity Breakdown (Calls, WhatsApp Cloud, Product Catalogue, Quotations & Invoices)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
+          </>
+        )}
+
+        {/* ── 6. Active Opportunities ────────────────────────────────────────── */}
+        {dealsPerm.active && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>💼 Active Opportunities</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
+                  Deals & Opportunities → (₹{(pipelineValue / 1000).toFixed(0)}k)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
+              {opportunities.map((opp) => (
+                <View
+                  key={opp.id}
+                  style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.oppTitle, { color: colors.text }]}>{opp.dealTitle}</Text>
+                      <Text style={[styles.oppSub, { color: colors.textMuted }]}>
+                        🏢 {opp.company} · Lead: {opp.leadName}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>{opp.value}</Text>
+                  </View>
+
+                  <View style={{ marginTop: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <Text style={{ fontSize: 9, color: colors.textMuted, fontWeight: '700' }}>Stage: {opp.stage}</Text>
+                      <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>{opp.probability}% Win Probability</Text>
+                    </View>
+                    <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                      <View style={[styles.progressBarFill, { backgroundColor: '#6366f1', width: `${opp.probability}%` }]} />
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <Text style={{ fontSize: 9, color: colors.textMuted }}>📌 Next: {opp.nextStep}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                        onPress={() => handleDial({ id: opp.leadId, name: opp.leadName, phone: opp.phone })}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.smallIconBtn, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
+                        onPress={() => handleWhatsApp(opp.phone, opp.leadName)}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#25D366' }}>💬 WA</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.smallIconBtn, { backgroundColor: 'rgba(168,85,247,0.15)' }]}
+                        onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#c084fc' }}>💼 View Deal</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* ── 7. Attendance Status ───────────────────────────────────────────── */}
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance</Text>
-              <Text style={[styles.cardSub, { color: colors.textMuted }]}>
-                Daily punch: <Text style={{ color: '#34d399', fontWeight: '800' }}>Active & Clocked In</Text>
-              </Text>
+        {attendancePerm.active && (
+          <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance</Text>
+                <Text style={[styles.cardSub, { color: colors.textMuted }]}>
+                  Daily punch: <Text style={{ color: '#34d399', fontWeight: '800' }}>Active & Clocked In</Text>
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance} activeOpacity={0.8}>
+                <Text style={styles.actionBtnText}>Mark Attendance →</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance} activeOpacity={0.8}>
-              <Text style={styles.actionBtnText}>Mark Attendance →</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        )}
 
         {/* ── 8. Notice Board ────────────────────────────────────────────────── */}
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>📌 The Notice Board</Text>
-            <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'UPCOMING_COMMS' })}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>The Notice Board →</Text>
-            </TouchableOpacity>
+        {noticePerm.active && (
+          <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>📌 The Notice Board</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'UPCOMING_COMMS' })}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>The Notice Board →</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+              <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
+                No urgent announcements posted today.
+              </Text>
+            </View>
           </View>
-          <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
-              No urgent announcements posted today.
-            </Text>
-          </View>
-        </View>
+        )}
 
         {/* ── 9. Products Section (Rendered when permitted) ───────────────────── */}
         {productsPerm.active && (
