@@ -455,22 +455,35 @@ function mapServerActivitiesToContactHistory(
           });
           seenIds.add(act.id);
         } else {
-          attempts.push({
-            id: act.id,
-            type: 'FOLLOWUP_SCHEDULED',
-            outcome: 'FOLLOW_UP_SCHEDULED',
-            scheduledType: (meta.followUpType || (act.description && act.description.toLowerCase().includes('meeting') ? 'MEETING' : 'CALL')) as any,
-            by: userName,
-            byRole: cleanRole,
-            timestamp: actTime,
-            notes: act.description || 'Follow-up touchpoint scheduled',
-            productInterest: productStr,
-            title: meta.title,
-            purpose: meta.purpose,
-            followUpDate: targetDateStr,
-            followUpTime: targetTimeStr,
+          // Skip if this follow-up creation is already attached to a Call, WhatsApp or Email outreach attempt in this lead
+          const isFollowUpCreatedLog = Boolean(act.description && act.description.toLowerCase().includes('follow-up created:'));
+          const isAlreadyRepresented = isFollowUpCreatedLog && attempts.some(existing => {
+            const isOutreach = existing.type.startsWith('CALL') || existing.type.startsWith('WHATSAPP') || existing.type.startsWith('EMAIL');
+            if (!isOutreach) return false;
+            if (targetDateStr && existing.followUpDate === targetDateStr) return true;
+            const tAct = new Date(actTime).getTime();
+            const tExisting = new Date(existing.timestamp).getTime();
+            return Math.abs(tAct - tExisting) < 120000;
           });
-          seenIds.add(act.id);
+
+          if (!isAlreadyRepresented) {
+            attempts.push({
+              id: act.id,
+              type: 'FOLLOWUP_SCHEDULED',
+              outcome: 'FOLLOW_UP_SCHEDULED',
+              scheduledType: (meta.followUpType || (act.description && act.description.toLowerCase().includes('meeting') ? 'MEETING' : 'CALL')) as any,
+              by: userName,
+              byRole: cleanRole,
+              timestamp: actTime,
+              notes: act.description || 'Follow-up touchpoint scheduled',
+              productInterest: productStr,
+              title: meta.title,
+              purpose: meta.purpose,
+              followUpDate: targetDateStr,
+              followUpTime: targetTimeStr,
+            });
+            seenIds.add(act.id);
+          }
         }
       }
     }
@@ -1799,8 +1812,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
 
     // Resolve Real Company & Representative Name (Replacing demo references)
-    const repName = (currentUser?.name || currentUser?.fullName || (lead.owner && lead.owner !== '—' ? lead.owner : '') || 'Sales Executive').trim();
-    let rawCompany = (currentUser?.companyName || (currentUser as any)?.company?.name || subscription?.companyName || '').trim();
+    const repName = (currentUser?.name || (currentUser as any)?.fullName || (lead.owner && lead.owner !== '—' ? lead.owner : '') || 'Sales Executive').trim();
+    let rawCompany = (currentUser?.companyName || (currentUser as any)?.company?.name || '').trim();
     if (!rawCompany || rawCompany === '—' || rawCompany === 'Independent Business' || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
       if (typeof window !== 'undefined') {
         try {
@@ -3033,11 +3046,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
 
     // 3. Determine status update (matching Call Funnel behavior)
-    const isScheduled = isScheduleActive || selectedTargetStatus === 'Meeting Scheduled' || customTemplateCategory === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'FOLLOWUP') || directScheduleType === 'MEETING' || Boolean(meetingScheduledDate);
-    const isMeeting = directScheduleType === 'MEETING' || (isCustomTemplateMode && customTemplateCategory === 'MEETING') || selectedTargetStatus === 'Meeting Scheduled';
+    const isScheduled = isScheduleActive;
+    const isMeeting = isMeetingActive || (isScheduleActive && directScheduleType === 'MEETING') || selectedTargetStatus === 'Meeting Scheduled';
 
-    const isProposalCategory = customTemplateCategory === 'PROPOSAL' || waDirectTemplateTitle.toLowerCase().includes('proposal') || waDirectTemplateTitle.toLowerCase().includes('quote') || Object.keys(selectedProductQuantities).length > 0;
-    const isInvoiceCategory = customTemplateCategory === 'INVOICE' || waDirectTemplateTitle.toLowerCase().includes('invoice') || Boolean(selectedInvoice);
+    const isProposalCategory = effectiveCategory === 'PROPOSAL' || waDirectTemplateTitle.toLowerCase().includes('proposal') || waDirectTemplateTitle.toLowerCase().includes('quote') || Object.keys(selectedProductQuantities).length > 0;
+    const isInvoiceCategory = effectiveCategory === 'INVOICE' || waDirectTemplateTitle.toLowerCase().includes('invoice') || Boolean(selectedInvoice);
 
     const determinedOutcome: ContactOutcome = (isScheduled && isMeeting)
       ? 'MEETING_SCHEDULED'

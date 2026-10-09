@@ -160,16 +160,37 @@ export function deduplicateContactAttempts(history: ContactAttempt[]): ContactAt
       continue;
     }
 
-    // 3. Prevent duplicate generic FOLLOWUP_SCHEDULED card if a CALL attempt on the same day already covers that scheduled follow-up
-    if (item.type === 'FOLLOWUP_SCHEDULED' && item.followUpDate) {
-      const isAlreadyCoveredByCall = history.some(other =>
-        other &&
-        other !== item &&
-        other.type.startsWith('CALL') &&
-        other.followUpDate === item.followUpDate &&
-        (other.followUpTime === item.followUpTime || !item.followUpTime || !other.followUpTime)
-      );
-      if (isAlreadyCoveredByCall) {
+    // 3. Prevent duplicate generic FOLLOWUP_SCHEDULED or 'Follow-up created:' card if a CALL, WHATSAPP, or EMAIL attempt covers it
+    const isGenericFollowUp =
+      item.type === 'FOLLOWUP_SCHEDULED' ||
+      Boolean(item.notes && item.notes.toLowerCase().includes('follow-up created:'));
+
+    if (isGenericFollowUp) {
+      const isAlreadyCovered = history.some(other => {
+        if (!other || other === item) return false;
+        const isOutreach =
+          other.type.startsWith('CALL') ||
+          other.type.startsWith('WHATSAPP') ||
+          other.type.startsWith('EMAIL') ||
+          other.type === 'QUOTATION' ||
+          other.type === 'INVOICE' ||
+          other.sharingMedium?.includes('WHATSAPP') ||
+          other.sharingMedium?.includes('EMAIL');
+
+        if (!isOutreach) return false;
+
+        // Match by same followUpDate
+        if (item.followUpDate && other.followUpDate === item.followUpDate) return true;
+
+        // Match by timestamp within 2 minutes (120000ms)
+        const tItem = new Date(item.timestamp || 0).getTime();
+        const tOther = new Date(other.timestamp || 0).getTime();
+        if (tItem > 0 && tOther > 0 && Math.abs(tItem - tOther) < 120000) return true;
+
+        return false;
+      });
+
+      if (isAlreadyCovered) {
         continue;
       }
     }
