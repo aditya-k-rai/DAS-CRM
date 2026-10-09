@@ -1786,6 +1786,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [isProductWaShared, setIsProductWaShared] = useState<boolean>(false);
   const [showProductWaPreview, setShowProductWaPreview] = useState<boolean>(true);
   const [productWaIncludeUnitPrice, setProductWaIncludeUnitPrice] = useState<boolean>(true);
+  const [productWaIncludeImage, setProductWaIncludeImage] = useState<boolean>(true);
   const [productWaGstRate, setProductWaGstRate] = useState<number>(5);
   const [productWaGstPreset, setProductWaGstPreset] = useState<'0' | '5' | '12' | '18' | '28' | 'CUSTOM'>('5');
   const [productWaCustomGstInput, setProductWaCustomGstInput] = useState<string>('');
@@ -1810,6 +1811,45 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const gstPct = productWaGstPreset === 'CUSTOM' ? (parseFloat(productWaCustomGstInput) || 0) : productWaGstRate;
     const gstAmount = gstPct > 0 ? Math.round((baseTotalPrice * gstPct) / 100) : 0;
     const finalTotalPrice = baseTotalPrice + gstAmount;
+
+    // Optional Product Image / Photo attachment
+    let imageLine = '';
+    if (productWaIncludeImage) {
+      const rawImg = selectedProductObj?.coverImage || selectedProductObj?.imageUrl || (Array.isArray(selectedProductObj?.images) && selectedProductObj.images.length > 0 ? selectedProductObj.images[0] : '');
+      if (rawImg && !rawImg.startsWith('data:image/svg')) {
+        let fullImgUrl = rawImg;
+        if (!rawImg.startsWith('http://') && !rawImg.startsWith('https://') && !rawImg.startsWith('data:')) {
+          if (typeof window !== 'undefined' && window.location?.origin) {
+            fullImgUrl = `${window.location.origin}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+          }
+        }
+        if (fullImgUrl.startsWith('http://') || fullImgUrl.startsWith('https://')) {
+          if (lang === 'HI') {
+            imageLine = `🖼️ *उत्पाद फोटो / संदर्भ लिंक:* ${fullImgUrl}\n`;
+          } else if (lang === 'HINGLISH') {
+            imageLine = `🖼️ *Product Photo / Image Link:* ${fullImgUrl}\n`;
+          } else {
+            imageLine = `🖼️ *Product Image / Photo:* ${fullImgUrl}\n`;
+          }
+        } else if (selectedProductObj?.name) {
+          if (lang === 'HI') {
+            imageLine = `🖼️ *उत्पाद फोटो:* संलग्न कैटलॉग अनुसार\n`;
+          } else if (lang === 'HINGLISH') {
+            imageLine = `🖼️ *Product Photo:* Attached with this catalog dispatch\n`;
+          } else {
+            imageLine = `🖼️ *Product Photo:* Attached with catalog dispatch\n`;
+          }
+        }
+      } else if (selectedProductObj?.name) {
+        if (lang === 'HI') {
+          imageLine = `🖼️ *उत्पाद फोटो:* संलग्न कैटलॉग अनुसार\n`;
+        } else if (lang === 'HINGLISH') {
+          imageLine = `🖼️ *Product Photo:* Attached with this catalog dispatch\n`;
+        } else {
+          imageLine = `🖼️ *Product Photo:* Attached with catalog dispatch\n`;
+        }
+      }
+    }
 
     const unitPriceFormatted = selectedProductObj ? `₹${baseUnitPrice.toLocaleString('en-IN')}` : (lang === 'HI' ? 'चर्चा अनुसार' : 'As discussed');
     
@@ -1851,7 +1891,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         if (lang === 'HI') {
           priceBlock = `💰 *अनुमानित कुल मूल्य:* *₹${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
         } else {
-          priceBlock = `💰 *Estimated Total Value:* *₹${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
+          priceBlock = `💰 *Estimated Total Value:* *${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
         }
       }
     } else {
@@ -1901,6 +1941,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         `हमसे *${productName}* के बारे में चर्चा करने के लिए धन्यवाद! यहाँ उत्पाद का पूरा विवरण और मूल्य दिया गया है:\n\n` +
         `📦 *उत्पाद का नाम:* *${productName}*${skuText}\n` +
         (categoryText ? `📁 *श्रेणी:* ${categoryText}\n` : '') +
+        imageLine +
         `🔢 *चयनित मात्रा:* ${qty} ${unitName}\n` +
         unitPriceLine +
         priceBlock +
@@ -1915,6 +1956,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         `Humse *${productName}* ke baare mein baat karne ke liye dhanyawad! Yahan product ki complete details aur pricing di gayi hai:\n\n` +
         `📦 *Product Name:* *${productName}*${skuText}\n` +
         (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
+        imageLine +
         `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
         unitPriceLine +
         priceBlock +
@@ -1930,6 +1972,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       `Thank you for discussing *${productName}* with us! Here are the complete product details and pricing:\n\n` +
       `📦 *Product Name:* *${productName}*${skuText}\n` +
       (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
+      imageLine +
       `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
       unitPriceLine +
       priceBlock +
@@ -4320,33 +4363,67 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                 </div>
                               </div>
 
-                              {/* 🏷️ Per-Unit Price & 📊 GST Tax Controls */}
+                              {/* 🏷️ Per-Unit Price, 🖼️ Product Image & 📊 GST Tax Controls */}
                               <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/20 space-y-2.5">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                  {/* Per Unit Price Toggle */}
-                                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={productWaIncludeUnitPrice}
-                                      onChange={(e) => setProductWaIncludeUnitPrice(e.target.checked)}
-                                      className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 accent-emerald-500 cursor-pointer"
-                                    />
-                                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1">
-                                      🏷️ Include Per-Unit Price in Message
-                                    </span>
-                                  </label>
+                                <div className="flex items-center justify-between flex-wrap gap-2.5">
+                                  <div className="flex items-center gap-3.5 flex-wrap">
+                                    {/* Per Unit Price Toggle */}
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={productWaIncludeUnitPrice}
+                                        onChange={(e) => setProductWaIncludeUnitPrice(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 accent-emerald-500 cursor-pointer"
+                                      />
+                                      <span className="text-xs font-bold text-slate-200 flex items-center gap-1">
+                                        🏷️ Include Per-Unit Price
+                                      </span>
+                                    </label>
 
-                                  {/* Live Total Badge */}
+                                    {/* Attach Product Image Toggle (ON by default) */}
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={productWaIncludeImage}
+                                        onChange={(e) => setProductWaIncludeImage(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 accent-emerald-500 cursor-pointer"
+                                      />
+                                      <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                        🖼️ Attach Product Image
+                                        {productWaIncludeImage && (
+                                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                            ON
+                                          </span>
+                                        )}
+                                      </span>
+                                    </label>
+                                  </div>
+
+                                  {/* Live Total & Thumbnail Badge */}
                                   {selectedProductObj && (() => {
                                     const pricing = calculateLeadProductPricing();
                                     const gstPct = productWaGstPreset === 'CUSTOM' ? (parseFloat(productWaCustomGstInput) || 0) : productWaGstRate;
                                     const gstAmt = gstPct > 0 ? Math.round((pricing.totalPrice * gstPct) / 100) : 0;
                                     const finalTot = pricing.totalPrice + gstAmt;
                                     return (
-                                      <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                        Total: ₹{finalTot.toLocaleString('en-IN')}
-                                        {gstPct > 0 && <span className="text-[9px] text-slate-400 font-normal"> (incl. {gstPct}% GST)</span>}
-                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        {productWaIncludeImage && (selectedProductObj.coverImage || selectedProductObj.imageUrl) && (
+                                          <div className="relative flex items-center">
+                                            <img
+                                              src={selectedProductObj.coverImage || selectedProductObj.imageUrl || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                                              alt={selectedProductObj.name}
+                                              className="w-7 h-7 rounded-lg object-cover border border-emerald-500/40 shadow-sm"
+                                              onError={(e) => {
+                                                (e.currentTarget as HTMLImageElement).src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                        <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                          Total: ₹{finalTot.toLocaleString('en-IN')}
+                                          {gstPct > 0 && <span className="text-[9px] text-slate-400 font-normal"> (incl. {gstPct}% GST)</span>}
+                                        </span>
+                                      </div>
                                     );
                                   })()}
                                 </div>
