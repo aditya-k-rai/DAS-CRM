@@ -949,7 +949,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 const seen = new Set(serverAttempts.map(a => a.id));
                 for (const p of cleanPrev) {
                   // Only preserve recent pending optimistic attempts not yet in server list
-                  if (!seen.has(p.id) && String(p.id || '').startsWith('attempt_')) {
+                  if (!seen.has(p.id) && (String(p.id || '').startsWith('attempt_') || String(p.id || '').startsWith('wa_') || String(p.id || '').startsWith('doc_'))) {
                     combined.push(p);
                   }
                 }
@@ -1744,6 +1744,153 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [funnelSelectedChip, setFunnelSelectedChip] = useState<string>('Tomorrow (10:30 AM)');
   const [enablePreAlert5Min, setEnablePreAlert5Min] = useState<boolean>(true);
   const [customWantElseRequirement, setCustomWantElseRequirement] = useState<string>('');
+
+  // WhatsApp Product Details Sharing in Talked -> Interested
+  const [productWaTargetPhone, setProductWaTargetPhone] = useState<string>('');
+  const [productWaCustomNote, setProductWaCustomNote] = useState<string>('');
+  const [isProductWaShared, setIsProductWaShared] = useState<boolean>(false);
+  const [showProductWaPreview, setShowProductWaPreview] = useState<boolean>(true);
+
+  const generateProductWhatsAppMessage = (customNote?: string) => {
+    const clientName = (!lead.name || lead.name.includes('Lead Prospect') || lead.name === 'Prospect' || lead.name === '—')
+      ? 'Valued Client'
+      : lead.name;
+    const pricing = calculateLeadProductPricing();
+    const productName = selectedProductObj?.name || customProductInput.trim() || 'Product of Interest';
+    const skuText = selectedProductObj?.sku ? ` (SKU: ${selectedProductObj.sku})` : '';
+    const categoryText = selectedProductObj?.category
+      ? `${selectedProductObj.category}${selectedProductObj.subCategory ? ` • ${selectedProductObj.subCategory}` : ''}`
+      : '';
+    const qty = Math.max(1, selectedProductQuantity || 1);
+    const unitName = pricing.unitName || 'Pieces (Pcs)';
+    const unitPriceFormatted = selectedProductObj ? `₹${pricing.unitPrice.toLocaleString('en-IN')}` : 'As discussed';
+    const totalPriceFormatted = selectedProductObj ? `₹${pricing.totalPrice.toLocaleString('en-IN')}` : 'As discussed';
+    const discountStr = pricing.appliedTier && pricing.appliedTier.discountPct > 0 
+      ? ` [Includes ${pricing.appliedTier.discountPct}% Volume Tier Discount]`
+      : '';
+    const desc = selectedProductObj?.description ? `\n\n📝 *Product Specifications & Details:*\n${selectedProductObj.description.trim()}` : '';
+    const repName = currentUser?.name || lead.owner || 'Sales Team';
+    const companyName = typeof lead.company === 'string' && lead.company !== '—' ? lead.company : 'DAS CRM';
+    const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
+
+    return (
+      `Hello *${clientName}*,\n\n` +
+      `Thank you for discussing *${productName}* with us! Here are the complete product details and pricing:\n\n` +
+      `📦 *Product Name:* *${productName}*${skuText}\n` +
+      (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
+      `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
+      `🏷️ *Unit Price:* ${unitPriceFormatted} / ${unitName}\n` +
+      `💰 *Estimated Total Value:* *${totalPriceFormatted}*${discountStr}` +
+      desc +
+      extraNote +
+      `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice.` +
+      `\n\nBest regards,\n*${repName}*\n${companyName}`
+    );
+  };
+
+  const handleShareProductOnWhatsAppDirect = (overrideMsg?: string) => {
+    const contactInfo = resolveLeadContactInfo(lead);
+    const rawPhone = productWaTargetPhone.trim() || contactInfo.phone || (lead.phone !== '—' ? lead.phone : '');
+    const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+
+    const finalMsg = overrideMsg || generateProductWhatsAppMessage(productWaCustomNote);
+    const pricing = calculateLeadProductPricing();
+    const prodName = selectedProductObj?.name || customProductInput.trim() || 'Product';
+    const discountNote = pricing.appliedTier && pricing.appliedTier.discountPct > 0
+      ? ` [${pricing.appliedTier.discountPct}% Vol. Discount]`
+      : '';
+    const qty = Math.max(1, selectedProductQuantity || 1);
+    const productInterestFormatted = `${prodName} (Qty: ${qty} ${pricing.unitName} · ₹${pricing.totalPrice.toLocaleString('en-IN')}${discountNote})`;
+
+    // 1. Launch WhatsApp Web / App
+    window.open(`https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${encodeURIComponent(finalMsg)}`, '_blank');
+    setIsProductWaShared(true);
+
+    // 2. Increment product share count in background
+    if (selectedProductObj?.id) {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      fetch(`${apiBase}/products/${selectedProductObj.id}/increment-share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }).catch(() => {});
+
+      try {
+        const cached = localStorage.getItem('das_crm_products_catalog_cache');
+        if (cached) {
+          const list = JSON.parse(cached);
+          const updated = list.map((p: any) => p.id === selectedProductObj.id ? { ...p, sharedCount: (p.sharedCount || 0) + 1 } : p);
+          localStorage.setItem('das_crm_products_catalog_cache', JSON.stringify(updated));
+        }
+      } catch (_) {}
+    }
+
+    // 3. Append to Full Contact History & Call Timeline
+    const userRoleStr = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+    const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = userRoleStr.includes('ADMIN')
+      ? 'ADMIN'
+      : userRoleStr.includes('MANAGER')
+      ? 'MANAGER'
+      : userRoleStr.includes('LEAD') || userRoleStr.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
+    const newContactAttempt: ContactAttempt = {
+      id: `wa_prod_${Date.now()}`,
+      type: 'WHATSAPP_DIRECT',
+      outcome: 'WA_SENT',
+      sharingMedium: 'WHATSAPP_DIRECT',
+      by: currentUser?.name || lead.owner || 'Sales Rep',
+      byRole: cleanRole,
+      timestamp: new Date().toISOString(),
+      notes: `Product details shared via WhatsApp: ${productInterestFormatted}`,
+      productInterest: productInterestFormatted,
+      sentMessage: finalMsg,
+    };
+
+    setContactHistory(prev => {
+      const next = [newContactAttempt, ...prev];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify(next));
+          localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(next));
+        } catch (_) {}
+      }
+      return next;
+    });
+
+    // 4. Persist to PostgreSQL Activity Table via Backend API
+    apiFetch('/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        activityType: 'NOTE',
+        leadId: lead.id,
+        notes: `Product details shared via WhatsApp: ${productInterestFormatted}`,
+        outcome: 'WA_SENT',
+        metadata: {
+          type: 'WHATSAPP_DIRECT',
+          channel: 'WHATSAPP_DIRECT',
+          outcome: 'WA_SENT',
+          productInterest: productInterestFormatted,
+          sentMessage: finalMsg,
+          by: currentUser?.name || lead.owner || 'Sales Rep',
+          byRole: cleanRole,
+        },
+      }),
+    }).catch(e => console.warn('Activity log notice for WhatsApp product share:', e));
+
+    // 5. Update Lead Requirement / Product in state & localStorage
+    setLead(prev => ({ ...prev, requirement: productInterestFormatted }));
+
+    showSyncNotification(`✓ Product details for "${prodName}" shared via WhatsApp! Added to Contact Timeline.`);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('das_crm_contact_history_updated'));
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id } }));
+    }
+  };
 
   useEffect(() => {
     let timer: any;
@@ -3938,6 +4085,91 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                               />
                             </div>
                           </div>
+
+                          {/* 📲 SEND PRODUCT DETAILS ON WHATSAPP */}
+                          {(selectedProductObj || customProductInput.trim()) && (
+                            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-950 via-emerald-950/20 to-slate-950 border border-emerald-500/40 space-y-3 shadow-lg shadow-emerald-500/5">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                                    <MessageSquare size={14} />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-black text-emerald-300 flex items-center gap-1.5 cursor-pointer">
+                                      Send Product Details on WhatsApp
+                                    </label>
+                                    <p className="text-[10px] text-slate-400">
+                                      Share specs, live pricing &amp; quantity directly to lead with 1-tap timeline tracking
+                                    </p>
+                                  </div>
+                                </div>
+                                {isProductWaShared ? (
+                                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 flex items-center gap-1 shadow-sm">
+                                    <CheckCircle2 size={11} /> Shared on WhatsApp
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                    WhatsApp Direct
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* WhatsApp Target Phone & Remarks */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                                    Lead WhatsApp Phone:
+                                  </label>
+                                  <input
+                                    type="tel"
+                                    className="crm-input text-xs h-8 font-mono text-emerald-300 border-emerald-500/30 focus:border-emerald-400"
+                                    placeholder="+91 98765 43210"
+                                    value={productWaTargetPhone !== '' ? productWaTargetPhone : (resolveLeadContactInfo(lead).phone || (lead.phone !== '—' ? lead.phone : ''))}
+                                    onChange={(e) => setProductWaTargetPhone(e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                                    Custom Note / Special Remarks (Optional):
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="crm-input text-xs h-8"
+                                    placeholder="e.g. Valid until Friday, Includes 1-yr warranty..."
+                                    value={productWaCustomNote}
+                                    onChange={(e) => setProductWaCustomNote(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Live WhatsApp Message Preview */}
+                              <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/20 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                                    <Sparkles size={11} /> Live Message Preview (Auto-Generated from Selection)
+                                  </span>
+                                  <span className="text-[9px] text-slate-500 font-mono">Formatted for WhatsApp</span>
+                                </div>
+                                <div className="text-[11px] font-mono text-slate-200 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                                  {generateProductWhatsAppMessage(productWaCustomNote)}
+                                </div>
+                              </div>
+
+                              {/* 1-Tap Share Button */}
+                              <div className="flex items-center justify-between gap-3 pt-1 flex-wrap sm:flex-nowrap">
+                                <p className="text-[10px] text-slate-400 italic">
+                                  ⚡ Clicking below opens WhatsApp and automatically logs this product share in <strong className="text-emerald-300">Full Contact History &amp; Call Timeline</strong>.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareProductOnWhatsAppDirect()}
+                                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-emerald-500/30 transition-all cursor-pointer whitespace-nowrap"
+                                >
+                                  <Send size={13} /> Send via WhatsApp Direct Now
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
                           {/* ⏰ Follow-up Call Scheduling Options (After Product Selection) */}
                           <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/30 space-y-3">
