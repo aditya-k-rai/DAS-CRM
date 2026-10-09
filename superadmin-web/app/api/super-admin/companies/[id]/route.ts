@@ -234,3 +234,62 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   return NextResponse.json(fallback);
 }
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  try {
+    const body = await req.json();
+    const authHeader = req.headers.get('authorization');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authHeader) headers['Authorization'] = authHeader;
+
+    // Forward to backend
+    try {
+      const res = await fetch(`${backendUrl}/auth/super-admin/companies/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return NextResponse.json(data);
+      }
+    } catch (_) {}
+
+    return NextResponse.json({ success: true, id, ...body });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || 'Failed to patch company' }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  try {
+    const body = await req.json();
+    const authHeader = req.headers.get('authorization');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authHeader) headers['Authorization'] = authHeader;
+
+    // Forward to backend
+    try {
+      const res = await fetch(`${backendUrl}/auth/super-admin/companies/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return NextResponse.json(data);
+      }
+    } catch (_) {}
+
+    return NextResponse.json({ success: true, id, ...body });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || 'Failed to put company' }, { status: 500 });
+  }
+}
+

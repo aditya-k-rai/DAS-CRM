@@ -1,21 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const LIVE_KEYS = {
-  companyKeys: [
-    {
-      id: 'cmuev7miq000likew4ezrlby8',
-      key: 'ADOR-EC-7187',
-      companyName: 'Adorable Trading',
-      planTier: 'BUSINESS',
-      memberLimit: 18,
-      validityDays: 15,
-      status: 'ACTIVE',
-      expiresAt: '2026-10-09T01:40:30.314Z',
-      createdAt: '2026-09-24T01:40:30.527Z',
-    },
-  ],
-  userKeys: [],
-};
+import { getStoredCompanies } from '@/lib/superAdminStore';
 
 export async function GET(req: Request) {
   const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -44,5 +28,21 @@ export async function GET(req: Request) {
     // Network or timeout error
   }
 
-  return NextResponse.json(LIVE_KEYS);
+  const companies = getStoredCompanies();
+  const companyKeys = companies.map(c => ({
+    id: `key_${c.id}`,
+    key: c.registrationKey || 'ADOR-EC-7187',
+    companyName: c.name,
+    planTier: c.plan,
+    memberLimit: c.seatsAllocated || 18,
+    validityDays: c.validityDays || 30,
+    status: c.isExpired ? 'EXPIRED' : 'ACTIVE',
+    expiresAt: c.expiryDate ? `${c.expiryDate}T23:59:59.000Z` : new Date(Date.now() + 30 * 86400000).toISOString(),
+    createdAt: c.createdAt,
+  }));
+
+  return NextResponse.json({
+    companyKeys,
+    userKeys: [],
+  });
 }

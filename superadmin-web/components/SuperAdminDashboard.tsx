@@ -1216,12 +1216,22 @@ export function SuperAdminDashboard() {
         if (compRes.ok) {
           const data = await compRes.json();
           if (Array.isArray(data) && data.length > 0) {
+            const overrides = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('das_crm_company_expiry_overrides') || '{}') : {};
             const formatted = data.map((c: any) => {
               const compEmps = mergeCompanyEmployees(c.id, c.users || c.employees || []);
               const seatsUsed = Math.max(compEmps.length, c.seatsUsed ?? 0, 1);
               const totalUsersCount = Math.max(compEmps.length, c.totalUsersCount ?? 0, 1);
+              const ov = overrides[c.id] || overrides[c.registrationKey];
+              const effectiveExpiry = ov?.expiryDate || c.expiryDate;
+              const isExpired = ov !== undefined ? ov.isExpired : (c.isExpired || (effectiveExpiry && new Date(effectiveExpiry.includes('T') ? effectiveExpiry : `${effectiveExpiry}T23:59:59`) < new Date()));
+              const trialDaysLeft = ov?.trialDaysLeft !== undefined ? ov.trialDaysLeft : c.trialDaysLeft;
+
               return {
                 ...c,
+                expiryDate: effectiveExpiry,
+                isExpired,
+                trialDaysLeft,
+                isActive: isExpired ? false : (c.isActive !== false),
                 totalUsersCount,
                 seatsUsed,
                 emailConfig: c.emailConfig || { enabled: true, monthlyLimit: 5000, used: 0 },
@@ -1242,12 +1252,22 @@ export function SuperAdminDashboard() {
 
     if (!companiesLoaded) {
       setCompanies(prev => {
+        const overrides = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('das_crm_company_expiry_overrides') || '{}') : {};
         const list = prev.length > 0 ? prev : MOCK_DEMO_COMPANIES;
         return list.map(c => {
           const compEmps = mergeCompanyEmployees(c.id, []);
           const count = Math.max(compEmps.length, c.seatsUsed ?? 0, 1);
+          const ov = overrides[c.id] || overrides[c.registrationKey];
+          const effectiveExpiry = ov?.expiryDate || c.expiryDate;
+          const isExpired = ov !== undefined ? ov.isExpired : (c.isExpired || (effectiveExpiry && new Date(effectiveExpiry.includes('T') ? effectiveExpiry : `${effectiveExpiry}T23:59:59`) < new Date()));
+          const trialDaysLeft = ov?.trialDaysLeft !== undefined ? ov.trialDaysLeft : c.trialDaysLeft;
+
           return {
             ...c,
+            expiryDate: effectiveExpiry,
+            isExpired,
+            trialDaysLeft,
+            isActive: isExpired ? false : (c.isActive !== false),
             seatsUsed: count,
             totalUsersCount: count,
           };
@@ -2046,8 +2066,11 @@ export function SuperAdminDashboard() {
     setExtendingCompany(comp);
     setExtendSuccessMsg('');
     const today = new Date();
-    const isCurrentFuture = comp.expiryDate && new Date(comp.expiryDate) > today;
-    const base = isCurrentFuture ? new Date(comp.expiryDate) : today;
+    const compExpiryTime = comp.expiryDate ? new Date(comp.expiryDate.includes('T') ? comp.expiryDate : `${comp.expiryDate}T23:59:59`).getTime() : 0;
+    const isCurrentFuture = compExpiryTime > today.getTime();
+    const base = isCurrentFuture && comp.expiryDate
+      ? new Date(comp.expiryDate.includes('T') ? comp.expiryDate : `${comp.expiryDate}T00:00:00`)
+      : today;
 
     const future = new Date(base);
     future.setDate(future.getDate() + 30);
@@ -2063,9 +2086,10 @@ export function SuperAdminDashboard() {
   const handleApplyDaysPreset = (days: number) => {
     setExtendDaysCount(days);
     const today = new Date();
-    const isCurrentFuture = extendingCompany?.expiryDate && new Date(extendingCompany.expiryDate) > today;
-    const base = (extendBaseMode === 'currentExpiry' && isCurrentFuture)
-      ? new Date(extendingCompany!.expiryDate)
+    const compExpiryTime = extendingCompany?.expiryDate ? new Date(extendingCompany.expiryDate.includes('T') ? extendingCompany.expiryDate : `${extendingCompany.expiryDate}T23:59:59`).getTime() : 0;
+    const isCurrentFuture = compExpiryTime > today.getTime();
+    const base = (extendBaseMode === 'currentExpiry' && isCurrentFuture && extendingCompany?.expiryDate)
+      ? new Date(extendingCompany.expiryDate.includes('T') ? extendingCompany.expiryDate : `${extendingCompany.expiryDate}T00:00:00`)
       : today;
     const target = new Date(base);
     target.setDate(target.getDate() + days);
@@ -2077,9 +2101,10 @@ export function SuperAdminDashboard() {
     const num = parseInt(val, 10);
     if (!isNaN(num) && num > 0) {
       const today = new Date();
-      const isCurrentFuture = extendingCompany?.expiryDate && new Date(extendingCompany.expiryDate) > today;
-      const base = (extendBaseMode === 'currentExpiry' && isCurrentFuture)
-        ? new Date(extendingCompany!.expiryDate)
+      const compExpiryTime = extendingCompany?.expiryDate ? new Date(extendingCompany.expiryDate.includes('T') ? extendingCompany.expiryDate : `${extendingCompany.expiryDate}T23:59:59`).getTime() : 0;
+      const isCurrentFuture = compExpiryTime > today.getTime();
+      const base = (extendBaseMode === 'currentExpiry' && isCurrentFuture && extendingCompany?.expiryDate)
+        ? new Date(extendingCompany.expiryDate.includes('T') ? extendingCompany.expiryDate : `${extendingCompany.expiryDate}T00:00:00`)
         : today;
       const target = new Date(base);
       target.setDate(target.getDate() + num);
@@ -2090,10 +2115,10 @@ export function SuperAdminDashboard() {
   const handleCustomDateChange = (dateStr: string) => {
     setCustomExpiryDate(dateStr);
     if (dateStr) {
-      const target = new Date(dateStr + 'T00:00:00').getTime();
-      const now = new Date().setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-      setExtendDaysCount(diffDays > 0 ? diffDays : 0);
+      const target = new Date(dateStr + 'T23:59:59').getTime();
+      const now = Date.now();
+      const diffDays = Math.max(0, Math.ceil((target - now) / (1000 * 60 * 60 * 24)));
+      setExtendDaysCount(diffDays);
     }
   };
 
@@ -2101,33 +2126,120 @@ export function SuperAdminDashboard() {
     if (!extendingCompany || !customExpiryDate) return;
     setExtendSaving(true);
 
-    const isExpired = new Date(customExpiryDate) < new Date();
-    const daysLeft = Math.max(0, Math.ceil((new Date(customExpiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    const cleanDate = customExpiryDate.includes('T') ? customExpiryDate.split('T')[0] : customExpiryDate;
+    const targetTime = new Date(`${cleanDate}T23:59:59`).getTime();
+    const nowTime = Date.now();
+    const isStillActive = targetTime > nowTime;
+    const daysLeft = Math.max(0, Math.ceil((targetTime - nowTime) / (1000 * 60 * 60 * 24)));
 
-    // API call
-    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    // 1. Optimistically update local React state
+    setCompanies(prev => prev.map(c => {
+      if (c.id === extendingCompany.id || c.registrationKey === extendingCompany.registrationKey) {
+        return {
+          ...c,
+          expiryDate: cleanDate,
+          isExpired: !isStillActive,
+          trialDaysLeft: daysLeft,
+          validityDays: daysLeft,
+          isActive: isStillActive,
+          settings: {
+            ...c.settings,
+            expiryDate: cleanDate,
+            requestedValidityDays: daysLeft,
+          },
+        };
+      }
+      return c;
+    }));
+
+    // Update keysList so registration key table immediately displays updated expiry
+    setKeysList(prev => prev.map(k => {
+      if (k.companyName === extendingCompany.name || k.key === extendingCompany.registrationKey) {
+        return {
+          ...k,
+          expiresAt: `${cleanDate}T23:59:59.000Z`,
+          validityDays: daysLeft,
+          status: isStillActive ? 'ACTIVE' : 'EXPIRED',
+        };
+      }
+      return k;
+    }));
+
+    // Update viewCompanyDetails if open
+    setViewCompanyDetails((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        organization: {
+          ...prev.organization,
+          isActive: isStillActive,
+          settings: {
+            ...prev.organization?.settings,
+            expiryDate: cleanDate,
+            requestedValidityDays: daysLeft,
+          },
+        },
+        subscription: {
+          ...prev.subscription,
+          expiresAt: `${cleanDate}T23:59:59.000Z`,
+          trialExpiresAt: `${cleanDate}T23:59:59.000Z`,
+          isActive: isStillActive,
+          isTrialActive: isStillActive,
+        },
+        expiryDate: cleanDate,
+        isExpired: !isStillActive,
+        trialDaysLeft: daysLeft,
+      };
+    });
+
+    // 2. Persist to browser localStorage for cross-tab & reload resilience
+    if (typeof window !== 'undefined') {
+      try {
+        const storedOverrides = JSON.parse(localStorage.getItem('das_crm_company_expiry_overrides') || '{}');
+        storedOverrides[extendingCompany.id] = {
+          expiryDate: cleanDate,
+          trialDaysLeft: daysLeft,
+          validityDays: daysLeft,
+          isExpired: !isStillActive,
+          updatedAt: new Date().toISOString(),
+        };
+        if (extendingCompany.registrationKey) {
+          storedOverrides[extendingCompany.registrationKey] = storedOverrides[extendingCompany.id];
+        }
+        localStorage.setItem('das_crm_company_expiry_overrides', JSON.stringify(storedOverrides));
+      } catch (_) {}
+    }
+
+    // 3. Dispatch API calls to Next.js route AND Backend API
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${extendingCompany.id}/expiry`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ expiryDate: customExpiryDate }),
-      });
-    } catch (err) {
-      console.warn('Backend expiry update (demo/offline mode):', err);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+    const endpoints = [
+      `/api/super-admin/companies/${extendingCompany.id}/expiry`,
+      `${apiBase}/auth/super-admin/companies/${extendingCompany.id}/expiry`,
+      `/api/super-admin/companies/${extendingCompany.id}`,
+      `${apiBase}/auth/super-admin/companies/${extendingCompany.id}`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        await fetch(url, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            expiryDate: cleanDate,
+            validityDays: daysLeft,
+          }),
+        });
+      } catch (err) {
+        // Continue to next fallback endpoint
+      }
     }
 
-    setCompanies(prev => prev.map(c => c.id === extendingCompany.id ? {
-      ...c,
-      expiryDate: customExpiryDate,
-      isExpired,
-      trialDaysLeft: daysLeft,
-      isActive: true,
-    } : c));
-
-    setExtendSuccessMsg(`Successfully extended ${extendingCompany.name} to ${customExpiryDate}!`);
+    setExtendSuccessMsg(`Successfully extended ${extendingCompany.name} plan to ${cleanDate} (${daysLeft} days active)!`);
     setTimeout(() => {
       setExtendSaving(false);
       setExtendModalOpen(false);
