@@ -1226,48 +1226,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         }
       }
 
-      if (fetchedQuotes.length === 0) {
-        fetchedQuotes = [
-          {
-            id: 'quote_mock_1',
-            docNo: 'EST-2026-4401',
-            quoteNumber: 'EST-2026-4401',
-            docType: 'QUOTATION',
-            partyName: lead.name || 'Enterprise Client',
-            companyName: 'DAS Technology Corp',
-            totalAmount: 49999,
-            status: 'SENT',
-            sentVia: 'WHATSAPP_DIRECT',
-            sentToLead: lead.name,
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'quote_mock_2',
-            docNo: 'INV-2026-8802',
-            quoteNumber: 'INV-2026-8802',
-            docType: 'PROFORMA_INVOICE',
-            partyName: lead.name || 'Enterprise Client',
-            companyName: 'DAS Technology Corp',
-            totalAmount: 118000,
-            status: 'SENT',
-            sentVia: 'EMAIL',
-            sentToLead: lead.name,
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-          },
-          {
-            id: 'quote_mock_3',
-            docNo: 'EST-2026-1029',
-            quoteNumber: 'EST-2026-1029',
-            docType: 'QUOTATION',
-            partyName: 'TechCorp Solutions',
-            companyName: 'DAS Technology Corp',
-            totalAmount: 25000,
-            status: 'DRAFT',
-            createdAt: new Date(Date.now() - 172800000).toISOString(),
-          }
-        ];
-      }
-
       setAvailableQuotesInvoices(fetchedQuotes);
       const matching = fetchedQuotes.find((q: any) => 
         (q.partyName && lead.name && q.partyName.toLowerCase().includes(lead.name.toLowerCase())) ||

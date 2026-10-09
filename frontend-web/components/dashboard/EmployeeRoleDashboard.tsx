@@ -8,7 +8,7 @@ import {
   Plus, Users, Building2, TrendingUp, Trophy, Star, Zap,
   UserCheck, Radio, Bell, Check, ExternalLink, BarChart3, RefreshCw
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 import { apiFetch } from '@/lib/apiClient';
 import { getCachedData, setCachedData, clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
@@ -82,13 +82,6 @@ interface SyncedOpportunity {
   avatarBg: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Default High-Fidelity Synced Data (scoped to Sales Rep)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// NOTE: All hardcoded demo/default data has been removed.
-// Dashboards now exclusively show real data from PostgreSQL via API.
-
 function getInitials(name: string): string {
   if (!name) return 'LD';
   const parts = name.trim().split(/\s+/);
@@ -98,29 +91,44 @@ function getInitials(name: string): string {
 
 export function EmployeeRoleDashboard() {
   const { currentUser } = useAuth();
+  const currentRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
+  const isSalesExec = currentRole === 'SALES_EXEC';
+  const isPrivileged = ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SUPER_ADMIN'].includes(currentRole);
+  const currentUserName = currentUser?.name || 'Sales Rep';
+  const currentUserId = currentUser?.id || '';
+  const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Rep';
 
   // Selected Sales Representative workspace filter (defaults to user or ALL)
   const [selectedRep, setSelectedRep] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem('das_crm_sales_selected_rep');
-      if (stored) return stored;
+      if (stored && !isSalesExec) return stored;
     }
-    const cName = currentUser?.name || '';
-    const cEmail = currentUser?.email || '';
-    if (cEmail === 'rastoginandini92@gmail.com' || cName.toLowerCase().includes('nandini')) return 'Nandini Rastogi';
-    if (cEmail === 'sulekhatmr@gmail.com' || cName.toLowerCase().includes('sulekha')) return 'Sulekha Tomar';
-    if (cEmail === 'sadhnadikshit98@gmail.com' || cName.toLowerCase().includes('sadhana')) return 'Sadhana';
+    if (isSalesExec && currentUserName && currentUserName !== 'Sales Rep') {
+      return currentUserName;
+    }
     return 'ALL';
   });
 
+  // Ensure selectedRep updates when currentUser loads
+  useEffect(() => {
+    if (isSalesExec && currentUserName && currentUserName !== 'Sales Rep') {
+      setSelectedRep(currentUserName);
+    }
+  }, [isSalesExec, currentUserName]);
+
   const [rawLeads, setRawLeads] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
+  // User-scoped cache keys to prevent cross-account cache bleed
+  const cachePrefix = `emp_${currentUserId || currentUserEmail || 'default'}`;
 
   // Synced States — initialized from TTL-checked cache (5 min), empty if stale
-  const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData('emp_newLeads') || []);
-  const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData('emp_followUps') || []);
-  const [meetings, setMeetings] = useState<SyncedMeeting[]>(() => getCachedData('emp_meetings') || []);
-  const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData('emp_opportunities') || []);
+  const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData(`${cachePrefix}_newLeads`) || []);
+  const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData(`${cachePrefix}_followUps`) || []);
+  const [meetings, setMeetings] = useState<SyncedMeeting[]>(() => getCachedData(`${cachePrefix}_meetings`) || []);
+  const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData(`${cachePrefix}_opportunities`) || []);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -128,83 +136,90 @@ export function EmployeeRoleDashboard() {
   useEffect(() => { clearStaleCaches(); }, []);
 
   // Sync state mutations to Cache automatically
-  useEffect(() => { if (newLeads.length > 0) setCachedData('emp_newLeads', newLeads); }, [newLeads]);
-  useEffect(() => { if (followUps.length > 0) setCachedData('emp_followUps', followUps); }, [followUps]);
-  useEffect(() => { if (meetings.length > 0) setCachedData('emp_meetings', meetings); }, [meetings]);
-  useEffect(() => { if (opportunities.length > 0) setCachedData('emp_opportunities', opportunities); }, [opportunities]);
+  useEffect(() => { if (newLeads.length > 0) setCachedData(`${cachePrefix}_newLeads`, newLeads); }, [newLeads, cachePrefix]);
+  useEffect(() => { if (followUps.length > 0) setCachedData(`${cachePrefix}_followUps`, followUps); }, [followUps, cachePrefix]);
+  useEffect(() => { if (meetings.length > 0) setCachedData(`${cachePrefix}_meetings`, meetings); }, [meetings, cachePrefix]);
+  useEffect(() => { if (opportunities.length > 0) setCachedData(`${cachePrefix}_opportunities`, opportunities); }, [opportunities, cachePrefix]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Dynamically compute list of all sales representatives from real DB leads and directory
-  const availableReps = useMemo(() => {
-    const repMap = new Map<string, { id: string; name: string; count: number }>();
+  // Fetch verified users from organization directory
+  useEffect(() => {
+    let isMounted = true;
+    const loadUsers = async () => {
+      try {
+        const res = await apiFetch('/users');
+        if (res.ok && isMounted) {
+          const uList = await res.json();
+          if (Array.isArray(uList)) {
+            setTeamMembers(uList);
+          }
+        }
+      } catch (_) {}
+    };
+    loadUsers();
+    return () => { isMounted = false; };
+  }, []);
 
-    // Baseline verified sales executives in DAS organization
-    repMap.set('Nandini Rastogi', { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', count: 0 });
-    repMap.set('Sulekha Tomar', { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', count: 0 });
-    repMap.set('Sadhana', { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', count: 0 });
+  // Dynamically compute list of sales representatives from real users & leads
+  const availableReps = useMemo(() => {
+    const repMap = new Map<string, { id: string; name: string; email: string; count: number }>();
+
+    teamMembers.forEach(u => {
+      const r = normalizeRoleStr(u.role?.name || u.role);
+      if (r === 'SALES_EXEC' || r === 'TEAM_LEADER' || r === 'MANAGER') {
+        const fullName = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim();
+        if (fullName) {
+          repMap.set(fullName.toLowerCase(), {
+            id: u.id,
+            name: fullName,
+            email: (u.email || '').toLowerCase(),
+            count: 0
+          });
+        }
+      }
+    });
 
     rawLeads.forEach(l => {
       const norm = normalizeLead(l);
-      const ownerStr = norm.owner || '';
-      const customRep = safeString(l.customFields?.assignedRep || l.customFields?.owner || '');
+      const ownerStr = (norm.owner || '').toLowerCase();
+      const customRep = safeString(l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase();
+      const ownerIdStr = String(norm.ownerId || l.ownerId || '');
 
-      for (const [repName, entry] of repMap.entries()) {
-        const cleanRep = repName.toLowerCase();
-        const matchesOwner = ownerStr.toLowerCase().includes(cleanRep);
-        const matchesCustom = customRep.toLowerCase().includes(cleanRep);
-        const matchesTrail = Array.isArray(norm.allocationTrail) && norm.allocationTrail.some((ev: any) =>
-          safeString(ev.toName || ev.assigneeName).toLowerCase().includes(cleanRep) ||
-          String(ev.assigneeId) === entry.id
-        );
-        const matchesId = String(norm.ownerId) === entry.id;
-
-        if (matchesOwner || matchesCustom || matchesTrail || matchesId) {
+      let matched = false;
+      for (const [key, entry] of repMap.entries()) {
+        if (
+          (entry.id && ownerIdStr === entry.id) ||
+          (entry.email && (l.owner?.email || '').toLowerCase() === entry.email) ||
+          ownerStr.includes(key) ||
+          customRep.includes(key)
+        ) {
           entry.count++;
+          matched = true;
         }
       }
 
-      if (norm.assignedRepRole === 'SALES_EXEC' || ownerStr.toLowerCase().includes('sales exec') || ownerStr.toLowerCase().includes('sales rep')) {
-        const cleanName = ownerStr.replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/gi, '').trim();
-        if (cleanName && cleanName !== 'Sales Executive' && cleanName !== 'Unassigned' && cleanName !== '—') {
-          if (!repMap.has(cleanName)) {
-            repMap.set(cleanName, { id: norm.ownerId || `rep_${cleanName}`, name: cleanName, count: 1 });
-          }
+      if (!matched && norm.owner && norm.owner !== '—' && norm.owner !== 'Unassigned') {
+        const cleanName = norm.owner.replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/gi, '').trim();
+        if (cleanName && !repMap.has(cleanName.toLowerCase())) {
+          repMap.set(cleanName.toLowerCase(), {
+            id: norm.ownerId || `rep_${cleanName}`,
+            name: cleanName,
+            email: '',
+            count: 1
+          });
         }
       }
     });
 
     return Array.from(repMap.values());
-  }, [rawLeads]);
+  }, [teamMembers, rawLeads]);
 
   const allSalesLeadsCount = useMemo(() => {
-    return rawLeads.filter(l => {
-      const norm = normalizeLead(l);
-      const ownerLower = (norm.owner || '').toLowerCase();
-      const customLower = safeString(l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase();
-      const trailHasSales = Array.isArray(norm.allocationTrail) && norm.allocationTrail.some((ev: any) =>
-        safeString(ev.toRole).toUpperCase() === 'SALES_EXEC' ||
-        safeString(ev.toName).toLowerCase().includes('sales exec') ||
-        safeString(ev.toName).toLowerCase().includes('nandini') ||
-        safeString(ev.toName).toLowerCase().includes('sulekha') ||
-        safeString(ev.toName).toLowerCase().includes('sadhana')
-      );
-      const isKnownSalesOwner =
-        ownerLower.includes('nandini') ||
-        ownerLower.includes('sulekha') ||
-        ownerLower.includes('sadhana') ||
-        ownerLower.includes('sales exec') ||
-        ownerLower.includes('sales rep') ||
-        customLower.includes('nandini') ||
-        customLower.includes('sulekha') ||
-        customLower.includes('sadhana') ||
-        ['cmuhp0517000ngg2dq93a6nlp', 'cmukwwdv9000ng42dghtw6t3z', 'cmukykfoe000nht2d0ylnsd3t'].includes(String(norm.ownerId));
-
-      return trailHasSales || isKnownSalesOwner;
-    }).length;
+    return rawLeads.length;
   }, [rawLeads]);
 
   // Real-time synchronization of leads for logged-in or selected Sales Representative
@@ -218,7 +233,7 @@ export function EmployeeRoleDashboard() {
       if (res.ok) {
         const data = await res.json();
         const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-        if (Array.isArray(items) && items.length > 0) {
+        if (Array.isArray(items)) {
           serverLeads = items;
         }
       }
@@ -226,43 +241,19 @@ export function EmployeeRoleDashboard() {
       console.warn('API lead sync error in Sales Dashboard:', err);
     }
 
-    // Resilient offline / cache fallback & local storage merge
-    if (typeof window !== 'undefined') {
-      try {
-        const cachedAll = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
-        const cachedDir = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-        const localCacheMap = new Map<string, any>();
-        [...cachedAll, ...cachedDir].forEach((item: any) => {
-          if (item?.id) localCacheMap.set(String(item.id), item);
-          if (item?.name) localCacheMap.set(item.name.toLowerCase().trim(), item);
-        });
-
-        if (serverLeads.length > 0) {
-          serverLeads = serverLeads.map((sl: any) => {
-            const match = localCacheMap.get(String(sl.id)) || (sl.firstName ? localCacheMap.get(`${sl.firstName} ${sl.lastName || ''}`.toLowerCase().trim()) : null);
-            if (match && match.allocationTrail && match.allocationTrail.length > (sl.allocationTrail?.length || 0)) {
-              return { ...sl, ...match };
-            }
-            if (match && match.owner && (!sl.owner || sl.owner === 'Unassigned')) {
-              return { ...sl, owner: match.owner, ownerId: match.ownerId || sl.ownerId };
-            }
-            return sl;
-          });
-        } else if (localCacheMap.size > 0) {
-          serverLeads = Array.from(localCacheMap.values());
-        }
-      } catch (_) {}
-    }
-
     const allLeads = serverLeads.filter(l => {
       const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+      const email = (l.email || '').toLowerCase();
+      const phone = String(l.phone || '');
       const id = String(l.id || '');
-      return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+      // Filter out test/dummy leads
+      const isDemo = name.includes('(Test Lead)') || id === 'demo-lead-test-01' || id === 'lead-test-demo-01' || email.endsWith('@example.com') || phone.startsWith('+91 98000 100');
+      return !isDemo;
     });
 
     setRawLeads(allLeads);
 
-    // ── 2. Filter leads belonging to the selected Sales Representative ──
+    // ── 2. Filter leads strictly scoped to Sales Representative ──
     const filterLeadForRep = (l: any, targetRep: string) => {
       const norm = normalizeLead(l);
       const lOwnerId = String(norm.ownerId || l.ownerId || (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : '') || l.customFields?.ownerId || l.customFields?.assigneeId || '');
@@ -275,41 +266,28 @@ export function EmployeeRoleDashboard() {
         toName: safeString(ev.toName || ev.assigneeName).toLowerCase(),
         toRole: safeString(ev.toRole).toUpperCase(),
         assigneeId: String(ev.assigneeId || ''),
+        toEmail: safeString(ev.toEmail || ev.assigneeEmail).toLowerCase(),
       }));
 
-      if (targetRep === 'ALL') {
-        const hasSalesExecTrail = trailAssignees.some(t =>
-          t.toRole === 'SALES_EXEC' ||
-          t.toName.includes('sales exec') ||
-          t.toName.includes('nandini') ||
-          t.toName.includes('sulekha') ||
-          t.toName.includes('sadhana')
+      // If logged in as SALES_EXEC, always strictly scope to current user
+      if (isSalesExec) {
+        const matchesId = Boolean(currentUserId && lOwnerId === currentUserId);
+        const matchesEmail = Boolean(currentUserEmail && (lOwnerEmail === currentUserEmail || (l.email && l.email.toLowerCase() === currentUserEmail)));
+        const matchesName = Boolean(currentUserName && (lOwner.includes(currentUserName.toLowerCase()) || lCustomRep.includes(currentUserName.toLowerCase())));
+        const matchesTrail = trailAssignees.some(t =>
+          (currentUserId && t.assigneeId === currentUserId) ||
+          (currentUserEmail && t.toEmail === currentUserEmail) ||
+          (currentUserName && t.toName.includes(currentUserName.toLowerCase()))
         );
-        const isSalesExecOwner =
-          (typeof l.owner === 'object' && String(l.owner?.role?.name || l.owner?.role || '').toUpperCase().includes('SALES')) ||
-          lOwner.includes('sales exec') ||
-          lOwner.includes('nandini') ||
-          lOwner.includes('sulekha') ||
-          lOwner.includes('sadhana') ||
-          lCustomRep.includes('sales exec') ||
-          lCustomRep.includes('nandini') ||
-          lCustomRep.includes('sulekha') ||
-          lCustomRep.includes('sadhana');
+        return Boolean(matchesId || matchesEmail || matchesName || matchesTrail);
+      }
 
-        return hasSalesExecTrail || isSalesExecOwner || ['cmuhp0517000ngg2dq93a6nlp', 'cmukwwdv9000ng42dghtw6t3z', 'cmukykfoe000nht2d0ylnsd3t'].includes(lOwnerId);
+      if (targetRep === 'ALL') {
+        return true;
       }
 
       const cleanTarget = targetRep.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales executive\)|\s*\(rep\)/g, '').trim();
       const targetFirst = cleanTarget.split(' ')[0];
-
-      const knownIds: Record<string, string> = {
-        'nandini': 'cmuhp0517000ngg2dq93a6nlp',
-        'sulekha': 'cmukwwdv9000ng42dghtw6t3z',
-        'sadhana': 'cmukykfoe000nht2d0ylnsd3t',
-      };
-      for (const [key, id] of Object.entries(knownIds)) {
-        if (cleanTarget.includes(key) && lOwnerId === id) return true;
-      }
 
       if (lOwner.includes(cleanTarget) || cleanTarget.includes(lOwner)) return true;
       if (lCustomRep.includes(cleanTarget) || cleanTarget.includes(lCustomRep)) return true;
@@ -322,12 +300,7 @@ export function EmployeeRoleDashboard() {
       return false;
     };
 
-    let effectiveLeads = allLeads.filter(l => filterLeadForRep(l, selectedRep));
-
-    // Fallback: If filtered list is empty, but we have leads in allLeads and selectedRep was 'ALL'
-    if (effectiveLeads.length === 0 && selectedRep === 'ALL') {
-      effectiveLeads = allLeads;
-    }
+    const effectiveLeads = allLeads.filter(l => filterLeadForRep(l, selectedRep));
 
     const colors = [
       'from-emerald-500 to-teal-600',
@@ -372,7 +345,15 @@ export function EmployeeRoleDashboard() {
         ];
         const fuItems = allFollowUps.length > 0 ? allFollowUps : (Array.isArray(fuData) ? fuData : (fuData.items || fuData.data || []));
 
-        const mappedFollowUps: SyncedFollowUp[] = fuItems.map((fu: any, idx: number) => {
+        const filteredFu = fuItems.filter((fu: any) => {
+          if (!isSalesExec) return true;
+          const aId = String(fu.assigneeId || fu.assignee?.id || fu.createdById || '');
+          const aEmail = (fu.assignee?.email || '').toLowerCase();
+          const leadOwnerId = String(fu.lead?.ownerId || '');
+          return (currentUserId && (aId === currentUserId || leadOwnerId === currentUserId)) || (currentUserEmail && aEmail === currentUserEmail);
+        });
+
+        const mappedFollowUps: SyncedFollowUp[] = filteredFu.map((fu: any, idx: number) => {
           const leadName = fu.lead ? `${fu.lead.firstName || ''} ${fu.lead.lastName || ''}`.trim() : (fu.leadName || 'Lead');
           const dueAt = fu.dueAt ? new Date(fu.dueAt) : null;
           return {
@@ -391,20 +372,31 @@ export function EmployeeRoleDashboard() {
           };
         });
         setFollowUps(mappedFollowUps);
+      } else {
+        setFollowUps([]);
       }
     } catch (err) {
       console.warn('Follow-ups API fetch error:', err);
+      setFollowUps([]);
     }
 
     // ── 4. Fetch REAL meetings/tasks from backend API ──
     try {
-      const mtgRes = await apiFetch('/tasks?taskType=MEETING&limit=10');
+      const mtgRes = await apiFetch('/tasks?taskType=MEETING&limit=20');
       let mappedMeetings: SyncedMeeting[] = [];
       if (mtgRes.ok) {
         const mtgData = await mtgRes.json();
         const mtgItems = Array.isArray(mtgData) ? mtgData : (mtgData.items || mtgData.data || []);
 
-        mappedMeetings = mtgItems.map((t: any, idx: number) => {
+        const filteredMtg = mtgItems.filter((t: any) => {
+          if (!isSalesExec) return true;
+          const aId = String(t.assigneeId || t.assignee?.id || t.createdById || '');
+          const aEmail = (t.assignee?.email || '').toLowerCase();
+          const leadOwnerId = String(t.lead?.ownerId || '');
+          return (currentUserId && (aId === currentUserId || leadOwnerId === currentUserId)) || (currentUserEmail && aEmail === currentUserEmail);
+        });
+
+        mappedMeetings = filteredMtg.map((t: any, idx: number) => {
           const leadName = t.lead ? `${t.lead.firstName || ''} ${t.lead.lastName || ''}`.trim() : 'Meeting';
           const dueAt = t.dueAt ? new Date(t.dueAt) : null;
           return {
@@ -458,9 +450,10 @@ export function EmployeeRoleDashboard() {
       setMeetings(mappedMeetings);
     } catch (err) {
       console.warn('Meetings API fetch error:', err);
+      setMeetings([]);
     }
 
-    // ── 5. Build opportunities from qualified/proposal/negotiation leads ──
+    // ── 5. Build opportunities from real qualified/proposal/negotiation leads ──
     const qualifiedLeads = effectiveLeads.filter((l: any) => {
       const s = safeStatus(l.status || l.stage).toLowerCase();
       return s.includes('qualif') || s.includes('proposal') || s.includes('negot') || s.includes('won');
@@ -477,7 +470,7 @@ export function EmployeeRoleDashboard() {
         leadName: norm.name,
         company: norm.company,
         phone: norm.phone,
-        dealTitle: `${norm.requirement !== '—' ? norm.requirement : 'Enterprise CRM Suite License'} (${norm.company})`,
+        dealTitle: `${norm.requirement !== '—' ? norm.requirement : 'Enterprise Solution'} (${norm.company})`,
         value: norm.value,
         stage: norm.status,
         probability: prob,
@@ -489,7 +482,7 @@ export function EmployeeRoleDashboard() {
     setOpportunities(mappedOpportunities);
 
     setIsLoading(false);
-  }, [currentUser, selectedRep]);
+  }, [currentUser, selectedRep, isSalesExec, currentUserId, currentUserEmail, currentUserName]);
 
   useEffect(() => {
     syncData();
@@ -610,47 +603,57 @@ export function EmployeeRoleDashboard() {
         <div className="flex items-center justify-between flex-wrap gap-4 relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-base flex items-center justify-center shadow-lg shadow-indigo-500/25">
-              {currentUser.avatar}
+              {currentUser?.avatar || '👤'}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-black text-white">Good morning, {firstName}! 👋</h1>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {selectedRep === 'ALL' ? 'SALES TEAM' : 'SALES REP'}
+                  {isSalesExec ? 'SALES REP' : selectedRep === 'ALL' ? 'SALES TEAM' : 'SALES REP'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                {selectedRep === 'ALL'
-                  ? `Showing all leads and opportunities assigned across sales representatives (${allSalesLeadsCount} active leads).`
-                  : `Showing leads, follow-ups, and opportunities assigned to ${selectedRep}.`}
+                {isSalesExec
+                  ? `Your personal workspace with real-time sync for leads, follow-ups & opportunities.`
+                  : selectedRep === 'ALL'
+                    ? `Showing all leads and opportunities assigned across sales representatives (${allSalesLeadsCount} active leads).`
+                    : `Showing leads, follow-ups, and opportunities assigned to ${selectedRep}.`}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Sales Representative Workspace Filter Dropdown */}
-            <div className="flex items-center gap-2 bg-slate-800/90 hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-indigo-500/40 shadow-md transition-all">
-              <Users size={14} className="text-indigo-400 flex-shrink-0" />
-              <span className="text-xs text-slate-300 font-bold whitespace-nowrap">Assigned Rep:</span>
-              <select
-                value={selectedRep}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedRep(val);
-                  if (typeof window !== 'undefined') {
-                    sessionStorage.setItem('das_crm_sales_selected_rep', val);
-                  }
-                }}
-                className="bg-transparent text-xs font-black text-indigo-300 focus:outline-none cursor-pointer pr-1"
-              >
-                <option value="ALL" className="bg-slate-900 text-white">🌟 All Sales Reps ({allSalesLeadsCount} Leads)</option>
-                {availableReps.map(r => (
-                  <option key={r.id || r.name} value={r.name} className="bg-slate-900 text-white">
-                    👤 {r.name} {r.count !== undefined ? `(${r.count} Leads)` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Sales Representative Workspace Filter / Badge */}
+            {isPrivileged ? (
+              <div className="flex items-center gap-2 bg-slate-800/90 hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-indigo-500/40 shadow-md transition-all">
+                <Users size={14} className="text-indigo-400 flex-shrink-0" />
+                <span className="text-xs text-slate-300 font-bold whitespace-nowrap">Filter Rep:</span>
+                <select
+                  value={selectedRep}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedRep(val);
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('das_crm_sales_selected_rep', val);
+                    }
+                  }}
+                  className="bg-transparent text-xs font-black text-indigo-300 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="ALL" className="bg-slate-900 text-white">🌟 All Sales Reps ({allSalesLeadsCount} Leads)</option>
+                  {availableReps.map(r => (
+                    <option key={r.id || r.name} value={r.name} className="bg-slate-900 text-white">
+                      👤 {r.name} {r.count !== undefined ? `(${r.count} Leads)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-slate-800/90 px-3.5 py-2 rounded-xl border border-emerald-500/30 shadow-md">
+                <UserCheck size={14} className="text-emerald-400 flex-shrink-0" />
+                <span className="text-xs text-slate-300 font-bold whitespace-nowrap">My Workspace:</span>
+                <span className="text-xs font-black text-emerald-400">{currentUserName}</span>
+              </div>
+            )}
 
             <button
               onClick={() => {
@@ -1086,98 +1089,106 @@ export function EmployeeRoleDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {opportunities.map((opp) => (
-            <div
-              key={opp.id}
-              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-purple-500/20 hover:border-purple-500/40 transition-all flex flex-col justify-between gap-3 group relative"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  {/* Lead Name Focused Avatar */}
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${opp.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-purple-500/20`}>
-                    {getInitials(opp.leadName)}
-                  </div>
-                  <div>
-                    {/* Hero Lead Name */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Link href="/deals" className="text-sm font-black text-white hover:text-purple-400 transition-colors">
-                        {opp.leadName}
-                      </Link>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        {opp.stage}
-                      </span>
-                    </div>
-                    {/* Organization & Role */}
-                    <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
-                      <Building2 size={11} className="text-purple-400/70" />
-                      {opp.company}
-                    </p>
-                  </div>
-                </div>
-                {/* Deal Value */}
-                <div className="text-right flex-shrink-0">
-                  <span className="text-sm font-black text-purple-400">{opp.value}</span>
-                  <p className="text-[10px] text-emerald-400 font-bold">{opp.probability}% Probability</p>
-                </div>
-              </div>
-
-              {/* Deal Title & Next Step */}
-              <div className="p-2.5 rounded-lg bg-purple-500/8 border border-purple-500/15 space-y-1.5">
-                <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Zap size={12} className="text-purple-400 flex-shrink-0" />
-                  {opp.dealTitle}
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Next Step: <strong className="text-purple-200">{opp.nextStep}</strong></span>
-                </div>
-              </div>
-
-              {/* Probability Progress Bar */}
-              <div>
-                <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                  <span>Target Close: {opp.expectedClose}</span>
-                  <span className="font-bold text-purple-300">{opp.probability}% Win Probability</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400"
-                    style={{ width: `${opp.probability}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Opportunity Action Bar */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`tel:${opp.phone}`}
-                    onClick={() => handleDirectCall(opp.leadName, opp.phone)}
-                    title={`Call ${opp.leadName}`}
-                    className="p-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
-                  >
-                    <Phone size={12} /> Call {opp.leadName.split(' ')[0]}
-                  </a>
-                  <a
-                    href={`https://wa.me/${opp.phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => handleWhatsApp(opp.leadName)}
-                    title={`WhatsApp ${opp.leadName}`}
-                    className="p-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
-                  >
-                    <MessageCircle size={12} /> WA
-                  </a>
-                </div>
-
-                <Link
-                  href="/deals"
-                  className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
-                >
-                  <Briefcase size={12} /> View Deal
-                </Link>
-              </div>
+          {opportunities.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-xs text-purple-400/80 border border-dashed border-purple-500/30 rounded-xl bg-purple-500/5">
+              <Briefcase size={20} className="mx-auto mb-1.5 text-purple-400/60" />
+              <p className="font-bold text-sm text-foreground">No active opportunities</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Leads in Qualified, Proposal, or Negotiation stages will appear here as active opportunities.</p>
             </div>
-          ))}
+          ) : (
+            opportunities.map((opp) => (
+              <div
+                key={opp.id}
+                className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-purple-500/20 hover:border-purple-500/40 transition-all flex flex-col justify-between gap-3 group relative"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {/* Lead Name Focused Avatar */}
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${opp.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-purple-500/20`}>
+                      {getInitials(opp.leadName)}
+                    </div>
+                    <div>
+                      {/* Hero Lead Name */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link href="/deals" className="text-sm font-black text-white hover:text-purple-400 transition-colors">
+                          {opp.leadName}
+                        </Link>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          {opp.stage}
+                        </span>
+                      </div>
+                      {/* Organization & Role */}
+                      <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
+                        <Building2 size={11} className="text-purple-400/70" />
+                        {opp.company}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Deal Value */}
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-sm font-black text-purple-400">{opp.value}</span>
+                    <p className="text-[10px] text-emerald-400 font-bold">{opp.probability}% Probability</p>
+                  </div>
+                </div>
+
+                {/* Deal Title & Next Step */}
+                <div className="p-2.5 rounded-lg bg-purple-500/8 border border-purple-500/15 space-y-1.5">
+                  <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Zap size={12} className="text-purple-400 flex-shrink-0" />
+                    {opp.dealTitle}
+                  </p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Next Step: <strong className="text-purple-200">{opp.nextStep}</strong></span>
+                  </div>
+                </div>
+
+                {/* Probability Progress Bar */}
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>Target Close: {opp.expectedClose}</span>
+                    <span className="font-bold text-purple-300">{opp.probability}% Win Probability</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400"
+                      style={{ width: `${opp.probability}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Opportunity Action Bar */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${opp.phone}`}
+                      onClick={() => handleDirectCall(opp.leadName, opp.phone)}
+                      title={`Call ${opp.leadName}`}
+                      className="p-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
+                    >
+                      <Phone size={12} /> Call {opp.leadName.split(' ')[0]}
+                    </a>
+                    <a
+                      href={`https://wa.me/${opp.phone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => handleWhatsApp(opp.leadName)}
+                      title={`WhatsApp ${opp.leadName}`}
+                      className="p-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
+                    >
+                      <MessageCircle size={12} /> WA
+                    </a>
+                  </div>
+
+                  <Link
+                    href="/deals"
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
+                  >
+                    <Briefcase size={12} /> View Deal
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
