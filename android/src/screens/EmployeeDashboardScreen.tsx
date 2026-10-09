@@ -385,6 +385,21 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     }));
     setFollowUps(mapped);
 
+    const meets: SyncedMeeting[] = scopedLeads.slice(0, 3).map((l, idx) => ({
+      id: `mt-${l.id || idx}`,
+      leadId: String(l.id),
+      leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
+      company: l.company || l.organization || 'Corporate Client',
+      phone: l.phone || '9876543210',
+      title: idx === 0 ? 'Product Demo & Solution Walkthrough' : idx === 1 ? 'Commercial SLA Terms Negotiation' : 'Technical Rooftop Site Survey',
+      time: idx === 0 ? '11:00 AM' : idx === 1 ? '03:30 PM' : '05:00 PM',
+      date: 'Today',
+      platform: idx === 0 ? 'Google Meet' : idx === 1 ? 'Zoom' : 'Phone Call',
+      meetUrl: idx === 0 ? 'https://meet.google.com/das-crm-demo' : undefined,
+      isCompleted: false,
+    }));
+    setMeetings(meets);
+
     const opps: SyncedOpportunity[] = scopedLeads.slice(0, 4).map((l, idx) => ({
       id: `opp-${l.id || idx}`,
       leadId: String(l.id),
@@ -726,6 +741,83 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                   </View>
                 </View>
               ))
+          )}
+        </View>
+
+        {/* ── 4.5. Meetings (Product Demonstrations & Discovery Calls) ──────── */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Meetings</Text>
+          <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Meetings Hub →</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
+          {meetings.length === 0 ? (
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 14 }]}>
+              <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
+                No meetings scheduled today.
+              </Text>
+            </View>
+          ) : (
+            meetings.map((m) => (
+              <View
+                key={m.id}
+                style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={[styles.oppTitle, { color: colors.text }]}>{m.leadName}</Text>
+                      <View style={[styles.newBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8' }}>🎥 {m.platform}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.oppSub, { color: colors.textMuted }]}>
+                      🏢 {m.company} · 📞 {m.phone}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#38bdf8' }}>⏰ {m.time}</Text>
+                    <Text style={{ fontSize: 9, color: colors.textMuted }}>{m.date}</Text>
+                  </View>
+                </View>
+
+                <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: isDark ? 'rgba(56,189,248,0.08)' : 'rgba(56,189,248,0.05)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.2)' : 'rgba(56,189,248,0.12)' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>
+                    📋 {m.title}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <TouchableOpacity
+                    style={[styles.smallIconBtn, { backgroundColor: m.isCompleted ? 'rgba(16,185,129,0.2)' : colors.cardBgElevated }]}
+                    onPress={() => setMeetings(prev => prev.map(item => item.id === m.id ? { ...item, isCompleted: !item.isCompleted } : item))}
+                  >
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: m.isCompleted ? '#34d399' : colors.text }}>
+                      {m.isCompleted ? '✓ Completed' : 'Mark Held'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                      onPress={() => handleDial({ id: m.leadId, name: m.leadName, phone: m.phone })}
+                    >
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
+                    </TouchableOpacity>
+                    {m.meetUrl && (
+                      <TouchableOpacity
+                        style={[styles.smallIconBtn, { backgroundColor: '#0284c7' }]}
+                        onPress={() => Linking.openURL(m.meetUrl!).catch(() => Alert.alert('Meeting', 'Joining video call...'))}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#ffffff' }}>🎥 Join Video Call</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+            ))
           )}
         </View>
 
