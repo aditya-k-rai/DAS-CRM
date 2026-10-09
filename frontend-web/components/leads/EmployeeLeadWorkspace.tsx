@@ -1812,45 +1812,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const gstAmount = gstPct > 0 ? Math.round((baseTotalPrice * gstPct) / 100) : 0;
     const finalTotalPrice = baseTotalPrice + gstAmount;
 
-    // Optional Product Image / Photo attachment
-    let imageLine = '';
-    if (productWaIncludeImage) {
-      const rawImg = selectedProductObj?.coverImage || selectedProductObj?.imageUrl || (Array.isArray(selectedProductObj?.images) && selectedProductObj.images.length > 0 ? selectedProductObj.images[0] : '');
-      if (rawImg && !rawImg.startsWith('data:image/svg')) {
-        let fullImgUrl = rawImg;
-        if (!rawImg.startsWith('http://') && !rawImg.startsWith('https://') && !rawImg.startsWith('data:')) {
-          if (typeof window !== 'undefined' && window.location?.origin) {
-            fullImgUrl = `${window.location.origin}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
-          }
-        }
-        if (fullImgUrl.startsWith('http://') || fullImgUrl.startsWith('https://')) {
-          if (lang === 'HI') {
-            imageLine = `🖼️ *उत्पाद फोटो / संदर्भ लिंक:* ${fullImgUrl}\n`;
-          } else if (lang === 'HINGLISH') {
-            imageLine = `🖼️ *Product Photo / Image Link:* ${fullImgUrl}\n`;
-          } else {
-            imageLine = `🖼️ *Product Image / Photo:* ${fullImgUrl}\n`;
-          }
-        } else if (selectedProductObj?.name) {
-          if (lang === 'HI') {
-            imageLine = `🖼️ *उत्पाद फोटो:* संलग्न कैटलॉग अनुसार\n`;
-          } else if (lang === 'HINGLISH') {
-            imageLine = `🖼️ *Product Photo:* Attached with this catalog dispatch\n`;
-          } else {
-            imageLine = `🖼️ *Product Photo:* Attached with catalog dispatch\n`;
-          }
-        }
-      } else if (selectedProductObj?.name) {
-        if (lang === 'HI') {
-          imageLine = `🖼️ *उत्पाद फोटो:* संलग्न कैटलॉग अनुसार\n`;
-        } else if (lang === 'HINGLISH') {
-          imageLine = `🖼️ *Product Photo:* Attached with this catalog dispatch\n`;
-        } else {
-          imageLine = `🖼️ *Product Photo:* Attached with catalog dispatch\n`;
-        }
-      }
-    }
-
     const unitPriceFormatted = selectedProductObj ? `₹${baseUnitPrice.toLocaleString('en-IN')}` : (lang === 'HI' ? 'चर्चा अनुसार' : 'As discussed');
     
     let unitPriceLine = '';
@@ -1941,7 +1902,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         `हमसे *${productName}* के बारे में चर्चा करने के लिए धन्यवाद! यहाँ उत्पाद का पूरा विवरण और मूल्य दिया गया है:\n\n` +
         `📦 *उत्पाद का नाम:* *${productName}*${skuText}\n` +
         (categoryText ? `📁 *श्रेणी:* ${categoryText}\n` : '') +
-        imageLine +
         `🔢 *चयनित मात्रा:* ${qty} ${unitName}\n` +
         unitPriceLine +
         priceBlock +
@@ -1956,7 +1916,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         `Humse *${productName}* ke baare mein baat karne ke liye dhanyawad! Yahan product ki complete details aur pricing di gayi hai:\n\n` +
         `📦 *Product Name:* *${productName}*${skuText}\n` +
         (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
-        imageLine +
         `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
         unitPriceLine +
         priceBlock +
@@ -1972,7 +1931,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       `Thank you for discussing *${productName}* with us! Here are the complete product details and pricing:\n\n` +
       `📦 *Product Name:* *${productName}*${skuText}\n` +
       (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
-      imageLine +
       `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
       unitPriceLine +
       priceBlock +
@@ -1983,7 +1941,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     );
   };
 
-  const handleShareProductOnWhatsAppDirect = (overrideMsg?: string) => {
+  const handleShareProductOnWhatsAppDirect = async (overrideMsg?: string) => {
     const contactInfo = resolveLeadContactInfo(lead);
     const rawPhone = productWaTargetPhone.trim() || contactInfo.phone || (lead.phone !== '—' ? lead.phone : '');
     const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
@@ -2001,7 +1959,55 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const gstTag = gstPct > 0 ? ` (incl. ${gstPct}% GST)` : '';
     const productInterestFormatted = `${prodName} (Qty: ${qty} ${pricing.unitName} · ₹${finalTotalPrice.toLocaleString('en-IN')}${gstTag}${discountNote})`;
 
-    // 1. Launch WhatsApp Web / App
+    // 1. If image attachment is enabled, copy actual image file to clipboard for 1-tap paste in WhatsApp
+    const rawImg = selectedProductObj?.coverImage || selectedProductObj?.imageUrl || (Array.isArray(selectedProductObj?.images) ? selectedProductObj.images[0] : '');
+    if (productWaIncludeImage && rawImg) {
+      try {
+        let blob: Blob | null = null;
+        if (rawImg.startsWith('data:')) {
+          const res = await fetch(rawImg);
+          blob = await res.blob();
+        } else {
+          const fullImgUrl = rawImg.startsWith('http') ? rawImg : `${typeof window !== 'undefined' ? window.location.origin : ''}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+          const res = await fetch(fullImgUrl, { mode: 'cors' }).catch(() => null);
+          if (res && res.ok) {
+            blob = await res.blob();
+          }
+        }
+
+        if (blob && typeof ClipboardItem !== 'undefined' && navigator.clipboard && navigator.clipboard.write) {
+          if (blob.type === 'image/png') {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          } else {
+            // Render to canvas to create clean image/png for widest clipboard pasting compatibility
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            const blobUrl = URL.createObjectURL(blob);
+            await new Promise((resolve) => {
+              img.onload = resolve;
+              img.onerror = resolve;
+              img.src = blobUrl;
+            });
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 400;
+            canvas.height = img.naturalHeight || 400;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const pngBlob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
+              if (pngBlob) {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+              }
+            }
+            URL.revokeObjectURL(blobUrl);
+          }
+        }
+      } catch (err) {
+        console.warn('Image clipboard attachment notice:', err);
+      }
+    }
+
+    // 2. Launch WhatsApp Web / App
     window.open(`https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${encodeURIComponent(finalMsg)}`, '_blank');
     setIsProductWaShared(true);
 
@@ -2681,7 +2687,6 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     let grandTotal = 0;
     const lines: string[] = [];
-    const imageLines: string[] = [];
 
     selectedEntries.forEach(([pId, qty]) => {
       const p = catalogProducts.find(item => item.id === pId);
@@ -2690,18 +2695,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         grandTotal += lineTotal;
         const unitLabel = p.unit || 'Units';
         lines.push(`• ${p.name} (Qty: ${qty} ${unitLabel}) @ ₹${p.price.toLocaleString('en-IN')} = ₹${lineTotal.toLocaleString('en-IN')}`);
-
-        const imgUrl = p.coverImage || p.imageUrl || '';
-        if (imgUrl && !imgUrl.startsWith('data:')) {
-          const absoluteImgUrl = typeof window !== 'undefined' && imgUrl.startsWith('/') ? `${window.location.origin}${imgUrl}` : imgUrl;
-          imageLines.push(`  🖼️ ${p.name} Visual: ${absoluteImgUrl}`);
-        }
       }
     });
 
-    const visualSection = imageLines.length > 0 ? `\n\n📎 Attached Product Images:\n${imageLines.join('\n')}` : '';
-
-    return `Hi ${lead.name || 'Client'}! Please find our customized commercial proposal prepared for ${lead.company || 'your requirement'}:\n\n📦 Selected Products & Specifications:\n${lines.join('\n')}${visualSection}\n━━━━━━━━━━━━━━━━━━━━\n💰 Total Proposal Value: ₹${grandTotal.toLocaleString('en-IN')} (incl. 18% GST)\n\nPlease review the attached product specifications above, and reply to confirm your commercial order!`;
+    return `Hi ${lead.name || 'Client'}! Please find our customized commercial proposal prepared for ${lead.company || 'your requirement'}:\n\n📦 Selected Products & Specifications:\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━━━\n💰 Total Proposal Value: ₹${grandTotal.toLocaleString('en-IN')} (incl. 18% GST)\n\nPlease review the attached product specifications above, and reply to confirm your commercial order!`;
   };
 
   const generateInvoiceMessage = (inv: AvailableInvoiceItem) => {

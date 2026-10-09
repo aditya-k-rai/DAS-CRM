@@ -235,39 +235,6 @@ export default function PostCallOutcomeModal({
       ? (lang === 'HI' ? ` [${pricing.discountPct}% वॉल्यूम डिस्काउंट शामिल]` : ` [Includes ${pricing.discountPct}% Volume Tier Discount]`)
       : '';
     
-    // Optional Product Image / Photo attachment
-    let imageLine = '';
-    if (includeProductImage && selectedProduct) {
-      const rawImg = selectedProduct.imageUrl || (Array.isArray((selectedProduct as any).images) ? (selectedProduct as any).images[0] : '');
-      if (rawImg && !rawImg.startsWith('data:image/svg')) {
-        if (rawImg.startsWith('http://') || rawImg.startsWith('https://')) {
-          if (lang === 'HI') {
-            imageLine = `🖼️ *उत्पाद फोटो / संदर्भ लिंक:* ${rawImg}\n`;
-          } else if (lang === 'HINGLISH') {
-            imageLine = `🖼️ *Product Photo / Image Link:* ${rawImg}\n`;
-          } else {
-            imageLine = `🖼️ *Product Image / Photo:* ${rawImg}\n`;
-          }
-        } else {
-          if (lang === 'HI') {
-            imageLine = `🖼️ *उत्पाद फोटो:* संलग्न कैटलॉग अनुसार\n`;
-          } else if (lang === 'HINGLISH') {
-            imageLine = `🖼️ *Product Photo:* Attached with this catalog dispatch\n`;
-          } else {
-            imageLine = `🖼️ *Product Photo:* Attached with catalog dispatch\n`;
-          }
-        }
-      } else {
-        if (lang === 'HI') {
-          imageLine = `🖼️ *उत्पाद फोटो:* संलग्न कैटलॉग अनुसार\n`;
-        } else if (lang === 'HINGLISH') {
-          imageLine = `🖼️ *Product Photo:* Attached with this catalog dispatch\n`;
-        } else {
-          imageLine = `🖼️ *Product Photo:* Attached with catalog dispatch\n`;
-        }
-      }
-    }
-
     let unitPriceLine = '';
     if (includeUnitPrice) {
       if (lang === 'HI') {
@@ -333,7 +300,6 @@ export default function PostCallOutcomeModal({
         `हमसे *${prodName}* के बारे में चर्चा करने के लिए धन्यवाद! यहाँ उत्पाद का पूरा विवरण और मूल्य दिया गया है:\n\n` +
         `📦 *उत्पाद का नाम:* *${prodName}*\n` +
         categoryText +
-        imageLine +
         `🔢 *चयनित मात्रा:* ${qty} ${pricing.unitLabel}\n` +
         unitPriceLine +
         priceBlock +
@@ -348,7 +314,6 @@ export default function PostCallOutcomeModal({
         `Humse *${prodName}* ke baare mein baat karne ke liye dhanyawad! Yahan product ki complete details aur pricing di gayi hai:\n\n` +
         `📦 *Product Name:* *${prodName}*\n` +
         categoryText +
-        imageLine +
         `🔢 *Selected Quantity:* ${qty} ${pricing.unitLabel}\n` +
         unitPriceLine +
         priceBlock +
@@ -364,7 +329,6 @@ export default function PostCallOutcomeModal({
       `Thank you for discussing *${prodName}* with us! Here are the complete product details and pricing:\n\n` +
       `📦 *Product Name:* *${prodName}*\n` +
       categoryText +
-      imageLine +
       `🔢 *Selected Quantity:* ${qty} ${pricing.unitLabel}\n` +
       unitPriceLine +
       priceBlock +
@@ -722,7 +686,7 @@ export default function PostCallOutcomeModal({
                             <View style={[styles.checkboxBox, includeProductImage && styles.checkboxBoxActive]}>
                               {includeProductImage && <Text style={styles.checkboxCheck}>✓</Text>}
                             </View>
-                            <Text style={styles.toggleLabel}>🖼️ Attach Product Image in Message (Default: ON)</Text>
+                            <Text style={styles.toggleLabel}>🖼️ Attach Product Image (Default: ON)</Text>
                           </TouchableOpacity>
 
                           {/* 📊 GST Rate Selector */}
