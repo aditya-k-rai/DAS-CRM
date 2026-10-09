@@ -153,10 +153,10 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'AI_HUB', icon: '🧠', label: 'AI Hub' },
     { key: 'PDF_CATALOG', icon: '📄', label: 'PDF Catalogue' },
     { key: 'REPORTS', icon: '📊', label: 'Reports & Analytics' },
-    { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow & Automations' },
-    { key: 'DATABASE', icon: '🗄️', label: 'Database & Storage' },
+    { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow Automations & Bot Rules' },
+    { key: 'DATABASE', icon: '🗄️', label: 'Database' },
     { key: 'ATTENDANCE', icon: '⏱️', label: 'Attendance' },
-    { key: 'DEALS', icon: '💼', label: 'Deals' },
+    { key: 'DEALS', icon: '💼', label: 'Deals & Opportunities' },
     { key: 'GOALS', icon: '📈', label: 'Goals & Targets' },
     { key: 'INTERVIEWS', icon: '👤', label: 'Interview for Hiring' },
     { key: 'UPCOMING_COMMS', icon: '📌', label: 'The Notice Board' },
@@ -181,7 +181,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       case 'PDF_CATALOG': return t.modPdfCatalog || defaultLabel;
       case 'REPORTS': return t.modReports || defaultLabel;
       case 'AUTOMATIONS': return t.modAutomations || defaultLabel;
-      case 'DATABASE': return 'Database & Storage';
+      case 'DATABASE': return t.modDatabase || defaultLabel;
       case 'IMPORT_EXPORT': return t.modImportExport || defaultLabel;
       case 'ATTENDANCE': return t.modAttendance || defaultLabel;
       case 'DEALS': return t.modDeals || defaultLabel;

@@ -89,6 +89,7 @@ export interface LanguageTranslations {
   modReports: string;
   modAutomations: string;
   modImportExport: string;
+  modDatabase: string;
   modAttendance: string;
   modDeals: string;
   modGoals: string;
@@ -212,8 +213,8 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
 
     // Menu Modules
     menuTitle: 'Enterprise Workspace Menu',
-    menuSub: 'Access all 18 modules & system toolkits',
-    modulesCountBadge: '18 MODULES',
+    menuSub: 'Access all 22 modules & system toolkits',
+    modulesCountBadge: '22 MODULES',
     modProducts: 'Product Catalogue',
     modQuotes: 'Quotations & Invoices',
     modComms: 'WhatsApp Cloud',
@@ -223,16 +224,17 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
     modAiHub: 'AI Hub',
     modPdfCatalog: 'PDF Catalogue',
     modReports: 'Reports & Analytics',
-    modAutomations: 'Workflow & Automations',
-    modImportExport: 'Lead Import History',
-    modAttendance: 'Attendance & Geofencing',
-    modDeals: 'Deals Pipeline',
+    modAutomations: 'Workflow Automations & Bot Rules',
+    modImportExport: 'Lead Ingestion & Import',
+    modDatabase: 'Database',
+    modAttendance: 'Attendance',
+    modDeals: 'Deals & Opportunities',
     modGoals: 'Goals & Targets',
     modInterviews: 'Interview for Hiring',
     modNoticeBoard: 'The Notice Board',
-    modSettings: 'Settings & Language',
+    modSettings: 'Settings',
     modProfile: 'Company Profile Settings',
-    modSupport: 'Support & Help Desk',
+    modSupport: 'Support',
 
     // Dashboard Metrics
     dashTitle: 'Admin Command Center',
@@ -347,27 +349,28 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
 
     // Menu Modules
     menuTitle: 'एंटरप्राइज़ वर्कस्पेस मेनू',
-    menuSub: 'सभी 18 मॉड्यूल और सिस्टम टूलकिट तक पहुँचें',
-    modulesCountBadge: '18 मॉड्यूल',
-    modProducts: 'उत्पाद सूची (कैटलॉग)',
-    modQuotes: 'कोटेशन और इनवॉइस',
-    modComms: 'व्हाट्सएप क्लाउड',
-    modWaTemplates: 'व्हाट्सएप डायरेक्ट टेम्प्लेट',
-    modEmail: 'ईमेल मार्केटिंग',
-    modAiControl: 'एआई कस्टमाइज़ेशन',
-    modAiHub: 'एआई हब',
-    modPdfCatalog: 'पीडीएफ कैटलॉग',
-    modReports: 'रिपोर्ट और विश्लेषण',
-    modAutomations: 'वर्कफ़्लो और ऑटोमेशन',
-    modImportExport: 'लीड आयात इतिहास',
-    modAttendance: 'उपस्थिति और जियोफेंसिंग',
-    modDeals: 'डील पाइपलाइन',
-    modGoals: 'लक्ष्य और लक्ष्य निर्धारण',
-    modInterviews: 'भर्ती साक्षात्कार',
-    modNoticeBoard: 'कंपनी सूचना पट्ट',
-    modSettings: 'सेटिंग्स और भाषा',
-    modProfile: 'कंपनी प्रोफ़ाइल सेटिंग्स',
-    modSupport: 'सहायता और हेल्प डेस्क',
+    menuSub: 'सभी 22 मॉड्यूल और सिस्टम टूलकिट तक पहुँचें',
+    modulesCountBadge: '22 मॉड्यूल',
+    modProducts: 'Product Catalogue',
+    modQuotes: 'Quotations & Invoices',
+    modComms: 'WhatsApp Cloud',
+    modWaTemplates: 'WhatsApp Direct Templates',
+    modEmail: 'Email Marketing',
+    modAiControl: 'AI Customization',
+    modAiHub: 'AI Hub',
+    modPdfCatalog: 'PDF Catalogue',
+    modReports: 'Reports & Analytics',
+    modAutomations: 'Workflow Automations & Bot Rules',
+    modImportExport: 'Lead Ingestion & Import',
+    modDatabase: 'Database',
+    modAttendance: 'Attendance',
+    modDeals: 'Deals & Opportunities',
+    modGoals: 'Goals & Targets',
+    modInterviews: 'Interview for Hiring',
+    modNoticeBoard: 'The Notice Board',
+    modSettings: 'Settings',
+    modProfile: 'Company Profile Settings',
+    modSupport: 'Support',
 
     // Dashboard Metrics
     dashTitle: 'एडमिन कमांड सेंटर',
@@ -482,8 +485,8 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
 
     // Menu Modules
     menuTitle: 'Enterprise Workspace Menu',
-    menuSub: 'Sabhi 18 modules aur system toolkits access karein',
-    modulesCountBadge: '18 MODULES',
+    menuSub: 'Sabhi 22 modules aur system toolkits access karein',
+    modulesCountBadge: '22 MODULES',
     modProducts: 'Product Catalogue',
     modQuotes: 'Quotations & Invoices',
     modComms: 'WhatsApp Cloud',
@@ -493,16 +496,17 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
     modAiHub: 'AI Hub',
     modPdfCatalog: 'PDF Catalogue',
     modReports: 'Reports & Analytics',
-    modAutomations: 'Workflow & Automations',
-    modImportExport: 'Lead Import History',
-    modAttendance: 'Attendance & Geofencing',
-    modDeals: 'Deals Pipeline',
+    modAutomations: 'Workflow Automations & Bot Rules',
+    modImportExport: 'Lead Ingestion & Import',
+    modDatabase: 'Database',
+    modAttendance: 'Attendance',
+    modDeals: 'Deals & Opportunities',
     modGoals: 'Goals & Targets',
-    modInterviews: 'Hiring Interviews',
+    modInterviews: 'Interview for Hiring',
     modNoticeBoard: 'The Notice Board',
-    modSettings: 'Settings & Language',
+    modSettings: 'Settings',
     modProfile: 'Company Profile Settings',
-    modSupport: 'Support & Help Desk',
+    modSupport: 'Support',
 
     // Dashboard Metrics
     dashTitle: 'Admin Command Center',
