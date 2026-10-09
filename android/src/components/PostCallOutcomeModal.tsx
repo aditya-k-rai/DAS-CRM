@@ -132,6 +132,7 @@ export default function PostCallOutcomeModal({
   const [productWaTargetPhone, setProductWaTargetPhone] = useState<string>(phone || '');
   const [productWaCustomNote, setProductWaCustomNote] = useState<string>('');
   const [isProductWaShared, setIsProductWaShared] = useState<boolean>(false);
+  const [productWaLanguage, setProductWaLanguage] = useState<'EN' | 'HI' | 'HINGLISH'>('EN');
 
   // Custom Notes Input Box
   const [notes, setNotes] = useState('');
@@ -211,33 +212,63 @@ export default function PostCallOutcomeModal({
       gstAmount,
       finalTotalPrice,
       discountPct,
-      unitLabel: 'Units',
+      unitLabel: 'Pieces (Pcs)',
     };
   };
 
-  const generateProductWhatsAppMessage = (customNote?: string) => {
-    const clientName = (!leadName || leadName === 'Lead Prospect' || leadName === '—') ? 'Valued Client' : leadName;
+  const generateProductWhatsAppMessage = (customNote?: string, lang: 'EN' | 'HI' | 'HINGLISH' = productWaLanguage) => {
+    const clientName = (!leadName || leadName === 'Lead Prospect' || leadName === '—')
+      ? (lang === 'HI' ? 'आदरणीय ग्राहक' : 'Valued Client')
+      : leadName;
     const pricing = calculateProductPricing();
-    const prodName = selectedProduct?.name || 'Product of Interest';
-    const categoryText = selectedProduct?.category ? `📁 *Category:* ${selectedProduct.category}\n` : '';
+    const prodName = selectedProduct?.name || (lang === 'HI' ? 'चयनित उत्पाद' : 'Product of Interest');
+    const categoryText = selectedProduct?.category
+      ? (lang === 'HI' ? `📁 *श्रेणी:* ${selectedProduct.category}\n` : `📁 *Category:* ${selectedProduct.category}\n`)
+      : '';
     const qty = Math.max(1, selectedQuantity || 1);
     const unitPriceFormatted = `₹${pricing.unitPrice.toLocaleString('en-IN')}`;
     const baseTotalFormatted = `₹${pricing.baseTotalPrice.toLocaleString('en-IN')}`;
     const finalTotalFormatted = `₹${pricing.finalTotalPrice.toLocaleString('en-IN')}`;
-    const discountStr = pricing.discountPct > 0 ? ` [Includes ${pricing.discountPct}% Volume Tier Discount]` : '';
     
-    const unitPriceLine = includeUnitPrice
-      ? `🏷️ *Unit Price:* ${unitPriceFormatted} / ${pricing.unitLabel}${pricing.gstRate > 0 ? ' (excl. GST)' : ''}\n`
+    const discountStr = pricing.discountPct > 0
+      ? (lang === 'HI' ? ` [${pricing.discountPct}% वॉल्यूम डिस्काउंट शामिल]` : ` [Includes ${pricing.discountPct}% Volume Tier Discount]`)
       : '';
+    
+    let unitPriceLine = '';
+    if (includeUnitPrice) {
+      if (lang === 'HI') {
+        unitPriceLine = `🏷️ *प्रति इकाई मूल्य:* ${unitPriceFormatted} / ${pricing.unitLabel}${pricing.gstRate > 0 ? ' (GST अतिरिक्त)' : ''}\n`;
+      } else if (lang === 'HINGLISH') {
+        unitPriceLine = `🏷️ *Per Unit Price:* ${unitPriceFormatted} / ${pricing.unitLabel}${pricing.gstRate > 0 ? ' (excl. GST)' : ''}\n`;
+      } else {
+        unitPriceLine = `🏷️ *Unit Price:* ${unitPriceFormatted} / ${pricing.unitLabel}${pricing.gstRate > 0 ? ' (excl. GST)' : ''}\n`;
+      }
+    }
 
     let priceBlock = '';
     if (pricing.gstRate > 0) {
-      priceBlock =
-        `💵 *Subtotal (Base Value):* ${baseTotalFormatted}${discountStr}\n` +
-        `📊 *GST Rate (${pricing.gstRate}%):* +₹${pricing.gstAmount.toLocaleString('en-IN')}\n` +
-        `💰 *Estimated Net Total (incl. ${pricing.gstRate}% GST):* *${finalTotalFormatted}*`;
+      if (lang === 'HI') {
+        priceBlock =
+          `💵 *उप-योग (मूल मूल्य):* ${baseTotalFormatted}${discountStr}\n` +
+          `📊 *GST दर (${pricing.gstRate}%):* +₹${pricing.gstAmount.toLocaleString('en-IN')}\n` +
+          `💰 *अनुमानित कुल मूल्य (${pricing.gstRate}% GST सहित):* *${finalTotalFormatted}*`;
+      } else if (lang === 'HINGLISH') {
+        priceBlock =
+          `💵 *Subtotal (Base Value):* ${baseTotalFormatted}${discountStr}\n` +
+          `📊 *GST Rate (${pricing.gstRate}%):* +₹${pricing.gstAmount.toLocaleString('en-IN')}\n` +
+          `💰 *Estimated Net Total (incl. ${pricing.gstRate}% GST):* *${finalTotalFormatted}*`;
+      } else {
+        priceBlock =
+          `💵 *Subtotal (Base Value):* ${baseTotalFormatted}${discountStr}\n` +
+          `📊 *GST Rate (${pricing.gstRate}%):* +₹${pricing.gstAmount.toLocaleString('en-IN')}\n` +
+          `💰 *Estimated Net Total (incl. ${pricing.gstRate}% GST):* *${finalTotalFormatted}*`;
+      }
     } else {
-      priceBlock = `💰 *Estimated Total Value:* *${baseTotalFormatted}*${discountStr}`;
+      if (lang === 'HI') {
+        priceBlock = `💰 *अनुमानित कुल मूल्य:* *${baseTotalFormatted}*${discountStr}`;
+      } else {
+        priceBlock = `💰 *Estimated Total Value:* *${baseTotalFormatted}*${discountStr}`;
+      }
     }
 
     // Resolve Real Company & Representative Name (Replacing demo references)
@@ -255,8 +286,42 @@ export default function PostCallOutcomeModal({
         .replace(/DAS CRM/gi, rawCompany)
         .replace(/DAS-CRM/gi, rawCompany);
     }
-    const desc = cleanDescription ? `\n\n📝 *Product Specifications & Details:*\n${cleanDescription}` : '';
-    const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
+    const desc = cleanDescription
+      ? (lang === 'HI' ? `\n\n📝 *उत्पाद विनिर्देश और विवरण:*\n${cleanDescription}` : `\n\n📝 *Product Specifications & Details:*\n${cleanDescription}`)
+      : '';
+    const extraNote = customNote && customNote.trim()
+      ? (lang === 'HI' ? `\n\n💡 *प्रतिनिधि की टिप्पणी:* "${customNote.trim()}"` : `\n\n💡 *Note from Representative:* "${customNote.trim()}"`)
+      : '';
+
+    if (lang === 'HI') {
+      return (
+        `नमस्ते *${clientName} जी*,\n\n` +
+        `हमसे *${prodName}* के बारे में चर्चा करने के लिए धन्यवाद! यहाँ उत्पाद का पूरा विवरण और मूल्य दिया गया है:\n\n` +
+        `📦 *उत्पाद का नाम:* *${prodName}*\n` +
+        categoryText +
+        `🔢 *चयनित मात्रा:* ${qty} ${pricing.unitLabel}\n` +
+        unitPriceLine +
+        priceBlock +
+        desc +
+        extraNote +
+        `\n\n💬 *अगला कदम:* कृपया हमें बताएं यदि आपको कोई बदलाव चाहिए या औपचारिक कोटेशन / टैक्स इनवॉयस की आवश्यकता है। यदि आपकी कोई अन्य आवश्यकता या उत्पाद हैं तो कृपया हमें बताएं!` +
+        `\n\nसादर,\n*${repName}*\n${companyTeamLabel}`
+      );
+    } else if (lang === 'HINGLISH') {
+      return (
+        `Namaste *${clientName} ji*,\n\n` +
+        `Humse *${prodName}* ke baare mein baat karne ke liye dhanyawad! Yahan product ki complete details aur pricing di gayi hai:\n\n` +
+        `📦 *Product Name:* *${prodName}*\n` +
+        categoryText +
+        `🔢 *Selected Quantity:* ${qty} ${pricing.unitLabel}\n` +
+        unitPriceLine +
+        priceBlock +
+        desc +
+        extraNote +
+        `\n\n💬 *Next Steps:* Please batayein agar aapko koi adjustments chahiye ya formal commercial quotation / tax invoice issue karwana ho. Agar aapki koi aur requirement ya products hain toh please batayein!` +
+        `\n\nBest regards,\n*${repName}*\n${companyTeamLabel}`
+      );
+    }
 
     return (
       `Hello *${clientName}*,\n\n` +
@@ -275,7 +340,7 @@ export default function PostCallOutcomeModal({
 
   const handleShareProductViaWhatsApp = async () => {
     const targetPhone = (productWaTargetPhone || phone || '').replace(/[^0-9]/g, '');
-    const finalMsg = generateProductWhatsAppMessage(productWaCustomNote);
+    const finalMsg = generateProductWhatsAppMessage(productWaCustomNote, productWaLanguage);
     const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(finalMsg)}`;
 
     try {
@@ -724,13 +789,44 @@ export default function PostCallOutcomeModal({
                               onChangeText={setProductWaCustomNote}
                             />
 
-                            {/* Message Preview */}
+                            {/* Message Preview with Language Selector */}
                             <View style={styles.waPreviewBox}>
-                              <Text style={{ fontSize: 8, fontWeight: '800', color: '#22c55e', textTransform: 'uppercase', marginBottom: 4 }}>
-                                Live WhatsApp Preview (Auto-Generated):
-                              </Text>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
+                                <Text style={{ fontSize: 8, fontWeight: '800', color: '#22c55e', textTransform: 'uppercase' }}>
+                                  Live WhatsApp Preview:
+                                </Text>
+                                <View style={styles.langChipsRow}>
+                                  <TouchableOpacity
+                                    style={[styles.langChip, productWaLanguage === 'EN' && styles.langChipActive]}
+                                    onPress={() => setProductWaLanguage('EN')}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Text style={[styles.langChipText, productWaLanguage === 'EN' && styles.langChipTextActive]}>
+                                      🇬🇧 EN
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={[styles.langChip, productWaLanguage === 'HI' && styles.langChipActive]}
+                                    onPress={() => setProductWaLanguage('HI')}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Text style={[styles.langChipText, productWaLanguage === 'HI' && styles.langChipTextActive]}>
+                                      🇮🇳 हिन्दी
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={[styles.langChip, productWaLanguage === 'HINGLISH' && styles.langChipActive]}
+                                    onPress={() => setProductWaLanguage('HINGLISH')}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Text style={[styles.langChipText, productWaLanguage === 'HINGLISH' && styles.langChipTextActive]}>
+                                      🗣️ Hinglish
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
                               <Text style={styles.waPreviewText} numberOfLines={7}>
-                                {generateProductWhatsAppMessage(productWaCustomNote)}
+                                {generateProductWhatsAppMessage(productWaCustomNote, productWaLanguage)}
                               </Text>
                             </View>
 
@@ -893,6 +989,12 @@ const styles = StyleSheet.create({
   waPreviewText: { fontSize: 9, color: '#94a3b8', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', lineHeight: 13 },
   waShareBtn: { backgroundColor: '#16a34a', paddingVertical: 8, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   waShareBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+
+  langChipsRow: { flexDirection: 'row', gap: 3 },
+  langChip: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  langChipActive: { backgroundColor: '#10b981', borderColor: '#059669' },
+  langChipText: { fontSize: 8, fontWeight: '700', color: '#94a3b8' },
+  langChipTextActive: { color: '#ffffff', fontWeight: '900' },
 
   notesBoxInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, color: '#ffffff', fontSize: 11, textAlignVertical: 'top', minHeight: 70 },
   saveOutcomeBtn: { backgroundColor: '#16a34a', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },

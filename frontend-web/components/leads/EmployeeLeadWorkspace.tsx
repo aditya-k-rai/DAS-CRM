@@ -1789,13 +1789,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [productWaGstRate, setProductWaGstRate] = useState<number>(5);
   const [productWaGstPreset, setProductWaGstPreset] = useState<'0' | '5' | '12' | '18' | '28' | 'CUSTOM'>('5');
   const [productWaCustomGstInput, setProductWaCustomGstInput] = useState<string>('');
+  const [productWaLanguage, setProductWaLanguage] = useState<'EN' | 'HI' | 'HINGLISH'>('EN');
 
-  const generateProductWhatsAppMessage = (customNote?: string) => {
+  const generateProductWhatsAppMessage = (customNote?: string, lang: 'EN' | 'HI' | 'HINGLISH' = productWaLanguage) => {
     const clientName = (!lead.name || lead.name.includes('Lead Prospect') || lead.name === 'Prospect' || lead.name === '—')
-      ? 'Valued Client'
+      ? (lang === 'HI' ? 'आदरणीय ग्राहक' : 'Valued Client')
       : lead.name;
     const pricing = calculateLeadProductPricing();
-    const productName = selectedProductObj?.name || customProductInput.trim() || 'Product of Interest';
+    const productName = selectedProductObj?.name || customProductInput.trim() || (lang === 'HI' ? 'चयनित उत्पाद' : 'Product of Interest');
     const skuText = selectedProductObj?.sku ? ` (SKU: ${selectedProductObj.sku})` : '';
     const categoryText = selectedProductObj?.category
       ? `${selectedProductObj.category}${selectedProductObj.subCategory ? ` • ${selectedProductObj.subCategory}` : ''}`
@@ -1810,27 +1811,51 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const gstAmount = gstPct > 0 ? Math.round((baseTotalPrice * gstPct) / 100) : 0;
     const finalTotalPrice = baseTotalPrice + gstAmount;
 
-    const unitPriceFormatted = selectedProductObj ? `₹${baseUnitPrice.toLocaleString('en-IN')}` : 'As discussed';
-    const unitPriceLine = productWaIncludeUnitPrice
-      ? `🏷️ *Unit Price:* ${unitPriceFormatted} / ${unitName}${gstPct > 0 ? ' (excl. GST)' : ''}\n`
-      : '';
+    const unitPriceFormatted = selectedProductObj ? `₹${baseUnitPrice.toLocaleString('en-IN')}` : (lang === 'HI' ? 'चर्चा अनुसार' : 'As discussed');
+    
+    let unitPriceLine = '';
+    if (productWaIncludeUnitPrice) {
+      if (lang === 'HI') {
+        unitPriceLine = `🏷️ *प्रति इकाई मूल्य:* ${unitPriceFormatted} / ${unitName}${gstPct > 0 ? ' (GST अतिरिक्त)' : ''}\n`;
+      } else if (lang === 'HINGLISH') {
+        unitPriceLine = `🏷️ *Per Unit Price:* ${unitPriceFormatted} / ${unitName}${gstPct > 0 ? ' (excl. GST)' : ''}\n`;
+      } else {
+        unitPriceLine = `🏷️ *Unit Price:* ${unitPriceFormatted} / ${unitName}${gstPct > 0 ? ' (excl. GST)' : ''}\n`;
+      }
+    }
 
     const discountStr = pricing.appliedTier && pricing.appliedTier.discountPct > 0 
-      ? ` [Includes ${pricing.appliedTier.discountPct}% Volume Tier Discount]`
+      ? (lang === 'HI' ? ` [${pricing.appliedTier.discountPct}% वॉल्यूम डिस्काउंट शामिल]` : ` [Includes ${pricing.appliedTier.discountPct}% Volume Tier Discount]`)
       : '';
 
     let priceBlock = '';
     if (selectedProductObj) {
       if (gstPct > 0) {
-        priceBlock =
-          `💵 *Subtotal (Base Value):* ₹${baseTotalPrice.toLocaleString('en-IN')}${discountStr}\n` +
-          `📊 *GST Rate (${gstPct}%):* +₹${gstAmount.toLocaleString('en-IN')}\n` +
-          `💰 *Estimated Net Total (incl. ${gstPct}% GST):* *₹${finalTotalPrice.toLocaleString('en-IN')}*`;
+        if (lang === 'HI') {
+          priceBlock =
+            `💵 *उप-योग (मूल मूल्य):* ₹${baseTotalPrice.toLocaleString('en-IN')}${discountStr}\n` +
+            `📊 *GST दर (${gstPct}%):* +₹${gstAmount.toLocaleString('en-IN')}\n` +
+            `💰 *अनुमानित कुल मूल्य (${gstPct}% GST सहित):* *₹${finalTotalPrice.toLocaleString('en-IN')}*`;
+        } else if (lang === 'HINGLISH') {
+          priceBlock =
+            `💵 *Subtotal (Base Value):* ₹${baseTotalPrice.toLocaleString('en-IN')}${discountStr}\n` +
+            `📊 *GST Rate (${gstPct}%):* +₹${gstAmount.toLocaleString('en-IN')}\n` +
+            `💰 *Estimated Net Total (incl. ${gstPct}% GST):* *₹${finalTotalPrice.toLocaleString('en-IN')}*`;
+        } else {
+          priceBlock =
+            `💵 *Subtotal (Base Value):* ₹${baseTotalPrice.toLocaleString('en-IN')}${discountStr}\n` +
+            `📊 *GST Rate (${gstPct}%):* +₹${gstAmount.toLocaleString('en-IN')}\n` +
+            `💰 *Estimated Net Total (incl. ${gstPct}% GST):* *₹${finalTotalPrice.toLocaleString('en-IN')}*`;
+        }
       } else {
-        priceBlock = `💰 *Estimated Total Value:* *₹${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
+        if (lang === 'HI') {
+          priceBlock = `💰 *अनुमानित कुल मूल्य:* *₹${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
+        } else {
+          priceBlock = `💰 *Estimated Total Value:* *₹${baseTotalPrice.toLocaleString('en-IN')}*${discountStr}`;
+        }
       }
     } else {
-      priceBlock = `💰 *Estimated Total Value:* As discussed`;
+      priceBlock = lang === 'HI' ? `💰 *अनुमानित कुल मूल्य:* चर्चा अनुसार` : `💰 *Estimated Total Value:* As discussed`;
     }
 
     // Resolve Real Company & Representative Name (Replacing demo references)
@@ -1856,8 +1881,49 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         .replace(/DAS CRM/gi, rawCompany)
         .replace(/DAS-CRM/gi, rawCompany);
     }
-    const desc = cleanDescription ? `\n\n📝 *Product Specifications & Details:*\n${cleanDescription}` : '';
-    const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
+    let desc = '';
+    if (cleanDescription) {
+      desc = lang === 'HI'
+        ? `\n\n📝 *उत्पाद विनिर्देश और विवरण:*\n${cleanDescription}`
+        : `\n\n📝 *Product Specifications & Details:*\n${cleanDescription}`;
+    }
+
+    let extraNote = '';
+    if (customNote && customNote.trim()) {
+      extraNote = lang === 'HI'
+        ? `\n\n💡 *प्रतिनिधि की टिप्पणी:* "${customNote.trim()}"`
+        : `\n\n💡 *Note from Representative:* "${customNote.trim()}"`;
+    }
+
+    if (lang === 'HI') {
+      return (
+        `नमस्ते *${clientName} जी*,\n\n` +
+        `हमसे *${productName}* के बारे में चर्चा करने के लिए धन्यवाद! यहाँ उत्पाद का पूरा विवरण और मूल्य दिया गया है:\n\n` +
+        `📦 *उत्पाद का नाम:* *${productName}*${skuText}\n` +
+        (categoryText ? `📁 *श्रेणी:* ${categoryText}\n` : '') +
+        `🔢 *चयनित मात्रा:* ${qty} ${unitName}\n` +
+        unitPriceLine +
+        priceBlock +
+        desc +
+        extraNote +
+        `\n\n💬 *अगला कदम:* कृपया हमें बताएं यदि आपको कोई बदलाव चाहिए या औपचारिक कोटेशन / टैक्स इनवॉयस की आवश्यकता है। यदि आपकी कोई अन्य आवश्यकता या उत्पाद हैं तो कृपया हमें बताएं!` +
+        `\n\nसादर,\n*${repName}*\n${companyTeamLabel}`
+      );
+    } else if (lang === 'HINGLISH') {
+      return (
+        `Namaste *${clientName} ji*,\n\n` +
+        `Humse *${productName}* ke baare mein baat karne ke liye dhanyawad! Yahan product ki complete details aur pricing di gayi hai:\n\n` +
+        `📦 *Product Name:* *${productName}*${skuText}\n` +
+        (categoryText ? `📁 *Category:* ${categoryText}\n` : '') +
+        `🔢 *Selected Quantity:* ${qty} ${unitName}\n` +
+        unitPriceLine +
+        priceBlock +
+        desc +
+        extraNote +
+        `\n\n💬 *Next Steps:* Please batayein agar aapko koi adjustments chahiye ya formal commercial quotation / tax invoice issue karwana ho. Agar aapki koi aur requirement ya products hain toh please batayein!` +
+        `\n\nBest regards,\n*${repName}*\n${companyTeamLabel}`
+      );
+    }
 
     return (
       `Hello *${clientName}*,\n\n` +
@@ -1879,7 +1945,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const rawPhone = productWaTargetPhone.trim() || contactInfo.phone || (lead.phone !== '—' ? lead.phone : '');
     const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
 
-    const finalMsg = overrideMsg || generateProductWhatsAppMessage(productWaCustomNote);
+    const finalMsg = overrideMsg || generateProductWhatsAppMessage(productWaCustomNote, productWaLanguage);
     const pricing = calculateLeadProductPricing();
     const prodName = selectedProductObj?.name || customProductInput.trim() || 'Product';
     const discountNote = pricing.appliedTier && pricing.appliedTier.discountPct > 0
@@ -4354,14 +4420,50 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
                               {/* Live WhatsApp Message Preview */}
                               <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/20 space-y-2">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
                                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                                    <Sparkles size={11} /> Live Message Preview (Auto-Generated from Selection)
+                                    <Sparkles size={11} /> Live Message Preview (Auto-Generated)
                                   </span>
-                                  <span className="text-[9px] text-slate-500 font-mono">Formatted for WhatsApp</span>
+
+                                  {/* Language Switcher: English | हिन्दी (Hindi) | Hinglish */}
+                                  <div className="flex items-center gap-1 bg-slate-950/90 p-0.5 rounded-lg border border-slate-800">
+                                    <button
+                                      type="button"
+                                      onClick={() => setProductWaLanguage('EN')}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                        productWaLanguage === 'EN'
+                                          ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                                      }`}
+                                    >
+                                      🇬🇧 English
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setProductWaLanguage('HI')}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                        productWaLanguage === 'HI'
+                                          ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                                      }`}
+                                    >
+                                      🇮🇳 हिन्दी (Hindi)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setProductWaLanguage('HINGLISH')}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                        productWaLanguage === 'HINGLISH'
+                                          ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                                      }`}
+                                    >
+                                      🗣️ Hinglish
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="text-[11px] font-mono text-slate-200 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
-                                  {generateProductWhatsAppMessage(productWaCustomNote)}
+                                <div className="text-[11px] font-mono text-slate-200 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                                  {generateProductWhatsAppMessage(productWaCustomNote, productWaLanguage)}
                                 </div>
                               </div>
 
