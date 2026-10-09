@@ -24,6 +24,7 @@ import {
   Image,
   Linking,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -145,24 +146,44 @@ export default function ProductsCatalogScreen({
     return products.filter((p) => (p.brand || '').trim().toLowerCase() === brandName.trim().toLowerCase()).length;
   };
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3200);
+  };
+
   useEffect(() => {
     loadCatalogData();
   }, []);
 
-  const loadCatalogData = async () => {
-    const prods = await productCatalogService.getProducts();
-    const cats = await productCatalogService.getCategories();
-    const brnds = await productCatalogService.getBrands();
-    const cfg = await productCatalogService.getCardDisplayConfig();
-    setProducts(prods);
-    setCategories(cats);
-    setBrands(brnds);
-    setCardConfig(cfg);
-    setTempConfig(cfg);
-    if (cats.length > 0) {
-      setCategoryInput(cats[0].name);
-      setSubCategoryInput(cats[0].subCategories[0] || 'General');
-      setSelectedParentForSubManage(cats[0].name);
+  const loadCatalogData = async (forceRefresh = false) => {
+    try {
+      setIsSyncing(true);
+      const prods = await productCatalogService.getProducts(forceRefresh);
+      const cats = await productCatalogService.getCategories();
+      const brnds = await productCatalogService.getBrands();
+      const cfg = await productCatalogService.getCardDisplayConfig();
+      setProducts(prods);
+      setCategories(cats);
+      setBrands(brnds);
+      setCardConfig(cfg);
+      setTempConfig(cfg);
+      if (cats.length > 0) {
+        setCategoryInput(cats[0].name);
+        setSubCategoryInput(cats[0].subCategories[0] || 'General');
+        setSelectedParentForSubManage(cats[0].name);
+      }
+      if (forceRefresh) {
+        showToast('✓ Real product catalog synchronized from cloud');
+      }
+    } catch (e) {
+      console.warn('Load catalog error:', e);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -304,8 +325,14 @@ export default function ProductsCatalogScreen({
             continue;
           }
 
-          const imgUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-          newImages.push(imgUri);
+          const rawUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          let finalImg = rawUri;
+          if (rawUri.startsWith('data:')) {
+            try {
+              finalImg = await productCatalogService.uploadProductImage(rawUri, 'catalog-prod');
+            } catch (_) {}
+          }
+          newImages.push(finalImg);
         }
 
         if (hasOverSize) {
@@ -690,7 +717,7 @@ export default function ProductsCatalogScreen({
               setProducts(updated);
               setModalOpen(false);
               resetForm();
-              Alert.alert('✅ Product Updated', `Updated "${payload.name}" successfully!`);
+              showToast(`✓ Updated "${payload.name}" successfully`);
             },
           },
         ]
@@ -702,7 +729,7 @@ export default function ProductsCatalogScreen({
     setProducts(updated);
     setModalOpen(false);
     resetForm();
-    Alert.alert('✅ Product Created', `Added "${payload.name}" (${payload.sku}) to Product Catalog!`);
+    showToast(`✓ Added "${payload.name}" (${payload.sku}) to Product Catalog`);
   };
 
   const handleDeleteProduct = (id: string, name: string) => {
@@ -722,7 +749,7 @@ export default function ProductsCatalogScreen({
           onPress: async () => {
             const updated = await productCatalogService.deleteProduct(id);
             setProducts(updated);
-            Alert.alert('Deleted', `"${name}" removed from catalog.`);
+            showToast(`✓ "${name}" removed from catalog`);
           },
         },
       ]
@@ -754,8 +781,33 @@ export default function ProductsCatalogScreen({
           ) : (
             <View />
           )}
-          <Text style={[styles.subHeaderTitle, { color: colors.text }]}>📦 Products &amp; Catalog Customization</Text>
+          <Text style={[styles.subHeaderTitle, { color: colors.text }]}>📦 Products &amp; Catalog</Text>
+          <TouchableOpacity
+            style={[
+              styles.syncHeaderBtn,
+              { backgroundColor: colors.cardBg, borderColor: colors.border },
+              isSyncing && { opacity: 0.7 },
+            ]}
+            onPress={() => loadCatalogData(true)}
+            disabled={isSyncing}
+            activeOpacity={0.8}
+          >
+            {isSyncing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={[styles.syncHeaderBtnText, { color: colors.primary }]}>🔄 Sync</Text>
+            )}
+          </TouchableOpacity>
         </View>
+
+        {/* Floating In-App Toast Banner */}
+        {toastMessage && (
+          <View style={[styles.toastBanner, { backgroundColor: isDark ? '#064e3b' : '#dcfce7', borderColor: isDark ? '#059669' : '#86efac' }]}>
+            <Text style={[styles.toastBannerText, { color: isDark ? '#a7f3d0' : '#166534' }]}>
+              {toastMessage}
+            </Text>
+          </View>
+        )}
 
         {/* Main Header Box (Matched to CommunicationScreen.tsx) */}
         <View style={styles.headerBox}>
@@ -1008,135 +1060,184 @@ export default function ProductsCatalogScreen({
 
         {/* Product Cards List — Tapping opens Full Details Modal */}
         <View style={styles.productsContainer}>
-          {filteredProducts.map((p) => {
-            const isOutOfStock = p.stockQuantity <= 0;
-            const isLowStock = p.stockQuantity > 0 && p.stockQuantity < 10;
-            const stockColor = isOutOfStock ? '#ef4444' : isLowStock ? '#facc15' : '#34d399';
+          {filteredProducts.length === 0 ? (
+            products.length === 0 ? (
+              <View style={[styles.emptyStateCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 36, marginBottom: 10 }}>📦</Text>
+                <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Products in Catalog</Text>
+                <Text style={[styles.emptyStateSub, { color: colors.textSecondary }]}>
+                  Start building your product catalog or synchronize live products from your cloud server.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  {canManage && (
+                    <TouchableOpacity
+                      style={[styles.createProductBtn, { paddingHorizontal: 16, paddingVertical: 10 }]}
+                      onPress={openCreateModal}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.createProductBtnText}>+ Create First Product</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.syncCloudBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                    onPress={() => loadCatalogData(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.syncCloudBtnText, { color: colors.primary }]}>🔄 Sync from Cloud</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={[styles.emptyStateCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>🔍</Text>
+                <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Matching Products</Text>
+                <Text style={[styles.emptyStateSub, { color: colors.textSecondary }]}>
+                  No items found matching &quot;{searchQuery || activeCategory}&quot;. Try clearing your search or category filter.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.clearFilterBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setActiveCategory('ALL');
+                    setActiveSubCategory('ALL');
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 11 }}>Clear Search &amp; Filters</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          ) : (
+            filteredProducts.map((p) => {
+              const isOutOfStock = p.stockQuantity <= 0;
+              const isLowStock = p.stockQuantity > 0 && p.stockQuantity < 10;
+              const stockColor = isOutOfStock ? '#ef4444' : isLowStock ? '#facc15' : '#34d399';
 
-            return (
-              <TouchableOpacity
-                key={p.id}
-                style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-                onPress={() => {
-                  setSelectedDetailImg(null);
-                  setViewDetailProduct(p);
-                }}
-                activeOpacity={0.85}
-              >
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-                  {cardConfig.showImage && (
-                    <View style={{ position: 'relative' }}>
-                      <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
-                      {p.images && p.images.length > 1 && (
-                        <View style={styles.multiImgBadge}>
-                          <Text style={styles.multiImgBadgeText}>📷 {p.images.length}</Text>
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                  onPress={() => {
+                    setSelectedDetailImg(null);
+                    setViewDetailProduct(p);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                    {cardConfig.showImage && (
+                      <View style={{ position: 'relative' }}>
+                        <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
+                        {p.images && p.images.length > 1 && (
+                          <View style={styles.multiImgBadge}>
+                            <Text style={styles.multiImgBadgeText}>📷 {p.images.length}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      {(cardConfig.showCategory || cardConfig.showSubCategory || cardConfig.showSku || p.brand) && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            {p.brand ? (
+                              <Text style={styles.brandBadgeText}>🏷️ {p.brand}</Text>
+                            ) : null}
+                            {cardConfig.showCategory && (
+                              <Text style={styles.categoryBadgeText}>📁 {p.category}</Text>
+                            )}
+                            {cardConfig.showSubCategory && p.subCategory && (
+                              <Text style={styles.subCategoryBadgeText}>📂 {p.subCategory}</Text>
+                            )}
+                          </View>
+                          {cardConfig.showSku && (
+                            <Text style={[styles.skuTagText, { color: colors.textMuted }]}>{p.sku}</Text>
+                          )}
+                        </View>
+                      )}
+
+                      {cardConfig.showName && (
+                        <Text style={[styles.productTitle, { color: colors.text }]}>{p.name}</Text>
+                      )}
+
+                      {cardConfig.showPrice && (
+                        <Text style={[styles.priceRangeText, { color: isDark ? '#34d399' : '#059669' }]}>
+                          {p.currency}{p.minPrice.toLocaleString()} - {p.currency}{p.maxPrice.toLocaleString()}
+                          <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '600' }}> / {p.unit || 'unit'}</Text>
+                          {p.color ? <Text style={{ fontSize: 9, color: colors.textMuted }}> • 🎨 {p.color}</Text> : null}
+                          {cardConfig.showGst && (
+                            <Text style={{ fontSize: 9, color: colors.textMuted }}> (+{p.taxRate}% GST)</Text>
+                          )}
+                        </Text>
+                      )}
+
+                      {/* Quantity & Stock Conditions */}
+                      {(cardConfig.showInStock || cardConfig.showMoq) && (
+                        <View style={styles.conditionsRow}>
+                          {cardConfig.showInStock && (
+                            <View style={[styles.stockBadge, { backgroundColor: stockColor + '20', borderColor: stockColor }]}>
+                              <Text style={[styles.stockBadgeText, { color: stockColor }]}>
+                                {isOutOfStock ? '🔴 Out of Stock' : isLowStock ? `🟡 Low Stock (${p.stockQuantity} Left)` : `🟢 In Stock (${p.stockQuantity} Units)`}
+                              </Text>
+                            </View>
+                          )}
+
+                          {cardConfig.showMoq && (
+                            <View style={[styles.moqBadge, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                              <Text style={[styles.moqBadgeText, { color: colors.textSecondary }]}>📦 MOQ: {p.moq} Unit(s)</Text>
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>
+                  </View>
+
+                  {/* Description (Admin Configurable — Disabled by default) */}
+                  {cardConfig.showDescription && (
+                    <Text style={[styles.descriptionText, { color: colors.textSecondary }]} numberOfLines={2}>{p.description}</Text>
                   )}
-                  <View style={{ flex: 1 }}>
-                    {(cardConfig.showCategory || cardConfig.showSubCategory || cardConfig.showSku || p.brand) && (
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                          {p.brand ? (
-                            <Text style={styles.brandBadgeText}>🏷️ {p.brand}</Text>
-                          ) : null}
-                          {cardConfig.showCategory && (
-                            <Text style={styles.categoryBadgeText}>📁 {p.category}</Text>
-                          )}
-                          {cardConfig.showSubCategory && p.subCategory && (
-                            <Text style={styles.subCategoryBadgeText}>📂 {p.subCategory}</Text>
-                          )}
+
+                  {/* Features List (Admin Configurable — Disabled by default) */}
+                  {cardConfig.showFeatures && p.features.length > 0 && (
+                    <View style={styles.featureChipsRow}>
+                      {p.features.slice(0, 3).map((feat, idx) => (
+                        <View key={idx} style={[styles.featChip, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                          <Text style={[styles.featChipText, { color: colors.textSecondary }]}>✓ {feat}</Text>
                         </View>
-                        {cardConfig.showSku && (
-                          <Text style={[styles.skuTagText, { color: colors.textMuted }]}>{p.sku}</Text>
-                        )}
-                      </View>
-                    )}
+                      ))}
+                      {p.features.length > 3 && (
+                        <Text style={{ fontSize: 8, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800', alignSelf: 'center' }}>
+                          +{p.features.length - 3} more specs →
+                        </Text>
+                      )}
+                    </View>
+                  )}
 
-                    {cardConfig.showName && (
-                      <Text style={[styles.productTitle, { color: colors.text }]}>{p.name}</Text>
-                    )}
+                  {cardConfig.showTapHint && (
+                    <View style={[styles.tapDetailsHintRow, { borderTopColor: colors.border }]}>
+                      <Text style={[styles.tapDetailsHintText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
+                    </View>
+                  )}
 
-                    {cardConfig.showPrice && (
-                      <Text style={[styles.priceRangeText, { color: isDark ? '#34d399' : '#059669' }]}>
-                        {p.currency}{p.minPrice.toLocaleString()} - {p.currency}{p.maxPrice.toLocaleString()}
-                        <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '600' }}> / {p.unit || 'unit'}</Text>
-                        {p.color ? <Text style={{ fontSize: 9, color: colors.textMuted }}> • 🎨 {p.color}</Text> : null}
-                        {cardConfig.showGst && (
-                          <Text style={{ fontSize: 9, color: colors.textMuted }}> (+{p.taxRate}% GST)</Text>
-                        )}
-                      </Text>
-                    )}
-
-                    {/* Quantity & Stock Conditions */}
-                    {(cardConfig.showInStock || cardConfig.showMoq) && (
-                      <View style={styles.conditionsRow}>
-                        {cardConfig.showInStock && (
-                          <View style={[styles.stockBadge, { backgroundColor: stockColor + '20', borderColor: stockColor }]}>
-                            <Text style={[styles.stockBadgeText, { color: stockColor }]}>
-                              {isOutOfStock ? '🔴 Out of Stock' : isLowStock ? `🟡 Low Stock (${p.stockQuantity} Left)` : `🟢 In Stock (${p.stockQuantity} Units)`}
-                            </Text>
-                          </View>
-                        )}
-
-                        {cardConfig.showMoq && (
-                          <View style={[styles.moqBadge, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-                            <Text style={[styles.moqBadgeText, { color: colors.textSecondary }]}>📦 MOQ: {p.moq} Unit(s)</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                </View>
-
-                {/* Description (Admin Configurable — Disabled by default) */}
-                {cardConfig.showDescription && (
-                  <Text style={[styles.descriptionText, { color: colors.textSecondary }]} numberOfLines={2}>{p.description}</Text>
-                )}
-
-                {/* Features List (Admin Configurable — Disabled by default) */}
-                {cardConfig.showFeatures && p.features.length > 0 && (
-                  <View style={styles.featureChipsRow}>
-                    {p.features.slice(0, 3).map((feat, idx) => (
-                      <View key={idx} style={[styles.featChip, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-                        <Text style={[styles.featChipText, { color: colors.textSecondary }]}>✓ {feat}</Text>
-                      </View>
-                    ))}
-                    {p.features.length > 3 && (
-                      <Text style={{ fontSize: 8, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800', alignSelf: 'center' }}>
-                        +{p.features.length - 3} more specs →
-                      </Text>
-                    )}
-                  </View>
-                )}
-
-                {cardConfig.showTapHint && (
-                  <View style={[styles.tapDetailsHintRow, { borderTopColor: colors.border }]}>
-                    <Text style={[styles.tapDetailsHintText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
-                  </View>
-                )}
-
-                {/* Admin & Manager Quick Product Edit / Delete */}
-                {canManage && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-                    <TouchableOpacity
-                      onPress={() => openEditModal(p)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }}
-                    >
-                      <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>✏️ Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteProduct(p.id, p.name)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#7f1d1d' : '#fee2e2' }}
-                    >
-                      <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🗑️ Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+                  {/* Admin & Manager Quick Product Edit / Delete */}
+                  {canManage && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                      <TouchableOpacity
+                        onPress={() => openEditModal(p)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }}
+                      >
+                        <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>✏️ Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteProduct(p.id, p.name)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#7f1d1d' : '#fee2e2' }}
+                      >
+                        <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🗑️ Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
       </ScrollView>
@@ -3028,5 +3129,71 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  syncHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  syncHeaderBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  toastBanner: {
+    width: '100%',
+    maxWidth: 650,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  toastBannerText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  emptyStateCard: {
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  emptyStateSub: {
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: 'center',
+    lineHeight: 16,
+    maxWidth: 320,
+  },
+  syncCloudBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  syncCloudBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  clearFilterBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    alignItems: 'center',
   },
 });

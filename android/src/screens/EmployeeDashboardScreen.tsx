@@ -28,6 +28,7 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
@@ -37,6 +38,7 @@ import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal from '../components/PostCallOutcomeModal';
 import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '../components/RepDrilldownModal';
 import { useModuleAccessStore } from '../store/moduleAccessStore';
+import { productCatalogService, CatalogProductItem } from '../services/productCatalogService';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -101,12 +103,6 @@ interface SyncedOpportunity {
   nextStep: string;
 }
 
-const DEMO_PRODUCTS: ProductItem[] = [
-  { id: 'p1', name: 'Premium Solar Panel 400W', sku: 'SOL-400W', price: '₹12,500', category: 'Solar', description: 'High-efficiency monocrystalline panel', emoji: '☀️' },
-  { id: 'p2', name: 'Lithium Battery 150Ah', sku: 'BAT-150AH', price: '₹18,000', category: 'Battery', description: 'Deep cycle lithium-iron-phosphate', emoji: '🔋' },
-  { id: 'p3', name: 'Solar Inverter 5kW', sku: 'INV-5KW', price: '₹35,000', category: 'Inverter', description: 'Hybrid grid-tie inverter with MPPT', emoji: '⚡' },
-  { id: 'p4', name: 'Structure Mounting Kit', sku: 'MNT-KIT-1', price: '₹4,500', category: 'Hardware', description: 'Galvanized steel rooftop mounting', emoji: '🔩' },
-];
 
 const DEMO_PDFS: PdfItem[] = [
   { id: 'pdf1', title: 'Solar System Product Catalogue 2026', category: 'PRODUCT', size: '4.2 MB', updated: '2 days ago', emoji: '📦' },
@@ -123,6 +119,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rawLeads, setRawLeads] = useState<Lead[]>([]);
+  const [liveProducts, setLiveProducts] = useState<CatalogProductItem[]>([]);
   const [activeCallLead, setActiveCallLead] = useState<{ id: string; name: string; phone: string } | null>(null);
   const [drilldownModalOpen, setDrilldownModalOpen] = useState(false);
   const [productDetailOpen, setProductDetailOpen] = useState<ProductItem | null>(null);
@@ -156,9 +153,15 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const syncDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const items = await apiService.getLeads();
+      const [items, prods] = await Promise.all([
+        apiService.getLeads(),
+        productCatalogService.getProducts(),
+      ]);
       if (Array.isArray(items)) {
         setRawLeads(items);
+      }
+      if (Array.isArray(prods)) {
+        setLiveProducts(prods);
       }
     } catch (err) {
       console.warn('Dashboard sync error:', err);
@@ -917,19 +920,39 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
-              {DEMO_PRODUCTS.map((prod) => (
-                <TouchableOpacity
-                  key={prod.id}
-                  style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-                  onPress={() => setProductDetailOpen(prod)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 26, marginBottom: 4 }}>{prod.emoji}</Text>
-                  <Text style={[styles.prodName, { color: colors.text }]} numberOfLines={2}>{prod.name}</Text>
-                  <Text style={[styles.prodSku, { color: colors.textMuted }]}>{prod.sku}</Text>
-                  <Text style={[styles.prodPrice, { color: '#34d399' }]}>{prod.price}</Text>
-                </TouchableOpacity>
-              ))}
+              {liveProducts.length === 0 ? (
+                <View style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border, width: 220, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Text style={{ fontSize: 24, marginBottom: 4 }}>📦</Text>
+                  <Text style={[styles.prodName, { color: colors.text, textAlign: 'center' }]}>No Products in Catalog</Text>
+                  <Text style={[styles.prodSku, { color: colors.textMuted, textAlign: 'center' }]}>Tap Full Catalogue to view/create</Text>
+                </View>
+              ) : (
+                liveProducts.map((prod) => (
+                  <TouchableOpacity
+                    key={prod.id}
+                    style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                    onPress={() => setProductDetailOpen({
+                      id: prod.id,
+                      name: prod.name,
+                      sku: prod.sku,
+                      price: `₹${prod.minPrice.toLocaleString('en-IN')}`,
+                      category: prod.category,
+                      description: prod.description || '',
+                      emoji: '📦',
+                    })}
+                    activeOpacity={0.8}
+                  >
+                    {prod.imageUrl ? (
+                      <Image source={{ uri: prod.imageUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginBottom: 4 }} />
+                    ) : (
+                      <Text style={{ fontSize: 26, marginBottom: 4 }}>📦</Text>
+                    )}
+                    <Text style={[styles.prodName, { color: colors.text }]} numberOfLines={2}>{prod.name}</Text>
+                    <Text style={[styles.prodSku, { color: colors.textMuted }]}>{prod.sku}</Text>
+                    <Text style={[styles.prodPrice, { color: '#34d399' }]}>₹{prod.minPrice.toLocaleString('en-IN')}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
           </View>
         )}

@@ -1,12 +1,21 @@
 /**
  * productCatalogService.ts — DAS CRM Android
- * Product & Services Catalog Service with Category & Sub-Category Hierarchy.
- * Manages category/sub-category trees, product creation, stock inventory counts,
- * MOQ validation, tax rates, and AsyncStorage persistent storage.
+ * Real-time Cloud Synchronization & Catalog Management Service.
+ * Full Parity with Web ProductsCatalog (/products).
+ *
+ * Capabilities:
+ * 1. Live synchronization with backend (/products, /products/card-display-config, /products/upload-image).
+ * 2. Full CRUD persistence across server & AsyncStorage cache.
+ * 3. Dynamic Category, Sub-Category, and Brand tree hierarchies.
+ * 4. Image upload & base64 processing.
+ * 5. Card display configuration governance for Admins & Managers.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiBase } from '../config/api';
+import { useAuthStore } from '../store/authStore';
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
 export interface CategoryTree {
   id: string;
@@ -39,8 +48,8 @@ export const DEFAULT_CARD_DISPLAY_CONFIG: ProductCardDisplayConfig = {
   showInStock: true,
   showMoq: true,
   showSku: true,
-  showDescription: false, // Clean display by default as requested
-  showFeatures: false,    // Clean display by default as requested
+  showDescription: false,
+  showFeatures: false,
   showTapHint: true,
 };
 
@@ -48,8 +57,8 @@ export interface CatalogProductItem {
   id: string;
   name: string;
   sku: string;
-  category: string; // e.g. "CRM & Sales Software"
-  subCategory: string; // e.g. "Lead Management"
+  category: string;
+  subCategory: string;
   brand?: string;
   color?: string;
   unit?: string;
@@ -83,155 +92,45 @@ export const UNIT_TYPES: string[] = [
 
 export const DEFAULT_BRANDS: string[] = [];
 
-const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_v3';
-const STORAGE_CATS_KEY = 'das_crm_categories_tree_v1';
-const STORAGE_CARD_CONFIG_KEY = 'das_crm_product_card_display_config_v1';
-const STORAGE_BRANDS_KEY = 'das_crm_brands_list_v1';
-
-export const DEFAULT_CATEGORY_TREE: CategoryTree[] = [
-  {
-    id: 'cat-1',
-    name: 'CRM & Sales Software',
-    subCategories: ['Lead Management', 'Sales Funnel & Kanban', 'WhatsApp & Email Automation'],
-  },
-  {
-    id: 'cat-2',
-    name: 'AI & Intelligence',
-    subCategories: ['AI Lead Scoring', 'Voice Call Telemetry Bot', 'Predictive Deal Analytics'],
-  },
-  {
-    id: 'cat-3',
-    name: 'Cloud & Communications',
-    subCategories: ['Meta WhatsApp Cloud API', 'Cloud Telemetry Node', 'SMS & Call Gateway'],
-  },
-  {
-    id: 'cat-4',
-    name: 'Professional Services',
-    subCategories: ['Custom Integration & Setup', 'SLA Support & Maintenance', 'Training & Onboarding'],
-  },
-  {
-    id: 'cat-5',
-    name: 'Hardware & Infrastructure',
-    subCategories: ['SIP Telemetry Phone', 'Biometric Punch Terminal', 'Cloud Server Appliance'],
-  },
-];
-
-export const INITIAL_PRODUCTS: CatalogProductItem[] = [
-  {
-    id: 'prod-101',
-    name: 'DAS Enterprise CRM License (Per User / Year)',
-    sku: 'DAS-CRM-ENT-01',
-    category: 'CRM & Sales Software',
-    subCategory: 'Lead Management',
-    brand: 'DAS Technologies',
-    unit: 'License',
-    minPrice: 12000,
-    maxPrice: 15000,
-    currency: '₹',
-    stockQuantity: 150,
-    moq: 5,
-    taxRate: 18,
-    description: 'Complete enterprise CRM platform with live call sync, lead routing, and quotas.',
-    features: ['Real-Time Call Logging', 'WhatsApp Cloud API', 'Automatic Round-Robin Routing'],
-    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
-    status: 'ACTIVE',
-    createdAt: '2026-01-15',
-  },
-  {
-    id: 'prod-102',
-    name: 'AI Lead Scoring & Prediction Bot',
-    sku: 'DAS-AI-SCORE-02',
-    category: 'AI & Intelligence',
-    subCategory: 'AI Lead Scoring',
-    brand: 'DAS AI Labs',
-    unit: 'License',
-    minPrice: 25000,
-    maxPrice: 30000,
-    currency: '₹',
-    stockQuantity: 85,
-    moq: 1,
-    taxRate: 18,
-    description: 'Real-time multi-dimensional AI scoring engine that prioritizes hot prospects.',
-    features: ['Automated Call Sentiment', 'Engagement Velocity Model', 'Deal Conversion Probability'],
-    imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80',
-    status: 'ACTIVE',
-    createdAt: '2026-02-01',
-  },
-  {
-    id: 'prod-103',
-    name: 'Meta WhatsApp Cloud Business API Setup',
-    sku: 'DAS-WA-CLOUD-03',
-    category: 'Cloud & Communications',
-    subCategory: 'Meta WhatsApp Cloud API',
-    brand: 'Meta / DAS',
-    unit: 'Units',
-    minPrice: 18000,
-    maxPrice: 22000,
-    currency: '₹',
-    stockQuantity: 40,
-    moq: 1,
-    taxRate: 18,
-    description: 'Official WhatsApp Business Cloud API green tick registration with custom HSM templates.',
-    features: ['Unlimited Direct Outbound', 'Rich Media PDFs', 'Automated Bot Triggers'],
-    imageUrl: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80',
-    status: 'ACTIVE',
-    createdAt: '2026-02-10',
-  },
-  {
-    id: 'prod-104',
-    name: 'Biometric Punch Terminal & Cloud Sync',
-    sku: 'DAS-BIO-TERM-04',
-    category: 'Hardware & Infrastructure',
-    subCategory: 'Biometric Punch Terminal',
-    brand: 'SecureID',
-    unit: 'Pieces (Pcs)',
-    minPrice: 14500,
-    maxPrice: 17500,
-    currency: '₹',
-    stockQuantity: 24,
-    moq: 1,
-    taxRate: 18,
-    description: 'Enterprise fingerprint and facial recognition attendance terminal with live DAS CRM sync.',
-    features: ['Wi-Fi & 4G Connectivity', 'Anti-Spoofing Sensors', 'Instant Shift Audit'],
-    imageUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80',
-    status: 'ACTIVE',
-    createdAt: '2026-03-05',
-  },
-  {
-    id: 'prod-105',
-    name: 'Custom ERP & API Integration Pack',
-    sku: 'DAS-PRO-SRV-05',
-    category: 'Professional Services',
-    subCategory: 'Custom Integration & Setup',
-    brand: 'DAS Solutions',
-    unit: 'Hours (Hrs)',
-    minPrice: 35000,
-    maxPrice: 50000,
-    currency: '₹',
-    stockQuantity: 12,
-    moq: 1,
-    taxRate: 18,
-    description: 'Full-stack engineering hours to connect SAP, Tally, Zoho or customized internal pipelines.',
-    features: ['Dedicated Integration Engineer', 'Webhook Middleware', 'SLA 99.9% Uptime'],
-    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
-    status: 'ACTIVE',
-    createdAt: '2026-03-12',
-  },
-];
-
-
-export const PRESET_PRODUCT_IMAGES = [
+export const PRESET_PRODUCT_IMAGES: string[] = [
   'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80',
   'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80',
 ];
 
+export const DEFAULT_CATEGORY_TREE: CategoryTree[] = [
+  {
+    id: 'cat-1',
+    name: 'General Products',
+    subCategories: ['General', 'Hardware', 'Accessories'],
+  },
+];
+
+const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_v3';
+const STORAGE_CATS_KEY = 'das_crm_categories_tree_v1';
+const STORAGE_CARD_CONFIG_KEY = 'das_crm_product_card_display_config_v1';
+const STORAGE_BRANDS_KEY = 'das_crm_brands_list_v1';
+
+// ─── Service Class ────────────────────────────────────────────────────────────
+
 class ProductCatalogService {
-  private products: CatalogProductItem[] = INITIAL_PRODUCTS;
+  private products: CatalogProductItem[] = [];
   private categories: CategoryTree[] = DEFAULT_CATEGORY_TREE;
   private brands: string[] = DEFAULT_BRANDS;
   private initialized = false;
+
+  private getRequestHeaders(): Record<string, string> {
+    const token = useAuthStore.getState().token;
+    const compId = useAuthStore.getState().currentUser?.companyId || '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(compId ? { 'x-organization-id': compId } : {}),
+    };
+  }
+
+  // ── Categories & Hierarchy ─────────────────────────────────────────────────
 
   async getCategories(): Promise<CategoryTree[]> {
     if (!this.initialized) {
@@ -240,161 +139,11 @@ class ProductCatalogService {
     return this.categories;
   }
 
-  async getBrands(): Promise<string[]> {
-    if (!this.initialized) {
-      await this.loadAll();
-    }
-    return this.brands;
-  }
-
-  async addBrand(brandName: string): Promise<string[]> {
-    const list = await this.getBrands();
-    const trimmed = brandName.trim();
-    if (trimmed && !list.includes(trimmed)) {
-      list.push(trimmed);
-      this.brands = [...list];
-      try {
-        await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(this.brands));
-      } catch (err) {
-        console.log('Failed to save brands:', err);
-      }
-    }
-    return this.brands;
-  }
-
-  async editBrand(oldBrand: string, newBrand: string): Promise<string[]> {
-    const list = await this.getBrands();
-    const trimmedOld = oldBrand.trim();
-    const trimmedNew = newBrand.trim();
-
-    const updated = list.map((b) => b.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : b);
-    this.brands = updated;
-    try {
-      await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.log('Failed to save brands:', err);
-    }
-
-    // Cascade update all products
-    const prods = await this.getProducts();
-    const updatedProds = prods.map((p) => {
-      if ((p.brand || '').trim().toLowerCase() === trimmedOld.toLowerCase()) {
-        return { ...p, brand: trimmedNew };
-      }
-      return p;
-    });
-    await this.saveProducts(updatedProds);
-    return updated;
-  }
-
-  async deleteBrand(brandName: string): Promise<string[]> {
-    const list = await this.getBrands();
-    const trimmed = brandName.trim();
-
-    const updated = list.filter((b) => b.toLowerCase() !== trimmed.toLowerCase());
-    this.brands = updated;
-    try {
-      await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.log('Failed to save brands:', err);
-    }
-
-    // Cascade update all products to 'Generic / Unbranded'
-    const prods = await this.getProducts();
-    const updatedProds = prods.map((p) => {
-      if ((p.brand || '').trim().toLowerCase() === trimmed.toLowerCase()) {
-        return { ...p, brand: 'Generic / Unbranded' };
-      }
-      return p;
-    });
-    await this.saveProducts(updatedProds);
-    return updated;
-  }
-
-  async getProducts(): Promise<CatalogProductItem[]> {
-    if (!this.initialized) {
-      await this.loadAll();
-    }
-
-    // Background sync from backend /products if available
-    try {
-      const activeBase = getApiBase();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
-      const res = await fetch(`${activeBase}/products`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const data = await res.json();
-        const serverProds = Array.isArray(data) ? data : data.products || data.data;
-        if (Array.isArray(serverProds) && serverProds.length > 0) {
-          const mapped: CatalogProductItem[] = serverProds.map((p: any) => ({
-            id: String(p.id),
-            name: p.name || 'Product Item',
-            sku: p.sku || `SKU-${p.id}`,
-            category: p.category || 'General',
-            subCategory: p.subCategory || 'General',
-            brand: p.brand || '',
-            unit: p.unit || 'Units',
-            minPrice: p.price || p.minPrice || 0,
-            maxPrice: p.maxPrice || p.price || 0,
-            currency: '₹',
-            stockQuantity: p.stock || p.stockQuantity || 10,
-            moq: p.moq || 1,
-            taxRate: p.tax || p.taxRate || 18,
-            description: p.description || '',
-            features: p.features || [],
-            imageUrl: p.imageUrl || p.image || PRESET_PRODUCT_IMAGES[0],
-            status: (p.status || (p.stockQuantity > 0 ? 'ACTIVE' : 'OUT_OF_STOCK')) as any,
-            createdAt: p.createdAt || new Date().toISOString().split('T')[0],
-          }));
-          this.products = mapped;
-          AsyncStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(mapped)).catch(() => {});
-          return mapped;
-        }
-      }
-    } catch (_) {}
-
-    return this.products.length > 0 ? this.products : INITIAL_PRODUCTS;
-  }
-
-  private async loadAll(): Promise<void> {
-    try {
-      const storedProds = await AsyncStorage.getItem(STORAGE_PRODUCTS_KEY);
-      if (storedProds) {
-        const parsed = JSON.parse(storedProds);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.products = parsed;
-        } else {
-          this.products = INITIAL_PRODUCTS;
-        }
-      } else {
-        this.products = INITIAL_PRODUCTS;
-      }
-      const storedCats = await AsyncStorage.getItem(STORAGE_CATS_KEY);
-      if (storedCats) {
-        this.categories = JSON.parse(storedCats);
-      }
-      const storedBrands = await AsyncStorage.getItem(STORAGE_BRANDS_KEY);
-      if (storedBrands) {
-        this.brands = JSON.parse(storedBrands);
-      }
-    } catch (err) {
-      console.log('Failed to load products/categories/brands from storage:', err);
-      this.products = INITIAL_PRODUCTS;
-    }
-    this.initialized = true;
-  }
-
-
   async saveCategories(newCats: CategoryTree[]): Promise<void> {
     this.categories = newCats;
     try {
       await AsyncStorage.setItem(STORAGE_CATS_KEY, JSON.stringify(newCats));
-    } catch (err) {
-      console.log('Failed to save categories:', err);
-    }
+    } catch (_) {}
   }
 
   async addCategory(catName: string, subCats: string[] = ['General']): Promise<CategoryTree[]> {
@@ -438,7 +187,7 @@ class ProductCatalogService {
     });
     await this.saveCategories(updated);
 
-    // Cascade update all products
+    // Cascade update products
     const prods = await this.getProducts();
     const updatedProds = prods.map((p) => {
       if (p.category.toLowerCase() === trimmedOld.toLowerCase()) {
@@ -456,7 +205,6 @@ class ProductCatalogService {
     const updated = list.filter((c) => c.name.toLowerCase() !== trimmed.toLowerCase());
     await this.saveCategories(updated);
 
-    // Cascade reassign products to 'General'
     const prods = await this.getProducts();
     const updatedProds = prods.map((p) => {
       if (p.category.toLowerCase() === trimmed.toLowerCase()) {
@@ -478,14 +226,13 @@ class ProductCatalogService {
       if (c.name.toLowerCase() === trimmedParent.toLowerCase()) {
         return {
           ...c,
-          subCategories: c.subCategories.map((s) => s.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : s),
+          subCategories: c.subCategories.map((s) => (s.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : s)),
         };
       }
       return c;
     });
     await this.saveCategories(updated);
 
-    // Cascade update all products under parent category
     const prods = await this.getProducts();
     const updatedProds = prods.map((p) => {
       if (p.category.toLowerCase() === trimmedParent.toLowerCase() && p.subCategory?.toLowerCase() === trimmedOld.toLowerCase()) {
@@ -513,7 +260,6 @@ class ProductCatalogService {
     });
     await this.saveCategories(updated);
 
-    // Cascade update products to 'General' subCategory
     const prods = await this.getProducts();
     const updatedProds = prods.map((p) => {
       if (p.category.toLowerCase() === trimmedParent.toLowerCase() && p.subCategory?.toLowerCase() === trimmedSub.toLowerCase()) {
@@ -525,41 +271,243 @@ class ProductCatalogService {
     return updated;
   }
 
+  // ── Brands ─────────────────────────────────────────────────────────────────
+
+  async getBrands(): Promise<string[]> {
+    if (!this.initialized) {
+      await this.loadAll();
+    }
+    return this.brands;
+  }
+
+  async addBrand(brandName: string): Promise<string[]> {
+    const list = await this.getBrands();
+    const trimmed = brandName.trim();
+    if (trimmed && !list.includes(trimmed)) {
+      list.push(trimmed);
+      this.brands = [...list];
+      try {
+        await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(this.brands));
+      } catch (_) {}
+    }
+    return this.brands;
+  }
+
+  async editBrand(oldBrand: string, newBrand: string): Promise<string[]> {
+    const list = await this.getBrands();
+    const trimmedOld = oldBrand.trim();
+    const trimmedNew = newBrand.trim();
+
+    const updated = list.map((b) => (b.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : b));
+    this.brands = updated;
+    try {
+      await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(updated));
+    } catch (_) {}
+
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if ((p.brand || '').trim().toLowerCase() === trimmedOld.toLowerCase()) {
+        return { ...p, brand: trimmedNew };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
+  async deleteBrand(brandName: string): Promise<string[]> {
+    const list = await this.getBrands();
+    const trimmed = brandName.trim();
+
+    const updated = list.filter((b) => b.toLowerCase() !== trimmed.toLowerCase());
+    this.brands = updated;
+    try {
+      await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(updated));
+    } catch (_) {}
+
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if ((p.brand || '').trim().toLowerCase() === trimmed.toLowerCase()) {
+        return { ...p, brand: 'Generic / Unbranded' };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
+  // ── Products Core (Real-Time Cloud & Cache Sync) ───────────────────────────
+
+  async getProducts(forceRefresh = false): Promise<CatalogProductItem[]> {
+    if (!this.initialized && !forceRefresh) {
+      await this.loadAll();
+    }
+
+    const activeBase = getApiBase();
+    const headers = this.getRequestHeaders();
+
+    try {
+      const res = await fetch(`${activeBase}/products`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const serverProds = Array.isArray(data) ? data : data.products || data.data || [];
+        if (Array.isArray(serverProds)) {
+          const mapped: CatalogProductItem[] = serverProds.map((p: any) => {
+            const minP = p.minPrice !== undefined ? Number(p.minPrice) : p.price ? Number(p.price) : 0;
+            const maxP = p.maxPrice !== undefined ? Number(p.maxPrice) : minP;
+            const stock = p.stock !== undefined ? Number(p.stock) : p.stockQuantity !== undefined ? Number(p.stockQuantity) : 100;
+            const moq = p.minOrderQty !== undefined ? Number(p.minOrderQty) : p.moq !== undefined ? Number(p.moq) : 1;
+
+            let status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DRAFT' = 'ACTIVE';
+            if (stock <= 0) status = 'OUT_OF_STOCK';
+            else if (stock < 10) status = 'LOW_STOCK';
+
+            return {
+              id: String(p.id),
+              name: p.name || 'Product Item',
+              sku: p.sku || `SKU-${p.id}`,
+              category: p.category || 'General',
+              subCategory: p.subCategory || 'General',
+              brand: p.brand || '',
+              color: p.color || '',
+              unit: p.unit || 'Pieces (Pcs)',
+              minPrice: minP,
+              maxPrice: maxP,
+              currency: '₹',
+              stockQuantity: stock,
+              moq,
+              taxRate: p.taxRate !== undefined ? Number(p.taxRate) : p.tax ? Number(p.tax) : 18,
+              description: p.description || p.overview || '',
+              features: Array.isArray(p.features) ? p.features : Array.isArray(p.specs) ? p.specs : [],
+              imageUrl: p.coverImage || p.imageUrl || p.image || PRESET_PRODUCT_IMAGES[0],
+              images: Array.isArray(p.images) ? p.images : [],
+              status,
+              createdAt: p.createdAt || new Date().toISOString().split('T')[0],
+            };
+          });
+
+          this.products = mapped;
+          this.syncCategoriesFromProducts(mapped);
+          await AsyncStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(mapped));
+          return mapped;
+        }
+      }
+    } catch (_) {}
+
+    return this.products;
+  }
+
+  private syncCategoriesFromProducts(prods: CatalogProductItem[]) {
+    const existingCats = [...this.categories];
+    prods.forEach((p) => {
+      const catName = p.category?.trim();
+      const subName = p.subCategory?.trim() || 'General';
+      if (!catName) return;
+
+      const found = existingCats.find((c) => c.name.toLowerCase() === catName.toLowerCase());
+      if (found) {
+        if (!found.subCategories.includes(subName)) {
+          found.subCategories.push(subName);
+        }
+      } else {
+        existingCats.push({
+          id: `cat-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          name: catName,
+          subCategories: [subName],
+        });
+      }
+    });
+    this.saveCategories(existingCats).catch(() => {});
+  }
+
+  private async loadAll(): Promise<void> {
+    try {
+      const storedProds = await AsyncStorage.getItem(STORAGE_PRODUCTS_KEY);
+      if (storedProds) {
+        const parsed = JSON.parse(storedProds);
+        if (Array.isArray(parsed)) {
+          this.products = parsed;
+        }
+      }
+      const storedCats = await AsyncStorage.getItem(STORAGE_CATS_KEY);
+      if (storedCats) {
+        this.categories = JSON.parse(storedCats);
+      }
+      const storedBrands = await AsyncStorage.getItem(STORAGE_BRANDS_KEY);
+      if (storedBrands) {
+        this.brands = JSON.parse(storedBrands);
+      }
+    } catch (_) {}
+    this.initialized = true;
+  }
+
   async saveProducts(newProducts: CatalogProductItem[]): Promise<void> {
     this.products = newProducts;
     try {
       await AsyncStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(newProducts));
-    } catch (err) {
-      console.log('Failed to save products:', err);
-    }
+    } catch (_) {}
   }
 
   async createProduct(product: Omit<CatalogProductItem, 'id' | 'createdAt' | 'status'>): Promise<CatalogProductItem[]> {
-    const list = await this.getProducts();
-
-    // Auto calculate status based on stock count
     let status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'ACTIVE';
-    if (product.stockQuantity <= 0) {
-      status = 'OUT_OF_STOCK';
-    } else if (product.stockQuantity < 10) {
-      status = 'LOW_STOCK';
-    }
+    if (product.stockQuantity <= 0) status = 'OUT_OF_STOCK';
+    else if (product.stockQuantity < 10) status = 'LOW_STOCK';
 
+    const tempId = `prod-${Date.now()}`;
     const newProd: CatalogProductItem = {
       ...product,
-      id: 'prod-' + Date.now(),
+      id: tempId,
       status,
       createdAt: new Date().toISOString().split('T')[0],
     };
 
-    const updated = [newProd, ...list];
+    // 1. Update local cache immediately
+    const updated = [newProd, ...this.products];
     await this.saveProducts(updated);
+
+    // 2. Sync to backend API
+    const activeBase = getApiBase();
+    const headers = this.getRequestHeaders();
+    try {
+      const res = await fetch(`${activeBase}/products`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name: product.name,
+          sku: product.sku,
+          category: product.category,
+          subCategory: product.subCategory,
+          brand: product.brand,
+          color: product.color,
+          unit: product.unit,
+          price: product.minPrice,
+          minPrice: product.minPrice,
+          maxPrice: product.maxPrice,
+          stock: product.stockQuantity,
+          minOrderQty: product.moq,
+          taxRate: product.taxRate,
+          description: product.description,
+          features: product.features,
+          coverImage: product.imageUrl,
+          images: product.images,
+        }),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        if (saved?.id) {
+          const finalProds = updated.map((p) => (p.id === tempId ? { ...p, id: String(saved.id) } : p));
+          await this.saveProducts(finalProds);
+          return finalProds;
+        }
+      }
+    } catch (_) {}
+
     return updated;
   }
 
   async updateProduct(id: string, updates: Partial<CatalogProductItem>): Promise<CatalogProductItem[]> {
-    const list = await this.getProducts();
-    const updated = list.map((p) => {
+    const updated = this.products.map((p) => {
       if (p.id === id) {
         const newQty = updates.stockQuantity !== undefined ? updates.stockQuantity : p.stockQuantity;
         let newStatus: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DRAFT' = p.status;
@@ -567,94 +515,125 @@ class ProductCatalogService {
         else if (newQty < 10) newStatus = 'LOW_STOCK';
         else if (newStatus === 'OUT_OF_STOCK' || newStatus === 'LOW_STOCK') newStatus = 'ACTIVE';
 
-        return {
-          ...p,
-          ...updates,
-          status: newStatus,
-        };
+        return { ...p, ...updates, status: newStatus };
       }
       return p;
     });
 
     await this.saveProducts(updated);
+
+    // Sync to backend API
+    const activeBase = getApiBase();
+    const headers = this.getRequestHeaders();
+    try {
+      await fetch(`${activeBase}/products/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          name: updates.name,
+          sku: updates.sku,
+          category: updates.category,
+          subCategory: updates.subCategory,
+          brand: updates.brand,
+          color: updates.color,
+          unit: updates.unit,
+          price: updates.minPrice,
+          minPrice: updates.minPrice,
+          maxPrice: updates.maxPrice,
+          stock: updates.stockQuantity,
+          minOrderQty: updates.moq,
+          taxRate: updates.taxRate,
+          description: updates.description,
+          features: updates.features,
+          coverImage: updates.imageUrl,
+          images: updates.images,
+        }),
+      });
+    } catch (_) {}
+
     return updated;
   }
 
   async deleteProduct(id: string): Promise<CatalogProductItem[]> {
-    const list = await this.getProducts();
-    const updated = list.filter((p) => p.id !== id);
+    const updated = this.products.filter((p) => p.id !== id);
     await this.saveProducts(updated);
+
+    // Sync to backend API
+    const activeBase = getApiBase();
+    const headers = this.getRequestHeaders();
+    try {
+      await fetch(`${activeBase}/products/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+    } catch (_) {}
+
     return updated;
   }
 
-  /**
-   * Admin-Only: Retrieve saved product card display configuration.
-   * Falls back to DEFAULT_CARD_DISPLAY_CONFIG.
-   */
+  // ── Card Display Config ────────────────────────────────────────────────────
+
   async getCardDisplayConfig(): Promise<ProductCardDisplayConfig> {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_CARD_CONFIG_KEY);
       const localConfig = stored ? JSON.parse(stored) : null;
 
-      // Try fetching from backend if token exists
-      const token = await AsyncStorage.getItem('das_crm_auth_token');
-      if (token) {
-        try {
-          const res = await fetch(`${getApiBase()}/products/card-display-config`, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (res.ok) {
-            const remoteConfig = await res.json();
-            if (remoteConfig && typeof remoteConfig === 'object') {
-              const merged = { ...DEFAULT_CARD_DISPLAY_CONFIG, ...remoteConfig };
-              await AsyncStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(merged));
-              return merged;
-            }
+      const activeBase = getApiBase();
+      const headers = this.getRequestHeaders();
+      try {
+        const res = await fetch(`${activeBase}/products/card-display-config`, { headers });
+        if (res.ok) {
+          const remoteConfig = await res.json();
+          if (remoteConfig && typeof remoteConfig === 'object') {
+            const merged = { ...DEFAULT_CARD_DISPLAY_CONFIG, ...remoteConfig };
+            await AsyncStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(merged));
+            return merged;
           }
-        } catch {
-          // Ignore network errors, fall back to storage
         }
-      }
+      } catch (_) {}
 
-      if (stored) {
-        return {
-          ...DEFAULT_CARD_DISPLAY_CONFIG,
-          ...localConfig,
-        };
+      if (localConfig) {
+        return { ...DEFAULT_CARD_DISPLAY_CONFIG, ...localConfig };
       }
-    } catch (err) {
-      console.log('Failed to load product card display config:', err);
-    }
+    } catch (_) {}
     return DEFAULT_CARD_DISPLAY_CONFIG;
   }
 
-  /**
-   * Admin-Only: Save product card display configuration to persistent storage and backend.
-   */
   async saveCardDisplayConfig(config: ProductCardDisplayConfig): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(config));
-      const token = await AsyncStorage.getItem('das_crm_auth_token');
-      if (token) {
-        try {
-          await fetch(`${getApiBase()}/products/card-display-config`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(config),
-          });
-        } catch {
-          // Ignore network errors
-        }
-      }
-    } catch (err) {
-      console.log('Failed to save product card display config:', err);
+      const activeBase = getApiBase();
+      const headers = this.getRequestHeaders();
+      await fetch(`${activeBase}/products/card-display-config`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(config),
+      }).catch(() => null);
+    } catch (_) {}
+  }
+
+  // ── Image Upload Helper ────────────────────────────────────────────────────
+
+  async uploadProductImage(dataUrl: string, prefix = 'product'): Promise<string> {
+    if (!dataUrl || !dataUrl.startsWith('data:')) {
+      return dataUrl || '';
     }
+
+    const activeBase = getApiBase();
+    const headers = this.getRequestHeaders();
+    try {
+      const res = await fetch(`${activeBase}/products/upload-image`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ dataUrl, fileName: prefix }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.url) return data.url;
+      }
+    } catch (_) {}
+
+    return dataUrl;
   }
 }
 

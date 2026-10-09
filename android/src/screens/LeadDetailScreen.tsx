@@ -41,6 +41,7 @@ import {
   SAMPLE_INVOICES,
   InvoiceItem,
 } from '../services/whatsappTemplateEngine';
+import { productCatalogService } from '../services/productCatalogService';
 import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { PaymentStatusModal, PaymentOutcomeResult } from '../components/PaymentStatusModal';
@@ -155,8 +156,32 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [waTargetStatus, setWaTargetStatus] = useState('Contacted');
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
   const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(DEFAULT_TEMPLATES[0]);
+  const [liveProducts, setLiveProducts] = useState<ProductItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(CATALOG_PRODUCTS[0]);
   const [productQuantity, setProductQuantity] = useState<number>(1);
+
+  React.useEffect(() => {
+    productCatalogService.getProducts().then((prods) => {
+      if (Array.isArray(prods) && prods.length > 0) {
+        const mapped: ProductItem[] = prods.map(p => ({
+          id: p.id,
+          name: p.name,
+          minPrice: `₹${p.minPrice.toLocaleString('en-IN')}`,
+          maxPrice: `₹${p.maxPrice.toLocaleString('en-IN')}`,
+          category: p.category,
+          description: p.description || '',
+          features: p.features || [],
+          imageUrl: p.imageUrl || '',
+          priceTiers: [
+            { minQty: p.moq || 1, maxQty: (p.moq || 1) * 5, unitPrice: p.minPrice, label: `Standard (${p.moq || 1}+)` },
+            { minQty: (p.moq || 1) * 6, maxQty: (p.moq || 1) * 20, unitPrice: Math.round(p.minPrice * 0.9), label: `Volume (${(p.moq || 1) * 6}+)` },
+          ],
+        }));
+        setLiveProducts(mapped);
+        setSelectedProduct(mapped[0]);
+      }
+    }).catch(() => {});
+  }, []);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(SAMPLE_INVOICES[0]);
   const [availableInvoices] = useState<InvoiceItem[]>(SAMPLE_INVOICES);
   const [customMsgText, setCustomMsgText] = useState('');
@@ -1284,7 +1309,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                 {waAttachmentMode === 'PRODUCT' && (
                   <View style={{ gap: 8, marginTop: 4 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      {CATALOG_PRODUCTS.map((prod) => {
+                      {(liveProducts.length > 0 ? liveProducts : CATALOG_PRODUCTS).map((prod) => {
                         const isSelected = selectedProduct?.id === prod.id;
                         return (
                           <TouchableOpacity

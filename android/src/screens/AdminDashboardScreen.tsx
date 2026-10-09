@@ -191,7 +191,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
   const wonRevenue = useMemo(() => {
     return wonLeads.reduce((sum, l) => {
       const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
-      return sum + (val || 45000);
+      return sum + val;
     }, 0);
   }, [wonLeads]);
 
@@ -202,7 +202,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
   const pipelineValue = useMemo(() => {
     return openDeals.reduce((sum, l) => {
       const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
-      return sum + (val || 35000);
+      return sum + val;
     }, 0);
   }, [openDeals]);
 
@@ -212,12 +212,16 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
   }, [leads, wonLeads]);
 
   const activeStaffCount = useMemo(() => {
-    return Math.max(employees.length, 6);
+    return employees.length;
   }, [employees]);
 
   const activeCallingRepsCount = useMemo(() => {
-    return Math.max(Math.floor(activeStaffCount * 0.75), 4);
-  }, [activeStaffCount]);
+    const telecallers = employees.filter(e => {
+      const r = (e.role || '').toUpperCase();
+      return r.includes('SALES') || r.includes('TELE') || r.includes('REP');
+    });
+    return telecallers.length > 0 ? telecallers.length : employees.length;
+  }, [employees]);
 
   const monthlyTargetAmount = 2500000; // ₹25,00,000 baseline
   const monthlyTargetProgressPct = useMemo(() => {
@@ -253,7 +257,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
     // Derive from real leads
     leads.slice(0, 10).forEach((l, idx) => {
       const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`;
-      const rep = l.owner || l.assignedRep || 'Nandini Rastogi';
+      const rep = l.owner || l.assignedRep || (employees[0] ? employees[0].name : 'Sales Executive');
       const phone = l.phone || '';
 
       if (idx % 4 === 0) {
@@ -285,14 +289,15 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           leadPhone: phone,
         });
       } else if (idx % 4 === 2) {
+        const quoteVal = typeof l.value === 'number' ? l.value : 35000;
         list.push({
           id: `act-qt-${l.id || idx}`,
           type: 'QUOTE',
           title: `📄 Quotation Generated #${800 + idx * 12}`,
-          subtitle: `Quotation of ₹${((idx + 1) * 35000).toLocaleString('en-IN')} sent to ${l.company || name}`,
+          subtitle: `Quotation of ₹${quoteVal.toLocaleString('en-IN')} sent to ${l.company || name}`,
           staffName: rep,
           timestampStr: `${25 + idx * 5}m ago`,
-          badge: `₹${((idx + 1) * 35000).toLocaleString('en-IN')}`,
+          badge: `₹${quoteVal.toLocaleString('en-IN')}`,
           badgeColor: '#818cf8',
           leadId: String(l.id),
           leadName: name,
@@ -302,8 +307,8 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         list.push({
           id: `act-stg-${l.id || idx}`,
           type: 'STAGE',
-          title: `🔄 Stage Advanced → Qualified`,
-          subtitle: `${name} marked Qualified with budget verified`,
+          title: `🔄 Stage Advanced → ${l.status || 'Qualified'}`,
+          subtitle: `${name} marked ${l.status || 'Qualified'} with requirement verified`,
           staffName: rep,
           timestampStr: `${30 + idx * 8}m ago`,
           badge: 'Stage Moved',
@@ -316,7 +321,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
     });
 
     return list;
-  }, [leads]);
+  }, [leads, employees]);
 
   const filteredActivities = useMemo(() => {
     if (activityFilter === 'CALLS') return liveActivities.filter(a => a.type === 'CALL');
@@ -326,77 +331,117 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
     return liveActivities;
   }, [liveActivities, activityFilter]);
 
-  // ─── LEADERBOARD DATA ──────────────────────────────────────────────────────
+  // ─── LEADERBOARD DATA (Derived dynamically from Employees & Real Leads) ─────
   const salesRepLeaderboard: SalesRepLeaderboardEntry[] = useMemo(() => {
     const avatarColors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6'];
-    const names = [
-      'Nandini Rastogi',
-      'Sachin Puri',
-      'Aman Verma',
-      'Priya Sharma',
-      'Rohan Gupta',
-      'Deepak Mehta',
-    ];
 
-    return names.map((name, i) => {
-      const deals = 8 - i > 0 ? 8 - i : 1;
-      const rev = deals * 45000 + (i * 8500);
+    if (employees.length > 0) {
+      return employees.map((emp, i) => {
+        const empName = emp.name || `Rep #${i + 1}`;
+        const empLeads = leads.filter(l => {
+          const owner = (l.owner || l.assignedRep || '').toLowerCase();
+          return owner.includes(empName.toLowerCase()) || (emp.id && owner.includes(String(emp.id).toLowerCase()));
+        });
+        const won = empLeads.filter(l => (l.status || '').toLowerCase().includes('won') || (l.status || '').toLowerCase().includes('convert'));
+        const rev = won.reduce((sum, l) => {
+          const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
+          return sum + val;
+        }, 0);
+        const target = 350000;
+        const pct = target > 0 ? Math.min(100, Math.round((rev / target) * 100)) : 0;
+        const roleLabel = (emp.role || '').toUpperCase().includes('LEAD') ? 'Team Leader' : 'Sales Representative';
+        return {
+          id: `rep-lb-${emp.id || i}`,
+          name: empName,
+          role: roleLabel,
+          dealsWon: won.length,
+          revenue: rev,
+          callsDone: empLeads.length * 3,
+          targetAmount: target,
+          targetPct: pct,
+          avatarColor: avatarColors[i % avatarColors.length],
+        };
+      }).sort((a, b) => b.revenue - a.revenue);
+    }
+
+    // Fallback if employees empty: group by lead owners
+    const repMap: Record<string, { dealsWon: number; revenue: number; total: number }> = {};
+    leads.forEach(l => {
+      const rep = l.owner || l.assignedRep || 'Sales Rep';
+      if (!repMap[rep]) repMap[rep] = { dealsWon: 0, revenue: 0, total: 0 };
+      repMap[rep].total++;
+      if ((l.status || '').toLowerCase().includes('won') || (l.status || '').toLowerCase().includes('convert')) {
+        repMap[rep].dealsWon++;
+        const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
+        repMap[rep].revenue += val;
+      }
+    });
+
+    const repKeys = Object.keys(repMap);
+    if (repKeys.length === 0) return [];
+
+    return repKeys.map((name, i) => {
+      const stats = repMap[name];
       const target = 350000;
-      const pct = Math.min(100, Math.round((rev / target) * 100));
+      const pct = Math.min(100, Math.round((stats.revenue / target) * 100));
       return {
         id: `rep-lb-${i}`,
         name,
-        role: i === 0 ? 'Senior Sales Exec' : 'Sales Representative',
-        dealsWon: deals,
-        revenue: rev,
-        callsDone: 42 - i * 5,
+        role: 'Sales Representative',
+        dealsWon: stats.dealsWon,
+        revenue: stats.revenue,
+        callsDone: stats.total * 2,
         targetAmount: target,
         targetPct: pct,
         avatarColor: avatarColors[i % avatarColors.length],
       };
-    });
-  }, []);
+    }).sort((a, b) => b.revenue - a.revenue);
+  }, [employees, leads]);
 
   const teamLeaderLeaderboard: TeamLeaderLeaderboardEntry[] = useMemo(() => {
-    return [
-      {
-        id: 'tl-1',
-        name: 'Sachin Puri',
-        teamName: 'Enterprise Alpha',
-        teamSize: 4,
-        teamRevenue: 480000,
-        leadsDistributed: 168,
-        conversionRate: '16.8%',
-        targetPct: 88,
-      },
-      {
-        id: 'tl-2',
-        name: 'Kavita Chawla',
-        teamName: 'Commercial Growth',
-        teamSize: 3,
-        teamRevenue: 345000,
-        leadsDistributed: 142,
-        conversionRate: '14.2%',
-        targetPct: 74,
-      },
-      {
-        id: 'tl-3',
-        name: 'Vikas Malhotra',
-        teamName: 'Inbound Velocity',
-        teamSize: 3,
-        teamRevenue: 285000,
-        leadsDistributed: 118,
-        conversionRate: '12.5%',
-        targetPct: 62,
-      },
-    ];
-  }, []);
+    const tls = employees.filter(e => {
+      const r = (e.role || '').toUpperCase();
+      return r.includes('LEADER') || r.includes('TL') || r.includes('MANAGER');
+    });
 
-  // ─── SCHEDULED MEETINGS ───────────────────────────────────────────────────
+    if (tls.length > 0) {
+      return tls.map((tl, i) => {
+        const tlName = tl.name || `Team Leader #${i + 1}`;
+        const teamName = `${tlName}'s Unit`;
+        const teamLeads = leads.filter(l => {
+          const owner = (l.owner || l.assignedRep || '').toLowerCase();
+          return owner.includes(tlName.toLowerCase());
+        });
+        const won = teamLeads.filter(l => (l.status || '').toLowerCase().includes('won') || (l.status || '').toLowerCase().includes('convert'));
+        const rev = won.reduce((sum, l) => {
+          const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
+          return sum + val;
+        }, 0);
+        const convRate = teamLeads.length > 0 ? `${((won.length / teamLeads.length) * 100).toFixed(1)}%` : '0.0%';
+        const target = 500000;
+        const pct = target > 0 ? Math.min(100, Math.round((rev / target) * 100)) : 0;
+        return {
+          id: `tl-lb-${tl.id || i}`,
+          name: tlName,
+          teamName,
+          teamSize: 3,
+          teamRevenue: rev,
+          leadsDistributed: teamLeads.length,
+          conversionRate: convRate,
+          targetPct: pct,
+        };
+      }).sort((a, b) => b.teamRevenue - a.teamRevenue);
+    }
+
+    return [];
+  }, [employees, leads]);
+
+  // ─── SCHEDULED MEETINGS (Derived from real leads) ─────────────────────────
   const scheduledMeetings: ScheduledMeetingItem[] = useMemo(() => {
     return leads.slice(0, 5).map((l, idx) => {
       const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`;
       const isToday = idx % 2 === 0;
+      const assigned = l.owner || l.assignedRep || (employees[0] ? employees[0].name : 'Sales Representative');
       return {
         id: `adm-mtg-${l.id || idx}`,
         leadId: String(l.id),
@@ -404,8 +449,8 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         company: l.company || l.organization || 'Enterprise Account',
         phone: l.phone || '9876543210',
         email: l.email || 'contact@client.com',
-        value: typeof l.value === 'number' ? `₹${Number(l.value).toLocaleString('en-IN')}` : String(l.value || '₹1,50,000'),
-        assignedAgent: l.owner || 'Nandini Rastogi',
+        value: typeof l.value === 'number' ? `₹${Number(l.value).toLocaleString('en-IN')}` : String(l.value || '₹0'),
+        assignedAgent: assigned,
         agentRole: 'Sales Executive',
         meetingPurpose: idx === 0 ? 'Commercial Proposal Review & Signing' : 'Site Technical Feasibility Walkthrough',
         scheduledTimeStr: isToday ? `Today, ${idx === 0 ? '11:00 AM' : '02:30 PM'}` : `Tomorrow, 03:00 PM`,
@@ -413,7 +458,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         status: idx === 0 ? 'CONFIRMED' : 'SCHEDULED',
       };
     });
-  }, [leads]);
+  }, [leads, employees]);
 
   const filteredMeetings = useMemo(() => {
     return scheduledMeetings.filter((m) => {
@@ -814,55 +859,67 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           {/* Sales Reps List */}
           {leaderboardTab === 'REPS' && (
             <View style={{ gap: 8 }}>
-              {salesRepLeaderboard.map((rep, idx) => (
-                <View
-                  key={rep.id}
-                  style={[styles.lbEntryCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-                >
-                  <View style={styles.lbRankBadge}>
-                    <Text style={{ fontSize: 14 }}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}</Text>
-                  </View>
-                  <View style={[styles.lbAvatar, { backgroundColor: rep.avatarColor }]}>
-                    <Text style={styles.lbAvatarText}>{rep.name.charAt(0)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.lbName, { color: colors.text }]}>{rep.name}</Text>
-                    <Text style={[styles.lbSub, { color: colors.textMuted }]}>
-                      {rep.dealsWon} Deals · {rep.callsDone} Calls · ₹{(rep.revenue / 1000).toFixed(0)}k Won
-                    </Text>
-                    <View style={[styles.miniProgressBar, { backgroundColor: colors.border, marginTop: 4 }]}>
-                      <View style={[styles.miniProgressFill, { width: `${rep.targetPct}%`, backgroundColor: '#10b981' }]} />
+              {salesRepLeaderboard.length === 0 ? (
+                <Text style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', paddingVertical: 14 }}>
+                  No active sales representative records found.
+                </Text>
+              ) : (
+                salesRepLeaderboard.map((rep, idx) => (
+                  <View
+                    key={rep.id}
+                    style={[styles.lbEntryCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                  >
+                    <View style={styles.lbRankBadge}>
+                      <Text style={{ fontSize: 14 }}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}</Text>
                     </View>
+                    <View style={[styles.lbAvatar, { backgroundColor: rep.avatarColor }]}>
+                      <Text style={styles.lbAvatarText}>{rep.name.charAt(0)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.lbName, { color: colors.text }]}>{rep.name}</Text>
+                      <Text style={[styles.lbSub, { color: colors.textMuted }]}>
+                        {rep.dealsWon} Deals · {rep.callsDone} Calls · ₹{(rep.revenue / 1000).toFixed(0)}k Won
+                      </Text>
+                      <View style={[styles.miniProgressBar, { backgroundColor: colors.border, marginTop: 4 }]}>
+                        <View style={[styles.miniProgressFill, { width: `${rep.targetPct}%`, backgroundColor: '#10b981' }]} />
+                      </View>
+                    </View>
+                    <Text style={[styles.lbScoreText, { color: '#34d399' }]}>{rep.targetPct}%</Text>
                   </View>
-                  <Text style={[styles.lbScoreText, { color: '#34d399' }]}>{rep.targetPct}%</Text>
-                </View>
-              ))}
+                ))
+              )}
             </View>
           )}
 
           {/* Team Leaders List */}
           {leaderboardTab === 'TEAM_LEADERS' && (
             <View style={{ gap: 8 }}>
-              {teamLeaderLeaderboard.map((tl, idx) => (
-                <View
-                  key={tl.id}
-                  style={[styles.lbEntryCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-                >
-                  <View style={styles.lbRankBadge}>
-                    <Text style={{ fontSize: 14 }}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.lbName, { color: colors.text }]}>{tl.name}</Text>
-                    <Text style={[styles.lbSub, { color: colors.textMuted }]}>
-                      {tl.teamName} ({tl.teamSize} Reps) · {tl.leadsDistributed} Leads · {tl.conversionRate} Conv.
-                    </Text>
-                    <View style={[styles.miniProgressBar, { backgroundColor: colors.border, marginTop: 4 }]}>
-                      <View style={[styles.miniProgressFill, { width: `${tl.targetPct}%`, backgroundColor: '#818cf8' }]} />
+              {teamLeaderLeaderboard.length === 0 ? (
+                <Text style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', paddingVertical: 14 }}>
+                  No team leader records configured yet.
+                </Text>
+              ) : (
+                teamLeaderLeaderboard.map((tl, idx) => (
+                  <View
+                    key={tl.id}
+                    style={[styles.lbEntryCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                  >
+                    <View style={styles.lbRankBadge}>
+                      <Text style={{ fontSize: 14 }}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</Text>
                     </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.lbName, { color: colors.text }]}>{tl.name}</Text>
+                      <Text style={[styles.lbSub, { color: colors.textMuted }]}>
+                        {tl.teamName} ({tl.teamSize} Reps) · {tl.leadsDistributed} Leads · {tl.conversionRate} Conv.
+                      </Text>
+                      <View style={[styles.miniProgressBar, { backgroundColor: colors.border, marginTop: 4 }]}>
+                        <View style={[styles.miniProgressFill, { width: `${tl.targetPct}%`, backgroundColor: '#818cf8' }]} />
+                      </View>
+                    </View>
+                    <Text style={[styles.lbScoreText, { color: '#818cf8' }]}>₹{(tl.teamRevenue / 1000).toFixed(0)}k</Text>
                   </View>
-                  <Text style={[styles.lbScoreText, { color: '#818cf8' }]}>₹{(tl.teamRevenue / 1000).toFixed(0)}k</Text>
-                </View>
-              ))}
+                ))
+              )}
             </View>
           )}
         </View>

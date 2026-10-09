@@ -14,7 +14,7 @@
  * 4. Save & Store directly to Lead Activity Telemetry.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOG_PRODUCTS, ProductItem } from '../services/whatsappTemplateEngine';
+import { productCatalogService } from '../services/productCatalogService';
 
 export interface CallOutcomeData {
   leadId: string;
@@ -105,11 +106,35 @@ export default function PostCallOutcomeModal({
   // Product Search & Selection State
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+  const [liveProducts, setLiveProducts] = useState<ProductItem[]>([]);
+
+  useEffect(() => {
+    productCatalogService.getProducts().then((prods) => {
+      if (Array.isArray(prods) && prods.length > 0) {
+        const mapped: ProductItem[] = prods.map(p => ({
+          id: p.id,
+          name: p.name,
+          minPrice: `₹${p.minPrice.toLocaleString('en-IN')}`,
+          maxPrice: `₹${p.maxPrice.toLocaleString('en-IN')}`,
+          category: p.category,
+          description: p.description || '',
+          features: p.features || [],
+          imageUrl: p.imageUrl || '',
+          priceTiers: [
+            { minQty: p.moq || 1, maxQty: (p.moq || 1) * 5, unitPrice: p.minPrice, label: `Standard (${p.moq || 1}+)` },
+            { minQty: (p.moq || 1) * 6, maxQty: (p.moq || 1) * 20, unitPrice: Math.round(p.minPrice * 0.9), label: `Volume (${(p.moq || 1) * 6}+)` },
+          ],
+        }));
+        setLiveProducts(mapped);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Custom Notes Input Box
   const [notes, setNotes] = useState('');
 
-  const filteredProducts = CATALOG_PRODUCTS.filter(p =>
+  const displayProducts = liveProducts.length > 0 ? liveProducts : CATALOG_PRODUCTS;
+  const filteredProducts = displayProducts.filter(p =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.category.toLowerCase().includes(productSearch.toLowerCase())
   );

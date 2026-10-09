@@ -17,7 +17,7 @@
  *   5. Saved Quotation History Drawer with Search, Status Filters & Direct WhatsApp/Email Launchers
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Linking, Modal, Image, Dimensions, Switch,
@@ -33,6 +33,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../context/ThemeContext';
+import { productCatalogService, CatalogProductItem } from '../services/productCatalogService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -85,20 +86,7 @@ const SECTION_META: { id: SectionId; label: string; desc: string }[] = [
   { id: 'FOOTER_TERMS',     label: 'Terms & Signatory Footer',    desc: 'Terms & Conditions, E.&O.E., Authorized Signature' },
 ];
 
-const CATALOG_PRODUCTS: {
-  name: string;
-  price: number;
-  tax: number;
-  unit: string;
-  hsn: string;
-  desc: string;
-  image: string;
-}[] = [
-  { name: 'Premium Solar Panel 400W', price: 12500, tax: 12, unit: 'Nos', hsn: '85414011', desc: 'Monocrystalline high-efficiency solar module', image: '' },
-  { name: 'Solar Hybrid Inverter 5kW', price: 35000, tax: 18, unit: 'Nos', hsn: '85044090', desc: '5kW Grid-tie hybrid solar inverter with MPPT', image: '' },
-  { name: 'Lithium Battery 150Ah LiFePO4', price: 18000, tax: 18, unit: 'Nos', hsn: '85076000', desc: 'Deep-cycle lithium iron phosphate battery pack', image: '' },
-  { name: 'Structure Mounting Kit 5kW', price: 4500, tax: 18, unit: 'Set', hsn: '73089090', desc: 'Galvanized steel rooftop mounting structure kit', image: '' },
-];
+
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,8 +331,26 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [partyModalOpen, setPartyModalOpen]     = useState(false);
   const [catalogModalOpen, setCatalogModalOpen] = useState<string | null>(null); // target line item ID or 'NEW'
+  const [catalogProducts, setCatalogProducts]   = useState<CatalogProductItem[]>([]);
+  const [catalogLoading, setCatalogLoading]     = useState(false);
   const [newComp, setNewComp]                   = useState<Partial<CompanyDetails>>({});
   const [newParty, setNewParty]                 = useState<Partial<PartyDetails>>({});
+
+  const loadLiveCatalog = useCallback(async () => {
+    try {
+      setCatalogLoading(true);
+      const prods = await productCatalogService.getProducts();
+      setCatalogProducts(prods);
+    } catch (e) {
+      console.warn('Failed to load catalog products for quotes:', e);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLiveCatalog();
+  }, [loadLiveCatalog]);
 
   // ─── Derived Calculations (Memoized for High Performance) ───────────────────
   const activeCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId) || companies[0] || EMPTY_COMPANY, [companies, selectedCompanyId]);
@@ -475,35 +481,42 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     setItems(prev => prev.filter(it => it.id !== id));
   }, []);
 
-  const handleSelectCatalogProduct = (product: typeof CATALOG_PRODUCTS[number], targetItemId: string | null) => {
+  const handleSelectCatalogProduct = (product: CatalogProductItem, targetItemId: string | null) => {
+    const pPrice = product.minPrice || 0;
+    const pTax = product.taxRate || 18;
+    const pUnit = product.unit || 'Nos';
+    const pSku = product.sku || '';
+    const pDesc = product.description || '';
+    const pImg = product.imageUrl || '';
+
     if (targetItemId === 'NEW' || !targetItemId) {
       const newItem: LineItem = {
         id: `item-${Date.now()}`,
         productName: product.name,
-        description: product.desc,
-        showDescription: true,
-        hsnCode: product.hsn,
-        showImage: !!product.image,
-        imageUrl: product.image,
-        unit: product.unit,
-        qty: 1,
-        unitPrice: product.price,
-        taxRate: product.tax,
+        description: pDesc,
+        showDescription: !!pDesc,
+        hsnCode: pSku,
+        showImage: !!pImg,
+        imageUrl: pImg,
+        unit: pUnit,
+        qty: product.moq || 1,
+        unitPrice: pPrice,
+        taxRate: pTax,
         discountType: 'flat',
         discountVal: 0,
-        total: product.price,
+        total: pPrice * (product.moq || 1),
       };
       setItems(prev => [...prev, newItem]);
     } else {
       updateLineItem(targetItemId, {
         productName: product.name,
-        description: product.desc,
-        hsnCode: product.hsn,
-        unitPrice: product.price,
-        taxRate: product.tax,
-        unit: product.unit,
-        imageUrl: product.image,
-        showImage: !!product.image,
+        description: pDesc,
+        hsnCode: pSku,
+        unitPrice: pPrice,
+        taxRate: pTax,
+        unit: pUnit,
+        imageUrl: pImg,
+        showImage: !!pImg,
       });
     }
     setCatalogModalOpen(null);
@@ -2210,7 +2223,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { maxHeight: '80%' }]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>📦 Pick Product from CRM Catalog</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.modalTitle}>📦 Pick Product from CRM Catalog</Text>
+                  <TouchableOpacity
+                    onPress={loadLiveCatalog}
+                    style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 11, color: colors.primary, fontWeight: '700' }}>🔄 Sync</Text>
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity onPress={() => setCatalogModalOpen(null)}>
                   <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
                 </TouchableOpacity>
@@ -2218,26 +2240,37 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ gap: 8 }}>
-                  {CATALOG_PRODUCTS.length === 0 ? (
+                  {catalogLoading ? (
+                    <View style={{ padding: 24, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>Loading live catalog...</Text>
+                    </View>
+                  ) : catalogProducts.length === 0 ? (
                     <View style={{ padding: 24, alignItems: 'center' }}>
                       <Text style={{ fontSize: 24, marginBottom: 8 }}>📦</Text>
-                      <Text style={{ fontSize: 13, color: '#94a3b8', fontWeight: '600' }}>No products in catalog</Text>
-                      <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4, textAlign: 'center' }}>You can enter custom item details directly in the line item builder.</Text>
+                      <Text style={{ fontSize: 13, color: '#94a3b8', fontWeight: '600' }}>No products in live catalog</Text>
+                      <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4, textAlign: 'center' }}>Add products via the Products &amp; Catalog engine or enter custom item details directly in the line item builder.</Text>
                     </View>
                   ) : (
-                    CATALOG_PRODUCTS.map((prod) => (
+                    catalogProducts.map((prod) => (
                       <TouchableOpacity
-                        key={prod.name}
+                        key={prod.id}
                         style={styles.catalogCard}
                         onPress={() => handleSelectCatalogProduct(prod, catalogModalOpen)}
                       >
-                        <Image source={{ uri: prod.image }} style={styles.catalogImg} />
+                        {prod.imageUrl ? (
+                          <Image source={{ uri: prod.imageUrl }} style={styles.catalogImg} />
+                        ) : (
+                          <View style={[styles.catalogImg, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 18 }}>📦</Text>
+                          </View>
+                        )}
                         <View style={{ flex: 1 }}>
                           <Text style={styles.catalogName}>{prod.name}</Text>
-                          <Text style={styles.catalogDesc} numberOfLines={2}>{prod.desc}</Text>
-                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                            <Text style={styles.catalogPrice}>₹{prod.price.toLocaleString('en-IN')}</Text>
-                            <Text style={styles.catalogMeta}>HSN: {prod.hsn} • GST: {prod.tax}%</Text>
+                          <Text style={styles.catalogDesc} numberOfLines={2}>{prod.description || `${prod.category} > ${prod.subCategory}`}</Text>
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Text style={styles.catalogPrice}>{prod.currency}{prod.minPrice.toLocaleString('en-IN')}</Text>
+                            <Text style={styles.catalogMeta}>SKU: {prod.sku} • GST: {prod.taxRate}% • MOQ: {prod.moq} {prod.unit || 'unit'}</Text>
                           </View>
                         </View>
                         <Text style={styles.catalogAddBtn}>+ Select</Text>
