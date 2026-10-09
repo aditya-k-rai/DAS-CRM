@@ -150,7 +150,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           const actType = (a.type || a.activityType || '').toUpperCase();
           const meta = typeof a.metadata === 'object' && a.metadata !== null ? a.metadata : {};
           const isCall = actType.includes('CALL');
-          const isWa = actType.includes('WHATSAPP') || actType.includes('WA');
+          const isWa = actType.includes('WHATSAPP') || actType.includes('WA') || meta.type === 'WHATSAPP_DIRECT';
 
           let outcome: 'PICKED_UP' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCHED_OFF' | 'WHATSAPP_CHAT' = 'PICKED_UP';
           if (isWa) outcome = 'WHATSAPP_CHAT';
@@ -170,9 +170,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
           let subOption: 'TALKED' | 'CALL_LATER' | 'WILL_VISIT' | 'CATALOGUE_SHARED' | 'INTERESTED' | 'WA_SENT' | 'WA_RESPONDED' = isWa ? 'WA_SENT' : 'TALKED';
           if (a.subject === 'CATALOGUE_SHARED' || meta.subOption === 'CATALOGUE_SHARED') subOption = 'CATALOGUE_SHARED';
-          else if (a.subject === 'INTERESTED' || meta.subOption === 'INTERESTED') subOption = 'INTERESTED';
+          else if (a.subject === 'INTERESTED' || meta.subOption === 'INTERESTED' || meta.productInterest) subOption = 'INTERESTED';
           else if (a.subject === 'WILL_VISIT' || meta.subOption === 'WILL_VISIT') subOption = 'WILL_VISIT';
           else if (a.subject === 'CALL_LATER' || meta.subOption === 'CALL_LATER') subOption = 'CALL_LATER';
+
+          const productInterest = meta.productInterest || a.productInterest || (subOption === 'INTERESTED' && meta.requirement ? meta.requirement : undefined);
+          const isWaShared = isWa || Boolean(meta.isWaShared || meta.channel === 'WHATSAPP_DIRECT');
 
           return {
             leadId,
@@ -188,6 +191,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             timestamp: createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             scheduledDate: meta.followUpDate || a.scheduledDate,
             scheduledTime: meta.followUpTime || a.scheduledTime,
+            isWaShared,
+            sentMessage: meta.sentMessage || a.sentMessage,
           };
         });
         setRecentOutcomes(mapped);
@@ -529,16 +534,22 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
     // Persist activity to backend
     apiService.logLeadActivity(token, {
-      activityType: data.outcome === 'WHATSAPP_CHAT' ? 'WHATSAPP' : 'CALL',
+      activityType: data.outcome === 'WHATSAPP_CHAT' || data.isWaShared ? 'WHATSAPP' : 'CALL',
       leadId,
       notes: data.notes || `Outcome: ${data.outcome} - ${data.subOption || 'Call'}`,
-      subject: data.subOption || 'Outreach',
-      outcome: data.outcome,
+      subject: data.subOption || (data.isWaShared ? 'WHATSAPP_DIRECT' : 'Outreach'),
+      outcome: data.isWaShared ? 'WA_SENT' : data.outcome,
       durationSeconds: data.durationStr ? 120 : 0,
       metadata: {
         productInterest: data.selectedProduct?.name,
+        productQuantity: data.productQuantity,
+        productTotalPrice: data.productTotalPrice,
+        isWaShared: data.isWaShared,
+        sentMessage: data.sentMessage,
         followUpDate: data.scheduledDate,
         followUpTime: data.scheduledTime,
+        by: enrichedData.callerName,
+        byRole: enrichedData.callerRole,
       },
     }).catch(() => {});
   };
@@ -1206,8 +1217,10 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               const roleColor = roleStr.includes('LEADER') || roleStr.includes('TL') ? (isDark ? '#38bdf8' : '#0284c7') : roleStr.includes('MANAGER') ? (isDark ? '#818cf8' : '#4f46e5') : roleStr.includes('ADMIN') ? (isDark ? '#f59e0b' : '#b45309') : (isDark ? '#34d399' : '#059669');
               const roleLabel = roleStr.includes('LEADER') || roleStr.includes('TL') ? 'TL' : roleStr.includes('MANAGER') ? 'Manager' : roleStr.includes('ADMIN') ? 'Admin' : 'Sales Rep';
 
-              const isMeetingEvent = item.scheduledDate || item.notes.toLowerCase().includes('meeting');
+              const isMeetingEvent = Boolean(item.scheduledDate) || item.notes.toLowerCase().includes('meeting');
               const isEmailEvent = item.notes.toLowerCase().includes('email');
+              const isWaEvent = item.isWaShared || item.outcome === 'WHATSAPP_CHAT';
+              const prodName = item.selectedProduct?.name;
 
               return (
                 <View key={idx} style={[styles.activityItemRow, idx < recentOutcomes.length - 1 && [styles.activityItemBorder, { borderBottomColor: colors.border }]]}>
@@ -1215,11 +1228,23 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <Text style={[styles.activityTitleText, { color: colors.text }]}>
-                        {isMeetingEvent ? '📅 Meeting Scheduled' : isEmailEvent ? '✉️ Email Dispatched' : item.outcome === 'PICKED_UP' ? '🟢 Call Connected' : item.outcome === 'WHATSAPP_CHAT' ? '💬 WhatsApp Sent' : item.outcome === 'BUSY' ? '🟡 Line Busy' : '🔴 Not Responding'}
+                        {item.isWaShared ? '💬 WhatsApp Product Shared' : isMeetingEvent ? '📅 Meeting / Follow-up' : isEmailEvent ? '✉️ Email Dispatched' : item.outcome === 'PICKED_UP' ? '🟢 Call Connected' : isWaEvent ? '💬 WhatsApp Sent' : item.outcome === 'BUSY' ? '🟡 Line Busy' : '🔴 Not Responding'}
                       </Text>
                       {item.subOption && (
                         <View style={styles.subOptionPill}>
-                          <Text style={[styles.subOptionPillText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>{item.subOption.replace(/_/g, ' ')}</Text>
+                          <Text style={[styles.subOptionPillText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>
+                            🎯 {item.subOption.replace(/_/g, ' ')}
+                          </Text>
+                        </View>
+                      )}
+                      {item.isWaShared && (
+                        <View style={{ backgroundColor: isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.12)', borderWidth: 1, borderColor: isDark ? 'rgba(34,197,94,0.4)' : 'rgba(34,197,94,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#4ade80' : '#16a34a' }}>💬 WhatsApp</Text>
+                        </View>
+                      )}
+                      {prodName && (
+                        <View style={{ backgroundColor: isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.12)', borderWidth: 1, borderColor: isDark ? 'rgba(168,85,247,0.4)' : 'rgba(168,85,247,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#c084fc' : '#9333ea' }}>📦 {prodName}</Text>
                         </View>
                       )}
                       {item.durationStr && (
@@ -1232,6 +1257,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                       {item.dateLabel ? `${item.dateLabel} · ` : ''}{item.timestamp}
                     </Text>
                   </View>
+
+                  {/* Scheduled Callback / Meeting Badge */}
+                  {item.scheduledDate && (
+                    <View style={{ backgroundColor: isDark ? 'rgba(56,189,248,0.12)' : 'rgba(2,132,199,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.35)' : 'rgba(2,132,199,0.25)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900' }}>
+                        🕒 Follow-up: {item.scheduledDate} {item.scheduledTime ? `@ ${item.scheduledTime}` : ''}
+                      </Text>
+                    </View>
+                  )}
 
                   {/* Actor Badge */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -1249,14 +1283,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                     </View>
                   ) : null}
 
-                  {/* Scheduled Callback / Meeting */}
-                  {item.scheduledDate && (
-                    <View style={{ backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : 'rgba(2,132,199,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(2,132,199,0.25)', borderRadius: 8, padding: 6, marginTop: 4 }}>
-                      <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '800' }}>
-                        📅 Follow-up: {item.scheduledDate} {item.scheduledTime ? `at ${item.scheduledTime}` : ''}
+                  {/* Sent WhatsApp Message Content */}
+                  {item.sentMessage ? (
+                    <View style={{ backgroundColor: isDark ? '#020617' : '#f0fdf4', borderWidth: 1, borderColor: isDark ? 'rgba(34,197,94,0.3)' : '#bbf7d0', borderRadius: 8, padding: 8, marginTop: 6 }}>
+                      <Text style={{ fontSize: 8, fontWeight: '900', color: '#16a34a', textTransform: 'uppercase', marginBottom: 2 }}>Sent Message Preview:</Text>
+                      <Text style={{ fontSize: 9, color: isDark ? '#cbd5e1' : '#166534', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', lineHeight: 13 }} numberOfLines={4}>
+                        {item.sentMessage}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
               );
             })

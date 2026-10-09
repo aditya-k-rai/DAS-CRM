@@ -5,13 +5,13 @@
  * 1. Primary Outcomes: Picked Up, Not Responding, Busy, Switched Off, WhatsApp Chat.
  * 2. Detailed Actions for BOTH Picked Up Call and WhatsApp Chat:
  *    - 🗣️ Talked / Chat Completed Smoothly
- *    - ⏰ Will Call / Chat Later (15-Day Date Selector + Time Slot Selector: 09:30 AM, 11:00 AM, 02:00 PM, 04:30 PM, 06:00 PM)
+ *    - ⏰ Will Call / Chat Later (15-Day Date Selector + Time Slot Selector)
  *    - 🤝 Talked & Said He Will Visit / Come (15-Day Expected Visit Date Selector)
- *    - 📄 Catalogue & Brochure Shared on WhatsApp / Email
- *    - 💡 Interested (Live Product Search Box: DAS CRM Enterprise Suite, AI Lead Scoring Engine Pro, WhatsApp Automation Bot Engine, Cloud Telemetry License)
- *    - 💬 Message Sent / Active Chat Discussion
- * 3. Write Your Own Custom Notes Box.
- * 4. Save & Store directly to Lead Activity Telemetry.
+ *    - 💡 Interested in Product & Product Shared (Quantity Stepper, Live Tiered Pricing & 1-Tap WhatsApp Sharing)
+ *    - 💬 WhatsApp Message Sent / Responded
+ * 3. 📲 WhatsApp Product Details Dispatcher with Live Message Preview & 1-Tap Direct Timeline Logging.
+ * 4. Write Your Own Custom Notes Box.
+ * 5. Save & Store directly to Lead Activity Telemetry.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -26,6 +26,7 @@ import {
   Alert,
   Image,
   Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOG_PRODUCTS, ProductItem } from '../services/whatsappTemplateEngine';
@@ -40,6 +41,12 @@ export interface CallOutcomeData {
   scheduledDate?: string;
   scheduledTime?: string;
   selectedProduct?: ProductItem | null;
+  productQuantity?: number;
+  productTotalPrice?: number;
+  isWaShared?: boolean;
+  sentMessage?: string;
+  waTargetPhone?: string;
+  waCustomNote?: string;
   notes: string;
   timestamp: string;
   callerName?: string;
@@ -106,7 +113,16 @@ export default function PostCallOutcomeModal({
   // Product Search & Selection State
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+  const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
   const [liveProducts, setLiveProducts] = useState<ProductItem[]>([]);
+
+  // WhatsApp Product Share State
+  const [productWaTargetPhone, setProductWaTargetPhone] = useState<string>(phone || '');
+  const [productWaCustomNote, setProductWaCustomNote] = useState<string>('');
+  const [isProductWaShared, setIsProductWaShared] = useState<boolean>(false);
+
+  // Custom Notes Input Box
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     productCatalogService.getProducts().then((prods) => {
@@ -130,14 +146,88 @@ export default function PostCallOutcomeModal({
     }).catch(() => {});
   }, []);
 
-  // Custom Notes Input Box
-  const [notes, setNotes] = useState('');
+  useEffect(() => {
+    if (phone && !productWaTargetPhone) {
+      setProductWaTargetPhone(phone);
+    }
+  }, [phone, productWaTargetPhone]);
 
   const displayProducts = liveProducts.length > 0 ? liveProducts : CATALOG_PRODUCTS;
   const filteredProducts = displayProducts.filter(p =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.category.toLowerCase().includes(productSearch.toLowerCase())
   );
+
+  const calculateProductPricing = () => {
+    if (!selectedProduct) {
+      return { unitPrice: 0, totalPrice: 0, discountPct: 0, unitLabel: 'Units' };
+    }
+    const baseNum = parseFloat(String(selectedProduct.minPrice || '0').replace(/[^0-9.]/g, '')) || 0;
+    const qty = Math.max(1, selectedQuantity || 1);
+    
+    let unitPrice = baseNum;
+    let discountPct = 0;
+    if (Array.isArray(selectedProduct.priceTiers) && selectedProduct.priceTiers.length > 0) {
+      for (const tier of selectedProduct.priceTiers) {
+        if (qty >= (tier.minQty || 1) && (!tier.maxQty || qty <= tier.maxQty)) {
+          unitPrice = tier.unitPrice || baseNum;
+          if (baseNum > 0 && unitPrice < baseNum) {
+            discountPct = Math.round(((baseNum - unitPrice) / baseNum) * 100);
+          }
+          break;
+        }
+      }
+    }
+    const totalPrice = unitPrice * qty;
+    return {
+      unitPrice,
+      totalPrice,
+      discountPct,
+      unitLabel: 'Units',
+    };
+  };
+
+  const generateProductWhatsAppMessage = (customNote?: string) => {
+    const clientName = (!leadName || leadName === 'Lead Prospect' || leadName === '—') ? 'Valued Client' : leadName;
+    const pricing = calculateProductPricing();
+    const prodName = selectedProduct?.name || 'Product of Interest';
+    const categoryText = selectedProduct?.category ? `📁 *Category:* ${selectedProduct.category}\n` : '';
+    const qty = Math.max(1, selectedQuantity || 1);
+    const unitPriceFormatted = `₹${pricing.unitPrice.toLocaleString('en-IN')}`;
+    const totalPriceFormatted = `₹${pricing.totalPrice.toLocaleString('en-IN')}`;
+    const discountStr = pricing.discountPct > 0 ? ` [Includes ${pricing.discountPct}% Volume Tier Discount]` : '';
+    const desc = selectedProduct?.description ? `\n\n📝 *Product Specifications & Details:*\n${selectedProduct.description.trim()}` : '';
+    const extraNote = customNote && customNote.trim() ? `\n\n💡 *Note from Representative:* "${customNote.trim()}"` : '';
+
+    return (
+      `Hello *${clientName}*,\n\n` +
+      `Thank you for discussing *${prodName}* with us! Here are the complete product details and pricing:\n\n` +
+      `📦 *Product Name:* *${prodName}*\n` +
+      categoryText +
+      `🔢 *Selected Quantity:* ${qty} ${pricing.unitLabel}\n` +
+      `🏷️ *Unit Price:* ${unitPriceFormatted} / ${pricing.unitLabel}\n` +
+      `💰 *Estimated Total Value:* *${totalPriceFormatted}*${discountStr}` +
+      desc +
+      extraNote +
+      `\n\n💬 *Next Steps:* Please let us know if you need any adjustments or if you would like us to issue a formal commercial quotation / tax invoice.` +
+      `\n\nBest regards,\n*DAS CRM Team*`
+    );
+  };
+
+  const handleShareProductViaWhatsApp = async () => {
+    const targetPhone = (productWaTargetPhone || phone || '').replace(/[^0-9]/g, '');
+    const finalMsg = generateProductWhatsAppMessage(productWaCustomNote);
+    const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(finalMsg)}`;
+
+    try {
+      await Linking.openURL(waUrl);
+      setIsProductWaShared(true);
+      Alert.alert('✅ WhatsApp Opened', 'Product details formatted and opened in WhatsApp.');
+    } catch (e) {
+      Alert.alert('Notice', 'Opening web WhatsApp fallback...');
+      Linking.openURL(waUrl).catch(() => {});
+    }
+  };
 
   const resetState = () => {
     setOutcome('PICKED_UP');
@@ -146,6 +236,9 @@ export default function PostCallOutcomeModal({
     setSelectedTime('02:00 PM');
     setProductSearch('');
     setSelectedProduct(null);
+    setSelectedQuantity(1);
+    setIsProductWaShared(false);
+    setProductWaCustomNote('');
     setNotes('');
   };
 
@@ -165,6 +258,18 @@ export default function PostCallOutcomeModal({
       return;
     }
 
+    const pricing = calculateProductPricing();
+    const qty = Math.max(1, selectedQuantity || 1);
+    const prodName = selectedProduct?.name;
+    const finalMsg = isProductWaShared ? generateProductWhatsAppMessage(productWaCustomNote) : undefined;
+
+    let baseNotes = notes.trim();
+    if (subOption === 'INTERESTED' && selectedProduct) {
+      const waStatus = isProductWaShared ? ' [Shared via WhatsApp Direct]' : '';
+      const prodTag = `Product: ${prodName} (Qty: ${qty} · ₹${pricing.totalPrice.toLocaleString('en-IN')})${waStatus}`;
+      baseNotes = baseNotes ? `${baseNotes} • ${prodTag}` : prodTag;
+    }
+
     const data: CallOutcomeData = {
       leadId,
       leadName,
@@ -174,7 +279,13 @@ export default function PostCallOutcomeModal({
       scheduledDate: (subOption === 'CALL_LATER' || subOption === 'WILL_VISIT' || outcome === 'NOT_RESPONDING' || outcome === 'BUSY' || outcome === 'SWITCHED_OFF') ? selectedDate : undefined,
       scheduledTime: subOption === 'CALL_LATER' ? selectedTime : undefined,
       selectedProduct,
-      notes: notes.trim() || 'Lead status updated.',
+      productQuantity: selectedProduct ? qty : undefined,
+      productTotalPrice: selectedProduct ? pricing.totalPrice : undefined,
+      isWaShared: isProductWaShared,
+      sentMessage: finalMsg,
+      waTargetPhone: productWaTargetPhone,
+      waCustomNote: productWaCustomNote,
+      notes: baseNotes || 'Lead status updated.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -184,7 +295,7 @@ export default function PostCallOutcomeModal({
 
     Alert.alert(
       '✅ Lead Status & Activity Saved',
-      `Outcome stored for ${leadName}:\n• Status: ${outcome.replace('_', ' ')}\n• Action: ${subOption ? subOption.replace('_', ' ') : 'Updated'}${selectedProduct ? '\n• Product Interested: ' + selectedProduct.name : ''}${selectedDate ? '\n• Scheduled Date: ' + selectedDate : ''}`
+      `Outcome stored for ${leadName}:\n• Status: ${outcome.replace('_', ' ')}\n• Action: ${subOption ? subOption.replace('_', ' ') : 'Updated'}${selectedProduct ? '\n• Product Interested: ' + selectedProduct.name + ` (Qty: ${qty})` : ''}${isProductWaShared ? '\n• WhatsApp: Shared to Client' : ''}${selectedDate ? '\n• Scheduled Date: ' + selectedDate : ''}`
     );
   };
 
@@ -361,7 +472,7 @@ export default function PostCallOutcomeModal({
                   </View>
                 )}
 
-                {/* 🛍️ PRODUCT SEARCH & SELECTION FOR "INTERESTED" */}
+                {/* 🛍️ PRODUCT SEARCH, QUANTITY & WHATSAPP SHARING FOR "INTERESTED" */}
                 {subOption === 'INTERESTED' && (
                   <View style={styles.productSearchCard}>
                     <Text style={styles.schedulerTitle}>🔍 Search &amp; Select Interested Product:</Text>
@@ -389,11 +500,98 @@ export default function PostCallOutcomeModal({
                               </Text>
                               <Text style={styles.productRowSub}>{prod.category} • {prod.minPrice} - {prod.maxPrice}</Text>
                             </View>
-                            {isSelected && <Text style={{ color: '#818cf8', fontWeight: '900', fontSize: 16 }}>✓ Selected</Text>}
+                            {isSelected && <Text style={{ color: '#818cf8', fontWeight: '900', fontSize: 14 }}>✓ Selected</Text>}
                           </TouchableOpacity>
                         );
                       })}
                     </View>
+
+                    {/* Quantity Stepper & Price Calculation */}
+                    {selectedProduct && (
+                      <View style={styles.pricingCard}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#cbd5e1' }}>Quantity:</Text>
+                          <View style={styles.quantityStepper}>
+                            <TouchableOpacity
+                              style={styles.stepBtn}
+                              onPress={() => setSelectedQuantity(q => Math.max(1, q - 1))}
+                            >
+                              <Text style={styles.stepBtnText}>−</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.stepQtyText}>{selectedQuantity}</Text>
+                            <TouchableOpacity
+                              style={styles.stepBtn}
+                              onPress={() => setSelectedQuantity(q => q + 1)}
+                            >
+                              <Text style={styles.stepBtnText}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>Total Value:</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>
+                            ₹{calculateProductPricing().totalPrice.toLocaleString('en-IN')}
+                            {calculateProductPricing().discountPct > 0 && (
+                              <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '800' }}>
+                                {' '}({calculateProductPricing().discountPct}% off)
+                              </Text>
+                            )}
+                          </Text>
+                        </View>
+
+                        {/* 📲 WHATSAPP PRODUCT SHARE SECTION */}
+                        <View style={styles.waShareCard}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '900', color: '#22c55e' }}>
+                              💬 Share on WhatsApp
+                            </Text>
+                            {isProductWaShared ? (
+                              <View style={styles.sharedBadge}>
+                                <Text style={styles.sharedBadgeText}>✓ Shared</Text>
+                              </View>
+                            ) : null}
+                          </View>
+
+                          <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 2 }}>Target WhatsApp Phone:</Text>
+                          <TextInput
+                            style={styles.waPhoneInput}
+                            placeholder="+91 98765 43210"
+                            placeholderTextColor="#64748b"
+                            keyboardType="phone-pad"
+                            value={productWaTargetPhone}
+                            onChangeText={setProductWaTargetPhone}
+                          />
+
+                          <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 6, marginBottom: 2 }}>Custom Remarks / Special Note (Optional):</Text>
+                          <TextInput
+                            style={styles.waNoteInput}
+                            placeholder="e.g. Valid until Friday, Includes 1-yr warranty..."
+                            placeholderTextColor="#64748b"
+                            value={productWaCustomNote}
+                            onChangeText={setProductWaCustomNote}
+                          />
+
+                          {/* Message Preview */}
+                          <View style={styles.waPreviewBox}>
+                            <Text style={{ fontSize: 8, fontWeight: '800', color: '#22c55e', textTransform: 'uppercase', marginBottom: 4 }}>
+                              Live WhatsApp Preview:
+                            </Text>
+                            <Text style={styles.waPreviewText} numberOfLines={5}>
+                              {generateProductWhatsAppMessage(productWaCustomNote)}
+                            </Text>
+                          </View>
+
+                          <TouchableOpacity
+                            style={styles.waShareBtn}
+                            onPress={handleShareProductViaWhatsApp}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.waShareBtnText}>📲 Send via WhatsApp Direct Now</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
@@ -503,12 +701,28 @@ const styles = StyleSheet.create({
 
   productSearchCard: { marginTop: 10, backgroundColor: '#0f172a', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#1e293b' },
   searchInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, color: '#ffffff', fontSize: 11, marginTop: 6, marginBottom: 8 },
-  productListContainer: { gap: 6, maxHeight: 180 },
+  productListContainer: { gap: 6, maxHeight: 160 },
   productRowItem: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#020617', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#1e293b' },
   productRowItemActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.15)' },
   productThumb: { width: 32, height: 32, borderRadius: 6 },
   productRowTitle: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
   productRowSub: { fontSize: 9, color: '#94a3b8', marginTop: 1 },
+
+  pricingCard: { marginTop: 10, backgroundColor: '#020617', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#334155' },
+  quantityStepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
+  stepBtn: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center' },
+  stepBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '900' },
+  stepQtyText: { color: '#ffffff', fontSize: 12, fontWeight: '900', paddingHorizontal: 10 },
+
+  waShareCard: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' },
+  sharedBadge: { backgroundColor: 'rgba(34,197,94,0.2)', borderWidth: 1, borderColor: '#22c55e', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  sharedBadgeText: { color: '#22c55e', fontSize: 9, fontWeight: '800' },
+  waPhoneInput: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, color: '#22c55e', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  waNoteInput: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, color: '#ffffff', fontSize: 11 },
+  waPreviewBox: { backgroundColor: '#0f172a', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#1e293b', marginTop: 8 },
+  waPreviewText: { fontSize: 9, color: '#94a3b8', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', lineHeight: 13 },
+  waShareBtn: { backgroundColor: '#16a34a', paddingVertical: 8, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+  waShareBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
 
   notesBoxInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, color: '#ffffff', fontSize: 11, textAlignVertical: 'top', minHeight: 70 },
   saveOutcomeBtn: { backgroundColor: '#16a34a', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },
