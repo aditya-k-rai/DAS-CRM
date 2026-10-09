@@ -14,15 +14,46 @@ const STATUSES = ['PENDING', 'DUE', 'COMPLETED', 'OVERDUE', 'RESCHEDULED', 'CANC
 export class FollowUpsService {
   constructor(private prisma: PrismaService) {}
 
+  async getDownstreamUserIds(organizationId: string, managerId: string): Promise<Set<string>> {
+    const allUsers = await this.prisma.user.findMany({
+      where: { organizationId },
+      select: { id: true, managerId: true },
+    });
+    const downstreamIds = new Set<string>();
+    downstreamIds.add(managerId);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const u of allUsers) {
+        if (u.managerId && downstreamIds.has(u.managerId) && !downstreamIds.has(u.id)) {
+          downstreamIds.add(u.id);
+          added = true;
+        }
+      }
+    }
+    return downstreamIds;
+  }
+
   /**
    * Build the authorization WHERE clause for a user.
-   * Admins and Managers have org-wide visibility. Reps see assigned/created items.
+   * Admins and Managers have org-wide visibility. TLs see own + subordinates. Reps see assigned/created items.
    */
-  private getOwnershipScope(userId: string, userRole?: string | any) {
+  private async getOwnershipScope(organizationId: string, userId: string, userRole?: string | any) {
     const rawRole = typeof userRole === 'string' ? userRole : (userRole?.name || '');
     const r = (rawRole || '').toUpperCase();
-    if (r.includes('ADMIN') || r.includes('MANAGER') || r.includes('OWNER') || r.includes('SUPER_ADMIN')) {
+    if (r.includes('ADMIN') || r.includes('MANAGER') || r.includes('OWNER') || r.includes('SUPER_ADMIN') || r.includes('HR')) {
       return {};
+    }
+    if (r.includes('LEADER') || r.includes('TL')) {
+      const subordinateIds = await this.getDownstreamUserIds(organizationId, userId);
+      const allowedIds = Array.from(subordinateIds);
+      return {
+        OR: [
+          { assigneeId: { in: allowedIds } },
+          { createdById: { in: allowedIds } },
+          { lead: { ownerId: { in: allowedIds } } },
+        ],
+      };
     }
     return {
       OR: [
@@ -36,11 +67,12 @@ export class FollowUpsService {
   /**
    * Base where clause that always scopes to organization + FOLLOW_UP taskType.
    */
-  private baseWhere(organizationId: string, userId: string, userRole?: string) {
+  private async baseWhere(organizationId: string, userId: string, userRole?: string) {
+    const scope = await this.getOwnershipScope(organizationId, userId, userRole);
     return {
       organizationId,
       taskType: 'FOLLOW_UP',
-      ...this.getOwnershipScope(userId, userRole),
+      ...scope,
     };
   }
 
@@ -156,7 +188,7 @@ export class FollowUpsService {
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(String(limit), 10) || 50));
 
-    const base = this.baseWhere(organizationId, userId, userRole);
+    const base = await this.baseWhere(organizationId, userId, userRole);
     const where: any = { ...base };
 
     if (assignedTo) {
@@ -249,7 +281,7 @@ export class FollowUpsService {
    * Get a single follow-up with full details + related activity timeline.
    */
   async findOne(organizationId: string, userId: string, id: string, userRole?: string) {
-    const base = this.baseWhere(organizationId, userId, userRole);
+    const base = await this.baseWhere(organizationId, userId, userRole);
     const followUp = await this.prisma.task.findFirst({
       where: {
         id,
@@ -410,13 +442,14 @@ export class FollowUpsService {
       contactId?: string;
       dealId?: string;
     },
+    userRole?: string,
   ) {
     const existing = await this.prisma.task.findFirst({
       where: {
         id,
         organizationId,
         taskType: 'FOLLOW_UP',
-        ...this.getOwnershipScope(userId),
+        ...(await this.getOwnershipScope(organizationId, userId, userRole)),
       },
     });
 
@@ -479,13 +512,14 @@ export class FollowUpsService {
       nextFollowUpType?: string;
       nextFollowUpTitle?: string;
     },
+    userRole?: string,
   ) {
     const existing = await this.prisma.task.findFirst({
       where: {
         id,
         organizationId,
         taskType: 'FOLLOW_UP',
-        ...this.getOwnershipScope(userId),
+        ...(await this.getOwnershipScope(organizationId, userId, userRole)),
       },
     });
 
@@ -574,13 +608,14 @@ export class FollowUpsService {
       newTime?: string;
       reason?: string;
     },
+    userRole?: string,
   ) {
     const existing = await this.prisma.task.findFirst({
       where: {
         id,
         organizationId,
         taskType: 'FOLLOW_UP',
-        ...this.getOwnershipScope(userId),
+        ...(await this.getOwnershipScope(organizationId, userId, userRole)),
       },
     });
 
@@ -642,13 +677,14 @@ export class FollowUpsService {
     userId: string,
     id: string,
     dto: { reason?: string },
+    userRole?: string,
   ) {
     const existing = await this.prisma.task.findFirst({
       where: {
         id,
         organizationId,
         taskType: 'FOLLOW_UP',
-        ...this.getOwnershipScope(userId),
+        ...(await this.getOwnershipScope(organizationId, userId, userRole)),
       },
     });
 
@@ -699,13 +735,14 @@ export class FollowUpsService {
     userId: string,
     id: string,
     dto: { note: string },
+    userRole?: string,
   ) {
     const existing = await this.prisma.task.findFirst({
       where: {
         id,
         organizationId,
         taskType: 'FOLLOW_UP',
-        ...this.getOwnershipScope(userId),
+        ...(await this.getOwnershipScope(organizationId, userId, userRole)),
       },
     });
 
@@ -740,7 +777,7 @@ export class FollowUpsService {
    * Get follow-up summary counts for dashboard cards.
    */
   async getSummary(organizationId: string, userId: string, userRole?: string) {
-    const base = this.baseWhere(organizationId, userId, userRole);
+    const base = await this.baseWhere(organizationId, userId, userRole);
     const now = new Date();
     // Accommodate IST (UTC+5:30) and local server time for accurate date boundaries
     const istOffset = 5.5 * 60 * 60 * 1000;
@@ -826,7 +863,7 @@ export class FollowUpsService {
     const istDateStr = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
     const todayStart = new Date(`${istDateStr}T00:00:00.000+05:30`);
     const todayEnd = new Date(`${istDateStr}T23:59:59.999+05:30`);
-    const base = this.baseWhere(organizationId, userId, userRole);
+    const base = await this.baseWhere(organizationId, userId, userRole);
 
     const items = await this.prisma.task.findMany({
       where: {
@@ -867,7 +904,7 @@ export class FollowUpsService {
     query: { dateFrom: string; dateTo: string },
     userRole?: string,
   ) {
-    const base = this.baseWhere(organizationId, userId, userRole);
+    const base = await this.baseWhere(organizationId, userId, userRole);
 
     const items = await this.prisma.task.findMany({
       where: {
@@ -893,7 +930,7 @@ export class FollowUpsService {
   async search(organizationId: string, userId: string, searchQuery: string, userRole?: string) {
     if (!searchQuery?.trim()) return [];
 
-    const base = this.baseWhere(organizationId, userId, userRole);
+    const base = await this.baseWhere(organizationId, userId, userRole);
     const items = await this.prisma.task.findMany({
       where: {
         ...base,

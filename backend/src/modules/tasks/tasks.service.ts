@@ -5,6 +5,26 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class TasksService {
   constructor(private prisma: PrismaService) {}
 
+  async getDownstreamUserIds(organizationId: string, managerId: string): Promise<Set<string>> {
+    const allUsers = await this.prisma.user.findMany({
+      where: { organizationId },
+      select: { id: true, managerId: true },
+    });
+    const downstreamIds = new Set<string>();
+    downstreamIds.add(managerId);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const u of allUsers) {
+        if (u.managerId && downstreamIds.has(u.managerId) && !downstreamIds.has(u.id)) {
+          downstreamIds.add(u.id);
+          added = true;
+        }
+      }
+    }
+    return downstreamIds;
+  }
+
   async findAll(
     organizationId: string,
     userId: string,
@@ -23,10 +43,24 @@ export class TasksService {
 
     const rawRole = (typeof userRole === 'string' ? userRole : userRole?.name || '').toUpperCase();
     const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER'].includes(rawRole);
+    const isTeamLeader = rawRole === 'TEAM_LEADER' || rawRole.includes('LEADER') || rawRole.includes('TL');
 
-    const userScope = isAdminOrManager
-      ? []
-      : [
+    let userScope: any[] = [];
+    if (!isAdminOrManager) {
+      if (isTeamLeader) {
+        const subordinateIds = await this.getDownstreamUserIds(organizationId, userId);
+        const allowedIds = Array.from(subordinateIds);
+        userScope = [
+          {
+            OR: [
+              { assigneeId: { in: allowedIds } },
+              { createdById: { in: allowedIds } },
+              { lead: { ownerId: { in: allowedIds } } },
+            ],
+          },
+        ];
+      } else {
+        userScope = [
           {
             OR: [
               { assigneeId: userId },
@@ -35,6 +69,8 @@ export class TasksService {
             ],
           },
         ];
+      }
+    }
 
     const typeCondition = taskType
       ? taskType.toUpperCase() === 'MEETING'

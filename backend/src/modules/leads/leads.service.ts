@@ -52,17 +52,28 @@ export class LeadsService {
     const rawRole = currentUser?.role?.name || (typeof currentUser?.role === 'string' ? currentUser.role : '') || '';
     const roleName = rawRole.toUpperCase();
 
-    // Global Admins, Super Admins, Owners, and Department Managers see company-wide leads.
+    // 1. Global Admins, Super Admins, Owners, and Department Managers see all company leads.
     if (['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER', 'HR'].includes(roleName)) {
       return {};
     }
-    const subordinateIds = await this.getDownstreamUserIds(organizationId, userId);
-    const allowedIds = Array.from(subordinateIds);
+
+    // 2. Team Leader: Can see leads of himself + all subordinates reporting under him in hierarchy + unassigned pool leads
+    if (roleName === 'TEAM_LEADER' || roleName.includes('LEADER') || roleName.includes('TL')) {
+      const subordinateIds = await this.getDownstreamUserIds(organizationId, userId);
+      const allowedIds = Array.from(subordinateIds);
+      return {
+        OR: [
+          { ownerId: { in: allowedIds } },
+          { createdById: { in: allowedIds } },
+          { ownerId: null },
+        ],
+      };
+    }
+
+    // 3. Sales Representative (SALES_EXEC, SALES, SALES_REP, etc.): Can view ONLY their own assigned/created leads
     return {
       OR: [
-        { ownerId: { in: allowedIds } },
-        { ownerId: null },
-        { createdById: { in: allowedIds } },
+        { ownerId: userId },
         { createdById: userId },
       ],
     };

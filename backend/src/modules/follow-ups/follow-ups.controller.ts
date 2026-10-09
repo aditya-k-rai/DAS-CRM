@@ -73,34 +73,34 @@ export class FollowUpsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update a follow-up' })
   update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
-    return this.followUpsService.update(user.organizationId, user.id, id, dto);
+    return this.followUpsService.update(user.organizationId, user.id, id, dto, this.extractRole(user));
   }
 
   @Patch(':id/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Complete a follow-up with outcome and optional next follow-up' })
   complete(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
-    return this.followUpsService.complete(user.organizationId, user.id, id, dto);
+    return this.followUpsService.complete(user.organizationId, user.id, id, dto, this.extractRole(user));
   }
 
   @Patch(':id/reschedule')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reschedule a follow-up to a new date/time' })
   reschedule(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
-    return this.followUpsService.reschedule(user.organizationId, user.id, id, dto);
+    return this.followUpsService.reschedule(user.organizationId, user.id, id, dto, this.extractRole(user));
   }
 
   @Patch(':id/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel a follow-up' })
   cancel(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
-    return this.followUpsService.cancel(user.organizationId, user.id, id, dto);
+    return this.followUpsService.cancel(user.organizationId, user.id, id, dto, this.extractRole(user));
   }
 
   @Post(':id/note')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Add a note to a follow-up' })
   addNote(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: { note: string }) {
-    return this.followUpsService.addNote(user.organizationId, user.id, id, dto);
+    return this.followUpsService.addNote(user.organizationId, user.id, id, dto, this.extractRole(user));
   }
 }
