@@ -105,7 +105,7 @@ export default function ManagerControlScreen({ employee, allEmployees, onBack, o
     // Fallback senior defaults if list is empty
     if (list.length === 0) {
       list.push(
-        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', roleKey: 'ADMIN', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)', badgeColor: '#f43f5e' }
+        { id: 'admin-default', name: 'Admin', role: 'Admin', roleKey: 'ADMIN', email: 'adorabletrading08@gmail.com', label: 'Admin', badgeColor: '#f43f5e' }
       );
     }
 

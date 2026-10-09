@@ -113,7 +113,7 @@ export default function HrControlScreen({ employee, allEmployees, onBack, onUpda
     // Fallback senior defaults if list is empty
     if (list.length === 0) {
       list.push(
-        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', roleKey: 'ADMIN', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)', badgeColor: '#f43f5e' },
+        { id: 'admin-default', name: 'Admin', role: 'Admin', roleKey: 'ADMIN', email: 'adorabletrading08@gmail.com', label: 'Admin', badgeColor: '#f43f5e' },
         { id: 'mgr-default', name: 'Aditya Kumar Rai', role: 'Manager', roleKey: 'MANAGER', email: 'rai992522@gmail.com', label: 'Aditya Kumar Rai (Manager)', badgeColor: '#c084fc' }
       );
     }

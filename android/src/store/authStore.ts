@@ -204,10 +204,10 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
   },
   ADMIN: {
     id: 'usr_admin',
-    name: 'Workspace Admin',
+    name: 'Admin',
     email: 'admin@das.com',
     role: 'ADMIN',
-    avatar: 'WA',
+    avatar: 'AD',
     companyId: 'comp_default',
     companyName: 'DAS Organization',
   },

@@ -154,15 +154,15 @@ const getInitialAndroidEmployees = (currentUser: any): { assigned: EmployeeProfi
   const assigned: EmployeeProfile[] = [
     {
       id: currentUser?.id || 'cmuev7ni70016ikew8an7tdw8',
-      name: currentUser?.name || 'Anurag Sharma',
+      name: 'Admin',
       email: currentUser?.email || 'adorabletrading08@gmail.com',
       phone: (currentUser as any)?.phone || '+91 97173 55779',
       role: 'ADMIN',
-      assignedManager: 'Organization Admin',
+      assignedManager: 'Admin',
       status: 'ONLINE',
       avatarUrl: '',
       documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-      bankDetails: { bankName: 'Direct Deposit', accountHolder: currentUser?.name || 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser?.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser?.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
       leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
       attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
       subordinates: [],
@@ -523,17 +523,22 @@ export default function EmployeesScreen() {
               else if (rawRole.includes('HR')) role = 'HR';
               else role = 'SALES_EXEC';
 
+              const isUserAdmin = role === 'ADMIN' || rawRole.includes('ADMIN') || rawRole.includes('OWNER') || userEmail === 'adorabletrading08@gmail.com';
+              const displayName = isUserAdmin
+                ? 'Admin'
+                : (`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email);
+
               assigned.push({
                 id: String(u.id),
-                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+                name: displayName,
                 email: u.email,
                 phone: displayPhone,
                 role,
-                assignedManager: assignedMgr,
+                assignedManager: role === 'ADMIN' ? 'Admin' : (assignedMgr === 'Organization Admin' ? 'Admin' : assignedMgr),
                 status: 'ONLINE',
                 avatarUrl: u.avatarUrl || '',
                 documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-                bankDetails: { bankName: 'Direct Deposit', accountHolder: u.name || u.email, accountNo: '••••••••', ifscCode: '—', upiId: u.email, lastUpdatedDate: 'Recently', historyLogs: [] },
+                bankDetails: { bankName: 'Direct Deposit', accountHolder: isUserAdmin ? 'Admin' : (u.name || u.email), accountNo: '••••••••', ifscCode: '—', upiId: u.email, lastUpdatedDate: 'Recently', historyLogs: [] },
                 leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
                 attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
                 subordinates: [],

@@ -439,10 +439,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           await setAuthSession(
             {
               id: demoUser.id || 'usr_local_admin',
-              name: demoUser.name || 'Anurag Sharma',
+              name: demoUser.name || (normalizedRole === 'ADMIN' ? 'Admin' : 'Staff Member'),
               email: email.trim(),
               role: normalizedRole,
-              avatar: demoUser.avatar || 'AS',
+              avatar: demoUser.avatar || (normalizedRole === 'ADMIN' ? 'AD' : 'SM'),
               companyId: compId,
               companyName: compName,
               hasAssignedRole: true,
