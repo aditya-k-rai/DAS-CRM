@@ -1,14 +1,26 @@
 /**
  * EmployeesScreen.tsx — DAS CRM Android
- * Structure & Staff Directory with Assigned / Unassigned segmented tabs.
+ * Organization Staff Directory & Role Control Router (Full Web 1:1 Parity)
  *
- * ASSIGNED  → Users who have a CRM role (MANAGER, TEAM_LEADER, HR, SALES_EXEC).
- *             Full Inspect & Control routing to dedicated role screens.
- * UNASSIGNED → Users who have only registered in the system but have no role
- *              allocated yet. Admin can assign a role directly from this screen.
+ * TABS:
+ * 1. ASSIGNED (Verified Staff Members with active CRM roles: MANAGER, TEAM_LEADER, HR, SALES_EXEC, ADMIN)
+ * 2. UNASSIGNED (Pending registration queue awaiting role & supervisor allocation)
+ * 3. ALL (Complete organization directory view)
+ *
+ * CONTROLS & CAPABILITIES:
+ * - Real-time Seat Quota & Capacity Banner
+ * - Company Registration Key Hub with 1-tap Copy, Native Share & WhatsApp Invite
+ * - Add / Pre-register Staff Modal (Name, Email, Phone, Role, Supervisor, Base Salary)
+ * - Editable Phone Number inline / quick modal with +91 formatting & persistence
+ * - Quick Change Supervisor selector dropdown modal (instant update & sync)
+ * - KYC Document Vault & Bank Details inspector modal
+ * - Dedicated Role Control Cockpit routing (Sales Exec, TL, Manager, HR)
+ * - Role Upgrade / Downgrade Modal with Company Key verification
+ * - Deletion Grace Period & Lock Status banner with Restore / Cancel Deletion
+ * - Fast Unassigned User 1-tap Approval & Role Verification
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -23,6 +35,8 @@ import {
   Share,
   Linking,
   ActivityIndicator,
+  RefreshControl,
+  Clipboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr, getPlanSeatQuota } from '../store/authStore';
@@ -35,6 +49,7 @@ import ManagerControlScreen from './ManagerControlScreen';
 import HrControlScreen from './HrControlScreen';
 import { getApiBase } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ToastBanner, { ToastConfig } from '../components/ToastBanner';
 
 export interface EmployeeProfile {
   id: string;
@@ -102,7 +117,7 @@ export interface EmployeeProfile {
 }
 
 /** Users who registered but have NOT yet been assigned a CRM role */
-interface UnassignedUser {
+export interface UnassignedUser {
   id: string;
   name: string;
   email: string;
@@ -111,7 +126,7 @@ interface UnassignedUser {
   deviceInfo: string;
 }
 
-const AVAILABLE_ROLES: { key: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'; label: string; color: string }[] = [
+export const AVAILABLE_ROLES: { key: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'; label: string; color: string }[] = [
   { key: 'HR', label: 'HR', color: '#38bdf8' },
   { key: 'MANAGER', label: 'Manager', color: '#c084fc' },
   { key: 'TEAM_LEADER', label: 'Team Leader', color: '#fbbf24' },
@@ -242,14 +257,18 @@ export default function EmployeesScreen() {
 
   const initialEmployees = getInitialAndroidEmployees(currentUser);
   const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>(initialEmployees.assigned);
-  const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
-  const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | null>(null);
   const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>(initialEmployees.unassigned);
+  const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
+  const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED' | 'ALL'>('ASSIGNED');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Toast / Feedback
+  const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
 
   // Company Registration Key
   const [companyKey, setCompanyKey] = useState<string>(androidEmployeesCache?.companyKey || 'ADOR-EC-7187');
+  const [companyKeyModalOpen, setCompanyKeyModalOpen] = useState(false);
 
   // Upgrade / Downgrade Role States (Requires Company Key Confirmation)
   const [roleChangeTarget, setRoleChangeTarget] = useState<EmployeeProfile | null>(null);
@@ -257,10 +276,46 @@ export default function EmployeesScreen() {
   const [roleChangeKeyInput, setRoleChangeKeyInput] = useState('');
   const [isChangingRole, setIsChangingRole] = useState(false);
 
+  // Quick Supervisor Change Modal
+  const [supervisorChangeTarget, setSupervisorChangeTarget] = useState<EmployeeProfile | null>(null);
+  const [selectedNewSupervisor, setSelectedNewSupervisor] = useState<string>('');
+  const [isSavingSupervisor, setIsSavingSupervisor] = useState(false);
+
+  // Quick Edit Phone Modal
+  const [editingPhoneTarget, setEditingPhoneTarget] = useState<EmployeeProfile | null>(null);
+  const [phoneInputValue, setPhoneInputValue] = useState('');
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+
+  // KYC Vault & Documents Modal
+  const [vaultTarget, setVaultTarget] = useState<EmployeeProfile | null>(null);
+
+  // Inline selection state for unassigned cards
+  const [unassignedCardRoles, setUnassignedCardRoles] = useState<Record<string, 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'>>({});
+  const [unassignedCardSupervisors, setUnassignedCardSupervisors] = useState<Record<string, string>>({});
+
+  // Add / Pre-register Staff Modal
+  const [addStaffModalOpen, setAddStaffModalOpen] = useState(false);
+  const [addStaffName, setAddStaffName] = useState('');
+  const [addStaffEmail, setAddStaffEmail] = useState('');
+  const [addStaffPhone, setAddStaffPhone] = useState('');
+  const [addStaffRole, setAddStaffRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'>('SALES_EXEC');
+  const [addStaffSupervisor, setAddStaffSupervisor] = useState('Admin');
+  const [addStaffBaseSalary, setAddStaffBaseSalary] = useState('₹45,000');
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const activeCount = employeesList.length;
   const unassignedCount = unassignedUsers.length;
   const totalUsersCount = activeCount + unassignedCount;
+
+  const showToast = (message: string, type: 'SUCCESS' | 'INFO' | 'WARNING' | 'COPY' = 'SUCCESS', title = 'Notification') => {
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title,
+      message,
+      type,
+    });
+  };
 
   const getCountPillStyle = () => {
     if (totalQuota > 0 && activeCount > totalQuota) {
@@ -274,6 +329,63 @@ export default function EmployeesScreen() {
 
   const pillStyle = getCountPillStyle();
 
+  // Compute eligible supervisors list given target role and target user
+  const getEligibleSupervisors = useCallback((targetRole: string, targetEmpId?: string) => {
+    const list: Array<{ label: string; name: string; role: string }> = [
+      { label: 'Admin', name: 'Admin', role: 'Admin' },
+    ];
+
+    employeesList.forEach(emp => {
+      if (targetEmpId && (emp.id === targetEmpId || emp.email?.toLowerCase() === targetEmpId.toLowerCase())) return;
+      if (emp.role === 'ADMIN') return;
+      if (emp.role === 'MANAGER') {
+        const lbl = `${emp.name} (Manager)`;
+        if (!list.some(item => item.label === lbl)) {
+          list.push({ label: lbl, name: emp.name, role: 'Manager' });
+        }
+      } else if (emp.role === 'TEAM_LEADER' && targetRole === 'SALES_EXEC') {
+        const lbl = `${emp.name} (Team Leader)`;
+        if (!list.some(item => item.label === lbl)) {
+          list.push({ label: lbl, name: emp.name, role: 'Team Leader' });
+        }
+      }
+    });
+
+    if (currentUser?.role === 'MANAGER' && !list.some(i => i.role === 'Manager')) {
+      const lbl = `${currentUser.name || 'Aditya Kumar Rai'} (Manager)`;
+      list.push({ label: lbl, name: currentUser.name || 'Aditya Kumar Rai', role: 'Manager' });
+    }
+
+    return list;
+  }, [employeesList, currentUser]);
+
+  const getDefaultSupervisorForRole = useCallback((targetRole: string) => {
+    if (targetRole === 'SALES_EXEC') {
+      const tl = employeesList.find(e => e.role === 'TEAM_LEADER');
+      if (tl) return `${tl.name} (Team Leader)`;
+      const mgr = employeesList.find(e => e.role === 'MANAGER');
+      if (mgr) return `${mgr.name} (Manager)`;
+      return 'Admin';
+    }
+    if (targetRole === 'TEAM_LEADER') {
+      const mgr = employeesList.find(e => e.role === 'MANAGER');
+      if (mgr) return `${mgr.name} (Manager)`;
+      return 'Admin';
+    }
+    return 'Admin';
+  }, [employeesList]);
+
+  const formatPhone = (raw?: string | null): string => {
+    if (!raw || raw === '—') return '—';
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 10) return `+91 ${digits}`;
+    if (digits.length === 12 && digits.startsWith('91')) return `+91 ${digits.slice(2)}`;
+    return raw.startsWith('+') ? raw : `+91 ${raw}`;
+  };
+
+  const cleanDigits = (val: string) => val.replace(/\D/g, '');
+
+  // Load users from backend /users and local storage
   const loadUsers = async (forceRefresh = false) => {
     if (!forceRefresh && androidEmployeesCache && (Date.now() - androidEmployeesCache.timestamp < ANDROID_CACHE_TTL_MS)) {
       setEmployeesList(androidEmployeesCache.assigned);
@@ -284,6 +396,7 @@ export default function EmployeesScreen() {
       return;
     }
 
+    setIsLoading(true);
     const token = useAuthStore.getState().token;
     const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
     let activeKey = companyKey || 'ADOR-EC-7187';
@@ -381,9 +494,10 @@ export default function EmployeesScreen() {
               customPhone ||
               (u.phone && u.phone !== '+91 9717355779' && u.phone !== '9717355779' ? u.phone : null) ||
               (userEmail === 'rai992522@gmail.com' ? '+91 99252 20000' : null) ||
-              (userEmail === 'rastoginandini92@gmail.com' ? '+91 98765 43210' : null) ||
+              (userEmail === 'rastoginandini92@gmail.com' ? '+91 98112 34567' : null) ||
               (userEmail === 'sachinpuri938@gmail.com' ? '+91 93102 03982' : null) ||
-              (userEmail === 'sulekhatmr@gmail.com' ? '+91 93661 03735' : null) ||
+              (userEmail === 'sulekhatmr@gmail.com' ? '+91 92664 02725' : null) ||
+              (userEmail === 'sadhnadikshit98@gmail.com' ? '+91 87968 24282' : null) ||
               u.phone ||
               '—';
 
@@ -452,282 +566,42 @@ export default function EmployeesScreen() {
             unassigned,
             companyKey: activeKey,
           };
+          setIsLoading(false);
           return;
         }
       }
     } catch (_) {}
 
-    // Complete Resilient Fallback Directory:
-    // Admin (Anurag Sharma) + Nandini (Sales) + Aditya (Manager) + Sachin (TL)
-    let removedIds: string[] = [];
-    try {
-      const raw = await AsyncStorage.getItem('@das_crm_removed_user_ids');
-      if (raw) removedIds = JSON.parse(raw);
-    } catch (_) {}
-
-    let roleOverrides: Record<string, string> = {};
-    try {
-      const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
-      if (raw) roleOverrides = JSON.parse(raw);
-    } catch (_) {}
-
-    let storedPhones: Record<string, string> = {};
-    try {
-      const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
-      if (rawPhones) storedPhones = JSON.parse(rawPhones);
-    } catch (_) {}
-
-    let storedManagers: Record<string, string> = {};
-    try {
-      const rawManagers = await AsyncStorage.getItem('@das_crm_assigned_managers');
-      if (rawManagers) storedManagers = JSON.parse(rawManagers);
-    } catch (_) {}
-
-    // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
-    if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
-      roleOverrides['rai992522@gmail.com'] = 'MANAGER';
-      try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
-    }
-    if (roleOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
-      roleOverrides['usr_aditya_rai_01'] = 'MANAGER';
-      try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
-    }
-
-    const fallbackAssigned: EmployeeProfile[] = [];
-    const fallbackUnassigned: UnassignedUser[] = [];
-
-    if (currentUser) {
-      const uRole = (currentUser.role || '').toUpperCase();
-      const isOwnerOrAdmin = uRole.includes('ADMIN') || uRole.includes('OWNER') || uRole.includes('SUPER_ADMIN');
-      const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
-        ? 'ADMIN'
-        : uRole.includes('HR')
-        ? 'HR'
-        : uRole.includes('MANAGER')
-        ? 'MANAGER'
-        : uRole.includes('LEADER') || uRole.includes('TL')
-        ? 'TEAM_LEADER'
-        : 'SALES_EXEC';
-
-      fallbackAssigned.push({
-        id: currentUser.id || 'cmuev7ni70016ikew8an7tdw8',
-        name: currentUser.name || 'Anurag Sharma',
-        email: currentUser.email || 'adorabletrading08@gmail.com',
-        phone: storedPhones[currentUser.id] || storedPhones[currentUser.email?.toLowerCase()] || (currentUser as any)?.phone || '+91 9717355779',
-        role,
-        assignedManager: storedManagers[currentUser.id] || storedManagers[currentUser.email?.toLowerCase()] || (role === 'ADMIN' ? 'Organization Admin' : 'Admin'),
-        status: 'ONLINE',
-        avatarUrl: '',
-        documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-        bankDetails: { bankName: 'Direct Deposit', accountHolder: currentUser.name || 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
-        leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-        attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-        subordinates: [],
-      });
-    }
-
-    // Registered Employee (Nandini Rastogi) - Sales Representative
-    const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
-    if (!removedIds.includes(nandiniId)) {
-      const nandiniAssigned = roleOverrides[nandiniId] || roleOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
-      const nandiniPhone = storedPhones[nandiniId] || storedPhones['rastoginandini92@gmail.com'] || '+91 98765 43210';
-      if (nandiniAssigned === 'UNASSIGNED') {
-        fallbackUnassigned.push({
-          id: nandiniId,
-          name: 'Nandini Rastogi',
-          email: 'rastoginandini92@gmail.com',
-          phone: nandiniPhone,
-          registeredAt: 'Sep 26, 2026',
-          deviceInfo: 'App/Web Registration',
-        });
-      } else {
-        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
-          (nandiniAssigned as any) || 'SALES_EXEC';
-        fallbackAssigned.push({
-          id: nandiniId,
-          name: 'Nandini Rastogi',
-          email: 'rastoginandini92@gmail.com',
-          phone: nandiniPhone,
-          role: finalRole,
-          assignedManager: storedManagers[nandiniId] || storedManagers['rastoginandini92@gmail.com'] || 'Admin',
-          status: 'ONLINE',
-          avatarUrl: '',
-          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Nandini Rastogi', accountNo: '••••••••', ifscCode: '—', upiId: 'rastoginandini92@okaxis', lastUpdatedDate: 'Recently', historyLogs: [] },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-          subordinates: [],
-        });
-      }
-    }
-
-    // Registered Staff Member with Company Key (Aditya Kumar Rai - Manager)
-    const adityaId = 'usr_aditya_rai_01';
-    if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
-      const adityaAssigned = roleOverrides[adityaId] || roleOverrides['rai992522@gmail.com'] || 'MANAGER';
-      const adityaPhone = storedPhones[adityaId] || storedPhones['rai992522@gmail.com'] || '+91 99252 20000';
-      if (adityaAssigned === 'UNASSIGNED') {
-        fallbackUnassigned.push({
-          id: adityaId,
-          name: 'Aditya Kumar Rai',
-          email: 'rai992522@gmail.com',
-          phone: adityaPhone,
-          registeredAt: 'Sep 27, 2026',
-          deviceInfo: 'App/Web Registration',
-        });
-      } else {
-        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
-          (adityaAssigned as any) || 'MANAGER';
-        fallbackAssigned.push({
-          id: adityaId,
-          name: 'Aditya Kumar Rai',
-          email: 'rai992522@gmail.com',
-          phone: adityaPhone,
-          role: finalRole,
-          assignedManager: storedManagers[adityaId] || storedManagers['rai992522@gmail.com'] || 'Admin',
-          status: 'ONLINE',
-          avatarUrl: '',
-          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
-          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Aditya Kumar Rai', accountNo: '••••••••', ifscCode: '—', upiId: 'rai992522@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
-          subordinates: [],
-        });
-      }
-    }
-
-    // Team Leader (Sachin Puri)
-    const sachinId = 'usr_sachin_puri_01';
-    if (!removedIds.includes(sachinId) && !removedIds.includes('sachinpuri938@gmail.com')) {
-      const sachinAssigned = roleOverrides[sachinId] || roleOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER';
-      const sachinPhone = storedPhones[sachinId] || storedPhones['sachinpuri938@gmail.com'] || '+91 93102 03982';
-      if (sachinAssigned === 'UNASSIGNED') {
-        fallbackUnassigned.push({
-          id: sachinId,
-          name: 'Sachin Puri',
-          email: 'sachinpuri938@gmail.com',
-          phone: sachinPhone,
-          registeredAt: 'Sep 27, 2026',
-          deviceInfo: 'App/Web Registration',
-        });
-      } else {
-        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
-          (sachinAssigned as any) || 'TEAM_LEADER';
-        fallbackAssigned.push({
-          id: sachinId,
-          name: 'Sachin Puri',
-          email: 'sachinpuri938@gmail.com',
-          phone: sachinPhone,
-          role: finalRole,
-          assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || 'Aditya Kumar Rai (Manager)',
-          status: 'ONLINE',
-          avatarUrl: '',
-          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
-          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sachin Puri', accountNo: '••••••••', ifscCode: '—', upiId: 'sachinpuri938@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
-          subordinates: [],
-        });
-      }
-    }
-
-    // Sales Exec (Sulekha Tomar)
-    const sulekhaId = 'usr_sulekha_tomar_01';
-    if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
-      const sulekhaAssigned = roleOverrides[sulekhaId] || roleOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC';
-      const sulekhaPhone = storedPhones[sulekhaId] || storedPhones['sulekhatmr@gmail.com'] || '+91 93661 03735';
-      if (sulekhaAssigned === 'UNASSIGNED') {
-        fallbackUnassigned.push({
-          id: sulekhaId,
-          name: 'Sulekha Tomar',
-          email: 'sulekhatmr@gmail.com',
-          phone: sulekhaPhone,
-          registeredAt: 'Sep 28, 2026',
-          deviceInfo: 'App/Web Registration',
-        });
-      } else {
-        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
-          (sulekhaAssigned as any) || 'SALES_EXEC';
-        fallbackAssigned.push({
-          id: sulekhaId,
-          name: 'Sulekha Tomar',
-          email: 'sulekhatmr@gmail.com',
-          phone: sulekhaPhone,
-          role: finalRole,
-          assignedManager: storedManagers[sulekhaId] || storedManagers['sulekhatmr@gmail.com'] || 'Sachin Puri (Team Leader)',
-          status: 'ONLINE',
-          avatarUrl: '',
-          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
-          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sulekha Tomar', accountNo: '••••••••', ifscCode: '—', upiId: 'sulekhatmr@okaxis', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
-          subordinates: [],
-        });
-      }
-    }
-
-    // Sales Exec (Sadhana)
-    const sadhanaId = 'cmukykfoe000nht2d0ylnsd3t';
-    if (!removedIds.includes(sadhanaId) && !removedIds.includes('sadhnadikshit98@gmail.com')) {
-      const sadhanaAssigned = roleOverrides[sadhanaId] || roleOverrides['sadhnadikshit98@gmail.com'] || 'SALES_EXEC';
-      const sadhanaPhone = storedPhones[sadhanaId] || storedPhones['sadhnadikshit98@gmail.com'] || '+91 87968 24282';
-      if (sadhanaAssigned === 'UNASSIGNED') {
-        fallbackUnassigned.push({
-          id: sadhanaId,
-          name: 'Sadhana',
-          email: 'sadhnadikshit98@gmail.com',
-          phone: sadhanaPhone,
-          registeredAt: 'Sep 28, 2026',
-          deviceInfo: 'App/Web Registration',
-        });
-      } else {
-        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
-          (sadhanaAssigned as any) || 'SALES_EXEC';
-        fallbackAssigned.push({
-          id: sadhanaId,
-          name: 'Sadhana',
-          email: 'sadhnadikshit98@gmail.com',
-          phone: sadhanaPhone,
-          role: finalRole,
-          assignedManager: storedManagers[sadhanaId] || storedManagers['sadhnadikshit98@gmail.com'] || 'Sachin Puri (Team Leader)',
-          status: 'ONLINE',
-          avatarUrl: '',
-          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
-          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sadhana', accountNo: '••••••••', ifscCode: '—', upiId: 'sadhana@okaxis', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
-          subordinates: [],
-        });
-      }
-    }
-
-    // Merge any locally added unassigned users from AsyncStorage
-    try {
-      const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
-      if (raw) {
-        const extra: UnassignedUser[] = JSON.parse(raw);
-        extra.forEach(item => {
-          if (!removedIds.includes(item.id) && !fallbackUnassigned.some(u => u.id === item.id || u.email === item.email)) {
-            fallbackUnassigned.unshift(item);
-          }
-        });
-      }
-    } catch (_) {}
-
-    setEmployeesList(fallbackAssigned);
-    setUnassignedUsers(fallbackUnassigned);
+    // Resilient Fallback Directory
+    const fallback = getInitialAndroidEmployees(currentUser);
+    setEmployeesList(fallback.assigned);
+    setUnassignedUsers(fallback.unassigned);
     androidEmployeesCache = {
       timestamp: Date.now(),
-      assigned: fallbackAssigned,
-      unassigned: fallbackUnassigned,
+      assigned: fallback.assigned,
+      unassigned: fallback.unassigned,
       companyKey: activeKey,
     };
+    setIsLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await loadUsers(true);
+    setIsRefreshing(false);
+    showToast('Staff Directory synchronized with live backend.', 'SUCCESS');
+  };
+
+  // ── Share & Copy Handlers ────────────────────────────────────
+  const handleCopyKey = () => {
+    Clipboard.setString(companyKey);
+    showToast(`Company Key copied: ${companyKey}`, 'COPY', 'Copied to Clipboard');
   };
 
   const handleShareKey = async () => {
     try {
       await Share.share({
-        message: `Join our organization workspace on DAS CRM!\n\nCompany Registration Key: *${companyKey}*\n\n1. Open DAS CRM\n2. Sign up with this Company Key\n3. Your account will appear for Admin role assignment.`,
+        message: `Join our organization workspace on DAS CRM!\n\nCompany Registration Key: *${companyKey}*\n\n1. Download DAS CRM App or open Web Cockpit\n2. Sign up with Company Key: ${companyKey}\n3. Admin will verify and activate your workspace role.`,
         title: `DAS CRM Company Key: ${companyKey}`,
       });
     } catch (e) {
@@ -736,12 +610,103 @@ export default function EmployeesScreen() {
   };
 
   const handleShareWhatsApp = () => {
-    const msg = encodeURIComponent(`Join our organization workspace on DAS CRM!\n\nCompany Registration Key: *${companyKey}*\n\nEnter this key during registration to join.`);
+    const msg = encodeURIComponent(`Join our organization workspace on DAS CRM!\n\nCompany Registration Key: *${companyKey}*\n\nEnter this key during registration to join our team.`);
     Linking.openURL(`whatsapp://send?text=${msg}`).catch(() => {
       Linking.openURL(`https://api.whatsapp.com/send?text=${msg}`).catch(() => {
         Alert.alert('Notice', 'Could not open WhatsApp directly. Use Share Key instead.');
       });
     });
+  };
+
+  // ── 1. APPROVE & VERIFY UNASSIGNED USER (1-TAP FLOW) ─────────
+  const handleVerifyAndAssignRole = async (target: UnassignedUser, explicitRole?: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC', explicitSupervisor?: string) => {
+    if (totalQuota > 0 && activeCount >= totalQuota) {
+      Alert.alert(
+        'Seat Quota Exceeded',
+        `Your subscription plan limit is ${totalQuota} active users. You have already allocated all ${totalQuota} seats. Upgrade your plan to assign more roles.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const assignedRole = explicitRole || unassignedCardRoles[target.id] || (target.email?.toLowerCase() === 'rai992522@gmail.com' ? 'MANAGER' : 'SALES_EXEC');
+    const assignedManager = explicitSupervisor || unassignedCardSupervisors[target.id] || getDefaultSupervisorForRole(assignedRole);
+    const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+
+    // 1. Optimistically update local state immediately
+    setUnassignedUsers(prev => prev.filter(u => u.id !== target.id));
+    const newProfile: EmployeeProfile = {
+      id: target.id,
+      name: target.name,
+      email: target.email,
+      phone: target.phone,
+      role: assignedRole,
+      assignedManager,
+      status: 'ONLINE',
+      avatarUrl: '',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: target.name, accountNo: '••••••••', ifscCode: '—', upiId: target.email, lastUpdatedDate: 'Recently', historyLogs: [] },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+      subordinates: [],
+    };
+    setEmployeesList(prev => [newProfile, ...prev]);
+
+    // Save to AsyncStorage
+    try {
+      const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
+      const overrides = raw ? JSON.parse(raw) : {};
+      overrides[target.id] = assignedRole;
+      if (target.email) overrides[target.email.toLowerCase()] = assignedRole;
+      await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
+
+      const rawMgrs = await AsyncStorage.getItem('@das_crm_assigned_managers');
+      const mgrMap = rawMgrs ? JSON.parse(rawMgrs) : {};
+      mgrMap[target.id] = assignedManager;
+      if (target.email) mgrMap[target.email.toLowerCase()] = assignedManager;
+      await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(mgrMap));
+
+      const rawUnassigned = await AsyncStorage.getItem('@das_crm_extra_unassigned');
+      if (rawUnassigned) {
+        const extraList = JSON.parse(rawUnassigned);
+        const filtered = extraList.filter((u: any) => u.id !== target.id && u.email?.toLowerCase() !== target.email?.toLowerCase());
+        await AsyncStorage.setItem('@das_crm_extra_unassigned', JSON.stringify(filtered));
+      }
+    } catch (_) {}
+
+    // Sync to backend
+    try {
+      const token = useAuthStore.getState().token;
+      await fetch(`${getApiBase()}/users/${target.id}/verify-role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': compId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ assignedRole, assignedManager, organizationId: compId }),
+      }).catch(() => null);
+
+      await fetch(`${getApiBase()}/users/${target.id}/manager`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': compId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ managerId: assignedManager, assignedManager }),
+      }).catch(() => null);
+    } catch (_) {}
+
+    invalidateAndroidEmployeesCache();
+    showToast(`✓ ${target.name} verified as ${assignedRole.replace('_', ' ')} under ${assignedManager}!`, 'SUCCESS');
+  };
+
+  // ── 2. UPGRADE / DOWNGRADE ROLE (CONFIRMED WITH COMPANY KEY) ─────────────
+  const openRoleChangeModal = (emp: EmployeeProfile) => {
+    setRoleChangeTarget(emp);
+    setRoleChangeSelectedRole(emp.role === 'ADMIN' ? 'MANAGER' : emp.role);
+    setRoleChangeKeyInput('');
   };
 
   const handleConfirmRoleChange = async () => {
@@ -803,125 +768,203 @@ export default function EmployeesScreen() {
       const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
       const overrides = raw ? JSON.parse(raw) : {};
       overrides[targetUserId] = targetRole;
+      if (roleChangeTarget.email) overrides[roleChangeTarget.email.toLowerCase()] = targetRole;
       await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
     } catch (_) {}
 
     invalidateAndroidEmployeesCache();
-
     setIsChangingRole(false);
     const targetName = roleChangeTarget.name;
     setRoleChangeTarget(null);
     setRoleChangeKeyInput('');
 
-    const roleObj = AVAILABLE_ROLES.find(r => r.key === targetRole);
-    Alert.alert(
-      'Role Updated Successfully',
-      `${targetName}'s permanent role has been updated to ${roleObj?.label || targetRole} with Company Key confirmation!`
-    );
+    showToast(`✓ ${targetName}'s role updated to ${targetRole.replace('_', ' ')}!`, 'SUCCESS');
   };
 
-  const handleAssignRole = async () => {
-    if (!assignRoleTarget || !selectedRole) return;
+  // ── 3. QUICK SUPERVISOR CHANGE ──────────────────────────────
+  const openSupervisorChangeModal = (emp: EmployeeProfile) => {
+    setSupervisorChangeTarget(emp);
+    setSelectedNewSupervisor(emp.assignedManager || 'Admin');
+  };
 
-    if (totalQuota > 0 && activeCount >= totalQuota) {
-      Alert.alert(
-        'Quota Exceeded',
-        `Your subscription plan limit is ${totalQuota} active users. You have already allocated all ${totalQuota} seats. Upgrade your plan to assign more roles.`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+  const handleSaveSupervisor = async () => {
+    if (!supervisorChangeTarget || !selectedNewSupervisor) return;
 
-    const roleConf = AVAILABLE_ROLES.find(r => r.key === selectedRole);
-    const target = assignRoleTarget;
-    const assignedRoleName = selectedRole;
-    const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-    const assignedMgr =
-      assignedRoleName === 'MANAGER' || assignedRoleName === 'HR'
-        ? 'Admin'
-        : assignedRoleName === 'TEAM_LEADER'
-        ? 'Aditya Kumar Rai (Manager)'
-        : 'Sachin Puri (Team Leader)';
+    setIsSavingSupervisor(true);
+    const empId = supervisorChangeTarget.id;
+    const newSupervisor = selectedNewSupervisor;
 
-    // 1. Optimistically move to assigned list immediately
-    setUnassignedUsers(prev => prev.filter(u => u.id !== target.id));
-    setEmployeesList(prev => [
-      {
-        id: target.id,
-        name: target.name,
-        email: target.email,
-        phone: target.phone,
-        role: assignedRoleName as any,
-        assignedManager: assignedMgr,
-        status: 'ONLINE',
-        avatarUrl: '',
-        documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-        bankDetails: { bankName: 'Direct Deposit', accountHolder: target.name, accountNo: '••••••••', ifscCode: '—', upiId: target.email, lastUpdatedDate: 'Recently', historyLogs: [] },
-        leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-        attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-        subordinates: [],
-      },
-      ...prev,
-    ]);
+    // 1. Update local state
+    setEmployeesList(prev => prev.map(e => e.id === empId ? { ...e, assignedManager: newSupervisor } : e));
 
-    setAssignRoleTarget(null);
-    setSelectedRole(null);
-
-    // Save override to AsyncStorage
+    // 2. Persist to AsyncStorage
     try {
-      const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
-      const overrides = raw ? JSON.parse(raw) : {};
-      overrides[target.id] = assignedRoleName;
-      if (target.email) {
-        overrides[target.email.toLowerCase()] = assignedRoleName;
-      }
-      await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
-
-      const rawMgrs = await AsyncStorage.getItem('@das_crm_assigned_managers');
-      const mgrMap = rawMgrs ? JSON.parse(rawMgrs) : {};
-      mgrMap[target.id] = assignedMgr;
-      if (target.email) {
-        mgrMap[target.email.toLowerCase()] = assignedMgr;
-      }
-      await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(mgrMap));
-
-      const rawUnassigned = await AsyncStorage.getItem('@das_crm_extra_unassigned');
-      if (rawUnassigned) {
-        const extraList = JSON.parse(rawUnassigned);
-        const filtered = extraList.filter((u: any) => u.id !== target.id && u.email?.toLowerCase() !== target.email?.toLowerCase());
-        await AsyncStorage.setItem('@das_crm_extra_unassigned', JSON.stringify(filtered));
-      }
+      const raw = await AsyncStorage.getItem('@das_crm_assigned_managers');
+      const map = raw ? JSON.parse(raw) : {};
+      map[empId] = newSupervisor;
+      if (supervisorChangeTarget.email) map[supervisorChangeTarget.email.toLowerCase()] = newSupervisor;
+      await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(map));
     } catch (_) {}
 
-    // Call backend
+    // 3. Sync to backend
     try {
       const token = useAuthStore.getState().token;
-      await fetch(`${getApiBase()}/users/${target.id}/verify-role`, {
+      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+      await fetch(`${getApiBase()}/users/${empId}/manager`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-organization-id': compId,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ assignedRole: assignedRoleName, organizationId: compId }),
+        body: JSON.stringify({ managerId: newSupervisor, assignedManager: newSupervisor }),
       }).catch(() => null);
     } catch (_) {}
 
     invalidateAndroidEmployeesCache();
-
-    Alert.alert(
-      'Role Assigned Successfully',
-      `${target.name} has been assigned and verified as ${roleConf?.label}. They are now in the Verified Staff list.`,
-      [{ text: 'OK' }]
-    );
+    setIsSavingSupervisor(false);
+    setSupervisorChangeTarget(null);
+    showToast(`✓ Supervisor updated to ${newSupervisor}`, 'SUCCESS');
   };
 
-  const handleUpgradeRole = (emp: EmployeeProfile) => {
-    setRoleChangeTarget(emp);
-    setRoleChangeSelectedRole(emp.role === 'ADMIN' ? 'MANAGER' : emp.role);
-    setRoleChangeKeyInput('');
+  // ── 4. QUICK PHONE EDIT ──────────────────────────────────────
+  const openPhoneEditModal = (emp: EmployeeProfile) => {
+    setEditingPhoneTarget(emp);
+    const cleanCurrent = emp.phone === '—' ? '' : emp.phone.replace('+91', '').trim();
+    setPhoneInputValue(cleanCurrent);
   };
 
+  const handleSavePhone = async () => {
+    if (!editingPhoneTarget) return;
+
+    const cleanPhone = phoneInputValue.trim();
+    const formatted = formatPhone(cleanPhone);
+    setIsSavingPhone(true);
+    const empId = editingPhoneTarget.id;
+
+    // 1. Update local state
+    setEmployeesList(prev => prev.map(e => e.id === empId ? { ...e, phone: formatted } : e));
+
+    // 2. Persist to AsyncStorage
+    try {
+      const raw = await AsyncStorage.getItem('@das_crm_user_phones');
+      const map = raw ? JSON.parse(raw) : {};
+      map[empId] = formatted;
+      if (editingPhoneTarget.email) map[editingPhoneTarget.email.toLowerCase()] = formatted;
+      await AsyncStorage.setItem('@das_crm_user_phones', JSON.stringify(map));
+    } catch (_) {}
+
+    // 3. Sync to backend
+    try {
+      const token = useAuthStore.getState().token;
+      await fetch(`${getApiBase()}/users/phone`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ phone: cleanPhone }),
+      }).catch(() => null);
+    } catch (_) {}
+
+    invalidateAndroidEmployeesCache();
+    setIsSavingPhone(false);
+    setEditingPhoneTarget(null);
+    showToast(`✓ Phone updated to ${formatted}`, 'SUCCESS');
+  };
+
+  // ── 5. ADD / PRE-REGISTER STAFF MODAL ─────────────────────────
+  const handleAddStaff = async () => {
+    if (!addStaffName.trim() || !addStaffEmail.trim()) {
+      Alert.alert('Required Fields', 'Please enter employee Name and valid Email Address.');
+      return;
+    }
+
+    if (totalQuota > 0 && activeCount >= totalQuota) {
+      Alert.alert(
+        'Seat Quota Full',
+        `Your plan limit is ${totalQuota} seats. Please upgrade your subscription to add more staff members.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    setIsAddingStaff(true);
+    const newId = `usr_${Date.now()}`;
+    const formattedPhone = formatPhone(addStaffPhone.trim() || '—');
+
+    const newEmp: EmployeeProfile = {
+      id: newId,
+      name: addStaffName.trim(),
+      email: addStaffEmail.trim().toLowerCase(),
+      phone: formattedPhone,
+      role: addStaffRole,
+      assignedManager: addStaffSupervisor,
+      status: 'ONLINE',
+      avatarUrl: '',
+      documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'GENERATED.pdf', lastUpdatedDate: 'Just Now', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: addStaffName.trim(), accountNo: '••••••••', ifscCode: '—', upiId: addStaffEmail.trim(), lastUpdatedDate: 'Just Now', historyLogs: [] },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
+      subordinates: [],
+    };
+
+    setEmployeesList(prev => [newEmp, ...prev]);
+
+    // Save to AsyncStorage
+    try {
+      const rawOverrides = await AsyncStorage.getItem('@das_crm_verified_overrides');
+      const overrides = rawOverrides ? JSON.parse(rawOverrides) : {};
+      overrides[newId] = addStaffRole;
+      overrides[newEmp.email] = addStaffRole;
+      await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
+
+      const rawMgrs = await AsyncStorage.getItem('@das_crm_assigned_managers');
+      const mgrMap = rawMgrs ? JSON.parse(rawMgrs) : {};
+      mgrMap[newId] = addStaffSupervisor;
+      mgrMap[newEmp.email] = addStaffSupervisor;
+      await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(mgrMap));
+
+      const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
+      const phoneMap = rawPhones ? JSON.parse(rawPhones) : {};
+      phoneMap[newId] = formattedPhone;
+      phoneMap[newEmp.email] = formattedPhone;
+      await AsyncStorage.setItem('@das_crm_user_phones', JSON.stringify(phoneMap));
+    } catch (_) {}
+
+    // Sync to backend
+    try {
+      const token = useAuthStore.getState().token;
+      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+      await fetch(`${getApiBase()}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': compId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: addStaffName.trim(),
+          email: addStaffEmail.trim(),
+          phone: cleanDigits(addStaffPhone),
+          role: addStaffRole,
+          assignedManager: addStaffSupervisor,
+          baseSalary: addStaffBaseSalary,
+          organizationId: compId,
+        }),
+      }).catch(() => null);
+    } catch (_) {}
+
+    invalidateAndroidEmployeesCache();
+    setIsAddingStaff(false);
+    setAddStaffModalOpen(false);
+    setAddStaffName('');
+    setAddStaffEmail('');
+    setAddStaffPhone('');
+    showToast(`✓ ${newEmp.name} added to workspace as ${addStaffRole.replace('_', ' ')}!`, 'SUCCESS');
+  };
+
+  // ── 6. REMOVE UNASSIGNED USER ────────────────────────────────
   const handleRemoveUser = (user: UnassignedUser) => {
     Alert.alert(
       'Remove User from Workspace',
@@ -962,12 +1005,31 @@ export default function EmployeesScreen() {
             } catch (_) {}
 
             invalidateAndroidEmployeesCache();
-
-            Alert.alert('User Removed', `${user.name} has been removed from the organization.`);
+            showToast(`Removed ${user.name} from workspace.`, 'INFO');
           },
         },
       ]
     );
+  };
+
+  // ── 7. CANCEL SCHEDULED DELETION / RESTORE ───────────────────
+  const handleCancelDeletion = async (emp: EmployeeProfile) => {
+    const updated: EmployeeProfile = {
+      ...emp,
+      deletionScheduledAt: null,
+      deletionReason: null,
+      isLocked: false,
+    };
+    setEmployeesList(prev => prev.map(e => e.id === emp.id ? updated : e));
+    try {
+      const raw = await AsyncStorage.getItem('@das_crm_scheduled_deletions');
+      if (raw) {
+        const map = JSON.parse(raw);
+        delete map[emp.id];
+        await AsyncStorage.setItem('@das_crm_scheduled_deletions', JSON.stringify(map));
+      }
+    } catch (_) {}
+    showToast(`✓ Account restored for ${emp.name}`, 'SUCCESS');
   };
 
   useEffect(() => {
@@ -986,16 +1048,15 @@ export default function EmployeesScreen() {
     loadUsers();
   }, [currentUser]);
 
-  const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   const getRoleBadgeStyle = (role: EmployeeProfile['role']) => {
     switch (role) {
-      case 'ADMIN': return { bg: 'rgba(244,63,94,0.2)', text: '#f43f5e', border: '#f43f5e', label: 'ADMIN' };
-      case 'MANAGER': return { bg: 'rgba(168,85,247,0.2)', text: '#c084fc', border: '#a855f7', label: 'MANAGER' };
-      case 'HR': return { bg: 'rgba(56,189,248,0.2)', text: '#38bdf8', border: '#38bdf8', label: 'HR' };
-      case 'TEAM_LEADER': return { bg: 'rgba(251,191,36,0.2)', text: '#fbbf24', border: '#fbbf24', label: 'TEAM LEADER' };
-      default: return { bg: 'rgba(52,211,153,0.2)', text: '#34d399', border: '#34d399', label: 'SALES EXEC' };
+      case 'ADMIN': return { bg: 'rgba(244,63,94,0.18)', text: '#f43f5e', border: '#f43f5e', label: 'ADMIN' };
+      case 'MANAGER': return { bg: 'rgba(168,85,247,0.18)', text: '#c084fc', border: '#a855f7', label: 'MANAGER' };
+      case 'HR': return { bg: 'rgba(56,189,248,0.18)', text: '#38bdf8', border: '#38bdf8', label: 'HR' };
+      case 'TEAM_LEADER': return { bg: 'rgba(251,191,36,0.18)', text: '#fbbf24', border: '#fbbf24', label: 'TEAM LEADER' };
+      default: return { bg: 'rgba(52,211,153,0.18)', text: '#34d399', border: '#34d399', label: 'SALES EXEC' };
     }
   };
 
@@ -1034,13 +1095,26 @@ export default function EmployeesScreen() {
     }
   }
 
+  // Filtered employees for active tab
+  const displayedEmployees = activeTab === 'ALL'
+    ? employeesList
+    : activeTab === 'ASSIGNED'
+    ? employeesList
+    : [];
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // 👥 MAIN STAFF DIRECTORY — ASSIGNED / UNASSIGNED TABS
+  // 👥 MAIN STAFF DIRECTORY — FULL CONTROLS
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 0 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      {toastConfig && (
+        <ToastBanner
+          toast={toastConfig}
+          onDismiss={() => setToastConfig(null)}
+        />
+      )}
 
-      {/* ── Page Header ── */}
+      {/* ── Top Header & Capacity Bar ── */}
       <View style={[styles.pageHeader, { borderBottomColor: colors.borderSubtle }]}>
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={[styles.pageTitle, { color: colors.text }]}>{t.empStructureTitle}</Text>
@@ -1048,6 +1122,7 @@ export default function EmployeesScreen() {
             {totalUsersCount} {t.empTotalUsers} · {activeCount} {t.empTabAssigned} · {unassignedCount} {t.empTabUnassigned}
           </Text>
         </View>
+
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
             <Text style={[styles.countPillText, { color: pillStyle.text }]}>
@@ -1055,6 +1130,40 @@ export default function EmployeesScreen() {
             </Text>
           </View>
         </View>
+      </View>
+
+      {/* ── Action Bar: Add Staff, Company Key, Refresh ── */}
+      <View style={[styles.topActionBar, { backgroundColor: colors.cardBg, borderBottomColor: colors.borderSubtle }]}>
+        <TouchableOpacity
+          style={[styles.headerActionBtn, { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+          onPress={() => {
+            setAddStaffSupervisor(getDefaultSupervisorForRole('SALES_EXEC'));
+            setAddStaffModalOpen(true);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.headerActionBtnText}>+ Add Staff</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.headerActionBtn, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.4)' }]}
+          onPress={() => setCompanyKeyModalOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.headerActionBtnText, { color: '#a5b4fc' }]}>🔑 Key: {companyKey}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.refreshIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
+          onPress={onRefresh}
+          activeOpacity={0.7}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#818cf8" />
+          ) : (
+            <Text style={{ fontSize: 13, color: colors.text }}>🔄</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* ── Segmented Tab Bar ── */}
@@ -1067,8 +1176,6 @@ export default function EmployeesScreen() {
           <View style={[styles.tabDot, { backgroundColor: activeTab === 'ASSIGNED' ? '#34d399' : colors.tabBarInactive }]} />
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
             style={[styles.tabBtnText, { color: colors.textMuted }, activeTab === 'ASSIGNED' && styles.tabBtnTextActive]}
           >
             {t.empTabAssigned} ({employeesList.length})
@@ -1087,20 +1194,54 @@ export default function EmployeesScreen() {
           )}
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
             style={[styles.tabBtnText, { color: colors.textMuted }, activeTab === 'UNASSIGNED' && styles.tabBtnTextUnassigned]}
           >
             {t.empTabUnassigned} ({unassignedUsers.length})
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'ALL' && styles.tabBtnAllActive]}
+          onPress={() => setActiveTab('ALL')}
+          activeOpacity={0.8}
+        >
+          <Text
+            numberOfLines={1}
+            style={[styles.tabBtnText, { color: colors.textMuted }, activeTab === 'ALL' && styles.tabBtnTextAll]}
+          >
+            All ({totalUsersCount})
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* ── Assigned Tab Content ── */}
-      {activeTab === 'ASSIGNED' && (
+      {/* ── Pending Unassigned Notice Alert ── */}
+      {unassignedUsers.length > 0 && activeTab !== 'UNASSIGNED' && (
+        <TouchableOpacity
+          style={[styles.pendingAlertBanner, { backgroundColor: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)' }]}
+          onPress={() => setActiveTab('UNASSIGNED')}
+          activeOpacity={0.85}
+        >
+          <Text style={{ fontSize: 13, marginRight: 6 }}>⚠️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#fbbf24' }}>
+              {unassignedUsers.length} Unassigned User{unassignedUsers.length > 1 ? 's' : ''} Pending Activation
+            </Text>
+            <Text style={{ fontSize: 10, color: isDark ? '#fde68a' : '#854d0e', marginTop: 1 }}>
+              Tap here to assign roles and verify workspace permissions.
+            </Text>
+          </View>
+          <Text style={{ fontSize: 12, fontWeight: '900', color: '#fbbf24' }}>Review →</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* ── Assigned & All Tab Scroll View ── */}
+      {(activeTab === 'ASSIGNED' || activeTab === 'ALL') && (
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#818cf8" />
+          }
         >
           <View style={[styles.tabInfoBanner, !isDark && { backgroundColor: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.4)' }]}>
             <Text style={[styles.tabInfoText, !isDark && { color: '#065f46' }]}>
@@ -1109,7 +1250,7 @@ export default function EmployeesScreen() {
           </View>
 
           <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-            {employeesList.length === 0 ? (
+            {displayedEmployees.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateIcon}>👥</Text>
                 <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Employees Found</Text>
@@ -1118,61 +1259,119 @@ export default function EmployeesScreen() {
                 </Text>
               </View>
             ) : (
-              employeesList.map((emp, index) => {
+              displayedEmployees.map((emp, index) => {
                 const roleStyle = getRoleBadgeStyle(emp.role);
+                const isDeletionScheduled = !!emp.deletionScheduledAt;
+
                 return (
                   <View
                     key={emp.id}
-                    style={[styles.empRow, index !== employeesList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}
+                    style={[
+                      styles.empCard,
+                      index !== displayedEmployees.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }],
+                      isDeletionScheduled && { backgroundColor: 'rgba(239, 68, 68, 0.06)' },
+                    ]}
                   >
-                    {/* Avatar Initials */}
-                    <View style={[styles.avatarCircle, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
-                      <Text style={[styles.avatarInitials, { color: roleStyle.text }]}>
-                        {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                      </Text>
-                      <View style={[
-                        styles.statusDot,
-                        emp.status === 'ONLINE' ? { backgroundColor: '#34d399' }
-                        : emp.status === 'IN_CALL' ? { backgroundColor: '#fbbf24' }
-                        : { backgroundColor: '#64748b' }
-                      ]} />
-                    </View>
-
-                    <View style={{ flex: 1, paddingRight: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
-                        <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
-                          <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
-                        </View>
+                    {/* Top Row: Avatar, Info & Inspect Button */}
+                    <View style={styles.empRow}>
+                      {/* Avatar Circle */}
+                      <View style={[styles.avatarCircle, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
+                        <Text style={[styles.avatarInitials, { color: roleStyle.text }]}>
+                          {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </Text>
+                        <View style={[
+                          styles.statusDot,
+                          emp.status === 'ONLINE' ? { backgroundColor: '#34d399' }
+                          : emp.status === 'IN_CALL' ? { backgroundColor: '#fbbf24' }
+                          : { backgroundColor: '#64748b' }
+                        ]} />
                       </View>
-                      <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
-                        {emp.email}
-                      </Text>
-                      <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
-                        Under: <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontWeight: '700' }}>{emp.assignedManager}</Text>
-                      </Text>
+
+                      {/* Info */}
+                      <View style={{ flex: 1, paddingRight: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
+                          <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
+                            <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
+                          </View>
+                        </View>
+
+                        <Text style={[styles.empEmail, { color: colors.textMuted }]}>
+                          {emp.email}
+                        </Text>
+
+                        {/* Phone Number with Quick Edit */}
+                        <TouchableOpacity
+                          style={styles.phoneInlineRow}
+                          onPress={() => openPhoneEditModal(emp)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.phoneText, { color: isDark ? '#93c5fd' : '#1d4ed8' }]}>
+                            📞 {emp.phone || '—'}
+                          </Text>
+                          <Text style={styles.phoneEditPencil}>✏️</Text>
+                        </TouchableOpacity>
+
+                        {/* Supervisor Indicator with Quick Change */}
+                        <TouchableOpacity
+                          style={styles.supervisorInlineRow}
+                          onPress={() => openSupervisorChangeModal(emp)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
+                            Under: <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontWeight: '700' }}>{emp.assignedManager}</Text>
+                          </Text>
+                          <Text style={styles.supervisorChangeIcon}>⇄ Change</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Primary Inspect & Control Button */}
+                      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                        <TouchableOpacity
+                          style={styles.inspectBtn}
+                          onPress={() => setInspectingEmp(emp)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
-                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                      <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
-                        <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
+                    {/* Deletion Warning Banner if Scheduled */}
+                    {isDeletionScheduled && (
+                      <View style={styles.deletionBanner}>
+                        <Text style={styles.deletionBannerText}>
+                          ⚠️ Scheduled for deletion in grace period.
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.restoreBtn}
+                          onPress={() => handleCancelDeletion(emp)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.restoreBtnText}>Cancel &amp; Restore</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {/* Secondary Action Row: Change Role & Drive Vault */}
+                    <View style={styles.cardActionsRow}>
+                      <TouchableOpacity
+                        style={[styles.secondaryActionBtn, { backgroundColor: 'rgba(56,189,248,0.12)', borderColor: 'rgba(56,189,248,0.35)' }]}
+                        onPress={() => setVaultTarget(emp)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.secondaryActionBtnText, { color: '#38bdf8' }]}>
+                          📁 KYC Vault &amp; Bank
+                        </Text>
                       </TouchableOpacity>
 
                       {emp.role !== 'ADMIN' && (
                         <TouchableOpacity
-                          style={{
-                            paddingVertical: 5,
-                            paddingHorizontal: 8,
-                            borderRadius: 8,
-                            backgroundColor: 'rgba(99,102,241,0.18)',
-                            borderColor: 'rgba(99,102,241,0.4)',
-                            borderWidth: 1,
-                            alignItems: 'center',
-                          }}
-                          onPress={() => handleUpgradeRole(emp)}
+                          style={[styles.secondaryActionBtn, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.4)' }]}
+                          onPress={() => openRoleChangeModal(emp)}
                           activeOpacity={0.8}
                         >
-                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#818cf8' }}>
+                          <Text style={[styles.secondaryActionBtnText, { color: '#818cf8' }]}>
                             ⇄ Change Role
                           </Text>
                         </TouchableOpacity>
@@ -1191,6 +1390,9 @@ export default function EmployeesScreen() {
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#818cf8" />
+          }
         >
           {/* Workspace Registration Key Hub Card */}
           <View style={[styles.companyKeyCard, { borderColor: '#818cf8', backgroundColor: isDark ? 'rgba(79, 70, 229, 0.12)' : 'rgba(79, 70, 229, 0.08)' }]}>
@@ -1216,10 +1418,18 @@ export default function EmployeesScreen() {
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
               <TouchableOpacity
                 style={[styles.keyActionBtn, { backgroundColor: '#4f46e5', flex: 1 }]}
+                onPress={handleCopyKey}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.keyActionBtnText}>📋 Copy Key</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.keyActionBtn, { backgroundColor: '#6366f1', flex: 1 }]}
                 onPress={handleShareKey}
                 activeOpacity={0.8}
               >
-                <Text style={styles.keyActionBtnText}>📤 Share Key</Text>
+                <Text style={styles.keyActionBtnText}>📤 Share</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1248,136 +1458,405 @@ export default function EmployeesScreen() {
             </View>
           ) : (
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              {unassignedUsers.map((user, index) => (
-                <View
-                  key={user.id}
-                  style={[styles.empRow, index !== unassignedUsers.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}
-                >
-                  {/* Avatar */}
-                  <View style={[styles.avatarCircle, { backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.4)' }]}>
-                    <Text style={[styles.avatarInitials, { color: '#fbbf24' }]}>
-                      {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </Text>
-                    <View style={[styles.statusDot, { backgroundColor: '#64748b' }]} />
-                  </View>
+              {unassignedUsers.map((user, index) => {
+                const currentSelectedRole = unassignedCardRoles[user.id] || (user.email?.toLowerCase() === 'rai992522@gmail.com' ? 'MANAGER' : 'SALES_EXEC');
+                const eligibleSupervisors = getEligibleSupervisors(currentSelectedRole, user.id);
+                const currentSelectedSupervisor = unassignedCardSupervisors[user.id] || getDefaultSupervisorForRole(currentSelectedRole);
 
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={[styles.empName, { color: colors.text }]}>{user.name}</Text>
-                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>{user.email}</Text>
-                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>{user.phone}</Text>
-                    <View style={styles.registeredBadge}>
-                      <Text style={styles.registeredBadgeText}>{t.empRegisteredBadge}: {user.registeredAt}</Text>
+                return (
+                  <View
+                    key={user.id}
+                    style={[
+                      styles.unassignedCard,
+                      index !== unassignedUsers.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }],
+                    ]}
+                  >
+                    {/* Header */}
+                    <View style={styles.empRow}>
+                      <View style={[styles.avatarCircle, { backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.4)' }]}>
+                        <Text style={[styles.avatarInitials, { color: '#fbbf24' }]}>
+                          {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </Text>
+                        <View style={[styles.statusDot, { backgroundColor: '#64748b' }]} />
+                      </View>
+
+                      <View style={{ flex: 1, paddingRight: 6 }}>
+                        <Text style={[styles.empName, { color: colors.text }]}>{user.name}</Text>
+                        <Text style={[styles.empEmail, { color: colors.textMuted }]}>{user.email}</Text>
+                        <Text style={[styles.phoneText, { color: isDark ? '#93c5fd' : '#1d4ed8' }]}>📞 {user.phone}</Text>
+                        <View style={styles.registeredBadge}>
+                          <Text style={styles.registeredBadgeText}>{t.empRegisteredBadge}: {user.registeredAt}</Text>
+                        </View>
+                      </View>
                     </View>
-                    <Text style={[styles.supervisorText, { color: colors.textMuted, marginTop: 2 }]}>{user.deviceInfo}</Text>
-                  </View>
 
-                  <View style={{ gap: 6, alignItems: 'flex-end' }}>
-                    <TouchableOpacity
-                      style={styles.assignBtn}
-                      onPress={() => {
-                        setAssignRoleTarget(user);
-                        setSelectedRole(user.email?.toLowerCase() === 'rai992522@gmail.com' ? 'MANAGER' : 'SALES_EXEC');
-                      }}
-                    >
-                      <Text style={styles.assignBtnText}>Set Role & Verify ✓</Text>
-                    </TouchableOpacity>
+                    {/* Inline Role Selector Chips */}
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={[styles.inlineLabel, { color: colors.textMuted }]}>SELECT OPERATIONAL ROLE:</Text>
+                      <View style={styles.roleChipsRow}>
+                        {AVAILABLE_ROLES.map(r => {
+                          const isSelected = currentSelectedRole === r.key;
+                          return (
+                            <TouchableOpacity
+                              key={r.key}
+                              style={[
+                                styles.roleChipSmall,
+                                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                                isSelected && { borderColor: r.color, backgroundColor: `${r.color}20` },
+                              ]}
+                              onPress={() => {
+                                setUnassignedCardRoles(prev => ({ ...prev, [user.id]: r.key }));
+                                const defSup = getDefaultSupervisorForRole(r.key);
+                                setUnassignedCardSupervisors(prev => ({ ...prev, [user.id]: defSup }));
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.roleChipSmallText, { color: colors.textMuted }, isSelected && { color: r.color, fontWeight: '900' }]}>
+                                {r.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
 
-                    <TouchableOpacity
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 8,
-                        borderRadius: 8,
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                        borderColor: 'rgba(239, 68, 68, 0.35)',
-                        borderWidth: 1,
-                        alignItems: 'center',
-                      }}
-                      onPress={() => handleRemoveUser(user)}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#ef4444' }}>
-                        Remove 🗑️
-                      </Text>
-                    </TouchableOpacity>
+                    {/* Inline Supervisor Indicator */}
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={[styles.inlineLabel, { color: colors.textMuted }]}>SUPERVISOR (ASSIGN UNDER):</Text>
+                      <View style={styles.supervisorChipsRow}>
+                        {eligibleSupervisors.map(s => {
+                          const isSelected = currentSelectedSupervisor === s.label || currentSelectedSupervisor === s.name;
+                          return (
+                            <TouchableOpacity
+                              key={s.label}
+                              style={[
+                                styles.supervisorChipSmall,
+                                { backgroundColor: colors.inputBg, borderColor: colors.border },
+                                isSelected && { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.18)' },
+                              ]}
+                              onPress={() => setUnassignedCardSupervisors(prev => ({ ...prev, [user.id]: s.label }))}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.supervisorChipSmallText, { color: colors.textMuted }, isSelected && { color: '#a5b4fc', fontWeight: '800' }]}>
+                                {s.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    {/* Action Buttons: 1-Tap Approve & Verify / Remove */}
+                    <View style={styles.unassignedActionsRow}>
+                      <TouchableOpacity
+                        style={styles.approveBtn}
+                        onPress={() => handleVerifyAndAssignRole(user, currentSelectedRole, currentSelectedSupervisor)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.approveBtnText}>Approve &amp; Activate Access ✓</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={() => handleRemoveUser(user)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.removeBtnText}>Remove 🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </ScrollView>
       )}
 
-      {/* ── Assign Role Modal ── */}
-      <Modal visible={!!assignRoleTarget} transparent animationType="slide">
+      {/* ── 1. MODAL: ADD / PRE-REGISTER STAFF ── */}
+      <Modal visible={addStaffModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          {assignRoleTarget && (
+          <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+            <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Pre-Register New Staff</Text>
+                <Text style={[styles.modalSub, { color: colors.textMuted }]}>
+                  Add an employee directly to your workspace directory
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
+                onPress={() => setAddStaffModalOpen(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>FULL NAME *</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. Priya Sharma"
+                placeholderTextColor={colors.textMuted}
+                value={addStaffName}
+                onChangeText={setAddStaffName}
+              />
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>EMAIL ADDRESS *</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. priya@company.com"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={addStaffEmail}
+                onChangeText={setAddStaffEmail}
+              />
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>PHONE NUMBER</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. 9876543210"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="phone-pad"
+                value={addStaffPhone}
+                onChangeText={setAddStaffPhone}
+              />
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>ASSIGN ROLE</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {AVAILABLE_ROLES.map(r => (
+                  <TouchableOpacity
+                    key={r.key}
+                    style={[
+                      styles.roleChip,
+                      { backgroundColor: colors.inputBg, borderColor: colors.border },
+                      addStaffRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}20` }
+                    ]}
+                    onPress={() => {
+                      setAddStaffRole(r.key);
+                      setAddStaffSupervisor(getDefaultSupervisorForRole(r.key));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.roleChipText, { color: colors.textMuted }, addStaffRole === r.key && { color: r.color, fontWeight: '900' }]}>
+                      {r.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>ASSIGN UNDER (SUPERVISOR)</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {getEligibleSupervisors(addStaffRole).map(s => (
+                  <TouchableOpacity
+                    key={s.label}
+                    style={[
+                      styles.roleChip,
+                      { backgroundColor: colors.inputBg, borderColor: colors.border },
+                      addStaffSupervisor === s.label && { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.2)' }
+                    ]}
+                    onPress={() => setAddStaffSupervisor(s.label)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.roleChipText, { color: colors.textMuted }, addStaffSupervisor === s.label && { color: '#a5b4fc', fontWeight: '900' }]}>
+                      {s.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>BASE SALARY (PER MONTH)</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. ₹45,000"
+                placeholderTextColor={colors.textMuted}
+                value={addStaffBaseSalary}
+                onChangeText={setAddStaffBaseSalary}
+              />
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!addStaffName.trim() || !addStaffEmail.trim() || isAddingStaff) && { opacity: 0.5 }]}
+                disabled={!addStaffName.trim() || !addStaffEmail.trim() || isAddingStaff}
+                onPress={handleAddStaff}
+                activeOpacity={0.85}
+              >
+                {isAddingStaff ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Confirm &amp; Pre-Register Staff →</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 2. MODAL: COMPANY REGISTRATION KEY & INVITE ── */}
+      <Modal visible={companyKeyModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+            <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Workspace Registration Key</Text>
+                <Text style={[styles.modalSub, { color: colors.textMuted }]}>Share this key for team members to self-register</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
+                onPress={() => setCompanyKeyModalOpen(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.keyDisplayBox, { marginVertical: 14 }]}>
+              <Text style={styles.keyDisplayText}>{companyKey}</Text>
+            </View>
+
+            <Text style={{ fontSize: 11.5, color: colors.textMuted, lineHeight: 16, marginBottom: 16 }}>
+              Candidates can download the DAS CRM app or open the web dashboard, click &quot;Register with Company Key&quot;, and enter this code.
+            </Text>
+
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: '#4f46e5', borderColor: '#818cf8', marginTop: 0 }]}
+                onPress={handleCopyKey}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmBtnText}>📋 Copy Key to Clipboard</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: '#059669', borderColor: '#34d399', marginTop: 0 }]}
+                onPress={handleShareWhatsApp}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmBtnText}>💬 Share on WhatsApp</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: '#334155', borderColor: '#475569', marginTop: 0 }]}
+                onPress={handleShareKey}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmBtnText}>📤 Other Share Options</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 3. MODAL: QUICK EDIT PHONE ── */}
+      <Modal visible={!!editingPhoneTarget} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {editingPhoneTarget && (
             <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
-              {/* Modal Header */}
               <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>{t.empAssignRole}</Text>
-                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>{assignRoleTarget.name} · {assignRoleTarget.email}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                    <View style={[
-                      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
-                      activeCount >= totalQuota
-                        ? { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)' }
-                        : { backgroundColor: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.35)' }
-                    ]}>
-                      <Text style={{ fontSize: 9.5, fontWeight: '900', color: activeCount >= totalQuota ? '#fbbf24' : '#34d399' }}>
-                        {activeCount >= totalQuota
-                          ? `⚠️ Plan Limit: ${activeCount}/${totalQuota} Seats (Full)`
-                          : `✓ Available Seats: ${totalQuota - activeCount} of ${totalQuota}`}
-                      </Text>
-                    </View>
-                  </View>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Phone Number</Text>
+                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>{editingPhoneTarget.name} · {editingPhoneTarget.email}</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
-                  onPress={() => { setAssignRoleTarget(null); setSelectedRole(null); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => setEditingPhoneTarget(null)}
                 >
                   <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.modalSectionLbl, { color: colors.textMuted }]}>SELECT ROLE</Text>
-
-              {AVAILABLE_ROLES.map(r => (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[
-                    styles.roleOption,
-                    { backgroundColor: colors.inputBg, borderColor: colors.border },
-                    selectedRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}18` },
-                  ]}
-                  onPress={() => setSelectedRole(r.key)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.roleOptionDot, { backgroundColor: selectedRole === r.key ? r.color : (isDark ? '#334155' : '#cbd5e1') }]} />
-                  <Text style={[styles.roleOptionText, { color: colors.textSecondary }, selectedRole === r.key && { color: r.color }]}>
-                    {r.label}
-                  </Text>
-                  {selectedRole === r.key && (
-                    <Text style={[styles.roleOptionCheck, { color: r.color }]}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>MOBILE NUMBER (10 DIGITS)</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, fontSize: 16, fontWeight: '700' }]}
+                placeholder="e.g. 9925220000"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="phone-pad"
+                value={phoneInputValue}
+                onChangeText={setPhoneInputValue}
+                autoFocus
+              />
 
               <TouchableOpacity
-                style={[styles.confirmBtn, !selectedRole && { opacity: 0.35 }]}
-                disabled={!selectedRole}
-                onPress={handleAssignRole}
+                style={[styles.confirmBtn, (!phoneInputValue.trim() || isSavingPhone) && { opacity: 0.5 }]}
+                disabled={!phoneInputValue.trim() || isSavingPhone}
+                onPress={handleSavePhone}
                 activeOpacity={0.85}
               >
-                <Text style={styles.confirmBtnText}>Confirm & Activate Access →</Text>
+                {isSavingPhone ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Save Phone Number ✓</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
         </View>
       </Modal>
 
-      {/* ── Add / Pre-register Staff Modal ── */}
-      {/* ── Upgrade / Downgrade Permanent Role Modal (Requires Company Key) ── */}
+      {/* ── 4. MODAL: QUICK CHANGE SUPERVISOR ── */}
+      <Modal visible={!!supervisorChangeTarget} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {supervisorChangeTarget && (
+            <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+              <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Change Supervisor</Text>
+                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>
+                    {supervisorChangeTarget.name} · Role: {supervisorChangeTarget.role}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
+                  onPress={() => setSupervisorChangeTarget(null)}
+                >
+                  <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.modalSectionLbl, { color: colors.textMuted }]}>SELECT SENIOR SUPERVISOR</Text>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+                {getEligibleSupervisors(supervisorChangeTarget.role, supervisorChangeTarget.id).map(s => {
+                  const isSelected = selectedNewSupervisor === s.label || selectedNewSupervisor === s.name;
+                  return (
+                    <TouchableOpacity
+                      key={s.label}
+                      style={[
+                        styles.roleOption,
+                        { backgroundColor: colors.inputBg, borderColor: colors.border },
+                        isSelected && { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.15)' }
+                      ]}
+                      onPress={() => setSelectedNewSupervisor(s.label)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.roleOptionDot, { backgroundColor: isSelected ? '#818cf8' : (isDark ? '#334155' : '#cbd5e1') }]} />
+                      <Text style={[styles.roleOptionText, { color: colors.textSecondary }, isSelected && { color: '#a5b4fc', fontWeight: '800' }]}>
+                        {s.label}
+                      </Text>
+                      {isSelected && <Text style={{ fontSize: 16, color: '#818cf8', fontWeight: '900' }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!selectedNewSupervisor || isSavingSupervisor) && { opacity: 0.5 }]}
+                disabled={!selectedNewSupervisor || isSavingSupervisor}
+                onPress={handleSaveSupervisor}
+                activeOpacity={0.85}
+              >
+                {isSavingSupervisor ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Confirm Supervisor Assignment ✓</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* ── 5. MODAL: UPGRADE / DOWNGRADE ROLE (CONFIRMED WITH COMPANY KEY) ── */}
       <Modal visible={!!roleChangeTarget} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {roleChangeTarget && (
@@ -1392,7 +1871,6 @@ export default function EmployeesScreen() {
                 <TouchableOpacity
                   style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
                   onPress={() => { setRoleChangeTarget(null); setRoleChangeKeyInput(''); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
                 </TouchableOpacity>
@@ -1430,7 +1908,7 @@ export default function EmployeesScreen() {
                   onChangeText={setRoleChangeKeyInput}
                 />
                 <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 14 }}>
-                  Role change is permanent. Enter your organization's Company Registration Key to confirm authorization.
+                  Role change is permanent. Enter your organization&apos;s Company Registration Key to confirm authorization.
                 </Text>
 
                 <TouchableOpacity
@@ -1450,6 +1928,62 @@ export default function EmployeesScreen() {
           )}
         </View>
       </Modal>
+
+      {/* ── 6. MODAL: KYC VAULT & BANK DETAILS ── */}
+      <Modal visible={!!vaultTarget} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {vaultTarget && (
+            <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+              <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>KYC Vault &amp; Bank Details</Text>
+                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>{vaultTarget.name} · {vaultTarget.email}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
+                  onPress={() => setVaultTarget(null)}
+                >
+                  <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                <Text style={[styles.modalSectionLbl, { color: colors.textMuted }]}>VERIFIED KYC DOCUMENTS</Text>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>📄 PAN Card Status</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#34d399' }}>{vaultTarget.documents.pan || 'VERIFIED'}</Text>
+                </View>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>🆔 Aadhaar Document</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#38bdf8' }}>{vaultTarget.documents.aadhaar || 'AADHAAR_VERIFIED.pdf'}</Text>
+                </View>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>🎓 Degree / Certificates</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#c084fc' }}>{vaultTarget.documents.eduCert || 'DEGREE_VERIFIED.pdf'}</Text>
+                </View>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>📜 Offer Letter</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#fbbf24' }}>{vaultTarget.documents.offerLetter || 'OFFER_LETTER.pdf'}</Text>
+                </View>
+
+                <Text style={[styles.modalSectionLbl, { color: colors.textMuted, marginTop: 14 }]}>BANK &amp; UPI SETTLEMENT DETAILS</Text>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>🏦 Disbursal Method</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>{vaultTarget.bankDetails.bankName || 'Direct Deposit'}</Text>
+                </View>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>💳 Account Number</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>{vaultTarget.bankDetails.accountNo || '••••••••'}</Text>
+                </View>
+                <View style={[styles.vaultItem, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                  <Text style={[styles.vaultItemTitle, { color: colors.text }]}>📱 UPI ID</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#38bdf8' }}>{vaultTarget.bankDetails.upiId || vaultTarget.email}</Text>
+                </View>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1462,205 +1996,171 @@ const styles = StyleSheet.create({
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   pageTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', letterSpacing: 0.3 },
   pageSub: { fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 2 },
-  addStaffHeaderBtn: {
-    backgroundColor: '#4f46e5',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: '#818cf8',
-  },
-  addStaffHeaderBtnText: {
-    color: '#ffffff',
-    fontSize: 10.5,
-    fontWeight: '900',
-  },
   countPill: { backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   countPillText: { fontSize: 11, fontWeight: '900', color: '#34d399' },
 
-  // Company Key Card
-  companyKeyCard: {
-    width: '100%',
-    maxWidth: 600,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 14,
-  },
-  keyDisplayBox: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  // Top Action Bar
+  topActionBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.3)',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
   },
-  keyDisplayText: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  companyKeyInfoText: {
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '500',
-  },
-  keyActionBtn: {
+  headerActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keyActionBtnText: {
+  headerActionBtnText: {
     color: '#ffffff',
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '800',
+  },
+  refreshIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  // Tab Bar
-  tabBar: { flexDirection: 'row', gap: 0, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0c1322' },
-  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  // Segmented Tab Bar
+  tabBar: { flexDirection: 'row', gap: 0, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActive: { borderBottomColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.05)' },
   tabBtnUnassignedActive: { borderBottomColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.05)' },
+  tabBtnAllActive: { borderBottomColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.05)' },
   tabDot: { width: 7, height: 7, borderRadius: 4 },
-  tabBtnText: { fontSize: 12, fontWeight: '800', color: '#64748b' },
+  tabBtnText: { fontSize: 11.5, fontWeight: '800', color: '#64748b' },
   tabBtnTextActive: { color: '#34d399' },
   tabBtnTextUnassigned: { color: '#fbbf24' },
+  tabBtnTextAll: { color: '#818cf8' },
   unassignedBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   unassignedBadgeText: { fontSize: 9, fontWeight: '900', color: '#ffffff' },
+
+  // Pending Alert Banner
+  pendingAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
 
   // Info Banner
   tabInfoBanner: { width: '100%', maxWidth: 600, backgroundColor: 'rgba(52,211,153,0.06)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)', borderRadius: 12, padding: 12, marginBottom: 14 },
   tabInfoText: { fontSize: 11, color: '#a7f3d0', fontWeight: '500', lineHeight: 16 },
 
-  // Cards
-  cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0d1527', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.25)', padding: 14, marginBottom: 16, elevation: 5 },
-  empRow: { paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // Cards Container
+  cardBox: { width: '100%', maxWidth: 600, borderRadius: 20, borderWidth: 1.5, padding: 14, marginBottom: 16, elevation: 5 },
+  empCard: { paddingVertical: 12 },
+  empRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.06)' },
 
   // Avatar
-  avatarCircle: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  avatarCircle: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   avatarInitials: { fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
-  statusDot: { position: 'absolute', bottom: 1, right: 1, width: 9, height: 9, borderRadius: 5, borderWidth: 1.5, borderColor: '#090d16' },
+  statusDot: { position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: '#090d16' },
 
-  // Employee info
-  empName: { fontSize: 13, fontWeight: '900', color: '#ffffff' },
-  supervisorText: { fontSize: 10, color: '#64748b', marginTop: 2, fontWeight: '500' },
-  roleTag: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, borderWidth: 1.5 },
+  // Details
+  empName: { fontSize: 13.5, fontWeight: '900', color: '#ffffff' },
+  empEmail: { fontSize: 10, color: '#64748b', marginTop: 2, fontWeight: '500' },
+  phoneInlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  phoneText: { fontSize: 10.5, fontWeight: '700' },
+  phoneEditPencil: { fontSize: 9, opacity: 0.8 },
+  supervisorInlineRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  supervisorText: { fontSize: 10, color: '#64748b', fontWeight: '500' },
+  supervisorChangeIcon: { fontSize: 9.5, fontWeight: '800', color: '#818cf8' },
+
+  roleTag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 7, borderWidth: 1.5 },
   roleTagText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.3 },
 
-  // Registered badge (unassigned)
-  registeredBadge: { backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 },
-  registeredBadgeText: { fontSize: 8, fontWeight: '900', color: '#fbbf24' },
-
-  // Buttons
+  // Action Buttons
   inspectBtn: { backgroundColor: 'rgba(99, 102, 241, 0.18)', borderWidth: 1.5, borderColor: '#6366f1', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, elevation: 2 },
-  inspectBtnText: { fontSize: 10, fontWeight: '900', color: '#a5b4fc' },
-  assignBtn: { backgroundColor: 'rgba(251,191,36,0.15)', borderWidth: 1.5, borderColor: '#fbbf24', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, elevation: 2 },
-  assignBtnText: { fontSize: 10, fontWeight: '900', color: '#fbbf24' },
+  inspectBtnText: { fontSize: 10.5, fontWeight: '900', color: '#a5b4fc' },
 
-  // Empty State
-  emptyState: { width: '100%', maxWidth: 600, alignItems: 'center', paddingVertical: 60 },
-  emptyStateIcon: { fontSize: 42, marginBottom: 12 },
-  emptyStateTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', marginBottom: 6 },
-  emptyStateSub: { fontSize: 12, color: '#64748b', fontWeight: '500', textAlign: 'center', lineHeight: 18 },
+  cardActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingLeft: 54 },
+  secondaryActionBtn: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1 },
+  secondaryActionBtnText: { fontSize: 10, fontWeight: '800' },
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  modalBox: { backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 20 },
-  modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
-  modalTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', marginBottom: 2 },
-  modalSub: { fontSize: 10, color: '#64748b', fontWeight: '600' },
-  modalCloseBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  modalCloseBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '900' },
-  modalSectionLbl: { fontSize: 10, fontWeight: '900', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
-  modalInputLabel: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 5,
+  // Deletion Banner
+  deletionBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderRadius: 8,
+    padding: 8,
     marginTop: 8,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 12.5,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  roleChip: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  roleChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  // Role Options
-  roleOption: {
+    marginLeft: 54,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    minHeight: 52,
-    marginBottom: 10,
+    justifyContent: 'space-between',
   },
-  roleOptionDot: { width: 10, height: 10, borderRadius: 5 },
-  roleOptionText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: '#94a3b8' },
-  roleOptionCheck: { fontSize: 16, fontWeight: '900' },
+  deletionBannerText: { fontSize: 9.5, fontWeight: '700', color: '#fca5a5', flex: 1, marginRight: 6 },
+  restoreBtn: { backgroundColor: '#ef4444', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  restoreBtnText: { color: '#ffffff', fontSize: 9.5, fontWeight: '900' },
 
-  // Confirm Button
-  confirmBtn: {
-    backgroundColor: '#4f46e5',
-    borderWidth: 1.5,
-    borderColor: '#818cf8',
-    borderRadius: 14,
-    minHeight: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#4f46e5',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  confirmBtnText: { color: '#ffffff', fontSize: 13.5, fontWeight: '900', letterSpacing: 0.3 },
+  // Unassigned Card
+  unassignedCard: { paddingVertical: 14 },
+  registeredBadge: { backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.35)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 },
+  registeredBadgeText: { fontSize: 8.5, fontWeight: '900', color: '#fbbf24' },
+  inlineLabel: { fontSize: 8.5, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 },
+  roleChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  roleChipSmall: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  roleChipSmallText: { fontSize: 10, fontWeight: '700' },
+  supervisorChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  supervisorChipSmall: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  supervisorChipSmallText: { fontSize: 10, fontWeight: '600' },
 
-  // Control Center Hero Banner
-  controlCenterHeroCard: {
-    width: '100%',
-    maxWidth: 600,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 14,
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  controlCenterIconBox: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  controlCenterHeroTitle: { fontSize: 13, fontWeight: '900', letterSpacing: 0.3 },
-  controlCenterBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  controlCenterHeroSub: { fontSize: 10.5, lineHeight: 15, marginTop: 4, marginBottom: 10 },
-  openControlCenterBtn: { width: '100%', paddingVertical: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  openControlCenterBtnText: { color: '#ffffff', fontSize: 11.5, fontWeight: '900', letterSpacing: 0.2 },
+  unassignedActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  approveBtn: { flex: 1, backgroundColor: '#059669', borderWidth: 1.5, borderColor: '#34d399', borderRadius: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  approveBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+  removeBtn: { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.4)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  removeBtnText: { color: '#ef4444', fontSize: 11, fontWeight: '800' },
+
+  // Company Key Card
+  companyKeyCard: { width: '100%', maxWidth: 600, borderRadius: 18, borderWidth: 1.5, padding: 14, marginBottom: 14 },
+  keyDisplayBox: { backgroundColor: 'rgba(0, 0, 0, 0.4)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center', marginVertical: 6, borderWidth: 1, borderColor: 'rgba(129, 140, 248, 0.3)' },
+  keyDisplayText: { fontSize: 18, fontWeight: '900', color: '#ffffff', letterSpacing: 2, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  companyKeyInfoText: { fontSize: 11, lineHeight: 15, fontWeight: '500' },
+  keyActionBtn: { borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  keyActionBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+
+  // Empty State
+  emptyState: { width: '100%', maxWidth: 600, alignItems: 'center', paddingVertical: 50 },
+  emptyStateIcon: { fontSize: 40, marginBottom: 10 },
+  emptyStateTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff', marginBottom: 4 },
+  emptyStateSub: { fontSize: 11.5, color: '#64748b', fontWeight: '500', textAlign: 'center', lineHeight: 16 },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  modalBox: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, padding: 20 },
+  modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14, paddingBottom: 12, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
+  modalSub: { fontSize: 10.5, fontWeight: '600' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  modalCloseBtnText: { fontSize: 13, fontWeight: '900' },
+  modalSectionLbl: { fontSize: 9.5, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
+  modalInputLabel: { fontSize: 9.5, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4, marginTop: 8 },
+  modalInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  roleChip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  roleChipText: { fontSize: 11, fontWeight: '700' },
+  roleOption: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 8 },
+  roleOptionDot: { width: 9, height: 9, borderRadius: 5 },
+  roleOptionText: { flex: 1, fontSize: 13, fontWeight: '700' },
+  confirmBtn: { backgroundColor: '#4f46e5', borderWidth: 1.5, borderColor: '#818cf8', borderRadius: 12, minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
+  confirmBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900', letterSpacing: 0.3 },
+
+  // Vault Items
+  vaultItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  vaultItemTitle: { fontSize: 11.5, fontWeight: '700' },
 });
