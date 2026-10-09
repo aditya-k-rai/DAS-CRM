@@ -106,8 +106,8 @@ jobs:
       - name: Accept Android SDK Licenses & Prepare NDK
         run: |
           yes | sdkmanager --licenses || true
-          echo "Ensuring Android SDK Platform 35 and Build-Tools are installed..."
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" || true
+          echo "Ensuring Android SDK Platform 36 & 35 and Build-Tools are installed..."
+          sdkmanager --install "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0" || true
           if [ ! -d "$ANDROID_HOME/ndk/27.1.12297006" ]; then
             echo "Installing NDK 27.1.12297006 via sdkmanager fallback..."
             sdkmanager --install "ndk;27.1.12297006" || true
