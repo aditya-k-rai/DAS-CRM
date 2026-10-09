@@ -535,9 +535,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
         {/* ── 3. New Leads Cards (Direct Outreach Actions) ───────────────────── */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>🌱 New Leads Awaiting Outreach</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>🌱 New Leads</Text>
           <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Manage →</Text>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All New Leads →</Text>
           </TouchableOpacity>
         </View>
 
@@ -613,8 +613,16 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
         {/* ── 4. Follow-ups Due Today ───────────────────────────────────────── */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups Tracker</Text>
-          <View style={{ flexDirection: 'row', gap: 4 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Follow-up Hub →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
             {(['ALL', 'DUE', 'OVERDUE', 'COMPLETED'] as const).map((filterKey) => (
               <TouchableOpacity
                 key={filterKey}
@@ -631,9 +639,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               </TouchableOpacity>
             ))}
           </View>
-        </View>
-
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {followUps.length === 0 ? (
             <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 10 }}>
               No follow-ups recorded for this selection.
@@ -733,7 +738,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
               activeOpacity={0.8}
             >
-              <Text style={styles.drilldownButtonText}>📈 My Goals</Text>
+              <Text style={styles.drilldownButtonText}>📈 Goals & Targets</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
@@ -801,7 +806,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={{ fontSize: 14 }}>📈</Text>
               <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
-                Open My Goal & Target Hub (Quota telemetry & targets)
+                Open Goals & Targets Hub (Quota telemetry & targets)
               </Text>
             </View>
             <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
@@ -816,7 +821,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={{ fontSize: 14 }}>📊</Text>
               <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
-                View 4-Category Activity Breakdown (Calls, WhatsApp, Products, Quotes)
+                View 4-Category Activity Breakdown (Calls, WhatsApp Cloud, Product Catalogue, Quotations & Invoices)
               </Text>
             </View>
             <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
@@ -826,10 +831,12 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
         {/* ── 6. Active Opportunities ────────────────────────────────────────── */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>💼 Active Deal Pipeline</Text>
-          <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
-            Pipeline: ₹{(pipelineValue / 1000).toFixed(0)}k
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>💼 Active Opportunities</Text>
+          <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}>
+            <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
+              Deals & Opportunities → (₹{(pipelineValue / 1000).toFixed(0)}k)
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
@@ -873,6 +880,12 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                   >
                     <Text style={{ fontSize: 9, fontWeight: '800', color: '#25D366' }}>💬 WA</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.smallIconBtn, { backgroundColor: 'rgba(168,85,247,0.15)' }]}
+                    onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}
+                  >
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#c084fc' }}>💼 View Deal</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -883,9 +896,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance Status</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance</Text>
               <Text style={[styles.cardSub, { color: colors.textMuted }]}>
-                Daily punch: <Text style={{ color: '#34d399', fontWeight: '800' }}>Active in Workspace</Text>
+                Daily punch: <Text style={{ color: '#34d399', fontWeight: '800' }}>Active & Clocked In</Text>
               </Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance} activeOpacity={0.8}>
@@ -899,7 +912,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>📌 The Notice Board</Text>
             <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'UPCOMING_COMMS' })}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>Open Board →</Text>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>The Notice Board →</Text>
             </TouchableOpacity>
           </View>
           <View style={{ paddingVertical: 10, alignItems: 'center' }}>
@@ -913,9 +926,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         {productsPerm.active && (
           <View style={{ width: '100%', maxWidth: 600 }}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>📦 Company Products</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📦 Product Catalogue</Text>
               <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'PRODUCTS' })}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Full Catalogue →</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Product Catalogue →</Text>
               </TouchableOpacity>
             </View>
 
@@ -924,7 +937,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 <View style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border, width: 220, alignItems: 'center', justifyContent: 'center' }]}>
                   <Text style={{ fontSize: 24, marginBottom: 4 }}>📦</Text>
                   <Text style={[styles.prodName, { color: colors.text, textAlign: 'center' }]}>No Products in Catalog</Text>
-                  <Text style={[styles.prodSku, { color: colors.textMuted, textAlign: 'center' }]}>Tap Full Catalogue to view/create</Text>
+                  <Text style={[styles.prodSku, { color: colors.textMuted, textAlign: 'center' }]}>Tap Product Catalogue to view/create</Text>
                 </View>
               ) : (
                 liveProducts.map((prod) => (
@@ -961,9 +974,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         {pdfPerm.active && (
           <View style={{ width: '100%', maxWidth: 600, marginTop: 4 }}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>📄 PDF Catalogues</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📄 PDF Catalogue</Text>
               <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'PDF_CATALOG' })}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All →</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>PDF Catalogue →</Text>
               </TouchableOpacity>
             </View>
 

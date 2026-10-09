@@ -116,9 +116,9 @@ export function TenantAdminHeaderBanner({
     badgeBorder = isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.3)';
     badgeTextColor = isDark ? '#fde68a' : '#92400e';
     btn1Text = '📞 Call Logs';
-    btn2Text = '🎯 Deals Pipeline';
+    btn2Text = '🎯 Deals & Opportunities';
     defaultBtn1Handler = () => { try { navigation?.navigate('Leads'); } catch {} };
-    defaultBtn2Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'PIPELINE' }); } catch {} };
+    defaultBtn2Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'DEALS' }); } catch {} };
   }
 
   const handleBtn1 = onButton1Press || defaultBtn1Handler;

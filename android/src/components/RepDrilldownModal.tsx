@@ -374,7 +374,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 12 }}>💬 WhatsApp</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800' }} numberOfLines={1}>💬 WhatsApp Cloud</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'WHATSAPP' ? 'rgba(99,102,241,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'WHATSAPP' ? '#818cf8' : colors.textMuted }}>
                     {waList.length} Sent
@@ -407,7 +407,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 12 }}>📦 Products</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800' }} numberOfLines={1}>📦 Product Catalogue</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'PRODUCTS' ? 'rgba(245,158,11,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'PRODUCTS' ? '#fbbf24' : colors.textMuted }}>
                     {prodsList.length} Shared
@@ -438,7 +438,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 12 }}>📄 Quotes</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800' }} numberOfLines={1}>📝 Quotations & Invoices</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'QUOTES' ? 'rgba(168,85,247,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'QUOTES' ? '#c084fc' : colors.textMuted }}>
                     {quotesList.length} Quotes
@@ -450,7 +450,7 @@ export function RepDrilldownModal({
                 <Text style={{ fontSize: 10, color: '#c084fc', fontWeight: '800' }}> (₹{(totalQuotesAmount / 1000).toFixed(0)}k)</Text>
               </Text>
               <Text style={{ fontSize: 8, color: '#c084fc', fontWeight: '700', marginTop: 4 }}>
-                Commercial Quotes
+                Commercial Invoices
               </Text>
             </TouchableOpacity>
           </View>
