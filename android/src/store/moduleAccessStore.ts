@@ -67,13 +67,12 @@ const RESTRICTED_BY_DEFAULT: Record<UserRole, ModuleKey[]> = {
 export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<UserRole, ModuleKey[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
-  MANAGER:     ['PRODUCTS', 'QUOTES', 'REPORTS', 'ATTENDANCE', 'DEALS', 'GOALS', 'UPCOMING_COMMS', 'SUPPORT', 'FOLLOW_UPS'],
-  TEAM_LEADER: ['ATTENDANCE', 'DEALS', 'GOALS', 'UPCOMING_COMMS', 'REPORTS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'FOLLOW_UPS'],
-  SALES_EXEC:  ['ATTENDANCE', 'DEALS', 'GOALS', 'REPORTS', 'FOLLOW_UPS', 'UPCOMING_COMMS', 'SUPPORT'],
-  HR:          ['ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'FOLLOW_UPS', 'SETTINGS'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS'],
+  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
   UNASSIGNED:  [],
 };
-
 
 export const isRoleDefaultModule = (role: UserRole, key: ModuleKey): boolean =>
   (DEFAULT_MODULE_KEYS_BY_ROLE[role] || []).includes(key);
@@ -92,9 +91,10 @@ interface ModuleAccessState {
 
   // Actions
   hydrate: () => Promise<void>;
-  getPermission: (userId: string, role: UserRole, moduleKey: ModuleKey) => ModulePermission;
-  setPermission: (userId: string, moduleKey: ModuleKey, perm: Partial<ModulePermission>) => Promise<void>;
-  resetUserPermissions: (userId: string, role: UserRole) => Promise<void>;
+  getPermission: (userId: string, role: UserRole, moduleKey: ModuleKey, userEmail?: string) => ModulePermission;
+  setPermission: (userId: string, moduleKey: ModuleKey, perm: Partial<ModulePermission>, userEmail?: string) => Promise<void>;
+  setPolicies: (policies: Record<PolicyKey, ModulePermission>) => Promise<void>;
+  resetUserPermissions: (userId: string, role: UserRole, userEmail?: string) => Promise<void>;
   resetAllPermissions: () => Promise<void>;
   setManagedUsers: (users: ManagedUser[]) => Promise<void>;
   getManagedUsers: () => ManagedUser[];
@@ -119,7 +119,7 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
     }
   },
 
-  getPermission: (userId, role, moduleKey) => {
+  getPermission: (userId, role, moduleKey, userEmail) => {
     // Permanent root access for Organization Head / Admin / Super Admin / Owner
     const normalizedRole = (role || '').toUpperCase();
     if (
@@ -136,17 +136,22 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
     const key: PolicyKey = `${userId}:${moduleKey}`;
     if (policies[key] !== undefined) return policies[key];
 
+    if (userEmail) {
+      const emailKey: PolicyKey = `${userEmail.toLowerCase().trim()}:${moduleKey}`;
+      if (policies[emailKey] !== undefined) return policies[emailKey];
+    }
+
     // Fresh user without explicit override: ONLY access role's default modules!
     const isDefault = (DEFAULT_MODULE_KEYS_BY_ROLE[role] ?? []).includes(moduleKey);
     return {
       active: isDefault,
       canView: isDefault,
       canShare: isDefault,
-      canEdit: isDefault && (role === 'MANAGER' || (role === 'TEAM_LEADER' && (moduleKey === 'DEALS' || moduleKey === 'GOALS'))),
+      canEdit: isDefault && (role === 'MANAGER' || (role === 'TEAM_LEADER' && (moduleKey === 'DEALS' || moduleKey === 'GOALS' || moduleKey === 'LEADS' || moduleKey === 'PIPELINE'))),
     };
   },
 
-  setPermission: async (userId, moduleKey, patch) => {
+  setPermission: async (userId, moduleKey, patch, userEmail) => {
     const state = get();
     const targetUser = state.managedUsers.find((u) => u.id === userId);
     const targetRole = (targetUser?.role || '').toUpperCase();
@@ -167,14 +172,27 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
     // If canEdit=true, canView must be true
     if (updated.canEdit) updated.canView = true;
 
-    const newPolicies = { ...state.policies, [key]: updated };
+    const emailKey = userEmail ? `${userEmail.toLowerCase().trim()}:${moduleKey}` : null;
+    const newPolicies = {
+      ...state.policies,
+      [key]: updated,
+      ...(emailKey ? { [emailKey]: updated } : {}),
+    };
     set({ policies: newPolicies });
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newPolicies));
   },
 
-  resetUserPermissions: async (userId, role) => {
+  setPolicies: async (newPolicies) => {
+    set({ policies: newPolicies });
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newPolicies));
+  },
+
+  resetUserPermissions: async (userId, role, userEmail) => {
     const state = get();
-    const toRemove = Object.keys(state.policies).filter((k) => k.startsWith(`${userId}:`));
+    const emailPrefix = userEmail ? `${userEmail.toLowerCase().trim()}:` : null;
+    const toRemove = Object.keys(state.policies).filter(
+      (k) => k.startsWith(`${userId}:`) || (emailPrefix && k.startsWith(emailPrefix))
+    );
     const newPolicies = { ...state.policies };
     toRemove.forEach((k) => delete newPolicies[k]);
     set({ policies: newPolicies });
