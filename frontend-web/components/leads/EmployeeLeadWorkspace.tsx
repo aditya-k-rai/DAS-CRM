@@ -1799,8 +1799,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
 
     // Resolve Real Company & Representative Name (Replacing demo references)
-    const repName = (currentUser?.name || currentUser?.fullName || lead.owner || 'Sales Executive').trim();
-    let rawCompany = (currentUser?.companyName || (currentUser as any)?.company?.name || (typeof lead.company === 'string' ? lead.company : '') || '').trim();
+    const repName = (currentUser?.name || currentUser?.fullName || (lead.owner && lead.owner !== '—' ? lead.owner : '') || 'Sales Executive').trim();
+    let rawCompany = (currentUser?.companyName || (currentUser as any)?.company?.name || subscription?.companyName || '').trim();
     if (!rawCompany || rawCompany === '—' || rawCompany === 'Independent Business' || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
       if (typeof window !== 'undefined') {
         try {
@@ -1809,8 +1809,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         } catch (_) {}
       }
     }
-    if (!rawCompany || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
-      rawCompany = 'Addroable';
+    if (!rawCompany || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION') || rawCompany === 'Addroable') {
+      rawCompany = 'Adorable Trading';
     }
     const companyTeamLabel = rawCompany.toLowerCase().endsWith('team') ? `*${rawCompany}*` : `*${rawCompany} Team*`;
 

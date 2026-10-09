@@ -178,7 +178,7 @@ export interface RoleTransitionLock {
 
 export const MOCK_COMPANY_SUB: CompanySubscription = {
   id: 'comp_default',
-  companyName: 'DAS Organization',
+  companyName: 'Adorable Trading',
   planType: 'BUSINESS',
   trialDaysLeft: 30,
   isExpired: false,
@@ -202,7 +202,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'SUPER_ADMIN',
     avatar: 'SA',
     companyId: 'platform_system',
-    companyName: 'DAS CRM System Admin',
+    companyName: 'Adorable Trading System Admin',
   },
   ADMIN: {
     id: 'usr_admin',
@@ -211,7 +211,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'ADMIN',
     avatar: 'AD',
     companyId: 'comp_das',
-    companyName: 'DAS Organization',
+    companyName: 'Adorable Trading',
   },
   HR: {
     id: 'usr_hr',
@@ -220,7 +220,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'HR',
     avatar: 'HR',
     companyId: 'comp_das',
-    companyName: 'DAS Organization',
+    companyName: 'Adorable Trading',
   },
   MANAGER: {
     id: 'usr_mgr',
@@ -229,7 +229,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'MANAGER',
     avatar: 'MG',
     companyId: 'comp_das',
-    companyName: 'DAS Organization',
+    companyName: 'Adorable Trading',
   },
   TEAM_LEADER: {
     id: 'usr_tl',
@@ -238,7 +238,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'TEAM_LEADER',
     avatar: 'TL',
     companyId: 'comp_das',
-    companyName: 'DAS Organization',
+    companyName: 'Adorable Trading',
     managerId: 'usr_mgr',
   },
   SALES_EXEC: {
@@ -248,7 +248,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'SALES_EXEC',
     avatar: 'SE',
     companyId: 'comp_das',
-    companyName: 'DAS Organization',
+    companyName: 'Adorable Trading',
     managerId: 'usr_mgr',
     teamLeaderId: 'usr_tl',
   },
@@ -259,7 +259,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'UNASSIGNED',
     avatar: 'UA',
     companyId: 'comp_das',
-    companyName: 'DAS Organization',
+    companyName: 'Adorable Trading',
     hasAssignedRole: false,
     roleNotAssigned: true,
     unassignedMessage: 'Your role is not assigned. Contact Admin or Manager.',

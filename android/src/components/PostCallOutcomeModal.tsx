@@ -242,9 +242,9 @@ export default function PostCallOutcomeModal({
 
     // Resolve Real Company & Representative Name (Replacing demo references)
     const repName = (currentUser?.name || 'Sales Executive').trim();
-    let rawCompany = (currentUser?.companyName || 'Addroable').trim();
-    if (!rawCompany || rawCompany === '—' || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION')) {
-      rawCompany = 'Addroable';
+    let rawCompany = (currentUser?.companyName || 'Adorable Trading').trim();
+    if (!rawCompany || rawCompany === '—' || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION') || rawCompany === 'Addroable') {
+      rawCompany = 'Adorable Trading';
     }
     const companyTeamLabel = rawCompany.toLowerCase().endsWith('team') ? `*${rawCompany}*` : `*${rawCompany} Team*`;
 
