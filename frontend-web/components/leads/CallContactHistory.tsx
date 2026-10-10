@@ -5,7 +5,8 @@ import {
   Phone, PhoneOff, PhoneMissed, PhoneIncoming, MessageSquare,
   Mail, Clock, User, Mic, Calendar, ChevronDown, ChevronUp,
   Activity, TrendingUp, CheckCircle2, XCircle, AlertCircle,
-  Package, FileText, BarChart2, ArrowRight, Receipt, ExternalLink, Send, Target
+  Package, FileText, BarChart2, ArrowRight, Receipt, ExternalLink, Send, Target,
+  Repeat, History
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -530,8 +531,24 @@ interface CallContactHistoryProps {
 
 // ─── Commercials & Product Interest Extraction Helper ─────────────────────────
 
+export interface ShareOccurrence {
+  id: string;
+  timestamp: string;
+  formattedDate: string;
+  formattedTime: string;
+  sharedBy: string;
+  medium: string;
+  quantity?: string;
+  price?: string;
+  discount?: string;
+  notes?: string;
+  sentMessage?: string;
+  docNo?: string;
+}
+
 export interface InterestedCommercialItem {
   id: string;
+  canonicalKey: string;
   name: string;
   quantity?: string;
   price?: string;
@@ -540,24 +557,109 @@ export interface InterestedCommercialItem {
   docNo?: string;
   docAmount?: number;
   sharedAt: string;
+  firstSharedAt: string;
   sharedBy: string;
   medium: string;
   notes?: string;
   sentMessage?: string;
+  shareCount: number;
+  shareHistory: ShareOccurrence[];
 }
 
 export function extractInterestedCommercials(
   history: ContactAttempt[] = [],
   leadRequirement?: string
 ): InterestedCommercialItem[] {
-  const items: InterestedCommercialItem[] = [];
-  const seenKeys = new Set<string>();
+  const groups = new Map<string, InterestedCommercialItem>();
+
+  const registerShare = (
+    canonicalKey: string,
+    payload: {
+      name: string;
+      docType?: 'PRODUCT' | 'INVOICE' | 'QUOTATION';
+      docNo?: string;
+      docAmount?: number;
+      quantity?: string;
+      price?: string;
+      discount?: string;
+      sharedAt: string;
+      sharedBy: string;
+      medium: string;
+      notes?: string;
+      sentMessage?: string;
+      attemptId: string;
+    }
+  ) => {
+    const { date, time } = formatTimestamp(payload.sharedAt);
+    const occurrence: ShareOccurrence = {
+      id: `${canonicalKey}_${payload.attemptId}_${payload.sharedAt}`,
+      timestamp: payload.sharedAt,
+      formattedDate: date,
+      formattedTime: time,
+      sharedBy: payload.sharedBy,
+      medium: payload.medium,
+      quantity: payload.quantity,
+      price: payload.price,
+      discount: payload.discount,
+      notes: payload.notes,
+      sentMessage: payload.sentMessage,
+      docNo: payload.docNo,
+    };
+
+    const existing = groups.get(canonicalKey);
+    if (!existing) {
+      groups.set(canonicalKey, {
+        id: `comm_${canonicalKey}`,
+        canonicalKey,
+        name: payload.name,
+        quantity: payload.quantity,
+        price: payload.price,
+        discount: payload.discount,
+        docType: payload.docType || 'PRODUCT',
+        docNo: payload.docNo,
+        docAmount: payload.docAmount,
+        sharedAt: payload.sharedAt,
+        firstSharedAt: payload.sharedAt,
+        sharedBy: payload.sharedBy,
+        medium: payload.medium,
+        notes: payload.notes,
+        sentMessage: payload.sentMessage,
+        shareCount: 1,
+        shareHistory: [occurrence],
+      });
+    } else {
+      existing.shareCount += 1;
+      existing.shareHistory.push(occurrence);
+
+      const existingTime = new Date(existing.sharedAt || 0).getTime();
+      const newTime = new Date(payload.sharedAt || 0).getTime();
+
+      // If this occurrence is more recent, update top-level latest metadata
+      if (newTime >= existingTime) {
+        existing.sharedAt = payload.sharedAt;
+        existing.sharedBy = payload.sharedBy;
+        existing.medium = payload.medium;
+        if (payload.quantity) existing.quantity = payload.quantity;
+        if (payload.price) existing.price = payload.price;
+        if (payload.discount) existing.discount = payload.discount;
+        if (payload.name && payload.name.length > 2) existing.name = payload.name;
+        if (payload.notes) existing.notes = payload.notes;
+        if (payload.sentMessage) existing.sentMessage = payload.sentMessage;
+      }
+
+      const existingFirstTime = new Date(existing.firstSharedAt || 0).getTime();
+      if (newTime < existingFirstTime) {
+        existing.firstSharedAt = payload.sharedAt;
+      }
+    }
+  };
 
   for (const h of history) {
     if (!h) continue;
     const med = resolveAttemptMedium(h).label;
     const rep = h.by || 'Sales Rep';
     const ts = h.timestamp || new Date().toISOString();
+    const attemptsKeysInThisContact = new Set<string>();
 
     // 1. Direct productInterest field from Call Funnel or WhatsApp
     if (h.productInterest && typeof h.productInterest === 'string' && h.productInterest.trim() && h.productInterest !== '—') {
@@ -566,18 +668,18 @@ export function extractInterestedCommercials(
       for (const part of parts) {
         const clean = part.trim();
         if (!clean || clean.length < 2) continue;
-        const key = `${clean.toLowerCase()}_${ts.slice(0, 13)}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
 
-          const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
-          const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
-          const discMatch = clean.match(/\[([^\]]+)\]/);
-          const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+        const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
+        const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
+        const discMatch = clean.match(/\[([^\]]+)\]/);
+        const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+        const finalName = nameClean || clean;
+        const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
 
-          items.push({
-            id: `prod_${h.id}_${items.length}`,
-            name: nameClean || clean,
+        if (!attemptsKeysInThisContact.has(key)) {
+          attemptsKeysInThisContact.add(key);
+          registerShare(key, {
+            name: finalName,
             quantity: qtyMatch ? qtyMatch[1].replace(/[()]/g, '').trim() : undefined,
             price: priceMatch ? `₹${priceMatch[1]}` : undefined,
             discount: discMatch ? discMatch[1].trim() : undefined,
@@ -587,6 +689,7 @@ export function extractInterestedCommercials(
             medium: med,
             notes: h.notes,
             sentMessage: h.sentMessage,
+            attemptId: h.id,
           });
         }
       }
@@ -602,17 +705,17 @@ export function extractInterestedCommercials(
       const shareMatch = fullText.match(/Product details shared via WhatsApp:\s*([^;\n]+)/i);
       if (shareMatch && shareMatch[1]) {
         const clean = shareMatch[1].trim();
-        const key = `${clean.toLowerCase()}_${ts.slice(0, 13)}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
-          const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
-          const discMatch = clean.match(/\[([^\]]+)\]/);
-          const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+        const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
+        const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
+        const discMatch = clean.match(/\[([^\]]+)\]/);
+        const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+        const finalName = nameClean || clean;
+        const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
 
-          items.push({
-            id: `prod_wa_${h.id}_${items.length}`,
-            name: nameClean || clean,
+        if (!attemptsKeysInThisContact.has(key)) {
+          attemptsKeysInThisContact.add(key);
+          registerShare(key, {
+            name: finalName,
             quantity: qtyMatch ? qtyMatch[1].replace(/[()]/g, '').trim() : undefined,
             price: priceMatch ? `₹${priceMatch[1]}` : undefined,
             discount: discMatch ? discMatch[1].trim() : undefined,
@@ -622,6 +725,7 @@ export function extractInterestedCommercials(
             medium: med,
             notes: h.notes,
             sentMessage: h.sentMessage,
+            attemptId: h.id,
           });
         }
       }
@@ -630,11 +734,10 @@ export function extractInterestedCommercials(
       for (const m of proposalMatches) {
         const pName = m[1]?.trim();
         if (pName && pName.length > 2 && !pName.toLowerCase().includes('http') && !pName.toLowerCase().includes('selected products')) {
-          const key = `${pName.toLowerCase()}_${ts.slice(0, 13)}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            items.push({
-              id: `prod_prop_${h.id}_${items.length}`,
+          const key = `prod_${pName.toLowerCase().replace(/\s+/g, ' ')}`;
+          if (!attemptsKeysInThisContact.has(key)) {
+            attemptsKeysInThisContact.add(key);
+            registerShare(key, {
               name: pName,
               quantity: m[2]?.trim(),
               price: m[4]?.trim() || m[3]?.trim(),
@@ -644,6 +747,7 @@ export function extractInterestedCommercials(
               medium: med,
               notes: h.notes,
               sentMessage: h.sentMessage,
+              attemptId: h.id,
             });
           }
         }
@@ -656,11 +760,10 @@ export function extractInterestedCommercials(
 
     if ((isInvoice || isQuotation || h.docNo) && (h.docNo || h.docAmount || isInvoice || isQuotation)) {
       const docLabel = h.docNo ? `${isInvoice ? 'Tax Invoice' : 'Commercial Quotation'} (${h.docNo})` : (isInvoice ? 'Tax Invoice' : 'Commercial Quotation');
-      const key = `doc_${(h.docNo || docLabel).toLowerCase()}_${ts.slice(0, 13)}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        items.push({
-          id: `doc_${h.id}_${items.length}`,
+      const key = `doc_${(h.docNo || docLabel).toLowerCase().replace(/\s+/g, ' ')}`;
+      if (!attemptsKeysInThisContact.has(key)) {
+        attemptsKeysInThisContact.add(key);
+        registerShare(key, {
           name: docLabel,
           docType: isInvoice ? 'INVOICE' : 'QUOTATION',
           docNo: h.docNo,
@@ -671,24 +774,58 @@ export function extractInterestedCommercials(
           medium: med,
           notes: h.notes,
           sentMessage: h.sentMessage,
+          attemptId: h.id,
         });
       }
     }
   }
 
   // Fallback to non-dummy leadRequirement if no items found in history
-  if (items.length === 0 && leadRequirement && leadRequirement !== '—' && !leadRequirement.toLowerCase().includes('enterprise') && !leadRequirement.toLowerCase().includes('das crm')) {
-    items.push({
+  if (groups.size === 0 && leadRequirement && leadRequirement !== '—' && !leadRequirement.toLowerCase().includes('enterprise') && !leadRequirement.toLowerCase().includes('das crm')) {
+    const key = `prod_${leadRequirement.toLowerCase().replace(/\s+/g, ' ')}`;
+    const nowIso = new Date().toISOString();
+    const { date, time } = formatTimestamp(nowIso);
+    groups.set(key, {
       id: 'req_lead',
+      canonicalKey: key,
       name: leadRequirement,
       docType: 'PRODUCT',
-      sharedAt: new Date().toISOString(),
+      sharedAt: nowIso,
+      firstSharedAt: nowIso,
       sharedBy: 'Lead Requirement',
       medium: 'Lead Requirement Profile',
+      shareCount: 1,
+      shareHistory: [
+        {
+          id: 'req_lead_0',
+          timestamp: nowIso,
+          formattedDate: date,
+          formattedTime: time,
+          sharedBy: 'Lead Requirement',
+          medium: 'Lead Requirement Profile',
+        },
+      ],
     });
   }
 
-  return items;
+  // Sort share history of each group in descending chronological order (newest first)
+  const results = Array.from(groups.values()).map(item => {
+    item.shareHistory.sort((a, b) => {
+      const tA = new Date(a.timestamp || 0).getTime();
+      const tB = new Date(b.timestamp || 0).getTime();
+      return tB - tA;
+    });
+    return item;
+  });
+
+  // Sort products list: most recently shared first
+  results.sort((a, b) => {
+    const tA = new Date(a.sharedAt || 0).getTime();
+    const tB = new Date(b.sharedAt || 0).getTime();
+    return tB - tA;
+  });
+
+  return results;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -703,13 +840,15 @@ export function CallContactHistory({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
   const [isCommercialsShrunk, setIsCommercialsShrunk] = useState<boolean>(false);
+  const [expandedShareHistoryKeys, setExpandedShareHistoryKeys] = useState<Record<string, boolean>>({});
 
   // ── Clean & Deduplicate History Attempts ────────────────────────────────────
   const cleanHistory = deduplicateContactAttempts(history);
 
-  // ── Extract All Interested Products & Shared Commercials ─────────────────────
+  // ── Extract All Interested Products & Shared Commercials (Deduplicated 1 Product = 1 Card) ────
   const interestedCommercials = extractInterestedCommercials(cleanHistory, interestedProduct);
   const totalCommercialsCount = interestedCommercials.length;
+  const totalSharesCount = interestedCommercials.reduce((acc, item) => acc + item.shareCount, 0);
 
   // ── Computed Stats ──────────────────────────────────────────────────────────
   const totalAttempts = cleanHistory.length;
@@ -750,11 +889,13 @@ export function CallContactHistory({
   // Resolve Live Dynamic Interested Product Summary for Top Metric Card
   const primaryCommercial = interestedCommercials[0];
   const displayProduct = primaryCommercial
-    ? (primaryCommercial.quantity && primaryCommercial.price
-        ? `${primaryCommercial.name} (${primaryCommercial.quantity} · ${primaryCommercial.price})`
-        : totalCommercialsCount > 1
-        ? `${primaryCommercial.name} (+${totalCommercialsCount - 1} more)`
-        : primaryCommercial.name)
+    ? (primaryCommercial.shareCount > 1
+        ? (interestedCommercials.length > 1
+            ? `${primaryCommercial.name} (${primaryCommercial.shareCount}x) +${interestedCommercials.length - 1} more`
+            : `${primaryCommercial.name} (${primaryCommercial.shareCount}x Shared)`)
+        : (interestedCommercials.length > 1
+            ? `${primaryCommercial.name} +${interestedCommercials.length - 1} more`
+            : primaryCommercial.name))
     : (interestedProduct && interestedProduct !== '—' && !interestedProduct.toLowerCase().includes('enterprise')
         ? interestedProduct
         : 'No Products Yet');
@@ -833,7 +974,7 @@ export function CallContactHistory({
               }`}
               title="Click to toggle / shrink Synced Interested Products & Invoices"
             >
-              <span>📦</span> {totalCommercialsCount} Interested Product{totalCommercialsCount > 1 ? 's' : ''} / Invoice{totalCommercialsCount > 1 ? 's' : ''}
+              <span>📦</span> {totalCommercialsCount} Unique Product{totalCommercialsCount > 1 ? 's' : ''} ({totalSharesCount} Share{totalSharesCount > 1 ? 's' : ''})
               {filterType === 'INTERESTED_PRODUCTS' && (
                 <span className="text-[9px] bg-slate-950/40 text-amber-200 px-1.5 py-0.2 rounded font-mono">
                   {isCommercialsShrunk ? '▾ expand' : '▴ shrink'}
@@ -971,14 +1112,14 @@ export function CallContactHistory({
                 <Package size={16} />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                <h4 className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
                   <span>Synced Interested Products &amp; Shared Commercials</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {totalCommercialsCount} Item{totalCommercialsCount !== 1 ? 's' : ''} Synced
+                    {totalCommercialsCount} Unique Product{totalCommercialsCount !== 1 ? 's' : ''} ({totalSharesCount} Share{totalSharesCount !== 1 ? 's' : ''})
                   </span>
                 </h4>
                 <p className="text-[11px] text-slate-400">
-                  Live timeline of all products, quantities, prices &amp; invoices shared across WhatsApp, phone calls, and email.
+                  Each product shown 1 time only with exact share count, latest price, and complete date &amp; time history across WhatsApp, calls, and email.
                 </p>
               </div>
             </div>
@@ -1027,10 +1168,13 @@ export function CallContactHistory({
                 </span>
                 {interestedCommercials.slice(0, 4).map((item, i) => (
                   <span
-                    key={item.id || i}
+                    key={item.canonicalKey || item.id || i}
                     className="text-[10px] font-extrabold px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 flex items-center gap-1"
                   >
                     <span>{item.name}</span>
+                    {item.shareCount > 1 && (
+                      <span className="text-amber-400 font-bold">({item.shareCount}x)</span>
+                    )}
                     {item.price && <span className="text-emerald-400 font-bold">{item.price}</span>}
                   </span>
                 ))}
@@ -1045,25 +1189,29 @@ export function CallContactHistory({
               </span>
             </div>
           ) : (
-            /* Full Grid of Interested Products & Invoices */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 animate-in fade-in duration-200">
+            /* Full Deduplicated Grid of Interested Products & Invoices */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 animate-in fade-in duration-200">
               {interestedCommercials.map((item, idx) => {
-                const { time, date } = formatTimestamp(item.sharedAt);
+                const { time: latestTime, date: latestDate } = formatTimestamp(item.sharedAt);
                 const isDoc = item.docType === 'INVOICE' || item.docType === 'QUOTATION';
+                const isHistoryOpen = Boolean(expandedShareHistoryKeys[item.canonicalKey || item.id]);
 
                 return (
                   <div
-                    key={item.id || idx}
-                    className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 transition-all space-y-2 flex flex-col justify-between"
+                    key={item.canonicalKey || item.id || idx}
+                    className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 transition-all space-y-2.5 flex flex-col justify-between shadow-sm"
                   >
+                    {/* Top Row: Product Icon, Name, Qty pill, Price tag */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        <span className="text-lg">{isDoc ? (item.docType === 'INVOICE' ? '🧾' : '📄') : '📦'}</span>
-                        <div>
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-slate-950 flex items-center justify-center border border-slate-800 shrink-0 text-base">
+                          {isDoc ? (item.docType === 'INVOICE' ? '🧾' : '📄') : '📦'}
+                        </div>
+                        <div className="min-w-0">
                           <h5 className="text-xs font-extrabold text-white flex items-center gap-1.5 flex-wrap">
-                            <span>{item.name}</span>
+                            <span className="truncate">{item.name}</span>
                             {item.quantity && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
                                 Qty: {item.quantity}
                               </span>
                             )}
@@ -1084,20 +1232,101 @@ export function CallContactHistory({
                     </div>
 
                     {item.discount && (
-                      <div className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                      <div className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded inline-flex items-center gap-1">
                         🎉 {item.discount}
                       </div>
                     )}
 
-                    {/* Telemetry Footer */}
+                    {/* Share Count & Times Shared Badge */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1 border ${
+                          item.shareCount > 1
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          <Repeat size={10} className={item.shareCount > 1 ? 'text-amber-400' : 'text-slate-400'} />
+                          {item.shareCount === 1 ? 'Shared 1 time to this user' : `Shared ${item.shareCount} times to this user`}
+                        </span>
+
+                        {item.shareCount > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedShareHistoryKeys(prev => ({
+                              ...prev,
+                              [item.canonicalKey || item.id]: !prev[item.canonicalKey || item.id],
+                            }))}
+                            className="text-[10px] font-bold text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer transition-colors bg-sky-500/10 hover:bg-sky-500/20 px-1.5 py-0.5 rounded border border-sky-500/25"
+                          >
+                            <History size={10} />
+                            <span>{isHistoryOpen ? 'Hide History ▴' : `View All ${item.shareCount} Dates & Times ▾`}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Latest Share Date & Time Telemetry */}
                     <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex-wrap gap-1">
                       <span className="flex items-center gap-1 text-slate-300">
-                        <User size={10} className="text-slate-400" /> {item.sharedBy}
+                        <User size={10} className="text-slate-400" />
+                        <span className="text-slate-400 text-[9px] uppercase font-bold">{item.shareCount > 1 ? 'Latest by:' : 'Shared by:'}</span>
+                        <span className="font-semibold">{item.sharedBy}</span>
                       </span>
-                      <span className="flex items-center gap-1 text-amber-300/90">
-                        <span>{item.medium}</span> • <span>{date} @ {time}</span>
+                      <span className="flex items-center gap-1 text-amber-300/90 font-medium">
+                        <span className="px-1.5 py-0.2 rounded bg-slate-950 border border-slate-800 text-[9px] font-bold text-emerald-400">{item.medium}</span>
+                        <span>•</span>
+                        <span className="font-mono">{latestDate} @ {latestTime}</span>
                       </span>
                     </div>
+
+                    {/* Expanded Audit Log of all Share Dates & Times */}
+                    {isHistoryOpen && item.shareHistory && item.shareHistory.length > 0 && (
+                      <div className="mt-1 pt-2 border-t border-slate-800/80 space-y-1.5 bg-slate-950/70 p-2.5 rounded-lg border border-slate-800 text-[10px] animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-850">
+                          <span className="flex items-center gap-1 text-amber-300">
+                            <Calendar size={10} /> All Sharing Timestamps ({item.shareCount} logs):
+                          </span>
+                          <span className="text-emerald-400 font-mono">1 Item Deduplicated</span>
+                        </div>
+
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {item.shareHistory.map((sh, sIdx) => (
+                            <div
+                              key={sh.id || sIdx}
+                              className="flex items-start justify-between gap-2 p-1.5 rounded bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 text-[10px]"
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[9px] font-black px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                                    #{item.shareHistory.length - sIdx}
+                                  </span>
+                                  <span className="text-white font-mono font-bold">{sh.formattedDate} @ {sh.formattedTime}</span>
+                                  <span className="text-slate-400 font-normal">via</span>
+                                  <span className="text-emerald-300 font-bold">{sh.medium}</span>
+                                </div>
+                                <div className="text-slate-400 flex items-center gap-2 flex-wrap text-[9px]">
+                                  <span className="flex items-center gap-0.5 text-slate-300">
+                                    <User size={8} className="text-slate-400" /> {sh.sharedBy}
+                                  </span>
+                                  {sh.quantity && (
+                                    <span className="text-slate-300">• Qty: {sh.quantity}</span>
+                                  )}
+                                  {sh.discount && (
+                                    <span className="text-amber-300 font-semibold">• [{sh.discount}]</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {sh.price && (
+                                <span className="font-mono font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap shrink-0">
+                                  {sh.price}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
