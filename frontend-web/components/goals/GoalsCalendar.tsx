@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { DayPerformanceHeatmap } from '@/lib/goalMetricsEngine';
+import { DayPerformanceHeatmap, toDateKey } from '@/lib/goalMetricsEngine';
 
 interface GoalsCalendarProps {
   selectedMonth: string; // "YYYY-MM"
@@ -45,7 +45,7 @@ export function GoalsCalendar({
   ];
 
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0 = Sun, 1 = Mon ...
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toDateKey(new Date());
 
   const handlePrevMonth = () => {
     let newYear = year;
@@ -232,7 +232,9 @@ export function GoalsCalendar({
                   <span className="text-xs font-semibold text-slate-300">Calls Logged</span>
                 </div>
                 <span className="text-sm font-bold text-white">
-                  {selectedDayData?.callsCount || 0}
+                  {isMonthView
+                    ? heatmapDays.reduce((s, d) => s + d.callsCount, 0)
+                    : (selectedDayData?.callsCount || 0)}
                 </span>
               </div>
 
@@ -243,7 +245,9 @@ export function GoalsCalendar({
                   <span className="text-xs font-semibold text-slate-300">WhatsApp Messages</span>
                 </div>
                 <span className="text-sm font-bold text-white">
-                  {selectedDayData?.whatsappCount || 0}
+                  {isMonthView
+                    ? heatmapDays.reduce((s, d) => s + d.whatsappCount, 0)
+                    : (selectedDayData?.whatsappCount || 0)}
                 </span>
               </div>
 
@@ -254,7 +258,9 @@ export function GoalsCalendar({
                   <span className="text-xs font-semibold text-slate-300">Products Shared</span>
                 </div>
                 <span className="text-sm font-bold text-white">
-                  {selectedDayData?.productsCount || 0}
+                  {isMonthView
+                    ? heatmapDays.reduce((s, d) => s + d.productsCount, 0)
+                    : (selectedDayData?.productsCount || 0)}
                 </span>
               </div>
 
@@ -266,10 +272,17 @@ export function GoalsCalendar({
                 </div>
                 <div className="text-right">
                   <span className="text-xs font-bold text-white block">
-                    ₹{((selectedDayData?.quotesAmount || 0) / 1000).toFixed(1)}k
+                    ₹{(
+                      (isMonthView
+                        ? heatmapDays.reduce((s, d) => s + d.quotesAmount, 0)
+                        : (selectedDayData?.quotesAmount || 0)) / 1000
+                    ).toFixed(1)}k
                   </span>
                   <span className="text-[10px] text-slate-400">
-                    {selectedDayData?.quotesCount || 0} issued
+                    {isMonthView
+                      ? heatmapDays.reduce((s, d) => s + d.quotesCount, 0)
+                      : (selectedDayData?.quotesCount || 0)}{' '}
+                    issued
                   </span>
                 </div>
               </div>

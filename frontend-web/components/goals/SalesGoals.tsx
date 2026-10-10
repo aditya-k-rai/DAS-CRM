@@ -52,7 +52,7 @@ export function SalesGoals() {
   const { currentUser } = useAuth();
 
   // Primary Filters & State
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => new Date().toISOString().slice(0, 7)); // "YYYY-MM"
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => toDateKey(new Date()).slice(0, 7)); // "YYYY-MM"
   const [selectedDate, setSelectedDate] = useState<string>(() => toDateKey(new Date())); // "YYYY-MM-DD"
   const [isMonthView, setIsMonthView] = useState<boolean>(false);
   const [selectedTlFilter, setSelectedTlFilter] = useState<string>('ALL');
@@ -96,12 +96,14 @@ export function SalesGoals() {
     window.addEventListener('das_crm_leads_updated', handleSync);
     window.addEventListener('das_crm_quotes_updated', handleSync);
     window.addEventListener('das_crm_goals_updated', handleSync);
+    window.addEventListener('das_crm_contact_history_updated', handleSync);
 
     return () => {
       window.removeEventListener('das_crm_activities_updated', handleSync);
       window.removeEventListener('das_crm_leads_updated', handleSync);
       window.removeEventListener('das_crm_quotes_updated', handleSync);
       window.removeEventListener('das_crm_goals_updated', handleSync);
+      window.removeEventListener('das_crm_contact_history_updated', handleSync);
     };
   }, [loadData]);
 
@@ -132,15 +134,6 @@ export function SalesGoals() {
       currentUser,
     });
   }, [rawCRMData, selectedDate, selectedMonth, currentUser]);
-
-  // Monthly Calendar Heatmap
-  const heatmapDays = useMemo(() => {
-    return generateMonthlyHeatmap({
-      records,
-      selectedMonth,
-      globalSettings,
-    });
-  }, [records, selectedMonth, globalSettings]);
 
   // Filter records based on role and active filters
   const filteredRecords = useMemo(() => {
@@ -178,6 +171,15 @@ export function SalesGoals() {
     // Sort by overallScore descending
     return list.sort((a, b) => b.overallScore - a.overallScore);
   }, [records, isSalesExec, isTeamLeader, currentUser, selectedTlFilter, searchQuery]);
+
+  // Monthly Calendar Heatmap
+  const heatmapDays = useMemo(() => {
+    return generateMonthlyHeatmap({
+      records: filteredRecords,
+      selectedMonth,
+      globalSettings,
+    });
+  }, [filteredRecords, selectedMonth, globalSettings]);
 
   // Active aggregated card stats (Calculated from filtered records)
   const activeStats = useMemo(() => {

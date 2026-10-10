@@ -77,7 +77,7 @@ export interface DrilldownActivityItem {
   leadCompany: string;
   leadEmail?: string;
   leadStatus?: string;
-  category: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE';
+  category: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' | 'MEETING';
   callSubtype?: 'FRESH' | 'FOLLOWUP';
   title: string;
   notes?: string;
@@ -143,17 +143,51 @@ export function isSalesOrTLRole(roleStr?: string): boolean {
 }
 
 /**
- * Normalizes an ISO date or local date to "YYYY-MM-DD"
+ * Normalizes an ISO date, timestamp, or local date to "YYYY-MM-DD" in local timezone
  */
 export function toDateKey(dateInput?: string | Date | null): string {
-  if (!dateInput) return new Date().toISOString().split('T')[0];
-  try {
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
-    return d.toISOString().split('T')[0];
-  } catch (_) {
-    return new Date().toISOString().split('T')[0];
+  if (!dateInput) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
+
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    // Direct match for standard "YYYY-MM-DD"
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    try {
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+    } catch (_) {}
+
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+  }
+
+  if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    const y = dateInput.getFullYear();
+    const m = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const d = String(dateInput.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /**
@@ -325,6 +359,7 @@ export function calculatePerformanceRecords({
 
   interface NormalizedInteraction {
     id: string;
+    userId?: string;
     leadId: string;
     type: 'CALL' | 'WHATSAPP' | 'WHATSAPP_CLOUD' | 'MEETING' | 'EMAIL' | 'DOCUMENT' | 'NOTE';
     isFreshCall: boolean;
@@ -342,6 +377,7 @@ export function calculatePerformanceRecords({
   }
 
   const normalizedInteractions: NormalizedInteraction[] = [];
+  const seenInteractions = new Set<string>();
 
   // Track per-lead call sequence to accurately classify First Call vs Follow-up
   localLeadHistories.forEach(({ leadId, attempts }) => {
@@ -379,9 +415,14 @@ export function calculatePerformanceRecords({
       const isWaDirect = isWA && !isWaCloud;
 
       const dateStr = toDateKey(att.timestamp || att.time || att.createdAt);
+      const uniqueKey = att.id ? `att_${att.id}` : `${leadId}_${isCall ? 'CALL' : isWA ? 'WA' : isMeeting ? 'MEET' : 'NOTE'}_${att.timestamp || att.time || att.createdAt}_${(att.by || '').trim()}`;
+
+      if (seenInteractions.has(uniqueKey)) return;
+      seenInteractions.add(uniqueKey);
 
       normalizedInteractions.push({
         id: att.id || `att_${Math.random()}`,
+        userId: att.userId || att.byUserId ? String(att.userId || att.byUserId) : undefined,
         leadId,
         type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isMeeting ? 'MEETING' : isDoc ? 'DOCUMENT' : 'NOTE',
         isFreshCall,
@@ -420,10 +461,16 @@ export function calculatePerformanceRecords({
     const isWaDirect = isWA && !isWaCloud;
 
     const byName = (act.user ? `${act.user.firstName || ''} ${act.user.lastName || ''}`.trim() : (act.userName || act.metadata?.by || '')).trim();
+    const actUserId = act.userId || act.user?.id || act.createdBy || '';
     const dateStr = toDateKey(act.createdAt);
+    const uniqueKey = act.id ? `act_${act.id}` : `${act.leadId}_${act.type}_${act.createdAt}_${byName}`;
+
+    if (seenInteractions.has(uniqueKey)) return;
+    seenInteractions.add(uniqueKey);
 
     normalizedInteractions.push({
       id: act.id || `act_${Math.random()}`,
+      userId: actUserId ? String(actUserId) : undefined,
       leadId: act.leadId || '',
       type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isMeeting ? 'MEETING' : isDoc ? 'DOCUMENT' : 'NOTE',
       isFreshCall,
@@ -686,6 +733,22 @@ export function calculatePerformanceRecords({
           dateKey: item.dateKey,
         });
       }
+
+      if (item.isMeeting || item.type === 'MEETING') {
+        activitiesList.push({
+          id: `${item.id}_meet`,
+          leadId: String(leadId),
+          leadName,
+          leadPhone,
+          leadCompany,
+          leadStatus,
+          category: 'MEETING',
+          title: 'Client Meeting / Discussion',
+          notes: (item as any).notes || 'Scheduled in-person / virtual discussion with client',
+          timestamp: item.timestamp,
+          dateKey: item.dateKey,
+        });
+      }
     });
 
     // Add user Quotes to activitiesList
@@ -883,19 +946,26 @@ export function generateMonthlyHeatmap({
     let productsCount = 0;
 
     records.forEach(r => {
-      if (dateStr === toDateKey(new Date())) {
-        callsCount += r.dateCallsTotal;
-        whatsappCount += r.dateWhatsappTotal;
-        meetingsCount += r.dateMeetingsCount;
-        quotesCount += r.dateQuotesCount;
-        quotesAmount += r.dateQuotesAmount;
-        leadsCount += r.dateLeadsReceived;
-        productsCount += r.dateProductsShared;
-      }
+      (r.activitiesList || []).forEach(act => {
+        if (act.dateKey === dateStr) {
+          if (act.category === 'CALL') {
+            callsCount++;
+          } else if (act.category === 'WHATSAPP') {
+            whatsappCount++;
+          } else if (act.category === 'PRODUCT') {
+            productsCount += (act.productCount || 1);
+          } else if (act.category === 'QUOTE') {
+            quotesCount++;
+            quotesAmount += (act.quoteAmount || 0);
+          } else if (act.category === 'MEETING') {
+            meetingsCount++;
+          }
+        }
+      });
     });
 
     const dailyCallTarget = records.reduce((s, r) => s + r.dailyCallsTarget, 0);
-    const score = dailyCallTarget > 0 ? Math.min(100, Math.round((callsCount / dailyCallTarget) * 100)) : 0;
+    const score = dailyCallTarget > 0 ? Math.min(100, Math.round((callsCount / dailyCallTarget) * 100)) : (callsCount > 0 ? 100 : 0);
 
     days.push({
       dateStr,
