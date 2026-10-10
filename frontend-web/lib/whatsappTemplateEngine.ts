@@ -256,11 +256,11 @@ class WhatsAppTemplateEngine {
     }
   }
 
-  /** Generate direct WhatsApp URL (wa.me) */
+  /** Generate direct WhatsApp URL (api.whatsapp.com with full UTF-8 emoji support) */
   getDirectWhatsAppUrl(phone: string, messageText: string): string {
     const cleaned = this.cleanPhone(phone);
     const encoded = encodeURIComponent(messageText || '');
-    return `https://wa.me/${cleaned}?text=${encoded}`;
+    return `https://api.whatsapp.com/send?phone=${cleaned}&text=${encoded}`;
   }
 
   /** Launch Direct WhatsApp Web or App */
@@ -276,6 +276,11 @@ class WhatsAppTemplateEngine {
         url: '',
         error: `Invalid phone number for ${leadName || 'lead'}: "${phone}"`,
       };
+    }
+
+    // Copy to clipboard with intact UTF-8 emojis
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(messageText).catch(() => {});
     }
 
     const waUrl = this.getDirectWhatsAppUrl(cleaned, messageText);

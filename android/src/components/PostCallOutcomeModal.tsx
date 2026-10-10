@@ -342,7 +342,7 @@ export default function PostCallOutcomeModal({
   const handleShareProductViaWhatsApp = async () => {
     const targetPhone = (productWaTargetPhone || phone || '').replace(/[^0-9]/g, '');
     const finalMsg = generateProductWhatsAppMessage(productWaCustomNote, productWaLanguage);
-    const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(finalMsg)}`;
+    const waUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(finalMsg)}`;
 
     try {
       await Linking.openURL(waUrl);

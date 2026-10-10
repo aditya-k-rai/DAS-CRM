@@ -2005,10 +2005,16 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       } catch (err) {
         console.warn('Image clipboard attachment notice:', err);
       }
+    } else {
+      // If no image attachment, copy the formatted message with emojis directly to clipboard
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(finalMsg).catch(() => {});
+      }
     }
 
-    // 2. Launch WhatsApp Web / App
-    window.open(`https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${encodeURIComponent(finalMsg)}`, '_blank');
+    // 2. Launch WhatsApp Web / App via official API dispatcher (preserves UTF-8 emojis without Windows CLI protocol mangling)
+    const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone ? cleanPhone : ''}&text=${encodeURIComponent(finalMsg)}`;
+    window.open(waUrl, '_blank');
     setIsProductWaShared(true);
 
     // 2. Increment product share count in background
