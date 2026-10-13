@@ -885,58 +885,56 @@ export function LeadsTable() {
       return;
     }
 
-    if (!isBrowserOnline()) {
-      showTableToast('⚡ Internet Required: Cannot update lead status while offline. Connect to internet.');
-      return;
-    }
+    const previousStatus = targetLead?.status || 'New';
+    const newColor = statusColorMap[newStatus] || statusColorMap[newStatus.toLowerCase()] || '#6366f1';
+
+    // 1. Immediate optimistic UI update (0ms latency — instant user feedback)
+    setLeadsList(prev => {
+      const updated = prev.map(item => item.id === leadId ? {
+        ...item,
+        status: newStatus,
+        statusColor: newColor,
+      } : item);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updated));
+          localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updated));
+          const updatedItem = updated.find(l => l.id === leadId);
+          if (updatedItem) {
+            sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(updatedItem));
+          }
+          clearAllDashboardCaches();
+        } catch (_) {}
+
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, status: newStatus } }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId, status: newStatus });
+          bc.close();
+        } catch (_) {}
+      }
+
+      return updated;
+    });
+
+    showTableToast(`✓ Lead status updated to "${newStatus}"!`);
+
+    // 2. Asynchronous server synchronization in background
     try {
-      const isConnected = await verifyInternetConnection();
-      if (!isConnected) {
-        showTableToast('⚡ Server Reachability Error: Cannot verify status update with backend. Check internet.');
-        return;
-      }
+      if (!isBrowserOnline()) return;
 
-      try {
-        await apiFetch(`/leads/${leadId}/status`, {
-          method: 'PATCH',
-          body: JSON.stringify({ statusId: newStatus }),
-        });
-      } catch (e) {
-        console.warn('Backend status update warning:', e);
-      }
-
-      setLeadsList(prev => {
-        const updated = prev.map(item => item.id === leadId ? {
-          ...item,
-          status: newStatus,
-          statusColor: statusColorMap[newStatus] || statusColorMap[newStatus.toLowerCase()] || '#6366f1',
-        } : item);
-
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updated));
-            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updated));
-            const updatedItem = updated.find(l => l.id === leadId);
-            if (updatedItem) {
-              sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(updatedItem));
-            }
-            clearAllDashboardCaches();
-          } catch (_) {}
-
-          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, status: newStatus } }));
-          try {
-            const bc = new BroadcastChannel('das_crm_lead_sync');
-            bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId, status: newStatus });
-            bc.close();
-          } catch (_) {}
-        }
-
-        return updated;
+      const res = await apiFetch(`/leads/${leadId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ statusId: newStatus, status: newStatus }),
       });
 
-      showTableToast(`✓ Verified with Server: Lead status updated to "${newStatus}"!`);
-    } catch (err: any) {
-      showTableToast(`⚠️ Status change error: ${err.message || 'Network error'}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.warn('Backend status update non-200:', errData);
+      }
+    } catch (e) {
+      console.warn('Backend status update warning:', e);
     }
   };
 
