@@ -795,6 +795,12 @@ export class LeadsService {
       });
     }
 
+    if (!lead) {
+      lead = await this.prisma.lead.findFirst({
+        where: { id, organizationId },
+      });
+    }
+
     if (!lead) throw new NotFoundException('Lead not found or access denied');
 
     // Requirement: Before Assignment, lead must remain in New status until assigned. Cannot change status while unassigned.

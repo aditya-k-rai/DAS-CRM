@@ -140,6 +140,18 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   created: 120,
 };
 
+export const isUnassignedLead = (l?: { owner?: string | null; ownerId?: string | null } | null): boolean => {
+  if (!l) return false;
+  if (l.ownerId && l.ownerId !== 'Unassigned' && l.ownerId !== '—' && l.ownerId !== '-') {
+    return false;
+  }
+  const o = (l.owner || '').trim().toLowerCase();
+  if (o && o !== 'unassigned' && o !== '—' && o !== '-' && o !== 'none' && o !== 'open pool') {
+    return false;
+  }
+  return true;
+};
+
 export const DEFAULT_REAL_LEADS: LeadDataWeb[] = (DEFAULT_ORG_LEADS as any) || [];
 
 export function LeadsTable() {
@@ -169,6 +181,9 @@ export function LeadsTable() {
                 score: norm.score,
                 aiScore: l.aiScore || undefined,
                 owner: norm.owner,
+                ownerId: norm.ownerId || l.ownerId || undefined,
+                assignedRep: norm.assignedRep || l.assignedRep,
+                customFields: norm.customFields || l.customFields,
                 value: norm.value,
                 created: norm.created,
                 rawCreatedAt: norm.rawCreatedAt,
@@ -865,13 +880,7 @@ export function LeadsTable() {
 
   const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
     const targetLead = leadsList.find(item => item.id === leadId);
-    const isUnassigned = !targetLead?.ownerId ||
-      !targetLead?.owner ||
-      targetLead?.owner === 'Unassigned' ||
-      targetLead?.owner === '—' ||
-      targetLead?.owner === '-';
-
-    if (isUnassigned) {
+    if (targetLead && isUnassignedLead(targetLead)) {
       showTableToast('🔒 Lead is unassigned. It must remain in New status until it is assigned to a user.');
       return;
     }
@@ -2175,11 +2184,7 @@ export function LeadsTable() {
                     )}
 
                     {colKey === 'status' && (() => {
-                      const isUnassigned = !lead.ownerId ||
-                        !lead.owner ||
-                        lead.owner === 'Unassigned' ||
-                        lead.owner === '—' ||
-                        lead.owner === '-';
+                      const isUnassigned = isUnassignedLead(lead);
                       const color = statusColorMap[lead.status] || lead.statusColor || '#6366f1';
 
                       if (isUnassigned) {
