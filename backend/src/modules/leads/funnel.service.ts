@@ -12,6 +12,34 @@ export class LeadFunnelService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Helper to resolve or create the default 'New' lead status for the tenant organization
+   */
+  private async resolveNewStatus(organizationId: string, tx?: any) {
+    const client = tx || this.prisma;
+    let newStatus = await client.leadStatus.findFirst({
+      where: { organizationId, name: { equals: 'New', mode: 'insensitive' } },
+    });
+    if (!newStatus) {
+      newStatus = await client.leadStatus.findFirst({
+        where: { organizationId, isDefault: true },
+        orderBy: { order: 'asc' },
+      });
+    }
+    if (!newStatus) {
+      newStatus = await client.leadStatus.create({
+        data: {
+          organizationId,
+          name: 'New',
+          color: '#6366f1',
+          order: 0,
+          isDefault: true,
+        },
+      });
+    }
+    return newStatus;
+  }
+
+  /**
    * Model 1: Custom Batch Quota Allocation
    * Allocates leads by index range (e.g. 1-100 to Manager A, 101-200 to Manager B)
    */
@@ -40,10 +68,14 @@ export class LeadFunnelService {
     }
 
     const leadIds = unassignedLeads.map((l) => l.id);
+    const newStatus = await this.resolveNewStatus(organizationId);
 
     await this.prisma.lead.updateMany({
       where: { id: { in: leadIds }, organizationId },
-      data: { ownerId: managerId },
+      data: {
+        ownerId: managerId,
+        statusId: newStatus.id,
+      },
     });
 
     return {
@@ -78,10 +110,13 @@ export class LeadFunnelService {
         );
       }
 
+      const newStatus = await this.resolveNewStatus(organizationId, tx);
+
       const updated = await tx.lead.update({
         where: { id: leadId },
         data: {
           ownerId: userId,
+          statusId: newStatus.id,
         },
       });
 
@@ -102,12 +137,17 @@ export class LeadFunnelService {
     leadIds: string[],
     managerId: string,
   ) {
+    const newStatus = await this.resolveNewStatus(organizationId);
+
     const res = await this.prisma.lead.updateMany({
       where: {
         id: { in: leadIds },
         organizationId,
       },
-      data: { ownerId: managerId },
+      data: {
+        ownerId: managerId,
+        statusId: newStatus.id,
+      },
     });
 
     return {

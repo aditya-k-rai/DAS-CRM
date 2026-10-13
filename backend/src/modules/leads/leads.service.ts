@@ -521,44 +521,44 @@ export class LeadsService {
     };
   }
 
+  /**
+   * Helper to resolve or create the default 'New' lead status for the tenant organization
+   */
+  async resolveNewStatus(organizationId: string) {
+    let newStatus = await this.prisma.leadStatus.findFirst({
+      where: {
+        organizationId,
+        name: { equals: 'New', mode: 'insensitive' },
+      },
+    });
+    if (!newStatus) {
+      newStatus = await this.prisma.leadStatus.findFirst({
+        where: { organizationId, isDefault: true },
+        orderBy: { order: 'asc' },
+      });
+    }
+    if (!newStatus) {
+      newStatus = await this.prisma.leadStatus.create({
+        data: {
+          organizationId,
+          name: 'New',
+          color: '#6366f1',
+          order: 0,
+          isDefault: true,
+        },
+      });
+    }
+    return newStatus;
+  }
+
   async create(
     organizationId: string,
     createdById: string,
     dto: CreateLeadDto,
   ) {
-    // 1. Resolve statusId: explicit statusId -> stage name lookup -> default status (Decision F1)
-    let statusId = dto.statusId;
-    if (!statusId && dto.stage) {
-      const match = await this.prisma.leadStatus.findFirst({
-        where: {
-          organizationId,
-          name: { equals: dto.stage.trim(), mode: 'insensitive' },
-        },
-      });
-      if (match) {
-        statusId = match.id;
-      }
-    }
-    if (!statusId) {
-      const defaultStatus = await this.prisma.leadStatus.findFirst({
-        where: { organizationId },
-        orderBy: { order: 'asc' },
-      });
-      if (defaultStatus) {
-        statusId = defaultStatus.id;
-      } else {
-        const created = await this.prisma.leadStatus.create({
-          data: {
-            organizationId,
-            name: dto.stage?.trim() || 'New',
-            color: '#6366f1',
-            order: 0,
-            isDefault: true,
-          },
-        });
-        statusId = created.id;
-      }
-    }
+    // 1. Requirement: On Lead Insertion, status must automatically be set to 'New'
+    const newStatus = await this.resolveNewStatus(organizationId);
+    const statusId = newStatus.id;
 
     // 2. Resolve sourceId: explicit sourceId -> source name lookup
     let sourceId = dto.sourceId;
@@ -709,6 +709,20 @@ export class LeadsService {
       if (st) statusId = st.id;
     }
 
+    // Requirement: When a lead is assigned to any user, its status must automatically be set to New.
+    const isAssigningToUser = dto.ownerId !== undefined && dto.ownerId && dto.ownerId !== 'Unassigned' && dto.ownerId !== existing.ownerId;
+    if (isAssigningToUser) {
+      const newStatus = await this.resolveNewStatus(organizationId);
+      statusId = newStatus.id;
+    }
+
+    // Requirement: Before Assignment, lead must remain in New status until assigned. Cannot change status while unassigned.
+    const effectiveOwnerId = dto.ownerId !== undefined ? dto.ownerId : existing.ownerId;
+    const isUnassigned = !effectiveOwnerId || effectiveOwnerId === 'Unassigned';
+    if (statusId && statusId !== existing.statusId && isUnassigned) {
+      throw new BadRequestException('Lead is currently unassigned. It must remain in New status until it is assigned to a user.');
+    }
+
     // Resolve companyName to companyId if passed
     let companyId = dto.companyId;
     if (!companyId && dto.companyName && dto.companyName.trim()) {
@@ -782,6 +796,11 @@ export class LeadsService {
     }
 
     if (!lead) throw new NotFoundException('Lead not found or access denied');
+
+    // Requirement: Before Assignment, lead must remain in New status until assigned. Cannot change status while unassigned.
+    if (!lead.ownerId) {
+      throw new BadRequestException('Lead is currently unassigned. It must remain in New status until it is assigned to a user.');
+    }
 
     // Find status by ID or by name (case-insensitive)
     let status = await this.prisma.leadStatus.findFirst({
@@ -1408,9 +1427,10 @@ export class LeadsService {
       throw new ForbiddenException('Lead has already been claimed by another manager/rep');
     }
 
+    const newStatus = await this.resolveNewStatus(organizationId);
     const updated = await this.prisma.lead.update({
       where: { id: leadId },
-      data: { ownerId: userId, lastActivityAt: new Date() },
+      data: { ownerId: userId, statusId: newStatus.id, lastActivityAt: new Date() },
       include: { owner: { select: { id: true, firstName: true, lastName: true } } },
     });
 
@@ -1448,6 +1468,7 @@ export class LeadsService {
     dto: { allocations: { managerId: string; limit: number }[] },
   ) {
     let totalAllocated = 0;
+    const newStatus = await this.resolveNewStatus(organizationId);
 
     for (const alloc of dto.allocations) {
       const unassigned = await this.prisma.lead.findMany({
@@ -1458,7 +1479,7 @@ export class LeadsService {
       if (unassigned.length > 0) {
         await this.prisma.lead.updateMany({
           where: { id: { in: unassigned.map((l) => l.id) } },
-          data: { ownerId: alloc.managerId, lastActivityAt: new Date() },
+          data: { ownerId: alloc.managerId, statusId: newStatus.id, lastActivityAt: new Date() },
         });
         totalAllocated += unassigned.length;
 
@@ -1487,9 +1508,10 @@ export class LeadsService {
     organizationId: string,
     dto: { leadIds: string[]; targetManagerId: string },
   ) {
+    const newStatus = await this.resolveNewStatus(organizationId);
     await this.prisma.lead.updateMany({
       where: { id: { in: dto.leadIds }, organizationId },
-      data: { ownerId: dto.targetManagerId, lastActivityAt: new Date() },
+      data: { ownerId: dto.targetManagerId, statusId: newStatus.id, lastActivityAt: new Date() },
     });
 
     await this.notificationsService.send({
@@ -1539,9 +1561,12 @@ export class LeadsService {
     });
     const repName = targetUser ? `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() : 'Sales Rep';
 
+    // Requirement: When a lead is assigned to any user, its status must automatically be set to New.
+    const newStatus = await this.resolveNewStatus(organizationId);
+
     await this.prisma.lead.updateMany({
       where: { id: { in: dto.leadIds }, organizationId },
-      data: { ownerId: dto.targetUserId, lastActivityAt: new Date() },
+      data: { ownerId: dto.targetUserId, statusId: newStatus.id, lastActivityAt: new Date() },
     });
 
     for (const leadId of dto.leadIds) {
@@ -1664,20 +1689,7 @@ export class LeadsService {
     }
 
     // Default status and source
-    let defaultStatus = await this.prisma.leadStatus.findFirst({
-      where: { organizationId },
-      orderBy: { order: 'asc' },
-    });
-    if (!defaultStatus) {
-      defaultStatus = await this.prisma.leadStatus.create({
-        data: {
-          organizationId,
-          name: 'New',
-          color: '#6366f1',
-          order: 0,
-        },
-      });
-    }
+    const defaultStatus = await this.resolveNewStatus(organizationId);
 
     const targetSourceName = (dto.sourceName || '').trim() || 'Spreadsheet Ingestion';
     let defaultSource = await this.prisma.leadSource.findFirst({
@@ -1903,7 +1915,7 @@ export class LeadsService {
             await this.prisma.lead.update({
               where: { id: lead.id },
               data: {
-                ...(targetUserId ? { ownerId: targetUserId } : isUnassigning ? { ownerId: null } : {}),
+                ...(targetUserId ? { ownerId: targetUserId, statusId: defaultStatus.id } : isUnassigning ? { ownerId: null } : {}),
                 ...(defaultSource?.id ? { sourceId: defaultSource.id } : {}),
                 customFields: {
                   ...existingCustom,
@@ -1922,7 +1934,7 @@ export class LeadsService {
               await this.prisma.lead.updateMany({
                 where: { id: lead.id },
                 data: {
-                  ...(targetUserId ? { ownerId: targetUserId } : isUnassigning ? { ownerId: null } : {}),
+                  ...(targetUserId ? { ownerId: targetUserId, statusId: defaultStatus.id } : isUnassigning ? { ownerId: null } : {}),
                   ...(defaultSource?.id ? { sourceId: defaultSource.id } : {}),
                   lastActivityAt: new Date(),
                 },
@@ -1961,7 +1973,7 @@ export class LeadsService {
               await this.prisma.lead.update({
                 where: { id: lead.id },
                 data: {
-                  ...(ruleTargetId ? { ownerId: ruleTargetId } : {}),
+                  ...(ruleTargetId ? { ownerId: ruleTargetId, statusId: defaultStatus.id } : {}),
                   ...(defaultSource?.id ? { sourceId: defaultSource.id } : {}),
                   customFields: {
                     ...existingCustom,

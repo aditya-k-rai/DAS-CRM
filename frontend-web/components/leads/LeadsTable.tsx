@@ -864,6 +864,18 @@ export function LeadsTable() {
   }, [hasMore, isLoading, isLoadingMore, page, totalServerCount, fetchLeadsPage]);
 
   const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
+    const targetLead = leadsList.find(item => item.id === leadId);
+    const isUnassigned = !targetLead?.ownerId ||
+      !targetLead?.owner ||
+      targetLead?.owner === 'Unassigned' ||
+      targetLead?.owner === '—' ||
+      targetLead?.owner === '-';
+
+    if (isUnassigned) {
+      showTableToast('🔒 Lead is unassigned. It must remain in New status until it is assigned to a user.');
+      return;
+    }
+
     if (!isBrowserOnline()) {
       showTableToast('⚡ Internet Required: Cannot update lead status while offline. Connect to internet.');
       return;
@@ -976,12 +988,19 @@ export function LeadsTable() {
         console.warn('Backend allocation warning:', e);
       }
 
+      const isUnassigning = cleanTargetName.toLowerCase().includes('unassigned') || cleanTargetName === '—';
+
       setLeadsList(prev => {
         const updated = prev.map(item => item.id === leadId ? {
           ...item,
           owner: cleanNewOwner,
+          ownerId: isUnassigning ? undefined : (targetUserId || item.ownerId),
           currentAssignee: cleanNewOwner,
           allocationTrail: updatedTrail,
+          ...(!isUnassigning ? {
+            status: 'New',
+            statusColor: statusColorMap['New'] || statusColorMap['new'] || '#3b82f6',
+          } : {}),
         } : item);
 
         if (typeof window !== 'undefined') {
@@ -998,17 +1017,30 @@ export function LeadsTable() {
           } catch (_) {}
 
           // Dispatch global real-time event & broadcast to all open dashboard tabs
-          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, assignee: cleanNewOwner, assigneeId: targetUserId } }));
+          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', {
+            detail: {
+              leadId,
+              assignee: cleanNewOwner,
+              assigneeId: targetUserId,
+              status: !isUnassigning ? 'New' : undefined,
+            },
+          }));
           try {
             const bc = new BroadcastChannel('das_crm_lead_sync');
-            bc.postMessage({ type: 'LEAD_ALLOCATED', leadId, assignee: cleanNewOwner, assigneeId: targetUserId });
+            bc.postMessage({
+              type: 'LEAD_ALLOCATED',
+              leadId,
+              assignee: cleanNewOwner,
+              assigneeId: targetUserId,
+              status: !isUnassigning ? 'New' : undefined,
+            });
             bc.close();
           } catch (_) {}
         }
         return updated;
       });
 
-      showTableToast(`✓ Verified with Server: Lead allocated to ${cleanNewOwner}! Recorded in history.`);
+      showTableToast(`✓ Verified with Server: Lead allocated to ${cleanNewOwner}! Status reset to "New".`);
     } catch (err: any) {
       showTableToast(`⚠️ Allocation failed: ${err.message || 'Network error'}`);
     }
@@ -2143,20 +2175,46 @@ export function LeadsTable() {
                     )}
 
                     {colKey === 'status' && (() => {
+                      const isUnassigned = !lead.ownerId ||
+                        !lead.owner ||
+                        lead.owner === 'Unassigned' ||
+                        lead.owner === '—' ||
+                        lead.owner === '-';
                       const color = statusColorMap[lead.status] || lead.statusColor || '#6366f1';
+
+                      if (isUnassigned) {
+                        return (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm bg-amber-500/10 text-amber-400 border-amber-500/30 cursor-not-allowed"
+                            title="🔒 Status Locked: Unassigned lead must remain in New status until assigned to a user."
+                          >
+                            <Lock size={11} className="text-amber-400 flex-shrink-0" />
+                            <span className="truncate">New</span>
+                          </span>
+                        );
+                      }
+
                       return (
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm"
-                          style={{
-                            color: color,
-                            backgroundColor: `${color}18`,
-                            borderColor: `${color}40`,
-                          }}
-                          title={`Lead Status: ${lead.status}`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                          <span className="truncate">{lead.status}</span>
-                        </span>
+                        <div className="relative group/status inline-block" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={lead.status || 'New'}
+                            onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm cursor-pointer appearance-none pr-5 transition-colors focus:outline-none"
+                            style={{
+                              color: color,
+                              backgroundColor: `${color}18`,
+                              borderColor: `${color}40`,
+                            }}
+                            title={`Change Status for ${lead.name || 'Lead'}`}
+                          >
+                            {statusTabs.filter(s => s !== 'All').map(st => (
+                              <option key={st} value={st} className="bg-slate-900 text-white font-medium">
+                                {st}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown size={10} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 opacity-60" style={{ color }} />
+                        </div>
                       );
                     })()}
 
