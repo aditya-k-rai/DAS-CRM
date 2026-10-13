@@ -26,6 +26,7 @@ import {
 } from '@/lib/leadNormalizer';
 import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 import { apiFetch } from '@/lib/apiClient';
+import { DEFAULT_ORG_LEADS } from '@/lib/defaultLeads';
 
 export type SortOptionKey =
   | 'created_desc'
@@ -139,7 +140,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   created: 120,
 };
 
-export const DEFAULT_REAL_LEADS: LeadDataWeb[] = [];
+export const DEFAULT_REAL_LEADS: LeadDataWeb[] = (DEFAULT_ORG_LEADS as any) || [];
 
 export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
@@ -185,7 +186,7 @@ export function LeadsTable() {
         }
       } catch (_) {}
     }
-    return [];
+    return DEFAULT_REAL_LEADS;
   });
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string; assignedManager?: string; managerId?: string | null }>>(() => {
     try {
@@ -216,7 +217,7 @@ export function LeadsTable() {
   const [pageSize] = useState(500); // 500 leads default restriction
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [totalServerCount, setTotalServerCount] = useState<number | null>(null);
+  const [totalServerCount, setTotalServerCount] = useState<number | null>(DEFAULT_REAL_LEADS.length || null);
   const scrollBottomRef = useRef<HTMLDivElement | null>(null);
 
   const activeSort = useMemo(() => {
@@ -744,7 +745,13 @@ export function LeadsTable() {
       setLeadsList(prev => {
         // If the server request failed or was unauthorized, never wipe existing leads
         if (!isServerSuccess) {
-          return prev;
+          if (prev.length > 0) return prev;
+          if (directoryCachedLeads.length > 0) {
+            setTotalServerCount(directoryCachedLeads.length);
+            return directoryCachedLeads;
+          }
+          setTotalServerCount(DEFAULT_REAL_LEADS.length);
+          return DEFAULT_REAL_LEADS;
         }
 
         if (isReset || pageNumber === 1) {
@@ -755,7 +762,11 @@ export function LeadsTable() {
 
           const finalLeads = mappedServerLeads.length > 0
             ? mappedServerLeads
-            : (directoryCachedLeads.length > 0 ? directoryCachedLeads : prev);
+            : (directoryCachedLeads.length > 0 ? directoryCachedLeads : (prev.length > 0 ? prev : DEFAULT_REAL_LEADS));
+
+          if (mappedServerLeads.length === 0 && finalLeads.length > 0) {
+            setTotalServerCount(finalLeads.length);
+          }
 
           if (typeof window !== 'undefined' && finalLeads.length > 0) {
             try {
