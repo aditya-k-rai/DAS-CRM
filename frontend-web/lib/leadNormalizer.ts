@@ -246,7 +246,7 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
     };
   }
 
-  const rawName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.customFields?.clientName || 'Lead Prospect';
+  let rawName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.customFields?.clientName || 'Lead Prospect';
   const rawStatus = safeStatus(l.status || l.stage);
   let rawOwner = safeOwnerName(
     l.owner ||
@@ -309,11 +309,36 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
     createdStr = safeString(l.created, 'Today');
   }
 
-  const rawPhone = l.phone || l.phoneNumber || l.mobile || l.contact || l.contactNumber ||
+  let rawPhone = l.phone || l.phoneNumber || l.mobile || l.contact || l.contactNumber ||
     l.customFields?.phone || l.customFields?.phoneNumber || l.customFields?.mobile ||
     l.customFields?.col_phone || l.customFields?.col_mobile || l.customFields?.whatsapp ||
     l.customFields?.['Phone Number'] || l.customFields?.['Mobile'] ||
     (String(rawName).toLowerCase().includes('rahul kapoor') ? '+91 98000 10008' : '');
+
+  // Safeguard: Detect when rawName or firstName contains a phone number and rawPhone is empty
+  const isCleanPhone = (val: string) => {
+    const s = String(val || '').replace(/[\s-]/g, '');
+    return /^(0-|\+?91|0)?[6-9]\d{9}$/.test(s) || /^\d{10,12}$/.test(s);
+  };
+
+  const formatPhone = (val: string) => {
+    const digits = String(val || '').replace(/[^0-9]/g, '');
+    if (digits.length >= 10) {
+      const last10 = digits.slice(-10);
+      return `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
+    }
+    return val;
+  };
+
+  if ((!rawPhone || rawPhone === '—' || rawPhone === '-') && (isCleanPhone(rawName) || (l.firstName && isCleanPhone(l.firstName)))) {
+    const phoneSource = isCleanPhone(rawName) ? rawName : l.firstName;
+    rawPhone = formatPhone(phoneSource);
+    if (isCleanPhone(rawName)) {
+      const city = rawCity && rawCity !== '—' ? ` (${rawCity})` : '';
+      const plat = rawSource && rawSource !== 'Google Ads' ? rawSource : 'IndiaMART';
+      rawName = `${plat} Buyer${city}`;
+    }
+  }
 
   const rawEmail = l.email || l.emailAddress ||
     l.customFields?.email || l.customFields?.col_email ||

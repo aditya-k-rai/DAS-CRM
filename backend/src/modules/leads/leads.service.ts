@@ -118,12 +118,22 @@ export class LeadsService {
     if (ownerId) whereConditions.push({ ownerId });
     if (sourceId) whereConditions.push({ sourceId });
     if (search) {
+      const searchClean = search.trim();
+      const digitsOnly = searchClean.replace(/[^0-9]/g, '');
+      const phoneOrs: any[] = [{ phone: { contains: searchClean, mode: 'insensitive' } }];
+      if (digitsOnly.length >= 5) {
+        if (digitsOnly.length === 10) {
+          const spaced = `${digitsOnly.slice(0, 5)} ${digitsOnly.slice(5)}`;
+          phoneOrs.push({ phone: { contains: spaced, mode: 'insensitive' } });
+        }
+        phoneOrs.push({ phone: { contains: digitsOnly, mode: 'insensitive' } });
+      }
       whereConditions.push({
         OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search, mode: 'insensitive' } },
+          { firstName: { contains: searchClean, mode: 'insensitive' } },
+          { lastName: { contains: searchClean, mode: 'insensitive' } },
+          { email: { contains: searchClean, mode: 'insensitive' } },
+          ...phoneOrs,
         ],
       });
     }
@@ -1793,9 +1803,24 @@ export class LeadsService {
 
         const rawName = (item.name || item.fullName || item.firstName || item.clientName || 'Lead').trim();
         const parts = rawName.split(/\s+/);
-        const firstName = item.firstName || parts[0] || 'Lead';
-        const lastName = item.lastName || (parts.length > 1 ? parts.slice(1).join(' ') : null);
-        const phone = item.phone ? String(item.phone).trim() : null;
+        let firstName = item.firstName || parts[0] || 'Lead';
+        let lastName = item.lastName || (parts.length > 1 ? parts.slice(1).join(' ') : null);
+        let phone = item.phone ? String(item.phone).trim() : null;
+        if (phone === '—' || phone === '-' || phone === 'null' || phone === 'undefined') phone = null;
+
+        // Auto-heal if phone is empty but rawName or firstName looks like a mobile number
+        const cleanNameDigits = rawName.replace(/[\s-]/g, '');
+        const isNamePhone = /^(0-|\+?91|0)?[6-9]\d{9}$/.test(cleanNameDigits) || /^\d{10,12}$/.test(cleanNameDigits);
+        if (!phone && isNamePhone) {
+          const digits = rawName.replace(/[^0-9]/g, '');
+          const last10 = digits.slice(-10);
+          phone = `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
+          const sourcePlat = dto.sourceName || item.customFields?.platform || 'IndiaMART';
+          const city = item.customFields?.col_city || item.customFields?.city || item.city || '';
+          firstName = `${sourcePlat} Buyer`;
+          lastName = city ? `(${city})` : (rowNum ? `(#${rowNum})` : null);
+        }
+
         const email = item.email ? String(item.email).trim() : null;
         const notes = item.notes || item.requirement || item.comments || null;
         const companyName = item.company || item.organization || item.org || null;

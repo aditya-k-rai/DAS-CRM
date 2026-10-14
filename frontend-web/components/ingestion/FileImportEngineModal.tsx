@@ -906,9 +906,19 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   // Helper to infer column field role based on header string
   const inferFieldRole = (headerStr: string): string => {
     const h = (headerStr || '').toLowerCase();
-    if (h.includes('name') || h.includes('client') || h.includes('contact')) return 'name';
+    // Prioritize phone / mobile / contact number over general contact
+    if (
+      h.includes('phone') ||
+      h.includes('mobile') ||
+      h.includes('tel') ||
+      h.includes('whatsapp') ||
+      h.includes('contact no') ||
+      h.includes('contact number') ||
+      h.includes('cell') ||
+      h === 'contact'
+    ) return 'phone';
     if (h.includes('email') || h.includes('mail')) return 'email';
-    if (h.includes('phone') || h.includes('mobile') || h.includes('tel')) return 'phone';
+    if (h.includes('name') || h.includes('client') || h.includes('buyer') || h.includes('contact person') || h.includes('contact')) return 'name';
     if (h.includes('company') || h.includes('org') || h.includes('business')) return 'company';
     if (h.includes('value') || h.includes('budget') || h.includes('coin') || h.includes('amount') || h.includes('price')) return 'value';
     if (h.includes('city') || h.includes('location')) return 'city';
@@ -933,11 +943,16 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
   const sanitizePhoneValue = (valStr: string): string => {
     if (!valStr) return '';
-    let clean = valStr.replace(/[^0-9+]/g, '');
-    if (!clean.startsWith('+') && clean.length === 10) {
-      clean = '+91 ' + clean;
+    let digits = valStr.replace(/[^0-9]/g, '');
+    if (digits.length === 11 && digits.startsWith('0')) {
+      digits = digits.slice(1);
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+      digits = digits.slice(2);
     }
-    return clean || valStr;
+    if (digits.length === 10) {
+      return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+    }
+    return valStr.trim();
   };
 
   // Active Sheet Helper Controls
@@ -1165,6 +1180,17 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             if (!firstCustomCell) firstCustomCell = trimmed;
           }
         });
+
+        // Auto-heal if phone is empty but name contains a phone number
+        if ((!leadObj.phone || leadObj.phone === '—') && leadObj.name) {
+          const clean = leadObj.name.replace(/[\s-]/g, '');
+          const isPhoneCand = /^(0-|\+?91|0)?[6-9]\d{9}$/.test(clean) || /^\d{10,12}$/.test(clean);
+          if (isPhoneCand) {
+            leadObj.phone = sanitizePhoneValue(leadObj.name);
+            const city = leadObj.customFields['col_city'] ? ` (${leadObj.customFields['col_city']})` : '';
+            leadObj.name = `${selectedPlatform || 'Spreadsheet'} Buyer${city}`;
+          }
+        }
 
         // Fallback for name if missing
         if (!leadObj.name) {
