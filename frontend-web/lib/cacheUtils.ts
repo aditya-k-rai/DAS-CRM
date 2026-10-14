@@ -48,19 +48,35 @@ export const invalidateCache = (key: string): void => {
 export const clearAllDashboardCaches = (): void => {
   if (typeof window === 'undefined') return;
   Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith('das_crm_cache_')) {
+    if (
+      key.startsWith('das_crm_cache_') ||
+      key === 'das_crm_all_leads_cache' ||
+      key === 'das_crm_lead_directory_cache' ||
+      key === 'das_crm_web_audit_logs'
+    ) {
       localStorage.removeItem(key);
+    }
+  });
+  Object.keys(sessionStorage).forEach((key) => {
+    if (key.startsWith('das_crm_lead_')) {
+      sessionStorage.removeItem(key);
     }
   });
 };
 
 /**
- * Explicitly clears all lead directory caches — only call on logout or explicit tenant switch.
+ * Explicitly clears all lead directory caches and audit logs.
  */
 export const clearLeadDirectoryCaches = (): void => {
   if (typeof window === 'undefined') return;
   localStorage.removeItem('das_crm_all_leads_cache');
   localStorage.removeItem('das_crm_lead_directory_cache');
+  localStorage.removeItem('das_crm_web_audit_logs');
+  Object.keys(sessionStorage).forEach((key) => {
+    if (key.startsWith('das_crm_lead_')) {
+      sessionStorage.removeItem(key);
+    }
+  });
 };
 
 /**

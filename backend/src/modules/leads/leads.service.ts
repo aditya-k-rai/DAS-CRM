@@ -2150,26 +2150,7 @@ export class LeadsService {
     }
 
     if (imports.length === 0) {
-      const now = new Date();
-      return [
-        {
-          id: 'aud_seed_1',
-          fileName: 'Test_Data_2026-10-02_04-21-57.xlsx',
-          injectedAt: now.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          leadsCount: 12,
-          rowsCount: 12,
-          colsCount: 6,
-          platform: 'Spreadsheet Ingestion',
-          status: 'ALLOCATED' as const,
-          allocationSummary: 'Allocated across team reps',
-          allocationMode: 'BATCHWISE',
-          batchRules: [],
-          directAssign: null,
-          createdAt: now,
-          allocatedAt: now.toISOString(),
-          allocatedTimestamp: now.getTime(),
-        },
-      ];
+      return [];
     }
 
     return imports.map((imp) => {
@@ -2310,13 +2291,6 @@ export class LeadsService {
       } catch (_) {}
     }
 
-    if (fileUploadHistory.length === 0) {
-      fileUploadHistory = [
-        { id: 'file_hist_1', fileName: 'Test_Data_2026-10-01_04-41-22.xlsx', fileSize: '6.0 KB', uploadedAt: 'Oct 1, 2026, 04:41 AM', leadsCount: 12, rowsCount: 12, colsCount: 5, sourcePlatform: 'Google Ads', uploadedBy: 'Anurag Sharma (ADMIN)', status: 'SUCCESS' },
-        { id: 'file_hist_2', fileName: 'Mumbai_Campaign_Contacts.csv', fileSize: '480 KB', uploadedAt: '2026-09-30 11:15 AM', leadsCount: 18, rowsCount: 18, colsCount: 6, sourcePlatform: 'Meta Ads', uploadedBy: 'Aditya Rai (Admin)', status: 'SUCCESS' },
-      ];
-    }
-
     const todayCount = fileUploadHistory.reduce((acc, f) => {
       const isToday = new Date(f.uploadedAt).toDateString() === new Date().toDateString();
       return isToday ? acc + (f.leadsCount || 0) : acc;
@@ -2324,14 +2298,10 @@ export class LeadsService {
 
     return {
       datewiseAnalytics: [
-        { date: '2026-10-01 (Today)', totalLeads: Math.max(12, todayCount), googleSheets: 0, fileUploads: Math.max(12, todayCount), facebookAds: 0, googleAds: Math.max(12, todayCount), whatsAppDirect: 0 },
-        { date: '2026-09-30 (Yesterday)', totalLeads: 48, googleSheets: 13, fileUploads: 35, facebookAds: 20, googleAds: 15, whatsAppDirect: 0 },
-        { date: '2026-09-29', totalLeads: 32, googleSheets: 18, fileUploads: 14, facebookAds: 12, googleAds: 10, whatsAppDirect: 10 },
+        { date: 'Today', totalLeads: todayCount, googleSheets: 0, fileUploads: todayCount, facebookAds: 0, googleAds: 0, whatsAppDirect: 0 },
       ],
       fileUploadHistory,
-      googleSheetsHistory: [
-        { id: 'gsheet_hist_1', spreadsheetTitle: 'Live_Inbound_Marketing_Campaign_2026.gsheet', spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit', sheetTab: 'Inbound_Leads_Master', rangeMapped: 'A2:H500', connectedAt: '2026-09-30 10:00 AM', lastSyncAt: 'Just now', totalSyncsCount: 142, totalLeadsIngested: 1420, status: 'ACTIVE_SYNC' },
-      ],
+      googleSheetsHistory: [],
     };
   }
 

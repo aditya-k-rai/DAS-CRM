@@ -152,7 +152,7 @@ export const isUnassignedLead = (l?: { owner?: string | null; ownerId?: string |
   return true;
 };
 
-export const DEFAULT_REAL_LEADS: LeadDataWeb[] = (DEFAULT_ORG_LEADS as any) || [];
+export const DEFAULT_REAL_LEADS: LeadDataWeb[] = [];
 
 export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
@@ -201,7 +201,7 @@ export function LeadsTable() {
         }
       } catch (_) {}
     }
-    return DEFAULT_REAL_LEADS;
+    return [];
   });
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string; assignedManager?: string; managerId?: string | null }>>(() => {
     try {
@@ -232,7 +232,7 @@ export function LeadsTable() {
   const [pageSize] = useState(500); // 500 leads default restriction
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [totalServerCount, setTotalServerCount] = useState<number | null>(DEFAULT_REAL_LEADS.length || null);
+  const [totalServerCount, setTotalServerCount] = useState<number | null>(0);
   const scrollBottomRef = useRef<HTMLDivElement | null>(null);
 
   const activeSort = useMemo(() => {
@@ -765,23 +765,24 @@ export function LeadsTable() {
             setTotalServerCount(directoryCachedLeads.length);
             return directoryCachedLeads;
           }
-          setTotalServerCount(DEFAULT_REAL_LEADS.length);
-          return DEFAULT_REAL_LEADS;
+          setTotalServerCount(0);
+          return [];
         }
 
         if (isReset || pageNumber === 1) {
-          // If server returned 0 leads but we already have leads in state or cache, preserve them instead of flashing to empty
-          if (mappedServerLeads.length === 0 && prev.length > 0) {
-            return prev;
+          if (mappedServerLeads.length === 0) {
+            setTotalServerCount(0);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.removeItem('das_crm_all_leads_cache');
+                localStorage.removeItem('das_crm_lead_directory_cache');
+              } catch (_) {}
+            }
+            return [];
           }
 
-          const finalLeads = mappedServerLeads.length > 0
-            ? mappedServerLeads
-            : (directoryCachedLeads.length > 0 ? directoryCachedLeads : (prev.length > 0 ? prev : DEFAULT_REAL_LEADS));
-
-          if (mappedServerLeads.length === 0 && finalLeads.length > 0) {
-            setTotalServerCount(finalLeads.length);
-          }
+          const finalLeads = mappedServerLeads;
+          setTotalServerCount(mappedServerLeads.length);
 
           if (typeof window !== 'undefined' && finalLeads.length > 0) {
             try {

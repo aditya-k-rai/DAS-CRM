@@ -282,26 +282,15 @@ export default function LeadPipelinePage() {
         if (!logMap.has(key)) logMap.set(key, l);
       });
 
-      let combinedLogs = Array.from(logMap.values());
-      if (combinedLogs.length === 0) {
-        const defaultLog = {
-          id: 'aud_seed_1',
-          fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
-          injectedAt: 'Oct 2, 2026, 05:03 AM',
-          leadsCount: 12,
-          rowsCount: 12,
-          colsCount: 5,
-          platform: 'Google Ads',
-          status: 'ALLOCATED' as const,
-          allocationSummary: 'Sachin Puri (Team Leader) [Rows 1-3], Nandini Rastogi (Sales Exec) [Rows 4-6], Sulekha Tomar (Sales Exec) [Rows 7-9], Sadhana (Sales Exec) [Rows 10-12]',
-        };
-        combinedLogs = [defaultLog];
-      }
-
+      const combinedLogs = Array.from(logMap.values());
       setWebAuditLogs(combinedLogs);
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem('das_crm_web_audit_logs', JSON.stringify(combinedLogs));
+          if (combinedLogs.length > 0) {
+            localStorage.setItem('das_crm_web_audit_logs', JSON.stringify(combinedLogs));
+          } else {
+            localStorage.removeItem('das_crm_web_audit_logs');
+          }
         } catch (_) {}
       }
 
@@ -388,8 +377,14 @@ export default function LeadPipelinePage() {
             localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(serverLeads));
           } catch (_) {}
         }
-      } else if (existingCached.length > 0) {
-        setLeadDirectory(existingCached);
+      } else {
+        setLeadDirectory([]);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('das_crm_lead_directory_cache');
+            localStorage.removeItem('das_crm_all_leads_cache');
+          } catch (_) {}
+        }
       }
     } catch (err) {
       console.warn('Error fetching audit logs and leads:', err);
