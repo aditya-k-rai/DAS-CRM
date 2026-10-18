@@ -2184,41 +2184,28 @@ export function LeadsTable() {
 
                     {colKey === 'status' && (() => {
                       const isUnassigned = isUnassignedLead(lead);
-                      const color = statusColorMap[lead.status] || lead.statusColor || '#6366f1';
-
-                      if (isUnassigned) {
-                        return (
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm bg-amber-500/10 text-amber-400 border-amber-500/30 cursor-not-allowed"
-                            title="🔒 Status Locked: Unassigned lead must remain in New status until assigned to a user."
-                          >
-                            <Lock size={11} className="text-amber-400 flex-shrink-0" />
-                            <span className="truncate">New</span>
-                          </span>
-                        );
-                      }
+                      const color = isUnassigned ? '#f59e0b' : (statusColorMap[lead.status] || lead.statusColor || '#6366f1');
+                      const displayStatus = isUnassigned ? 'New' : (lead.status || 'New');
 
                       return (
-                        <div className="relative group/status inline-block" onClick={(e) => e.stopPropagation()}>
-                          <select
-                            value={lead.status || 'New'}
-                            onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm cursor-pointer appearance-none pr-5 transition-colors focus:outline-none"
-                            style={{
-                              color: color,
-                              backgroundColor: `${color}18`,
-                              borderColor: `${color}40`,
-                            }}
-                            title={`Change Status for ${lead.name || 'Lead'}`}
-                          >
-                            {statusTabs.filter(s => s !== 'All').map(st => (
-                              <option key={st} value={st} className="bg-slate-900 text-white font-medium">
-                                {st}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown size={10} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 opacity-60" style={{ color }} />
-                        </div>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm cursor-default ${
+                            isUnassigned ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : ''
+                          }`}
+                          style={!isUnassigned ? {
+                            color: color,
+                            backgroundColor: `${color}18`,
+                            borderColor: `${color}40`,
+                          } : undefined}
+                          title={
+                            isUnassigned
+                              ? '🔒 Status Locked: Unassigned lead must remain in New status until assigned to a user.'
+                              : `🔒 Status Locked: ${displayStatus}. Lead status cannot be changed directly from the table grid. Update via Lead Workspace / Activities.`
+                          }
+                        >
+                          <Lock size={10} className="flex-shrink-0 opacity-80" style={{ color }} />
+                          <span className="truncate">{displayStatus}</span>
+                        </span>
                       );
                     })()}
 
