@@ -116,9 +116,10 @@ export default function LeadsScreen() {
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const { token, currentUser } = useAuthStore();
-  const roleName = (currentUser?.role || '').toString().toUpperCase();
-  const canBulkImport = !roleName.includes('SALES') && !roleName.includes('EXEC') && !roleName.includes('LEADER') && !roleName.includes('TL');
-  const isSalesRepRole = roleName.includes('SALES') || roleName.includes('REP') || (roleName.includes('EXEC') && !roleName.includes('ADMIN'));
+  const roleName = (currentUser?.role || '').toString().toUpperCase().trim();
+  const isSupervisorRole = roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'OWNER' || roleName.includes('ADMIN') || roleName.includes('MANAGER') || roleName.includes('MGR') || roleName.includes('LEADER') || roleName.includes('TL');
+  const isSalesRepRole = !isSupervisorRole;
+  const canBulkImport = isSupervisorRole;
 
   const [auditLogs, setAuditLogs] = useState<IngestionAuditRecord[]>(INITIAL_INGESTION_AUDITS);
   const [auditFilter, setAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
@@ -598,10 +599,16 @@ export default function LeadsScreen() {
 
   const handleSaveCallOutcome = (outcome: CallOutcomeData) => {
     setPostCallModalOpen(false);
+    if (outcome.targetStage && callingLeadData?.id) {
+      const newStatus = outcome.targetStage.toUpperCase();
+      setLeadsList((prev) =>
+        prev.map((l) => (l.id === callingLeadData.id ? { ...l, status: newStatus } : l))
+      );
+      apiService.updateLeadStatus(token, callingLeadData.id, newStatus);
+    }
     Alert.alert(
       'Outcome Logged',
-      `Call result "${outcome.outcome}" saved for ${callingLeadData?.name || 'Lead'}.\n${outcome.scheduledTime ? `Callback scheduled for ${outcome.scheduledTime}` : ''
-      }`
+      `Call result "${outcome.outcome.replace('_', ' ')}" (${outcome.targetStage || 'Updated'}) saved for ${callingLeadData?.name || 'Lead'}.${outcome.scheduledDate ? `\nFollow-up: ${outcome.scheduledDate} ${outcome.scheduledTime || ''}` : ''}`
     );
   };
 
@@ -614,8 +621,8 @@ export default function LeadsScreen() {
   const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const userName = currentUser?.name || '';
 
-  const activeFiltersCount = (filterPerson !== 'ALL' ? 1 : 0) +
-    (filterRole !== 'ALL' ? 1 : 0) +
+  const activeFiltersCount =
+    (!isSalesRepRole ? (filterPerson !== 'ALL' ? 1 : 0) + (filterRole !== 'ALL' ? 1 : 0) : 0) +
     (filterDate !== 'ALL' ? 1 : 0) +
     (filterStatus !== 'ALL' ? 1 : 0);
 
@@ -2072,50 +2079,53 @@ export default function LeadsScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ marginVertical: 8 }}>
-              {/* 1. PERSON-WISE FILTER */}
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8', marginTop: 8, marginBottom: 6, textTransform: 'uppercase' }}>
-                👤 1. Assigned Person (Employee)
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {[
-                  { id: 'ALL', label: 'All Persons' },
-                  ...availablePersons.map((p) => ({ id: p, label: p })),
-                  { id: 'UNASSIGNED', label: '⚠️ Unassigned Leads' },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterPerson === item.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
-                    onPress={() => setFilterPerson(item.id)}
-                  >
-                    <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterPerson === item.id && { color: '#ffffff', fontWeight: '900' }]}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* 1. PERSON-WISE & 2. ROLE-WISE FILTERS — Strictly for Supervisors (Admin/Manager/TL), completely hidden for Sales */}
+              {!isSalesRepRole && (
+                <>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8', marginTop: 8, marginBottom: 6, textTransform: 'uppercase' }}>
+                    👤 1. Assigned Person (Employee)
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      { id: 'ALL', label: 'All Persons' },
+                      ...availablePersons.map((p) => ({ id: p, label: p })),
+                      { id: 'UNASSIGNED', label: '⚠️ Unassigned Leads' },
+                    ].map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterPerson === item.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                        onPress={() => setFilterPerson(item.id)}
+                      >
+                        <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterPerson === item.id && { color: '#ffffff', fontWeight: '900' }]}>
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
 
-              {/* 2. ROLE-WISE FILTER */}
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399', marginTop: 14, marginBottom: 6, textTransform: 'uppercase' }}>
-                🏢 2. Employee Role
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {[
-                  { id: 'ALL', label: 'All Roles' },
-                  { id: 'TL', label: 'Team Leader (TL)' },
-                  { id: 'SALES_EXEC', label: 'Sales Representative / Exec' },
-                  { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
-                ].map(item => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterRole === item.id && { backgroundColor: '#10b981', borderColor: '#34d399' }]}
-                    onPress={() => setFilterRole(item.id)}
-                  >
-                    <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterRole === item.id && { color: '#ffffff', fontWeight: '900' }]}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399', marginTop: 14, marginBottom: 6, textTransform: 'uppercase' }}>
+                    🏢 2. Employee Role
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      { id: 'ALL', label: 'All Roles' },
+                      { id: 'TL', label: 'Team Leader (TL)' },
+                      { id: 'SALES_EXEC', label: 'Sales Representative / Exec' },
+                      { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
+                    ].map(item => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterRole === item.id && { backgroundColor: '#10b981', borderColor: '#34d399' }]}
+                        onPress={() => setFilterRole(item.id)}
+                      >
+                        <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterRole === item.id && { color: '#ffffff', fontWeight: '900' }]}>
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
 
               {/* 3. DATE RANGE FILTER */}
               <Text style={{ fontSize: 11, fontWeight: '900', color: '#fbbf24', marginTop: 14, marginBottom: 6, textTransform: 'uppercase' }}>

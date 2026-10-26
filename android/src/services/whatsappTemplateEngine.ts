@@ -116,6 +116,7 @@ export interface ProductItem {
   features: string[];
   imageUrl: string;
   priceTiers: PriceTier[];
+  sku?: string;
 }
 
 export interface InvoiceItem {

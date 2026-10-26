@@ -79,10 +79,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   let lead = propLead;
+  let origin: string | undefined;
   try {
     const route = useRoute<LeadDetailRouteProp>();
     if (route?.params) {
-      const { leadId, leadName } = route.params;
+      const { leadId, leadName, origin: navOrigin } = route.params;
+      origin = navOrigin;
       if (leadId && !lead) {
         lead = { id: leadId, name: leadName || 'Lead Detail', phone: '' };
       }
@@ -528,6 +530,20 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const handleBack = () => {
     if (onBack) {
       onBack();
+    } else if (origin) {
+      try {
+        (navigation as any)?.navigate(origin);
+      } catch {
+        if (navigation?.canGoBack && navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          try {
+            (navigation as any)?.navigate('LeadsList');
+          } catch {
+            (navigation as any)?.navigate('Leads');
+          }
+        }
+      }
     } else if (navigation?.canGoBack && navigation.canGoBack()) {
       navigation.goBack();
     } else {
@@ -548,7 +564,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [onBack, navigation]);
+  }, [onBack, navigation, origin]);
 
   // 📞 CALL NOW HANDLER
   const handleCall = () => {
@@ -635,7 +651,26 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     let nextStatus = leadStatusState;
     let updateReason = '';
 
-    if (data.scheduledDate) {
+    if (data.targetStage) {
+      if (data.targetStage === 'Lost') {
+        nextStatus = 'LOST';
+        updateReason = 'Lead marked as Lost (Wrong Number / Unqualified)';
+      } else if (data.targetStage === 'Meeting Scheduled') {
+        nextStatus = 'MEETING SCHEDULED';
+        updateReason = `Follow-up / Meeting scheduled for ${data.scheduledDate || 'upcoming date'}`;
+      } else if (data.targetStage === 'Qualified') {
+        nextStatus = 'QUALIFIED';
+        updateReason = `Product discussed / Lead Qualified (${data.selectedProduct?.name || data.customProduct || 'Product portfolio'})`;
+      } else if (data.targetStage === 'Negotiation') {
+        nextStatus = 'IN NEGOTIATION';
+        updateReason = 'Commercial proposal / Quotation shared';
+      } else {
+        if (!leadStatusState || leadStatusState === 'NEW LEAD' || leadStatusState === 'NEW' || leadStatusState === 'Prospecting') {
+          nextStatus = 'CONTACTED';
+          updateReason = 'Direct contact established with client';
+        }
+      }
+    } else if (data.scheduledDate) {
       nextStatus = 'MEETING SCHEDULED';
       updateReason = `Follow-up / Meeting scheduled for ${data.scheduledDate}`;
     } else if (data.selectedProduct || data.subOption === 'CATALOGUE_SHARED' || data.subOption === 'INTERESTED') {
