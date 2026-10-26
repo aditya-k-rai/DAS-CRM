@@ -1,20 +1,66 @@
 [
   {
+    "id": "cmuy7bjbt000nc42dli8t78pl",
+    "name": "Old Jacket",
+    "sku": "DAS-441196",
+    "category": "Jacket",
+    "subCategory": "Puff Jacket",
+    "brand": "Generic / Unbranded",
+    "color": "Black",
+    "unit": "Pieces (Pcs)",
+    "description": "Old Jacket in DAS CRM Catalog.",
+    "price": 9999,
+    "minPrice": 9999,
+    "maxPrice": 9999,
+    "currency": "₹",
+    "stock": 100,
+    "minOrderQty": 1,
+    "taxRate": 18,
+    "imageUrl": "/products/puff-jackets.jpg",
+    "images": [
+      "/products/puff-jackets.jpg",
+      "/products/puff-jackets.webp"
+    ],
+    "features": [
+      "water proof"
+    ],
+    "volumeDiscounts": [
+      {
+        "tier": "1 - 9 Units",
+        "minQty": 1,
+        "discountPct": 0,
+        "finalPrice": 9999
+      },
+      {
+        "tier": "10+ Units",
+        "minQty": 10,
+        "discountPct": 15,
+        "finalPrice": 8499
+      }
+    ],
+    "sharedCount": 5,
+    "isActive": true,
+    "status": "ACTIVE",
+    "createdAt": "2026-10-07T14:27:05.753Z",
+    "updatedAt": "2026-10-26T00:11:17.178Z"
+  },
+  {
     "name": "Test Premium Leather Jacket",
     "sku": "DAS-390896",
     "category": "General",
     "subCategory": "Standard",
     "brand": "Generic / Unbranded",
-    "color": "",
+    "color": "Black",
     "unit": "Pieces (Pcs)",
     "price": 4999,
     "stock": 100,
     "taxRate": 18,
-    "description": "",
-    "features": [],
-    "imageUrl": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=",
+    "description": "Premium jacket with durable weather protection.",
+    "features": ["Water resistant", "Insulated"],
+    "imageUrl": "/products/puff-jackets.jpg",
     "images": [
-      "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4="
+      "/products/puff-jackets.jpg",
+      "/products/puff-jackets.webp"
     ],
     "volumeDiscounts": [
       {

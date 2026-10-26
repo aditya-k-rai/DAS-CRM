@@ -48,7 +48,14 @@ export interface SyncedActivityLog {
   user: string;
 }
 
-export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=';
+import {
+  DEFAULT_PRODUCT_FALLBACK_IMAGE,
+  getProductCoverImage,
+  handleProductImageError,
+  isPlaceholderOrFallback,
+} from '@/lib/productImageHelper';
+
+export { DEFAULT_PRODUCT_FALLBACK_IMAGE };
 
 export interface ProposalCatalogProduct {
   id: string;
@@ -1600,7 +1607,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     price: Number(p.price) || 0,
     stock: p.stock !== undefined ? Number(p.stock) : 100,
     sku: p.sku || '',
-    coverImage: p.coverImage || p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || DEFAULT_PRODUCT_FALLBACK_IMAGE,
+    coverImage: getProductCoverImage(p.coverImage || p.imageUrl || (Array.isArray(p.images) ? p.images[0] : ''), p.id, p.sku, p.category, p.name),
     images: Array.isArray(p.images) ? p.images : (p.coverImage || p.imageUrl ? [p.coverImage || p.imageUrl] : []),
     description: p.description || p.overview || '',
     unit: p.unit || 'Pieces (Pcs)',
@@ -4189,14 +4196,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                   >
                                     <div className="flex items-center gap-3 min-w-0 pr-2">
                                       <img
-                                        src={prod.coverImage || prod.imageUrl || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                                        src={getProductCoverImage(prod.coverImage || prod.imageUrl, prod.id, prod.sku, prod.category, prod.name)}
                                         alt={prod.name}
                                         className="w-11 h-11 aspect-square rounded-xl object-cover border border-slate-800 flex-shrink-0"
-                                        onError={(e) => {
-                                          const target = e.currentTarget;
-                                          target.onerror = null;
-                                          target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                                        }}
+                                        onError={(e) => handleProductImageError(e, prod)}
                                       />
                                       <div className="min-w-0">
                                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -4413,12 +4416,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                                         {productWaIncludeImage && (selectedProductObj.coverImage || selectedProductObj.imageUrl) && (
                                           <div className="relative flex items-center">
                                             <img
-                                              src={selectedProductObj.coverImage || selectedProductObj.imageUrl || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                                              src={getProductCoverImage(selectedProductObj.coverImage || selectedProductObj.imageUrl, selectedProductObj.id, selectedProductObj.sku, selectedProductObj.category, selectedProductObj.name)}
                                               alt={selectedProductObj.name}
                                               className="w-7 h-7 rounded-lg object-cover border border-emerald-500/40 shadow-sm"
-                                              onError={(e) => {
-                                                (e.currentTarget as HTMLImageElement).src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                                              }}
+                                              onError={(e) => handleProductImageError(e, selectedProductObj)}
                                             />
                                           </div>
                                         )}
@@ -5600,14 +5601,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
-                            src={prod.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                            src={getProductCoverImage(prod.coverImage, prod.id, prod.sku, prod.category, prod.name)}
                             alt={prod.name}
                             className="w-12 h-12 rounded-lg object-cover border border-slate-800 flex-shrink-0"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              target.onerror = null;
-                              target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                            }}
+                            onError={(e) => handleProductImageError(e, prod)}
                           />
                           <div className="min-w-0">
                             <h5 className="text-xs font-bold text-white truncate">{prod.name}</h5>
@@ -5680,14 +5677,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                             className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-900 border border-slate-800"
                           >
                             <img
-                              src={prod.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                              src={getProductCoverImage(prod.coverImage, prod.id, prod.sku, prod.category, prod.name)}
                               alt={prod.name}
                               className="w-10 h-10 rounded-lg object-cover border border-slate-700 flex-shrink-0"
-                              onError={(e) => {
-                                const target = e.currentTarget;
-                                target.onerror = null;
-                                target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                              }}
+                              onError={(e) => handleProductImageError(e, prod)}
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold text-white truncate">{prod.name}</p>
@@ -6315,14 +6308,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         >
                           <div className="flex items-start gap-3">
                             <img
-                              src={prod.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE}
+                              src={getProductCoverImage(prod.coverImage, prod.id, prod.sku, prod.category, prod.name)}
                               alt={prod.name}
                               className="w-14 h-14 rounded-xl object-cover border border-slate-800 flex-shrink-0"
-                              onError={(e) => {
-                                const target = e.currentTarget;
-                                target.onerror = null;
-                                target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                              }}
+                              onError={(e) => handleProductImageError(e, prod)}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">

@@ -28,6 +28,12 @@ import {
   Share2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import {
+  DEFAULT_PRODUCT_FALLBACK_IMAGE,
+  getProductCoverImage,
+  isPlaceholderOrFallback,
+  handleProductImageError,
+} from '@/lib/productImageHelper';
 
 interface ProductsCatalogProps {
   isAdmin?: boolean;
@@ -150,26 +156,12 @@ const STORAGE_CATEGORIES_KEY = 'das_crm_product_categories';
 const STORAGE_SUBCATEGORIES_KEY = 'das_crm_product_subcategories';
 export const STORAGE_BRANDS_KEY = 'das_crm_product_brands';
 
-export const DEFAULT_PRODUCT_FALLBACK_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY0NzQ4YiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=';
-
-export function getProductCoverImage(imgSrc?: string, id?: string, sku?: string): string {
-  if (imgSrc && typeof imgSrc === 'string' && imgSrc.trim()) {
-    return imgSrc.trim();
-  }
-  if (typeof window !== 'undefined' && (id || sku)) {
-    try {
-      const s = localStorage.getItem('das_crm_custom_product_images');
-      if (s) {
-        const customMap = JSON.parse(s);
-        const match = (id ? customMap[id] : null) || (sku ? customMap[sku] : null);
-        if (match && match.coverImage && typeof match.coverImage === 'string' && match.coverImage.trim()) {
-          return match.coverImage.trim();
-        }
-      }
-    } catch (_) {}
-  }
-  return DEFAULT_PRODUCT_FALLBACK_IMAGE;
-}
+export {
+  DEFAULT_PRODUCT_FALLBACK_IMAGE,
+  getProductCoverImage,
+  isPlaceholderOrFallback,
+  handleProductImageError,
+};
 
 /**
  * Processes uploaded product image: preserves original aspect ratio,
@@ -302,12 +294,19 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           if (Array.isArray(parsed) && parsed.length > 0) {
             const sanitized = parsed.map((p: any) => {
               const customEntry = customImagesMap[p.id] || (p.sku ? customImagesMap[p.sku] : undefined);
-              const customCover = customEntry?.coverImage || p.coverImage || p.imageUrl;
-              const fixedCover = getProductCoverImage(customCover);
+              let candidateCover = p.coverImage || p.imageUrl;
+              if (customEntry?.coverImage && !isPlaceholderOrFallback(customEntry.coverImage)) {
+                candidateCover = customEntry.coverImage;
+              }
+              const fixedCover = getProductCoverImage(candidateCover, p.id, p.sku, p.category, p.name);
               const customImages = customEntry?.images || p.images;
-              const fixedImages = Array.isArray(customImages) && customImages.length > 0
-                ? customImages.map((im: string) => getProductCoverImage(im))
+              let fixedImages = Array.isArray(customImages) && customImages.length > 0
+                ? customImages
+                    .filter((im: string) => !isPlaceholderOrFallback(im))
+                    .map((im: string) => getProductCoverImage(im, p.id, p.sku, p.category, p.name))
                 : [fixedCover];
+              if (fixedImages.length === 0) fixedImages = [fixedCover];
+
               return {
                 ...p,
                 coverImage: fixedCover,
@@ -490,10 +489,16 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               sold: p.sold || 0,
               taxRate: p.taxRate || 18,
               isActive: p.isActive !== false,
-              coverImage: getProductCoverImage(p.imageUrl || (p.images && p.images[0]) || p.coverImage),
+              coverImage: getProductCoverImage(
+                p.imageUrl || (p.images && p.images[0]) || p.coverImage,
+                p.id,
+                p.sku,
+                p.category,
+                p.name
+              ),
               images: (p.images && p.images.length > 0)
-                ? p.images.map((im: string) => getProductCoverImage(im))
-                : [getProductCoverImage(p.imageUrl || p.coverImage)],
+                ? p.images.map((im: string) => getProductCoverImage(im, p.id, p.sku, p.category, p.name))
+                : [getProductCoverImage(p.imageUrl || p.coverImage, p.id, p.sku, p.category, p.name)],
               overview: p.description || p.overview || '',
               specs: p.features || p.specs || [],
               features: p.features || [],
@@ -524,23 +529,31 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 let finalCover = remoteP.coverImage;
                 let finalImages = remoteP.images;
 
-                if (customImgEntry && customImgEntry.coverImage) {
-                  finalCover = customImgEntry.coverImage;
-                  finalImages = customImgEntry.images && customImgEntry.images.length > 0 ? customImgEntry.images : [finalCover];
-                } else if (remoteP.coverImage) {
-                  finalCover = remoteP.coverImage;
-                  finalImages = remoteP.images && remoteP.images.length > 0 ? remoteP.images : [finalCover];
-                } else if (localMatch && localMatch.coverImage) {
+                // Server image takes precedence unless user explicitly uploaded custom base64 or valid custom image
+                if (customImgEntry && !isPlaceholderOrFallback(customImgEntry.coverImage)) {
+                  const isCustomUpload = customImgEntry.coverImage.startsWith('data:');
+                  if (isCustomUpload || isPlaceholderOrFallback(remoteP.coverImage)) {
+                    finalCover = customImgEntry.coverImage;
+                    finalImages = customImgEntry.images && customImgEntry.images.length > 0
+                      ? customImgEntry.images
+                      : [finalCover];
+                  }
+                } else if (isPlaceholderOrFallback(finalCover) && localMatch && !isPlaceholderOrFallback(localMatch.coverImage)) {
                   finalCover = localMatch.coverImage;
                   finalImages = localMatch.images && localMatch.images.length > 0 ? localMatch.images : [finalCover];
                 }
+
+                finalCover = getProductCoverImage(finalCover, remoteP.id, remoteP.sku, remoteP.category, remoteP.name);
+                finalImages = (finalImages && finalImages.length > 0)
+                  ? finalImages.map((im: string) => getProductCoverImage(im, remoteP.id, remoteP.sku, remoteP.category, remoteP.name))
+                  : [finalCover];
 
                 if (localMatch) {
                   return {
                     ...localMatch,
                     ...remoteP,
-                    coverImage: finalCover || remoteP.coverImage || localMatch.coverImage,
-                    images: (finalImages && finalImages.length > 0) ? finalImages : (remoteP.images || localMatch.images),
+                    coverImage: finalCover,
+                    images: finalImages,
                   };
                 }
 
@@ -2045,14 +2058,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       {cardConfig.showImage && (
                         <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 shadow-inner flex items-center justify-center p-1">
                           <img
-                            src={getProductCoverImage(p.coverImage, p.id, p.sku)}
+                            src={getProductCoverImage(p.coverImage, p.id, p.sku, p.category, p.name)}
                             alt={p.name}
                             className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              target.onerror = null;
-                              target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                            }}
+                            onError={(e) => handleProductImageError(e, p)}
                           />
                           {p.images && p.images.length > 1 && (
                             <span className="absolute top-2.5 right-2.5 bg-indigo-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow border border-indigo-400/30">
@@ -2266,14 +2275,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <div className="flex items-center gap-3">
                         <div className="relative flex-shrink-0">
                           <img
-                            src={getProductCoverImage(p.coverImage, p.id, p.sku)}
+                            src={getProductCoverImage(p.coverImage, p.id, p.sku, p.category, p.name)}
                             alt={p.name}
                             className="w-12 h-12 aspect-square rounded-xl object-cover border border-slate-800"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              target.onerror = null;
-                              target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                            }}
+                            onError={(e) => handleProductImageError(e, p)}
                           />
                           {p.images && p.images.length > 1 && (
                             <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1 rounded-full shadow" title={`${p.images.length} images`}>
@@ -2394,14 +2399,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-3">
                 <img
-                  src={getProductCoverImage(inspectorProduct.coverImage)}
+                  src={getProductCoverImage(inspectorProduct.coverImage, inspectorProduct.id, inspectorProduct.sku, inspectorProduct.category, inspectorProduct.name)}
                   alt={inspectorProduct.name}
                   className="w-14 h-14 aspect-square rounded-xl object-cover border border-slate-700"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.onerror = null;
-                    target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                  }}
+                  onError={(e) => handleProductImageError(e, inspectorProduct)}
                 />
                 <div>
                   <h3 className="text-lg font-extrabold text-white">{inspectorProduct.name}</h3>
@@ -2423,14 +2424,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   {inspectorProduct.images.map((imgUri, idx) => (
                     <img
                       key={idx}
-                      src={getProductCoverImage(imgUri)}
+                      src={getProductCoverImage(imgUri, inspectorProduct.id, inspectorProduct.sku, inspectorProduct.category, inspectorProduct.name)}
                       alt={`Product view ${idx + 1}`}
                       className="w-24 h-24 aspect-square rounded-xl object-cover border border-slate-700 flex-shrink-0 hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.onerror = null;
-                        target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                      }}
+                      onError={(e) => handleProductImageError(e, inspectorProduct)}
                     />
                   ))}
                 </div>
@@ -3021,11 +3018,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <img
                         src={uri}
                         alt={`Upload preview ${idx + 1}`}
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          target.onerror = null;
-                          target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                        }}
+                        onError={(e) => handleProductImageError(e)}
                         className="w-16 h-16 aspect-square rounded-xl object-cover border border-slate-700 shadow-sm"
                       />
                       <button
@@ -4460,11 +4453,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     <img
                       src={editProdImages[0]}
                       alt="Primary Cover"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.onerror = null;
-                        target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                      }}
+                      onError={(e) => handleProductImageError(e, editingProduct ? { category: editingProduct.category, name: editingProduct.name, images: editProdImages } : undefined)}
                       className="w-14 h-14 aspect-square rounded-lg object-cover border border-indigo-400 shadow"
                     />
                     <div className="flex-1 min-w-0">
@@ -4507,11 +4496,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                         <img
                           src={uri}
                           alt={`Photo ${idx + 1}`}
-                          onError={(e) => {
-                            const target = e.currentTarget;
-                            target.onerror = null;
-                            target.src = DEFAULT_PRODUCT_FALLBACK_IMAGE;
-                          }}
+                          onError={(e) => handleProductImageError(e, editingProduct ? { category: editingProduct.category, name: editingProduct.name, images: editProdImages } : undefined)}
                           className="w-full aspect-square object-cover"
                         />
                         {idx === 0 ? (
