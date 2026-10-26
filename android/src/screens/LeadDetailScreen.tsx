@@ -1212,6 +1212,67 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           </View>
         </View>
 
+        {/* ── ⚡ FULL CONTACT HISTORY & CALL TIMELINE (MATCHING WEB) ──────────── */}
+        <FullContactHistory
+          history={contactHistory}
+          leadName={leadName}
+          leadPhone={leadPhone}
+          leadRequirement={leadRequirement}
+          onRefresh={fetchLeadDetailsAndActivities}
+          isRefreshing={isSyncing}
+        />
+
+        {/* Contact Details (With Copy-on-Tap Support for Phone & Email) */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 500, marginBottom: 8 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Contact Information (Tap to Copy 📋)</Text>
+          <TouchableOpacity onPress={() => setEditLeadModalOpen(true)}>
+            <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800' }}>Edit ✏️</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.detailCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          {[
+            { label: '📞 Phone', value: leadPhone || '—', isCopyable: Boolean(leadPhone), type: 'Phone Number' },
+            { label: '✉️ Email', value: leadEmail, isCopyable: Boolean(leadEmail && leadEmail !== '—'), type: 'Email Address' },
+            { label: '🏢 Company', value: leadCompany, isCopyable: false, type: '' },
+            { label: '💰 Deal Value', value: leadValue, isCopyable: false, type: '' },
+            { label: '🛍️ Requirement', value: leadRequirement, isCopyable: false, type: '' },
+            { label: '📍 City / Location', value: leadCity, isCopyable: false, type: '' },
+            { label: '🌐 Source', value: leadSource, isCopyable: false, type: '' },
+          ].map((item, i) => {
+            const handleTap = () => {
+              if (item.isCopyable) {
+                try {
+                  Clipboard.setString(item.value);
+                } catch (e) {}
+                setToastConfig({
+                  id: `toast_${Date.now()}`,
+                  title: '📋 Copied to Clipboard',
+                  message: `${item.type} "${item.value}" copied!`,
+                  type: 'COPY',
+                });
+              }
+            };
+
+            return (
+              <TouchableOpacity
+                key={item.label}
+                style={[styles.row, i < 6 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                onPress={handleTap}
+                activeOpacity={item.isCopyable ? 0.7 : 1}
+              >
+                <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{item.label}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+                  <Text style={[styles.rowValue, { color: item.isCopyable ? (isDark ? '#38bdf8' : '#0284c7') : colors.text }]} numberOfLines={1}>
+                    {item.value}
+                  </Text>
+                  {item.isCopyable && <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800' }}>📋 Copy</Text>}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* ── 🔗 LEAD ALLOCATION & ASSIGNMENT CHAIN TRAIL ───────────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>🔗 Lead Allocation &amp; Assignment Chain</Text>
         <View style={[styles.telemetryCard, { backgroundColor: colors.cardBg, borderColor: colors.border, paddingBottom: 8 }]}>
@@ -1275,67 +1336,6 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           </ScrollView>
 
           <Text style={{ fontSize: 9, color: colors.textSecondary, textAlign: 'center', marginTop: 6 }}>← Scroll to see full allocation chain →</Text>
-        </View>
-
-        {/* ── ⚡ FULL CONTACT HISTORY & CALL TIMELINE (MATCHING WEB) ──────────── */}
-        <FullContactHistory
-          history={contactHistory}
-          leadName={leadName}
-          leadPhone={leadPhone}
-          leadRequirement={leadRequirement}
-          onRefresh={fetchLeadDetailsAndActivities}
-          isRefreshing={isSyncing}
-        />
-
-        {/* Contact Details (With Copy-on-Tap Support for Phone & Email) */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 500, marginBottom: 8 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Contact Information (Tap to Copy 📋)</Text>
-          <TouchableOpacity onPress={() => setEditLeadModalOpen(true)}>
-            <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800' }}>Edit ✏️</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.detailCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {[
-            { label: '📞 Phone', value: leadPhone || '—', isCopyable: Boolean(leadPhone), type: 'Phone Number' },
-            { label: '✉️ Email', value: leadEmail, isCopyable: Boolean(leadEmail && leadEmail !== '—'), type: 'Email Address' },
-            { label: '🏢 Company', value: leadCompany, isCopyable: false, type: '' },
-            { label: '💰 Deal Value', value: leadValue, isCopyable: false, type: '' },
-            { label: '🛍️ Requirement', value: leadRequirement, isCopyable: false, type: '' },
-            { label: '📍 City / Location', value: leadCity, isCopyable: false, type: '' },
-            { label: '🌐 Source', value: leadSource, isCopyable: false, type: '' },
-          ].map((item, i) => {
-            const handleTap = () => {
-              if (item.isCopyable) {
-                try {
-                  Clipboard.setString(item.value);
-                } catch (e) {}
-                setToastConfig({
-                  id: `toast_${Date.now()}`,
-                  title: '📋 Copied to Clipboard',
-                  message: `${item.type} "${item.value}" copied!`,
-                  type: 'COPY',
-                });
-              }
-            };
-
-            return (
-              <TouchableOpacity
-                key={item.label}
-                style={[styles.row, i < 6 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-                onPress={handleTap}
-                activeOpacity={item.isCopyable ? 0.7 : 1}
-              >
-                <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{item.label}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
-                  <Text style={[styles.rowValue, { color: item.isCopyable ? (isDark ? '#38bdf8' : '#0284c7') : colors.text }]} numberOfLines={1}>
-                    {item.value}
-                  </Text>
-                  {item.isCopyable && <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800' }}>📋 Copy</Text>}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
         </View>
 
       </ScrollView>
