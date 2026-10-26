@@ -932,7 +932,7 @@ export default function LeadsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['bottom']}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* ── TOP SEGMENTED SLIDER (FUNNEL vs COLLECTIONS) ───────────────────── */}
       <View style={styles.sliderContainer}>
         <View style={[styles.sliderTrack, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
@@ -1320,28 +1320,30 @@ export default function LeadsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Quick Person Filter Chips Bar */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6, marginBottom: 4 }}>
-              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                <Text style={{ fontSize: 9, fontWeight: '900', color: colors.textMuted, marginRight: 2 }}>PERSON:</Text>
-                {[
-                  { id: 'ALL', label: 'All Persons' },
-                  ...availablePersons.map((p) => ({ id: p, label: `👤 ${p}` })),
-                  { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
-                ].map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[
-                      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border },
-                      filterPerson === p.id && { backgroundColor: colors.primary, borderColor: colors.primary },
-                    ]}
-                    onPress={() => setFilterPerson(p.id)}
-                  >
-                    <Text style={[{ fontSize: 9, fontWeight: '800', color: colors.textSecondary }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
+            {/* Quick Person Filter Chips Bar — Strictly for Supervisors (Admin/Manager/TL), Hidden for Sales Reps */}
+            {!isSalesRepRole && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6, marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: colors.textMuted, marginRight: 2 }}>PERSON:</Text>
+                  {[
+                    { id: 'ALL', label: 'All Persons' },
+                    ...availablePersons.map((p) => ({ id: p, label: `👤 ${p}` })),
+                    { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
+                  ].map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[
+                        { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border },
+                        filterPerson === p.id && { backgroundColor: colors.primary, borderColor: colors.primary },
+                      ]}
+                      onPress={() => setFilterPerson(p.id)}
+                    >
+                      <Text style={[{ fontSize: 9, fontWeight: '800', color: colors.textSecondary }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
 
             {/* Status Filter Scroll */}
             <FlatList
@@ -2300,7 +2302,7 @@ export default function LeadsScreen() {
           )}
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
