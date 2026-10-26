@@ -58,6 +58,7 @@ import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { isBatchAssignableRole } from '../components/LeadAllocationEngineModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FullContactHistory, { ContactAttempt, ContactType, ContactOutcome } from '../components/FullContactHistory';
+import { followUpSyncEngine } from '../services/followUpSyncEngine';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
 
@@ -398,6 +399,18 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [meetingType, setMeetingType] = useState<'VIRTUAL' | 'IN_PERSON' | 'CALL'>('VIRTUAL');
   const [meetingNotes, setMeetingNotes] = useState('');
 
+  // ⏰ Dedicated Follow-up Scheduler Modal State (Web Parity)
+  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [followUpTime, setFollowUpTime] = useState('10:30 AM');
+  const [followUpChannel, setFollowUpChannel] = useState<'CALL' | 'WHATSAPP' | 'MEETING'>('CALL');
+  const [followUpNotes, setFollowUpNotes] = useState('');
+  const [followUpPreAlert, setFollowUpPreAlert] = useState(true);
+
   // ✏️ Edit Lead Info Modal State
   const [editLeadModalOpen, setEditLeadModalOpen] = useState(false);
   const [editName, setEditName] = useState(leadName);
@@ -731,6 +744,25 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       return updated;
     });
 
+    // ⚡ Automatic CRM Follow-up & Task Pipeline Sync (Web Parity)
+    if (data.scheduledDate) {
+      followUpSyncEngine.saveAndSyncFollowUp(token, {
+        leadId,
+        leadName,
+        leadCompany,
+        leadPhone,
+        leadEmail,
+        followUpType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+        scheduledDate: data.scheduledDate,
+        scheduledTime: data.scheduledTime,
+        purpose: data.notes || (data.scheduledType === 'MEETING' ? 'Virtual / In-Person Demo' : 'Callback Discussion'),
+        notes: data.notes,
+        reminderMinutes: data.enablePreAlert5Min ? 5 : 0,
+        assigneeId: currentUser?.id,
+        assignedRepName: enrichedData.callerName || currentUser?.name || 'Sales Rep',
+      }).catch(err => console.warn('followUpSyncEngine sync error in handleSaveCallOutcome:', err));
+    }
+
     setTelemetry(prev => ({
       ...prev,
       lastCalledAt: `Today, ${enrichedData.timestamp}`,
@@ -965,6 +997,42 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       id: String(Date.now()),
       title: '📅 Meeting Scheduled',
       message: `${meetingTitle} set for ${meetingDate} at ${meetingTime}. Status set to MEETING SCHEDULED.`,
+      type: 'SUCCESS',
+    });
+  };
+
+  // ⏰ Schedule Follow-up / Callback Handler (Web Parity)
+  const handleConfirmScheduleFollowUp = async () => {
+    setFollowUpModalOpen(false);
+    const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const isMeeting = followUpChannel === 'MEETING';
+    const targetStatus = isMeeting ? 'MEETING SCHEDULED' : 'FOLLOWUP SCHEDULED';
+
+    setLeadStatusState(targetStatus);
+    setLastStatusUpdate({
+      status: targetStatus,
+      medium: isMeeting ? '📅 Meeting Scheduled' : '⏰ Follow-up Scheduled',
+      time: timeString,
+    });
+
+    handleSaveCallOutcome({
+      leadId,
+      leadName,
+      phone: leadPhone,
+      outcome: 'PICKED_UP',
+      subOption: 'CALL_LATER',
+      notes: followUpNotes.trim() || `${isMeeting ? 'In-Person / Virtual Visit' : 'Follow-up Callback'} scheduled for ${followUpDate} at ${followUpTime}.`,
+      scheduledDate: followUpDate,
+      scheduledTime: followUpTime,
+      scheduledType: followUpChannel,
+      enablePreAlert5Min: followUpPreAlert,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    setToastConfig({
+      id: String(Date.now()),
+      title: '⏰ Follow-up Scheduled',
+      message: `${isMeeting ? 'Meeting' : 'Follow-up'} queued for ${followUpDate} at ${followUpTime}. Synced to CRM Pipeline.`,
       type: 'SUCCESS',
     });
   };
@@ -1387,22 +1455,18 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </TouchableOpacity>
           </View>
 
-          {/* Row 2: Direct Email, Update Status, Schedule Meeting */}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          {/* Row 2: Follow-up, Meeting, Direct Email, Update Status */}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: isDark ? 'rgba(192,132,252,0.15)' : 'rgba(147,51,234,0.12)', borderWidth: 1, borderColor: isDark ? '#c084fc' : '#9333ea', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => {
-                setEmailSubject(`Proposal & Product Discussion for ${leadCompany}`);
-                setEmailBody(`Hi ${leadName},\n\nThank you for connecting with us regarding your requirement for ${leadCompany}.\n\nPlease let us know your preferred time for a quick discovery call.\n\nBest regards,\n${currentUser?.name || 'DAS Team'}`);
-                setEmailModalOpen(true);
-              }}
+              style={{ flex: 1, backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(79,70,229,0.12)', borderWidth: 1, borderColor: isDark ? '#818cf8' : '#4f46e5', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setFollowUpModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Text style={{ color: isDark ? '#c084fc' : '#7c3aed', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>✉️ Direct Email</Text>
+              <Text style={{ color: isDark ? '#a5b4fc' : '#4338ca', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>⏰ Follow-up</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(2,132,199,0.12)', borderWidth: 1, borderColor: isDark ? '#38bdf8' : '#0284c7', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+              style={{ flex: 1, backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(2,132,199,0.12)', borderWidth: 1, borderColor: isDark ? '#38bdf8' : '#0284c7', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
               onPress={() => setMeetingModalOpen(true)}
               activeOpacity={0.8}
             >
@@ -1410,7 +1474,19 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: isDark ? 'rgba(251,191,36,0.15)' : 'rgba(217,119,6,0.12)', borderWidth: 1, borderColor: isDark ? '#fbbf24' : '#d97706', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+              style={{ flex: 1, backgroundColor: isDark ? 'rgba(192,132,252,0.15)' : 'rgba(147,51,234,0.12)', borderWidth: 1, borderColor: isDark ? '#c084fc' : '#9333ea', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => {
+                setEmailSubject(`Proposal & Product Discussion for ${leadCompany}`);
+                setEmailBody(`Hi ${leadName},\n\nThank you for connecting with us regarding your requirement for ${leadCompany}.\n\nPlease let us know your preferred time for a quick discovery call.\n\nBest regards,\n${currentUser?.name || 'DAS Team'}`);
+                setEmailModalOpen(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: isDark ? '#c084fc' : '#7c3aed', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>✉️ Email</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: isDark ? 'rgba(251,191,36,0.15)' : 'rgba(217,119,6,0.12)', borderWidth: 1, borderColor: isDark ? '#fbbf24' : '#d97706', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
               onPress={() => setStatusPickerOpen(true)}
               activeOpacity={0.8}
             >
@@ -1728,6 +1804,192 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                 activeOpacity={0.8}
               >
                 <Text style={styles.sendWaDirectBtnText}>📅 Confirm &amp; Schedule Meeting</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* ⏰ DEDICATED FOLLOW-UP / CALLBACK MODAL (WEB PARITY)                        */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={followUpModalOpen} transparent animationType="slide" onRequestClose={() => setFollowUpModalOpen(false)}>
+        <View style={[styles.waModalOverlay, { backgroundColor: isDark ? 'rgba(2, 6, 23, 0.88)' : 'rgba(15, 23, 42, 0.65)' }]}>
+          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border, maxHeight: '92%' }]}>
+            <View style={[styles.waModalHeaderRow, { borderBottomColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={[styles.waModalTitle, { color: colors.text }]}>⏰ Schedule Follow-up</Text>
+                  <View style={{ backgroundColor: '#4f46e5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '900' }}>CRM PIPELINE</Text>
+                  </View>
+                </View>
+                <Text style={[styles.waModalSub, { color: colors.textSecondary }]}>With {leadName} ({leadPhone}) • Auto-syncs to Tasks &amp; Timeline</Text>
+              </View>
+              <TouchableOpacity onPress={() => setFollowUpModalOpen(false)} style={[styles.waCloseBtn, { backgroundColor: colors.cardBgElevated }]}>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 16, gap: 10 }}>
+              {/* Channel Selector */}
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Outreach Channel:</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {[
+                  { id: 'CALL' as const, label: '📞 Phone Call' },
+                  { id: 'WHATSAPP' as const, label: '💬 WhatsApp' },
+                  { id: 'MEETING' as const, label: '🏢 Meeting / Demo' },
+                ].map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      styles.modeSwitcherTab,
+                      {
+                        backgroundColor: followUpChannel === c.id ? (isDark ? '#4f46e5' : '#4338ca') : colors.cardBgElevated,
+                        flex: 1,
+                        borderColor: followUpChannel === c.id ? '#818cf8' : colors.border,
+                        borderWidth: 1,
+                      },
+                    ]}
+                    onPress={() => setFollowUpChannel(c.id)}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: followUpChannel === c.id ? '#fff' : colors.textSecondary }}>
+                      {c.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Date Presets */}
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Date Quick Selection:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+                {[
+                  { label: 'Today', days: 0 },
+                  { label: 'Tomorrow', days: 1 },
+                  { label: 'In 2 Days', days: 2 },
+                  { label: 'In 3 Days', days: 3 },
+                  { label: 'Next Monday', days: 7 },
+                ].map((preset) => {
+                  const target = new Date();
+                  target.setDate(target.getDate() + preset.days);
+                  const yyyy = target.getFullYear();
+                  const mm = String(target.getMonth() + 1).padStart(2, '0');
+                  const dd = String(target.getDate()).padStart(2, '0');
+                  const iso = `${yyyy}-${mm}-${dd}`;
+                  const isSelected = followUpDate === iso;
+
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 10,
+                        backgroundColor: isSelected ? (isDark ? '#4f46e5' : '#e0e7ff') : colors.cardBgElevated,
+                        borderWidth: 1,
+                        borderColor: isSelected ? '#6366f1' : colors.border,
+                      }}
+                      onPress={() => setFollowUpDate(iso)}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: isSelected ? (isDark ? '#fff' : '#4338ca') : colors.textSecondary }}>
+                        {preset.label} ({dd}/{mm})
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Custom Date & Time Inputs */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text, marginBottom: 4 }}>Date (YYYY-MM-DD):</Text>
+                  <TextInput
+                    style={[styles.customTitleInput, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, color: colors.text }]}
+                    value={followUpDate}
+                    onChangeText={setFollowUpDate}
+                    placeholder="2026-10-27"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text, marginBottom: 4 }}>Time:</Text>
+                  <TextInput
+                    style={[styles.customTitleInput, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, color: colors.text }]}
+                    value={followUpTime}
+                    onChangeText={setFollowUpTime}
+                    placeholder="10:30 AM"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </View>
+              </View>
+
+              {/* Quick Time Slots */}
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Quick Time Slots:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+                {['09:30 AM', '10:30 AM', '12:00 PM', '02:30 PM', '04:00 PM', '05:30 PM', '06:30 PM'].map((slot) => {
+                  const isSelected = followUpTime === slot;
+                  return (
+                    <TouchableOpacity
+                      key={slot}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                        backgroundColor: isSelected ? (isDark ? '#312e81' : '#e0e7ff') : colors.cardBgElevated,
+                        borderWidth: 1,
+                        borderColor: isSelected ? '#818cf8' : colors.border,
+                      }}
+                      onPress={() => setFollowUpTime(slot)}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: isSelected ? (isDark ? '#a5b4fc' : '#4338ca') : colors.textSecondary }}>
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Pre-Alert 5-Min Toggle */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}
+                onPress={() => setFollowUpPreAlert(!followUpPreAlert)}
+                activeOpacity={0.8}
+              >
+                <View style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  borderWidth: 1.5,
+                  borderColor: followUpPreAlert ? '#4f46e5' : colors.border,
+                  backgroundColor: followUpPreAlert ? '#4f46e5' : 'transparent',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  {followUpPreAlert && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>✓</Text>}
+                </View>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>
+                  🔔 Pre-alert notification (5 mins before scheduled time)
+                </Text>
+              </TouchableOpacity>
+
+              {/* Purpose & Notes */}
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>Follow-up Purpose / Agenda Notes:</Text>
+              <TextInput
+                style={[styles.previewTextInput, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, color: colors.text, minHeight: 70 }]}
+                multiline
+                value={followUpNotes}
+                onChangeText={setFollowUpNotes}
+                placeholder="e.g. Call client to discuss product quotation and contract details..."
+                placeholderTextColor={colors.textSecondary}
+              />
+
+              {/* Confirm Button */}
+              <TouchableOpacity
+                style={[styles.sendWaDirectBtn, { backgroundColor: '#4f46e5', marginTop: 4 }]}
+                onPress={handleConfirmScheduleFollowUp}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sendWaDirectBtnText}>💾 Confirm &amp; Queue Follow-up</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>

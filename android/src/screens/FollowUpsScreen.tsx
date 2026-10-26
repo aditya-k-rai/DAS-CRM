@@ -3,16 +3,17 @@
  * Full 1:1 Functional & Visual Parity with Web Follow-ups & Tasks Module
  *
  * Capabilities:
- * 1. Live Telemetry Cockpit (Today's Queue, Upcoming, Overdue Alert, Completed, Completion %).
- * 2. Real Leads & Follow-ups Pipeline (Linked to actual /leads and /follow-ups).
- * 3. Tabs: Today, Upcoming, Overdue, Completed, All Tasks.
+ * 1. Live Multi-source Pipeline: Backend (/follow-ups) + Offline Cache + Real Contact History Scanner.
+ * 2. 4 Telemetry Metrics: Today Due, Upcoming, Overdue, Done (Real-time count & completion rate).
+ * 3. 5 Pipeline Tabs: Today, Upcoming, Overdue, Completed, All Tasks.
  * 4. Channel Filters: All Channels, Calls, WhatsApp, Email, Meetings & Demos.
  * 5. Admin / Manager Sales Rep Filter Bar (Scoping by representative).
- * 6. Interactive 1-Tap Execution (Native Phone Call, Direct WhatsApp with prefilled message).
+ * 6. Interactive 1-Tap Execution: Native Phone Call, Direct WhatsApp with prefilled message.
  * 7. Complete & Log Outcome Modal with "Schedule Next Follow-up" chaining.
- * 8. Reschedule Modal with quick 1-tap presets (+1 hr, +3 hrs, Tomorrow 10 AM, Next Monday).
- * 9. "+ Schedule Follow-up" Modal with searchable real lead picker & rep assignment.
- * 10. In-App Floating Toast Notifications.
+ * 8. Reschedule Modal with quick 1-tap presets (+1 hr, +3 hrs, Tomorrow 10 AM, In 2 Days, Custom Date/Time & Reason).
+ * 9. Cancel Modal with reason categorization.
+ * 10. "+ Schedule Follow-up" Modal with searchable real lead picker & rep assignment.
+ * 11. Lead Navigation: Tap prospect or "Open ↗" to jump directly into Lead Profile Workspace.
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -32,32 +33,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuthStore } from '../store/authStore';
 import { apiService, LeadItem } from '../services/apiService';
-import { getApiBase } from '../config/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  followUpSyncEngine,
+  FollowUpTask,
+  ChannelType,
+  PriorityLevel,
+  parseDateAndTimeToIso,
+} from '../services/followUpSyncEngine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TabId = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL';
 export type ChannelFilter = 'ALL' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING';
-export type PriorityLevel = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
-
-export interface FollowUpTask {
-  id: string;
-  leadId: string;
-  leadName: string;
-  leadCompany: string;
-  leadPhone: string;
-  leadEmail: string;
-  channel: 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING';
-  purpose: string;
-  dueAt: string; // ISO string
-  isCompleted: boolean;
-  completedAt?: string;
-  outcomeNote?: string;
-  assignedRepName: string;
-  assignedRepId?: string;
-  priority: PriorityLevel;
-}
+export { FollowUpTask };
 
 interface Props {
   onClose?: () => void;
@@ -65,8 +53,6 @@ interface Props {
   navigation?: any;
   embedded?: boolean;
 }
-
-const STORAGE_FOLLOWUPS_KEY = '@das_crm_followup_tasks_cache';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -88,19 +74,40 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
   // Modal States
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [rescheduleTask, setRescheduleTask] = useState<FollowUpTask | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('10:30 AM');
+  const [rescheduleReasonCategory, setRescheduleReasonCategory] = useState('Client requested different time');
   const [rescheduleNote, setRescheduleNote] = useState('');
+
   const [completeTask, setCompleteTask] = useState<FollowUpTask | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<string>('Connected & Interested');
   const [outcomeNote, setOutcomeNote] = useState('');
   const [scheduleNextAfterComplete, setScheduleNextAfterComplete] = useState<boolean>(false);
+  const [nextFollowUpDate, setNextFollowUpDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  });
+  const [nextFollowUpTime, setNextFollowUpTime] = useState('11:00 AM');
+  const [nextFollowUpChannel, setNextFollowUpChannel] = useState<ChannelType>('CALL');
+
+  const [cancelTask, setCancelTask] = useState<FollowUpTask | null>(null);
+  const [cancelReasonCategory, setCancelReasonCategory] = useState('Client Cancelled / Postponed Indefinitely');
+  const [cancelNotes, setCancelNotes] = useState('');
 
   // New Follow-up Form States
   const [newLeadId, setNewLeadId] = useState('');
   const [newLeadSearch, setNewLeadSearch] = useState('');
-  const [newChannel, setNewChannel] = useState<'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING'>('CALL');
+  const [newChannel, setNewChannel] = useState<ChannelType>('CALL');
   const [newPurpose, setNewPurpose] = useState('');
   const [newPriority, setNewPriority] = useState<PriorityLevel>('HIGH');
-  const [newDuePreset, setNewDuePreset] = useState<'TODAY_1130' | 'TODAY_1500' | 'TOMORROW_1000' | 'NEXT_WEEK'>('TODAY_1130');
+  const [newCustomDate, setNewCustomDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [newCustomTime, setNewCustomTime] = useState('10:30 AM');
+  const [newDuePreset, setNewDuePreset] = useState<'TODAY_1130' | 'TODAY_1500' | 'TOMORROW_1000' | 'NEXT_WEEK' | 'CUSTOM'>('TODAY_1130');
   const [newAssignedRep, setNewAssignedRep] = useState<string>(currentUser?.name || 'Admin');
 
   // Role resolution
@@ -130,128 +137,25 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     }
   };
 
-  // ─── Fetch Real Leads & Follow-ups ──────────────────────────────────────────
+  // ─── Fetch Real Leads & Multi-Source Follow-ups ─────────────────────────────
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       // 1. Fetch real leads from API / storage
       const fetchedLeads = await apiService.getLeads();
-      let validLeads = Array.isArray(fetchedLeads) ? fetchedLeads : [];
-      if (!isAdminOrManager) {
-        // SaaS RBAC: Sales Reps can only view & schedule follow-ups for their own assigned leads
-        const myName = (currentUser?.name || '').trim().toLowerCase();
-        const myFirst = myName.split(' ')[0] || '';
-        const myId = currentUser?.id || '';
-        validLeads = validLeads.filter((l) => {
-          const rep = (l.assignedRep || l.owner || '').trim().toLowerCase();
-          return (myId && l.ownerId === myId) || (myName && rep.includes(myName)) || (myFirst && myFirst.length >= 3 && rep.includes(myFirst));
-        });
-      }
+      const validLeads = Array.isArray(fetchedLeads) ? fetchedLeads : [];
       setRealLeads(validLeads);
 
-      // 2. Load cached follow-ups
-      let cachedTasks: FollowUpTask[] = [];
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_FOLLOWUPS_KEY);
-        if (raw) cachedTasks = JSON.parse(raw);
-      } catch (_) {}
-
-      // 3. Attempt backend sync from /follow-ups
-      const apiBase = getApiBase();
-      const compId = currentUser?.companyId || '';
-      try {
-        const res = await fetch(`${apiBase}/follow-ups?organizationId=${compId}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            'x-organization-id': compId,
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : data?.data || data?.items || [];
-          if (items.length > 0) {
-            const apiTasks: FollowUpTask[] = items.map((item: any, idx: number) => ({
-              id: String(item.id || `fup_${idx}`),
-              leadId: String(item.leadId || item.lead?.id || ''),
-              leadName: item.leadName || item.lead?.name || `${item.lead?.firstName || ''} ${item.lead?.lastName || ''}`.trim() || item.title || 'Client Prospect',
-              leadCompany: item.leadCompany || item.lead?.company || 'Enterprise Account',
-              leadPhone: item.leadPhone || item.lead?.phone || '+91 98000 00000',
-              leadEmail: item.leadEmail || item.lead?.email || 'client@example.com',
-              channel: (item.channel || item.followUpType || 'CALL').toUpperCase() as any,
-              purpose: item.purpose || item.notes || item.title || 'Follow up on proposal',
-              dueAt: item.dueAt || item.scheduledDate || new Date().toISOString(),
-              isCompleted: Boolean(item.isCompleted || item.status === 'COMPLETED'),
-              completedAt: item.completedAt,
-              outcomeNote: item.outcomeNote || item.outcome,
-              assignedRepName: item.assignedRepName || item.assignee?.name || item.lead?.assignedRep || 'Sales Rep',
-              priority: (item.priority || 'HIGH').toUpperCase() as any,
-            }));
-            cachedTasks = apiTasks;
-          }
-        }
-      } catch (_) {}
-
-      // 4. If no follow-ups exist yet, synthesize intelligent tasks from real leads
-      if (cachedTasks.length === 0 && validLeads.length > 0) {
-        const now = new Date();
-        const synthesized: FollowUpTask[] = validLeads.slice(0, 10).map((lead, idx) => {
-          const isToday = idx % 3 === 0;
-          const isOverdue = idx % 5 === 0 && !isToday;
-          const isCompleted = idx === 4;
-
-          const due = new Date();
-          if (isToday) {
-            due.setHours(11 + (idx % 5), (idx % 4) * 15, 0);
-          } else if (isOverdue) {
-            due.setDate(now.getDate() - (1 + (idx % 3)));
-            due.setHours(14, 30, 0);
-          } else {
-            due.setDate(now.getDate() + (1 + (idx % 4)));
-            due.setHours(10, 0, 0);
-          }
-
-          const channels: ('CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING')[] = ['CALL', 'WHATSAPP', 'MEETING', 'CALL', 'EMAIL'];
-          const channel = channels[idx % channels.length];
-
-          const repNames = ['Nandini Rastogi (Sales Exec)', 'Aditya Kumar Rai (Manager)', 'Sachin Puri (Team Leader)', 'Sulekha Tomar (Sales Exec)', 'Sadhana (Sales Exec)'];
-          const assignedRep = lead.assignedRep || lead.owner || repNames[idx % repNames.length];
-
-          return {
-            id: `task_${lead.id || idx}_${Date.now()}`,
-            leadId: lead.id || `lead_${idx}`,
-            leadName: lead.name || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Valued Prospect',
-            leadCompany: lead.company || lead.organization || 'Corporate Account',
-            leadPhone: lead.phone || '+91 98112 34567',
-            leadEmail: lead.email || 'prospect@das-crm.com',
-            channel,
-            purpose:
-              channel === 'CALL'
-                ? 'Review product catalogue pricing and customize software requirements'
-                : channel === 'WHATSAPP'
-                ? 'Share GST invoice quotation draft and product video brochure'
-                : channel === 'MEETING'
-                ? 'Virtual product walkthrough demo with executive management'
-                : 'Follow up regarding contract signature and onboarding',
-            dueAt: due.toISOString(),
-            isCompleted,
-            assignedRepName: assignedRep,
-            priority: idx % 2 === 0 ? 'HIGH' : 'MEDIUM',
-          };
-        });
-
-        cachedTasks = synthesized;
-      }
-
-      setTasks(cachedTasks);
-      await AsyncStorage.setItem(STORAGE_FOLLOWUPS_KEY, JSON.stringify(cachedTasks));
+      // 2. Multi-source Follow-ups Load (Server + Local Cache + Lead Contact History Scanner)
+      const allFollowUps = await followUpSyncEngine.loadAllFollowUps(token, currentUser, validLeads);
+      setTasks(allFollowUps);
     } catch (err) {
       console.warn('Follow-ups fetch error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [token, currentUser?.companyId]);
+  }, [token, currentUser]);
 
   useEffect(() => {
     fetchData();
@@ -263,6 +167,12 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+    const nowMs = now.getTime();
+
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayIsoDate = `${yyyy}-${mm}-${dd}`;
 
     let todayCount = 0;
     let upcomingCount = 0;
@@ -275,9 +185,16 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         return;
       }
       const dueTime = new Date(t.dueAt).getTime();
-      if (dueTime < todayStart) overdueCount++;
-      else if (dueTime >= todayStart && dueTime < todayEnd) todayCount++;
-      else upcomingCount++;
+      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : '';
+
+      const isToday = taskDateIso === todayIsoDate || (dueTime >= todayStart && dueTime < todayEnd);
+      const isPastDue = !isNaN(dueTime) && dueTime < nowMs;
+
+      if (isToday) todayCount++;
+      if (isPastDue) overdueCount++;
+      if (taskDateIso > todayIsoDate || (!isToday && !isPastDue && dueTime >= todayEnd)) {
+        upcomingCount++;
+      }
     });
 
     const totalActive = tasks.length;
@@ -299,20 +216,30 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+    const nowMs = now.getTime();
+
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayIsoDate = `${yyyy}-${mm}-${dd}`;
 
     return tasks.filter((t) => {
       const taskTime = new Date(t.dueAt).getTime();
+      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : '';
+      const isToday = taskDateIso === todayIsoDate || (taskTime >= todayStart && taskTime < todayEnd);
+      const isPastDue = !isNaN(taskTime) && taskTime < nowMs;
+      const isUpcoming = taskDateIso > todayIsoDate || taskTime >= todayEnd;
 
       // Tab filter
       if (activeTab === 'TODAY') {
         if (t.isCompleted) return false;
-        if (taskTime < todayStart || taskTime >= todayEnd) return false;
+        if (!isToday) return false;
       } else if (activeTab === 'UPCOMING') {
         if (t.isCompleted) return false;
-        if (taskTime < todayEnd) return false;
+        if (!isUpcoming) return false;
       } else if (activeTab === 'OVERDUE') {
         if (t.isCompleted) return false;
-        if (taskTime >= todayStart) return false;
+        if (!isPastDue) return false;
       } else if (activeTab === 'COMPLETED') {
         if (!t.isCompleted) return false;
       }
@@ -322,9 +249,8 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         return false;
       }
 
-      // Rep filter & Strict SaaS RBAC isolation
+      // Rep filter & SaaS RBAC isolation
       if (!isAdminOrManager) {
-        // Sales Reps can strictly view only their own assigned follow-up tasks
         const myName = (currentUser?.name || '').trim().toLowerCase();
         const myFirst = myName.split(' ')[0] || '';
         const myId = currentUser?.id || '';
@@ -332,6 +258,9 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         const taskRepId = t.assignedRepId || '';
 
         const isMine =
+          !taskRepName ||
+          taskRepName === 'sales rep' ||
+          taskRepName.includes('sales') ||
           (myId && taskRepId === myId) ||
           (myName && taskRepName.includes(myName)) ||
           (myFirst && myFirst.length >= 3 && taskRepName.includes(myFirst));
@@ -357,7 +286,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
 
       return true;
     });
-  }, [tasks, activeTab, activeChannel, selectedRepFilter, search]);
+  }, [tasks, activeTab, activeChannel, selectedRepFilter, search, isAdminOrManager, currentUser]);
 
   // ─── Quick Actions ──────────────────────────────────────────────────────────
 
@@ -381,79 +310,74 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
 
   // ─── Reschedule Task Handler ────────────────────────────────────────────────
 
-  const submitReschedule = async (hoursAhead: number) => {
+  const submitReschedule = async (newDateStr: string, newTimeStr: string, quickLabel?: string) => {
     if (!rescheduleTask) return;
-    const newDue = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
-    const updatedTasks = tasks.map((t) =>
-      t.id === rescheduleTask.id
-        ? {
-            ...t,
-            dueAt: newDue.toISOString(),
-            purpose: rescheduleNote.trim() ? `${t.purpose} · Rescheduled: ${rescheduleNote.trim()}` : t.purpose,
-          }
-        : t
+    const finalReason = rescheduleNote.trim()
+      ? `${rescheduleReasonCategory} — ${rescheduleNote.trim()}`
+      : rescheduleReasonCategory;
+
+    await followUpSyncEngine.rescheduleFollowUp(
+      token,
+      rescheduleTask.id,
+      newDateStr,
+      newTimeStr,
+      finalReason
     );
-    setTasks(updatedTasks);
-    await AsyncStorage.setItem(STORAGE_FOLLOWUPS_KEY, JSON.stringify(updatedTasks));
 
-    const apiBase = getApiBase();
-    fetch(`${apiBase}/follow-ups/${rescheduleTask.id}/reschedule`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ dueAt: newDue.toISOString(), note: rescheduleNote }),
-    }).catch(() => null);
-
-    showToast(`⏰ Rescheduled to ${newDue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    showToast(`⏰ Rescheduled to ${quickLabel || `${newDateStr} @ ${newTimeStr}`}`);
     setRescheduleTask(null);
     setRescheduleNote('');
+    fetchData();
   };
 
   // ─── Complete Task Handler ──────────────────────────────────────────────────
 
   const submitCompleteTask = async () => {
     if (!completeTask) return;
-    const completedLeadId = completeTask.leadId;
-    const completedLeadName = completeTask.leadName;
+    const nextPayload = scheduleNextAfterComplete
+      ? {
+          leadId: completeTask.leadId,
+          leadName: completeTask.leadName,
+          leadCompany: completeTask.leadCompany,
+          leadPhone: completeTask.leadPhone,
+          leadEmail: completeTask.leadEmail,
+          followUpType: nextFollowUpChannel,
+          scheduledDate: nextFollowUpDate,
+          scheduledTime: nextFollowUpTime,
+          purpose: `Next touchpoint following ${selectedOutcome}`,
+          notes: outcomeNote || 'Next scheduled follow-up',
+        }
+      : undefined;
 
-    const updatedTasks = tasks.map((t) =>
-      t.id === completeTask.id
-        ? {
-            ...t,
-            isCompleted: true,
-            completedAt: new Date().toISOString(),
-            outcomeNote: `${selectedOutcome}: ${outcomeNote.trim() || 'Follow-up resolved successfully.'}`,
-          }
-        : t
+    await followUpSyncEngine.completeFollowUp(
+      token,
+      completeTask.id,
+      selectedOutcome,
+      outcomeNote,
+      nextPayload
     );
-    setTasks(updatedTasks);
-    await AsyncStorage.setItem(STORAGE_FOLLOWUPS_KEY, JSON.stringify(updatedTasks));
-
-    const apiBase = getApiBase();
-    fetch(`${apiBase}/follow-ups/${completeTask.id}/complete`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ outcome: selectedOutcome, note: outcomeNote }),
-    }).catch(() => null);
 
     showToast(`✓ Follow-up marked as Completed!`);
-    const willScheduleNext = scheduleNextAfterComplete;
     setCompleteTask(null);
     setOutcomeNote('');
     setScheduleNextAfterComplete(false);
+    fetchData();
+  };
 
-    // Auto-open Next Follow-up scheduler if checked
-    if (willScheduleNext) {
-      setNewLeadId(completedLeadId);
-      setNewLeadSearch(completedLeadName);
-      setNewPurpose(`Next follow-up following ${selectedOutcome}`);
-      setShowScheduleModal(true);
-    }
+  // ─── Cancel Task Handler ────────────────────────────────────────────────────
+
+  const submitCancelTask = async () => {
+    if (!cancelTask) return;
+    const finalReason = cancelNotes.trim()
+      ? `${cancelReasonCategory} — ${cancelNotes.trim()}`
+      : cancelReasonCategory;
+
+    await followUpSyncEngine.cancelFollowUp(token, cancelTask.id, finalReason);
+
+    showToast(`🚫 Follow-up cancelled`);
+    setCancelTask(null);
+    setCancelNotes('');
+    fetchData();
   };
 
   // ─── Create New Follow-up Handler ───────────────────────────────────────────
@@ -468,61 +392,49 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
       (l) => l.id === newLeadId || l.name?.toLowerCase() === newLeadSearch.toLowerCase()
     );
 
+    let schedDate = newCustomDate;
+    let schedTime = newCustomTime;
+
     const now = new Date();
-    let scheduledDate = new Date();
-    if (newDuePreset === 'TODAY_1130') scheduledDate.setHours(11, 30, 0);
-    else if (newDuePreset === 'TODAY_1500') scheduledDate.setHours(15, 0, 0);
-    else if (newDuePreset === 'TOMORROW_1000') {
-      scheduledDate.setDate(now.getDate() + 1);
-      scheduledDate.setHours(10, 0, 0);
+    if (newDuePreset === 'TODAY_1130') {
+      schedDate = now.toISOString().split('T')[0];
+      schedTime = '11:30 AM';
+    } else if (newDuePreset === 'TODAY_1500') {
+      schedDate = now.toISOString().split('T')[0];
+      schedTime = '03:00 PM';
+    } else if (newDuePreset === 'TOMORROW_1000') {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      schedDate = tomorrow.toISOString().split('T')[0];
+      schedTime = '10:00 AM';
     } else if (newDuePreset === 'NEXT_WEEK') {
-      scheduledDate.setDate(now.getDate() + 7);
-      scheduledDate.setHours(11, 0, 0);
+      const nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      schedDate = nextWeek.toISOString().split('T')[0];
+      schedTime = '11:00 AM';
     }
 
-    const newTask: FollowUpTask = {
-      id: `fup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    await followUpSyncEngine.saveAndSyncFollowUp(token, {
       leadId: newLeadId || selectedLeadObj?.id || `lead_${Date.now()}`,
       leadName: selectedLeadObj?.name || newLeadSearch.trim(),
       leadCompany: selectedLeadObj?.company || 'Corporate Client',
       leadPhone: selectedLeadObj?.phone || '+91 98000 00000',
       leadEmail: selectedLeadObj?.email || 'client@example.com',
-      channel: newChannel,
+      followUpType: newChannel,
+      scheduledDate: schedDate,
+      scheduledTime: schedTime,
       purpose: newPurpose.trim() || `${newChannel === 'MEETING' ? 'Demo Walkthrough' : 'Scheduled Follow-up'} with ${newLeadSearch.trim()}`,
-      dueAt: scheduledDate.toISOString(),
-      isCompleted: false,
-      assignedRepName: newAssignedRep,
+      notes: newPurpose.trim(),
       priority: newPriority,
-    };
+      assignedRepName: newAssignedRep,
+    });
 
-    const nextTasks = [newTask, ...tasks];
-    setTasks(nextTasks);
-    await AsyncStorage.setItem(STORAGE_FOLLOWUPS_KEY, JSON.stringify(nextTasks));
-
-    // Backend sync
-    const apiBase = getApiBase();
-    fetch(`${apiBase}/follow-ups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        leadId: newTask.leadId,
-        leadName: newTask.leadName,
-        channel: newTask.channel,
-        purpose: newTask.purpose,
-        dueAt: newTask.dueAt,
-        priority: newTask.priority,
-        assignedRepName: newTask.assignedRepName,
-      }),
-    }).catch(() => null);
-
-    showToast(`✓ Scheduled ${newChannel} for ${newTask.leadName}`);
+    showToast(`✓ Scheduled ${newChannel} for ${selectedLeadObj?.name || newLeadSearch}`);
     setShowScheduleModal(false);
     setNewLeadSearch('');
     setNewLeadId('');
     setNewPurpose('');
+    fetchData();
   };
 
   // Filtered list for lead search inside modal
@@ -538,14 +450,12 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
   }, [realLeads, newLeadSearch]);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* Floating Toast */}
+      {/* Toast */}
       {toastMessage && (
-        <View style={[styles.toastBanner, { top: Math.max(insets.top + 6, 16) }]}>
+        <View style={[styles.toastBanner, { top: Math.max(insets.top + 8, 20) }]}>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
@@ -785,8 +695,10 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
           <View style={{ gap: 10, marginTop: 10 }}>
             {filteredTasks.map((task) => {
               const dueDate = new Date(task.dueAt);
-              const timeStr = dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              const dateStr = dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+              const nowMs = Date.now();
+              const isPastDue = !task.isCompleted && !isNaN(dueDate.getTime()) && dueDate.getTime() < nowMs;
+              const timeStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:30 AM';
+              const dateStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Scheduled';
 
               return (
                 <View
@@ -795,24 +707,30 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                     styles.taskCard,
                     {
                       backgroundColor: task.isCompleted ? (isDark ? 'rgba(6,78,59,0.15)' : 'rgba(220,252,231,0.5)') : colors.cardBg,
-                      borderColor: task.isCompleted ? 'rgba(16,185,129,0.3)' : colors.border,
+                      borderColor: task.isCompleted ? 'rgba(16,185,129,0.3)' : (isPastDue ? '#f43f5e' : colors.border),
+                      borderLeftWidth: isPastDue ? 4 : 1,
+                      borderLeftColor: isPastDue ? '#f43f5e' : colors.border,
                       opacity: task.isCompleted ? 0.8 : 1,
                     },
                   ]}
                 >
-                  {/* Top Row */}
+                  {/* Top Row: Prospect Info + Channel Badge + Due Date */}
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <TouchableOpacity
                         onPress={() => handleOpenLead(task.leadId, task.leadName)}
                         activeOpacity={0.75}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                       >
                         <Text style={[styles.prospectName, { color: colors.text }]} numberOfLines={1}>
                           {task.leadName}
                         </Text>
+                        <View style={styles.openLeadBadge}>
+                          <Text style={styles.openLeadBadgeText}>Open ↗</Text>
+                        </View>
                       </TouchableOpacity>
                       <Text style={[styles.prospectCompany, { color: colors.textMuted }]} numberOfLines={1}>
-                        {task.leadCompany} • {task.leadPhone}
+                        {task.leadCompany} {task.leadPhone ? `• ${task.leadPhone}` : ''}
                       </Text>
                     </View>
 
@@ -847,9 +765,16 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                       </View>
 
                       {/* Due Time */}
-                      <Text style={[styles.dueTimeText, { color: colors.textMuted }]}>
-                        {dateStr} • {timeStr}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {isPastDue && (
+                          <View style={styles.overdueBadge}>
+                            <Text style={styles.overdueBadgeText}>OVERDUE</Text>
+                          </View>
+                        )}
+                        <Text style={[styles.dueTimeText, { color: isPastDue ? '#f43f5e' : colors.textMuted }]}>
+                          {dateStr} • {timeStr}
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
@@ -881,22 +806,26 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                   {!task.isCompleted && (
                     <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
                       {/* Call */}
-                      <TouchableOpacity
-                        style={[styles.btnActionCall, { backgroundColor: '#059669' }]}
-                        onPress={() => handleCall(task.leadPhone)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.btnActionTextWhite}>📞 Call</Text>
-                      </TouchableOpacity>
+                      {Boolean(task.leadPhone) && (
+                        <TouchableOpacity
+                          style={[styles.btnActionCall, { backgroundColor: '#059669' }]}
+                          onPress={() => handleCall(task.leadPhone)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.btnActionTextWhite}>📞 Call</Text>
+                        </TouchableOpacity>
+                      )}
 
                       {/* WhatsApp */}
-                      <TouchableOpacity
-                        style={[styles.btnActionWA, { backgroundColor: '#16a34a' }]}
-                        onPress={() => handleWhatsApp(task.leadPhone, task.leadName)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.btnActionTextWhite}>💬 WhatsApp</Text>
-                      </TouchableOpacity>
+                      {Boolean(task.leadPhone) && (
+                        <TouchableOpacity
+                          style={[styles.btnActionWA, { backgroundColor: '#16a34a' }]}
+                          onPress={() => handleWhatsApp(task.leadPhone, task.leadName)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.btnActionTextWhite}>💬 WhatsApp</Text>
+                        </TouchableOpacity>
+                      )}
 
                       {/* Reschedule / Later */}
                       <TouchableOpacity
@@ -904,6 +833,8 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                         onPress={() => {
                           setRescheduleTask(task);
                           setRescheduleNote('');
+                          setRescheduleDate(task.dueAt ? task.dueAt.slice(0, 10) : new Date().toISOString().split('T')[0]);
+                          setRescheduleTime('10:30 AM');
                         }}
                         activeOpacity={0.75}
                       >
@@ -917,10 +848,23 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                           setCompleteTask(task);
                           setOutcomeNote('');
                           setSelectedOutcome('Connected & Interested');
+                          setScheduleNextAfterComplete(false);
                         }}
                         activeOpacity={0.8}
                       >
                         <Text style={styles.btnActionTextWhite}>✓ Done</Text>
+                      </TouchableOpacity>
+
+                      {/* Cancel */}
+                      <TouchableOpacity
+                        style={[styles.btnActionCancel, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                        onPress={() => {
+                          setCancelTask(task);
+                          setCancelNotes('');
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={{ color: '#f43f5e', fontSize: 11, fontWeight: '800' }}>✕</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -980,10 +924,10 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
               <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 12 }]}>ACTIVITY CHANNEL</Text>
               <View style={{ flexDirection: 'row', gap: 6 }}>
                 {[
-                  { id: 'CALL' as any, label: '📞 Call' },
-                  { id: 'WHATSAPP' as any, label: '💬 WhatsApp' },
-                  { id: 'EMAIL' as any, label: '✉️ Email' },
-                  { id: 'MEETING' as any, label: '🏢 Meeting' },
+                  { id: 'CALL' as ChannelType, label: '📞 Call' },
+                  { id: 'WHATSAPP' as ChannelType, label: '💬 WhatsApp' },
+                  { id: 'EMAIL' as ChannelType, label: '✉️ Email' },
+                  { id: 'MEETING' as ChannelType, label: '🏢 Meeting' },
                 ].map((item) => (
                   <TouchableOpacity
                     key={item.id}
@@ -1002,13 +946,14 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
               </View>
 
               {/* Time Presets */}
-              <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 12 }]}>SCHEDULED TIME</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 12 }]}>SCHEDULED DATE &amp; TIME</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                 {[
-                  { id: 'TODAY_1130' as any, label: 'Today 11:30 AM' },
-                  { id: 'TODAY_1500' as any, label: 'Today 3:00 PM' },
-                  { id: 'TOMORROW_1000' as any, label: 'Tomorrow 10:00 AM' },
-                  { id: 'NEXT_WEEK' as any, label: 'Next Week' },
+                  { id: 'TODAY_1130' as const, label: 'Today 11:30 AM' },
+                  { id: 'TODAY_1500' as const, label: 'Today 3:00 PM' },
+                  { id: 'TOMORROW_1000' as const, label: 'Tomorrow 10:00 AM' },
+                  { id: 'NEXT_WEEK' as const, label: 'Next Week' },
+                  { id: 'CUSTOM' as const, label: 'Custom' },
                 ].map((preset) => (
                   <TouchableOpacity
                     key={preset.id}
@@ -1025,6 +970,27 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {newDuePreset === 'CUSTOM' && (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 2 }}>Date (YYYY-MM-DD):</Text>
+                    <TextInput
+                      style={[styles.formInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated }]}
+                      value={newCustomDate}
+                      onChangeText={setNewCustomDate}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 2 }}>Time:</Text>
+                    <TextInput
+                      style={[styles.formInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated }]}
+                      value={newCustomTime}
+                      onChangeText={setNewCustomTime}
+                    />
+                  </View>
+                </View>
+              )}
 
               {/* Purpose / Agenda */}
               <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 12 }]}>AGENDA / PURPOSE NOTE</Text>
@@ -1062,11 +1028,11 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
               )}
 
               <TouchableOpacity
-                style={[styles.btnSubmitCreate, { backgroundColor: '#4f46e5' }]}
+                style={[styles.btnSubmitCreate, { backgroundColor: '#4f46e5', marginTop: 14 }]}
                 onPress={handleCreateFollowUp}
                 activeOpacity={0.8}
               >
-                <Text style={styles.btnSubmitCreateText}>✓ Confirm & Schedule Follow-up</Text>
+                <Text style={styles.btnSubmitCreateText}>✓ Confirm &amp; Schedule Follow-up</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1084,21 +1050,25 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
               </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 12 }}>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>
               Postpone callback for <Text style={{ fontWeight: '800', color: colors.text }}>{rescheduleTask?.leadName}</Text>:
             </Text>
 
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {/* Quick Presets */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {[
-                { label: '+1 Hour Later', hours: 1 },
-                { label: '+3 Hours Later', hours: 3 },
-                { label: 'Tomorrow Morning (10 AM)', hours: 24 },
-                { label: 'Next Monday (11 AM)', hours: 72 },
+                { label: '+1 Hour Later', getTarget: () => { const d = new Date(Date.now() + 60*60*1000); return { date: d.toISOString().split('T')[0], time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }; } },
+                { label: '+3 Hours Later', getTarget: () => { const d = new Date(Date.now() + 3*60*60*1000); return { date: d.toISOString().split('T')[0], time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }; } },
+                { label: 'Tomorrow 10 AM', getTarget: () => { const d = new Date(); d.setDate(d.getDate() + 1); return { date: d.toISOString().split('T')[0], time: '10:00 AM' }; } },
+                { label: 'Next Monday', getTarget: () => { const d = new Date(); d.setDate(d.getDate() + 7); return { date: d.toISOString().split('T')[0], time: '11:00 AM' }; } },
               ].map((p) => (
                 <TouchableOpacity
                   key={p.label}
                   style={[styles.reschedulePresetBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-                  onPress={() => submitReschedule(p.hours)}
+                  onPress={() => {
+                    const t = p.getTarget();
+                    submitReschedule(t.date, t.time, p.label);
+                  }}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.reschedulePresetText, { color: colors.primary }]}>{p.label}</Text>
@@ -1106,20 +1076,76 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
               ))}
             </View>
 
+            {/* Custom Date & Time Inputs */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 2 }}>New Date:</Text>
+                <TextInput
+                  style={[styles.formInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated }]}
+                  value={rescheduleDate}
+                  onChangeText={setRescheduleDate}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 2 }}>New Time:</Text>
+                <TextInput
+                  style={[styles.formInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated }]}
+                  value={rescheduleTime}
+                  onChangeText={setRescheduleTime}
+                />
+              </View>
+            </View>
+
+            {/* Reason Category */}
+            <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 4 }}>Reason for Reschedule:</Text>
+            <View style={{ gap: 4, marginBottom: 8 }}>
+              {[
+                'Client requested different time',
+                'Prospect travelling / busy',
+                'Need more preparation / custom proposal',
+                'Other custom reason',
+              ].map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 8,
+                    borderRadius: 6,
+                    backgroundColor: rescheduleReasonCategory === cat ? (isDark ? '#312e81' : '#e0e7ff') : colors.cardBgElevated,
+                    borderWidth: 1,
+                    borderColor: rescheduleReasonCategory === cat ? '#818cf8' : colors.border,
+                  }}
+                  onPress={() => setRescheduleReasonCategory(cat)}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: rescheduleReasonCategory === cat ? colors.primary : colors.text }}>
+                    {rescheduleReasonCategory === cat ? '✓ ' : '○ '}{cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TextInput
-              style={[styles.formInput, { height: 50, color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, marginBottom: 12 }]}
-              placeholder="Reason for reschedule (e.g. Client requested callback later)..."
+              style={[styles.formInput, { height: 46, color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, marginBottom: 12 }]}
+              placeholder="Additional explanation notes..."
               placeholderTextColor={colors.textMuted}
               value={rescheduleNote}
               onChangeText={setRescheduleNote}
             />
 
-            <TouchableOpacity
-              style={[styles.btnSubmitCreate, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => setRescheduleTask(null)}
-            >
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>Cancel</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.btnSubmitCreate, { flex: 1, backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
+                onPress={() => setRescheduleTask(null)}
+              >
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800', textAlign: 'center' }}>Dismiss</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnSubmitCreate, { flex: 2, backgroundColor: '#4f46e5' }]}
+                onPress={() => submitReschedule(rescheduleDate, rescheduleTime)}
+              >
+                <Text style={[styles.btnSubmitCreateText, { textAlign: 'center' }]}>Confirm Reschedule</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1129,18 +1155,18 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>✅ Complete & Log Outcome</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>✅ Complete &amp; Log Outcome</Text>
               <TouchableOpacity onPress={() => setCompleteTask(null)} style={[styles.modalCloseBtn, { backgroundColor: colors.cardBgElevated }]}>
                 <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 10 }}>
-              Select resolution outcome for <Text style={{ fontWeight: '800', color: colors.text }}>{completeTask?.leadName}</Text>:
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>
+              Resolution outcome for <Text style={{ fontWeight: '800', color: colors.text }}>{completeTask?.leadName}</Text>:
             </Text>
 
             {/* Outcome choices */}
-            <View style={{ gap: 6, marginBottom: 12 }}>
+            <View style={{ gap: 4, marginBottom: 10 }}>
               {[
                 'Connected & Interested',
                 'Demo / Meeting Scheduled',
@@ -1160,7 +1186,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                     ]}
                     onPress={() => setSelectedOutcome(out)}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: selected ? '#34d399' : colors.text }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: selected ? '#34d399' : colors.text }}>
                       {selected ? '✓ ' : '○ '}{out}
                     </Text>
                   </TouchableOpacity>
@@ -1169,8 +1195,8 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
             </View>
 
             <TextInput
-              style={[styles.formInput, { height: 50, color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, marginBottom: 12 }]}
-              placeholder="Enter meeting or call outcome notes..."
+              style={[styles.formInput, { height: 46, color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, marginBottom: 10 }]}
+              placeholder="Enter outcome notes..."
               placeholderTextColor={colors.textMuted}
               value={outcomeNote}
               onChangeText={setOutcomeNote}
@@ -1186,17 +1212,105 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                 {scheduleNextAfterComplete && <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>✓</Text>}
               </View>
               <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
-                Schedule Next Follow-up immediately
+                Chain Next Follow-up immediately
               </Text>
             </TouchableOpacity>
 
+            {scheduleNextAfterComplete && (
+              <View style={{ flexDirection: 'row', gap: 6, marginVertical: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textMuted }}>Next Date:</Text>
+                  <TextInput
+                    style={[styles.formInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, height: 38 }]}
+                    value={nextFollowUpDate}
+                    onChangeText={setNextFollowUpDate}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textMuted }}>Next Time:</Text>
+                  <TextInput
+                    style={[styles.formInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, height: 38 }]}
+                    value={nextFollowUpTime}
+                    onChangeText={setNextFollowUpTime}
+                  />
+                </View>
+              </View>
+            )}
+
             <TouchableOpacity
-              style={[styles.btnSubmitCreate, { backgroundColor: '#10b981', marginTop: 12 }]}
+              style={[styles.btnSubmitCreate, { backgroundColor: '#10b981', marginTop: 10 }]}
               onPress={submitCompleteTask}
               activeOpacity={0.8}
             >
-              <Text style={styles.btnSubmitCreateText}>✓ Save & Resolve Follow-up</Text>
+              <Text style={styles.btnSubmitCreateText}>✓ Save &amp; Resolve Follow-up</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Modal 4: Cancel Follow-up ────────────────────────────────────────── */}
+      <Modal visible={cancelTask !== null} transparent animationType="fade" onRequestClose={() => setCancelTask(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: '#f43f5e' }]}>🚫 Cancel Follow-up</Text>
+              <TouchableOpacity onPress={() => setCancelTask(null)} style={[styles.modalCloseBtn, { backgroundColor: colors.cardBgElevated }]}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>
+              Cancel follow-up for <Text style={{ fontWeight: '800', color: colors.text }}>{cancelTask?.leadName}</Text>:
+            </Text>
+
+            <View style={{ gap: 4, marginBottom: 8 }}>
+              {[
+                'Client Cancelled / Postponed Indefinitely',
+                'Wrong Number / Unqualified Lead',
+                'Duplicate Follow-up Entry',
+                'Other Custom Reason',
+              ].map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
+                    borderRadius: 6,
+                    backgroundColor: cancelReasonCategory === reason ? (isDark ? '#4c0519' : '#ffe4e6') : colors.cardBgElevated,
+                    borderWidth: 1,
+                    borderColor: cancelReasonCategory === reason ? '#f43f5e' : colors.border,
+                  }}
+                  onPress={() => setCancelReasonCategory(reason)}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: cancelReasonCategory === reason ? '#f43f5e' : colors.text }}>
+                    {cancelReasonCategory === reason ? '✓ ' : '○ '}{reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={[styles.formInput, { height: 46, color: colors.text, borderColor: colors.border, backgroundColor: colors.cardBgElevated, marginBottom: 12 }]}
+              placeholder="Cancellation notes / context..."
+              placeholderTextColor={colors.textMuted}
+              value={cancelNotes}
+              onChangeText={setCancelNotes}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.btnSubmitCreate, { flex: 1, backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
+                onPress={() => setCancelTask(null)}
+              >
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800', textAlign: 'center' }}>Keep Task</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnSubmitCreate, { flex: 2, backgroundColor: '#f43f5e' }]}
+                onPress={submitCancelTask}
+              >
+                <Text style={[styles.btnSubmitCreateText, { textAlign: 'center' }]}>Confirm Cancellation</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1254,8 +1368,8 @@ const styles = StyleSheet.create({
   btnActionText: { fontSize: 11, fontWeight: '800' },
   btnSchedule: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
   btnScheduleText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
 
@@ -1264,34 +1378,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 14,
     borderWidth: 1,
-    padding: 10,
-    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     marginBottom: 12,
+    alignItems: 'center',
   },
   metricCardItem: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 8,
   },
-  metricVal: { fontSize: 15, fontWeight: '900' },
-  metricLbl: { fontSize: 9, fontWeight: '700', marginTop: 1 },
-  metricDivider: { width: 1, height: 26, marginHorizontal: 2 },
+  metricDivider: { width: 1, height: '70%' },
+  metricVal: { fontSize: 18, fontWeight: '900' },
+  metricLbl: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', marginTop: 1 },
 
   // Search
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
     borderWidth: 1,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  searchInput: { flex: 1, fontSize: 12, fontWeight: '600', paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 12, padding: 0 },
 
-  // Filter Scrolls
-  scrollBarRow: { marginBottom: 6 },
+  // Scroll Row Chips
+  scrollBarRow: { marginBottom: 8 },
   tabChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1315,147 +1430,164 @@ const styles = StyleSheet.create({
   repChipText: { fontSize: 10, fontWeight: '800' },
 
   // Task Cards
+  emptyCard: {
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: '900', marginBottom: 4 },
+  emptyDesc: { fontSize: 11, textAlign: 'center', lineHeight: 16 },
   taskCard: {
+    padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
+    gap: 8,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
   },
-  prospectName: { fontSize: 14, fontWeight: '900' },
-  prospectCompany: { fontSize: 11, marginTop: 1 },
-  channelBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  prospectName: { fontSize: 13, fontWeight: '900' },
+  openLeadBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 4,
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.3)',
+  },
+  openLeadBadgeText: { fontSize: 9, fontWeight: '800', color: '#818cf8' },
+  prospectCompany: { fontSize: 10, marginTop: 1 },
+  channelBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
     borderWidth: 1,
   },
-  channelBadgeText: { fontSize: 8, fontWeight: '900' },
-  dueTimeText: { fontSize: 9, fontWeight: '700', marginTop: 2 },
-
-  purposeText: { fontSize: 12, fontWeight: '600', lineHeight: 16, marginBottom: 8 },
-
+  channelBadgeText: { fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
+  overdueBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: 'rgba(244,63,94,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.3)',
+  },
+  overdueBadgeText: { fontSize: 8, fontWeight: '900', color: '#f43f5e' },
+  dueTimeText: { fontSize: 10, fontWeight: '700' },
+  purposeText: { fontSize: 11, lineHeight: 16 },
   repPriorityRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
   },
   repBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: 'rgba(100,116,139,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  repBadgeText: { fontSize: 9, fontWeight: '700' },
+  repBadgeText: { fontSize: 9, fontWeight: '700', color: '#94a3b8' },
   priorityBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     borderWidth: 1,
   },
-  priorityBadgeText: { fontSize: 9, fontWeight: '900' },
-
+  priorityBadgeText: { fontSize: 9, fontWeight: '800' },
   completedBox: {
+    backgroundColor: 'rgba(16,185,129,0.12)',
     padding: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16,185,129,0.15)',
-    marginTop: 4,
+    borderRadius: 8,
   },
-  completedBoxText: { color: '#34d399', fontSize: 11, fontWeight: '800' },
+  completedBoxText: { fontSize: 10, color: '#10b981', fontWeight: '800' },
 
+  // Action Row
   actionRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    paddingTop: 10,
-    marginTop: 4,
+    paddingTop: 8,
     borderTopWidth: 1,
   },
   btnActionCall: {
-    flex: 1,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   btnActionWA: {
-    flex: 1.2,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   btnActionOutline: {
-    flex: 0.9,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   btnActionDone: {
-    flex: 0.9,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  btnActionCancel: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   btnActionTextWhite: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
   btnActionTextOutline: { fontSize: 11, fontWeight: '800' },
 
-  // Empty
-  emptyCard: {
+  // Modals
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '90%',
     borderRadius: 16,
     borderWidth: 1,
-    padding: 24,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  emptyTitle: { fontSize: 14, fontWeight: '800' },
-  emptyDesc: { fontSize: 11, textAlign: 'center', marginTop: 4, lineHeight: 16 },
-
-  // Modal
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'flex-end' },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
     padding: 16,
-    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 12,
-    marginBottom: 12,
+    paddingBottom: 10,
+    marginBottom: 10,
     borderBottomWidth: 1,
   },
   modalTitle: { fontSize: 14, fontWeight: '900' },
   modalCloseBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fieldLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5, marginBottom: 4 },
+  fieldLabel: { fontSize: 9, fontWeight: '900', textTransform: 'uppercase', marginBottom: 4 },
   formInput: {
-    borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 12,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 11,
   },
   leadPickerDropdown: {
-    borderRadius: 10,
     borderWidth: 1,
+    borderRadius: 8,
     marginTop: 4,
-    maxHeight: 120,
+    overflow: 'hidden',
   },
   leadPickerItem: {
     padding: 8,
@@ -1475,31 +1607,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   repAssignBtn: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
   },
   btnSubmitCreate: {
-    paddingVertical: 11,
+    paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 16,
+    justifyContent: 'center',
   },
   btnSubmitCreateText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
 
+  // Reschedule Modal
   reschedulePresetBtn: {
-    flexBasis: '48%',
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    alignItems: 'center',
   },
-  reschedulePresetText: { fontSize: 11, fontWeight: '800' },
+  reschedulePresetText: { fontSize: 10, fontWeight: '800' },
 
+  // Complete Modal
   outcomeOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     borderRadius: 8,
     borderWidth: 1,
   },
@@ -1507,11 +1640,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 4,
+    marginVertical: 4,
   },
   checkboxBox: {
-    width: 18,
-    height: 18,
+    width: 16,
+    height: 16,
     borderRadius: 4,
     borderWidth: 1.5,
     alignItems: 'center',

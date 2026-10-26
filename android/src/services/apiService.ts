@@ -1265,6 +1265,22 @@ class ApiService {
     return false;
   }
 
+  async cancelFollowUp(token: string | null, id: string, payload: any): Promise<boolean> {
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/follow-ups/${id}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }
+
   // ── Leaves Management Engine ───────────────────────────────────────────────
   async getLeaveRequests(token: string | null): Promise<any[]> {
     if (!token) return [];

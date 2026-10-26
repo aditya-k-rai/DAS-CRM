@@ -51,6 +51,7 @@ import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
 import FollowUpsScreen from './FollowUpsScreen';
+import { followUpSyncEngine } from '../services/followUpSyncEngine';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
@@ -683,6 +684,26 @@ export default function LeadsScreen() {
             byRole: userRole,
           },
         }).catch(() => {});
+      }
+
+      // ⚡ Automatic CRM Follow-up Pipeline Sync
+      if (outcome.scheduledDate) {
+        const fullLead = leadsList.find(l => l.id === targetLeadId);
+        followUpSyncEngine.saveAndSyncFollowUp(token, {
+          leadId: targetLeadId,
+          leadName: fullLead?.name || callingLeadData?.name || outcome.leadName || 'Lead Prospect',
+          leadCompany: fullLead?.company || 'Corporate Client',
+          leadPhone: fullLead?.phone || callingLeadData?.phone || outcome.phone,
+          leadEmail: fullLead?.email,
+          followUpType: (outcome.scheduledType as any) || (outcome.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+          scheduledDate: outcome.scheduledDate,
+          scheduledTime: outcome.scheduledTime,
+          purpose: outcome.notes || 'Quick Call Outreach Callback',
+          notes: outcome.notes,
+          reminderMinutes: outcome.enablePreAlert5Min ? 5 : 0,
+          assigneeId: currentUser?.id,
+          assignedRepName: currentUser?.name || 'Sales Rep',
+        }).catch(err => console.warn('followUpSyncEngine error in LeadsScreen:', err));
       }
     }
 

@@ -44,6 +44,7 @@ import {
 } from '../services/whatsappTemplateEngine';
 import { productCatalogService } from '../services/productCatalogService';
 import { apiService } from '../services/apiService';
+import { followUpSyncEngine } from '../services/followUpSyncEngine';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 
@@ -495,6 +496,21 @@ export const DirectWhatsAppModal: React.FC<DirectWhatsAppModalProps> = ({
 
     // Sync Scheduled Follow-up / Meeting if active
     if (enableScheduler) {
+      followUpSyncEngine.saveAndSyncFollowUp(token, {
+        leadId,
+        leadName,
+        leadCompany,
+        leadPhone,
+        followUpType: scheduleType === 'MEETING' ? 'MEETING' : 'WHATSAPP',
+        scheduledDate,
+        scheduledTime,
+        purpose: additionalNotes || `Direct WhatsApp touchpoint for ${leadName}`,
+        notes: additionalNotes || `Scheduled via Direct WhatsApp dispatcher`,
+        reminderMinutes: enablePreAlert5Min ? 5 : 0,
+        assigneeId: currentUser?.id,
+        assignedRepName: currentUser?.name || 'Sales Rep',
+      }).catch(() => {});
+
       apiService.logLeadActivity(token, {
         leadId,
         activityType: scheduleType === 'MEETING' ? 'MEETING' : 'FOLLOWUP',

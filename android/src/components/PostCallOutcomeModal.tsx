@@ -71,6 +71,7 @@ export interface CallOutcomeData {
   targetStage?: string;
   scheduledDate?: string;
   scheduledTime?: string;
+  scheduledType?: string;
   enablePreAlert5Min?: boolean;
   selectedProduct?: ProductItem | null;
   customProduct?: string;
@@ -92,6 +93,7 @@ export interface CallOutcomeData {
   callerRole?: string;
   durationStr?: string;
   dateLabel?: string;
+  scheduledDisplayDate?: string;
 }
 
 interface PostCallOutcomeModalProps {
@@ -487,7 +489,8 @@ export default function PostCallOutcomeModal({
           ? (waChatSubOption as any)
           : undefined,
       targetStage,
-      scheduledDate: isSchedulingApplicable ? scheduledDate : undefined,
+      scheduledDate: isSchedulingApplicable ? (scheduledIsoDate || scheduledDate) : undefined,
+      scheduledDisplayDate: isSchedulingApplicable ? scheduledDate : undefined,
       scheduledTime: isSchedulingApplicable ? scheduledTime : undefined,
       enablePreAlert5Min: isSchedulingApplicable ? enablePreAlert5Min : undefined,
       selectedProduct,
