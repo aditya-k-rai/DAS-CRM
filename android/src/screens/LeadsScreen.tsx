@@ -50,6 +50,7 @@ import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
+import FollowUpsScreen from './FollowUpsScreen';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
@@ -117,6 +118,7 @@ export default function LeadsScreen() {
   const { token, currentUser } = useAuthStore();
   const roleName = (currentUser?.role || '').toString().toUpperCase();
   const canBulkImport = !roleName.includes('SALES') && !roleName.includes('EXEC') && !roleName.includes('LEADER') && !roleName.includes('TL');
+  const isSalesRepRole = roleName.includes('SALES') || roleName.includes('REP') || (roleName.includes('EXEC') && !roleName.includes('ADMIN'));
 
   const [auditLogs, setAuditLogs] = useState<IngestionAuditRecord[]>(INITIAL_INGESTION_AUDITS);
   const [auditFilter, setAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
@@ -897,7 +899,7 @@ export default function LeadsScreen() {
             onPress={() => setActiveSegment('FUNNEL')}
           >
             <Text style={[styles.sliderText, { color: activeSegment === 'FUNNEL' ? '#ffffff' : colors.textSecondary }, activeSegment === 'FUNNEL' && styles.sliderTextActive]}>
-              {t.leadsFunnelTab}
+              {isSalesRepRole ? '⏱️ Tasks & Follow-ups' : t.leadsFunnelTab}
             </Text>
           </TouchableOpacity>
 
@@ -913,20 +915,30 @@ export default function LeadsScreen() {
       </View>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* ⚡ SEGMENT 1: LEAD ROUTING FUNNEL WORKSPACE                               */}
+      {/* ⚡ SEGMENT 1: LEAD ROUTING FUNNEL / TASKS & FOLLOW-UPS (FOR SALES REPS)     */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       {activeSegment === 'FUNNEL' ? (
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
-          {/* 🛢️ Lead Integration & Ingestion Control Center Banner */}
-          <LeadIngestionControlCenterBar
-            onInsertLeadPress={() => setInsertModalOpen(true)}
-            onImportCsvPress={() => { setSavedImportSession(null); setImportModalOpen(true); }}
-            onGoogleSheetsPress={() => setSheetModalOpen(true)}
-            onCustomColumnPress={() => { setEditingColKey(null); setEditingColTitle(''); setColOrderModalOpen(true); }}
-            onAdjustColumnsPress={() => setColOrderModalOpen(true)}
-            columnCount={columnOrder.length}
-            canBulkImport={canBulkImport}
-          />
+        isSalesRepRole ? (
+          <View style={{ flex: 1 }}>
+            <FollowUpsScreen
+              embedded={true}
+              onNavigateToLead={(leadId) => {
+                navigation.navigate('LeadDetail', { leadId, leadName: 'Lead Detail' });
+              }}
+            />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
+            {/* 🛢️ Lead Integration & Ingestion Control Center Banner */}
+            <LeadIngestionControlCenterBar
+              onInsertLeadPress={() => setInsertModalOpen(true)}
+              onImportCsvPress={() => { setSavedImportSession(null); setImportModalOpen(true); }}
+              onGoogleSheetsPress={() => setSheetModalOpen(true)}
+              onCustomColumnPress={() => { setEditingColKey(null); setEditingColTitle(''); setColOrderModalOpen(true); }}
+              onAdjustColumnsPress={() => setColOrderModalOpen(true)}
+              columnCount={columnOrder.length}
+              canBulkImport={canBulkImport}
+            />
 
           {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
           <View style={[auditStyles.auditSectionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -1190,6 +1202,7 @@ export default function LeadsScreen() {
             </View>
           </View>
         </ScrollView>
+        )
       ) : (
 
         /* ─────────────────────────────────────────────────────────────────────────── */

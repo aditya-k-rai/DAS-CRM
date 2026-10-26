@@ -63,13 +63,14 @@ interface Props {
   onClose?: () => void;
   onNavigateToLead?: (leadId: string) => void;
   navigation?: any;
+  embedded?: boolean;
 }
 
 const STORAGE_FOLLOWUPS_KEY = '@das_crm_followup_tasks_cache';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead }) => {
+export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, navigation, embedded = false }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const token = useAuthStore((s) => s.token);
@@ -512,23 +513,27 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead }) 
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top + 4, 16),
+            paddingTop: embedded ? 8 : Math.max(insets.top + 4, 16),
             backgroundColor: colors.cardBg,
             borderBottomColor: colors.border,
           },
         ]}
       >
-        <TouchableOpacity
-          onPress={onClose}
-          style={[styles.btnAction, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-          activeOpacity={0.75}
-        >
-          <Text style={[styles.btnActionText, { color: colors.primary }]}>← Dashboard</Text>
-        </TouchableOpacity>
+        {!embedded && Boolean(onClose) && (
+          <TouchableOpacity
+            onPress={onClose}
+            style={[styles.btnAction, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.btnActionText, { color: colors.primary }]}>← Dashboard</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ flex: 1, paddingHorizontal: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>📞 Follow-ups</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>
+              {embedded ? '⏱️ Tasks & Follow-ups' : '📞 Follow-ups'}
+            </Text>
             <View style={styles.badgeLive}>
               <Text style={styles.badgeLiveText}>Pipeline</Text>
             </View>
