@@ -223,11 +223,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         setRecentOutcomes(mapped);
 
         // Map server activities into full ContactAttempt structure matching web
-        const mappedAttempts: ContactAttempt[] = activities.map((a: any) => {
+        const mappedAttempts: ContactAttempt[] = [];
+        for (const a of activities) {
           const actType = (a.type || a.activityType || '').toUpperCase();
           const meta = typeof a.metadata === 'object' && a.metadata !== null ? a.metadata : {};
           const isCall = actType.includes('CALL');
-          const isWa = actType.includes('WHATSAPP') || actType.includes('WA') || meta.type === 'WHATSAPP_DIRECT';
+          const isWa = actType.includes('WHATSAPP') || actType.includes('WA') || meta.type === 'WHATSAPP_DIRECT' || meta.channel === 'WHATSAPP_DIRECT';
           const isEmail = actType.includes('EMAIL');
           const isMeeting = actType.includes('MEETING') || meta.followUpType === 'MEETING';
           const isInvoice = actType.includes('INVOICE') || meta.docType === 'INVOICE';
@@ -238,6 +239,49 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             : a.performedBy || a.userName || meta.by || leadAssignedRep || 'Sales Rep';
 
           const actorRole = a.user?.role?.name || a.user?.role || a.userRole || meta.byRole || 'SALES_EXEC';
+
+          // ⚡ If an activity was recorded as WhatsApp during a phone call (or has call duration / isWaShared)
+          const durSecs = a.durationSeconds || meta.durationSeconds || (isCall ? 90 : 0);
+          const isCombinedCallAndWa = isWa && (Boolean(meta.isWaShared) || durSecs > 0 || (a.notes && a.notes.includes('Call disposition')));
+
+          if (isCombinedCallAndWa) {
+            const baseTs = a.createdAt ? new Date(a.createdAt).getTime() : Date.now();
+            const callTs = new Date(baseTs + 1000).toISOString();
+            const waTs = new Date(baseTs).toISOString();
+
+            // 1. Call attempt (he talked)
+            mappedAttempts.push({
+              id: `${a.id || Math.random()}-call`,
+              type: 'CALL_OUT',
+              outcome: 'TALKED',
+              by: actorName,
+              byRole: actorRole,
+              timestamp: callTs,
+              durationSeconds: durSecs > 0 ? durSecs : 120,
+              notes: a.notes || a.description || meta.notes || (meta.productInterest ? `Talked with client: Discussed ${meta.productInterest}` : 'Call completed'),
+              productInterest: meta.productInterest || a.productInterest,
+              followUpDate: meta.followUpDate || a.scheduledDate,
+              followUpTime: meta.followUpTime || a.scheduledTime,
+            });
+
+            // 2. WhatsApp attempt (he sent WhatsApp)
+            mappedAttempts.push({
+              id: `${a.id || Math.random()}-wa`,
+              type: meta.channel === 'WA_CLOUD' || actType.includes('CLOUD') ? 'WHATSAPP_CLOUD' : 'WHATSAPP_DIRECT',
+              sharingMedium: 'WHATSAPP_DIRECT',
+              outcome: 'WA_SENT',
+              by: actorName,
+              byRole: actorRole,
+              timestamp: waTs,
+              durationSeconds: 0,
+              notes: meta.productInterest ? `Product details shared via WhatsApp: ${meta.productInterest}` : (a.notes || 'WhatsApp Direct message sent'),
+              productInterest: meta.productInterest || a.productInterest,
+              sentMessage: meta.sentMessage || a.sentMessage,
+              followUpDate: meta.followUpDate || a.scheduledDate,
+              followUpTime: meta.followUpTime || a.scheduledTime,
+            });
+            continue;
+          }
 
           let type: ContactType = 'CALL_OUT';
           let outcome: ContactOutcome = 'TALKED';
@@ -273,9 +317,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             }
           }
 
-          const durSecs = a.durationSeconds || meta.durationSeconds || (isCall && outcome === 'TALKED' ? 90 : 0);
-
-          return {
+          mappedAttempts.push({
             id: String(a.id || `act-${Math.random()}`),
             type,
             outcome,
@@ -292,8 +334,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             docType: meta.docType || (isInvoice ? 'INVOICE' : isQuote ? 'QUOTATION' : undefined),
             docAmount: meta.docAmount || meta.totalAmount,
             sharingMedium: meta.sharingMedium,
-          };
-        });
+          });
+        }
 
         setContactHistory(mappedAttempts);
         AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(mappedAttempts)).catch(() => {});
@@ -597,46 +639,94 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     };
     setRecentOutcomes(prev => [enrichedData, ...prev]);
 
-    // ⚡ Append to unified ContactAttempt history and persist to AsyncStorage
-    const newAttempt: ContactAttempt = {
-      id: `att-${Date.now()}`,
-      type: data.isWaShared || data.outcome === 'WHATSAPP_CHAT'
-        ? 'WHATSAPP_DIRECT'
-        : data.scheduledDate
-        ? 'FOLLOWUP_SCHEDULED'
-        : data.outcome === 'BUSY'
-        ? 'CALL_BUSY'
-        : data.outcome === 'NOT_RESPONDING'
-        ? 'CALL_NOT_RESPONDING'
-        : data.outcome === 'SWITCHED_OFF'
-        ? 'CALL_SWITCH_OFF'
-        : 'CALL_OUT',
-      outcome: data.isWaShared || data.outcome === 'WHATSAPP_CHAT'
-        ? 'WA_SENT'
-        : data.scheduledDate
-        ? 'MEETING_SCHEDULED'
-        : data.outcome === 'BUSY'
-        ? 'BUSY'
-        : data.outcome === 'NOT_RESPONDING'
-        ? 'NO_ANSWER'
-        : data.outcome === 'SWITCHED_OFF'
-        ? 'SWITCH_OFF'
-        : 'TALKED',
-      by: enrichedData.callerName || 'Sales Rep',
-      byRole: enrichedData.callerRole || userRole,
-      timestamp: new Date().toISOString(),
-      durationSeconds: data.durationStr ? 120 : 0,
-      notes: data.notes,
-      productInterest: data.selectedProduct?.name
-        ? `${data.selectedProduct.name}${data.productQuantity ? ` (Qty: ${data.productQuantity} · ${data.productTotalPrice ? `₹${data.productTotalPrice.toLocaleString('en-IN')}` : ''})` : ''}`
-        : undefined,
-      followUpDate: data.scheduledDate,
-      followUpTime: data.scheduledTime,
-      sentMessage: data.sentMessage,
-    };
+    // Parse call duration in seconds
+    let callDurationSecs = 120;
+    if (data.durationStr) {
+      const minMatch = data.durationStr.match(/(\d+)\s*m/);
+      const secMatch = data.durationStr.match(/(\d+)\s*s/);
+      const parsed = (minMatch ? parseInt(minMatch[1], 10) * 60 : 0) + (secMatch ? parseInt(secMatch[1], 10) : 0);
+      if (parsed > 0) callDurationSecs = parsed;
+    } else if (telemetry.totalTalkTimeSeconds && telemetry.totalTalkTimeSeconds > 0) {
+      callDurationSecs = telemetry.totalTalkTimeSeconds;
+    }
+
+    const prodInterestString = data.selectedProduct?.name
+      ? `${data.selectedProduct.name}${data.productQuantity ? ` (Qty: ${data.productQuantity} · ${data.productTotalPrice ? `₹${data.productTotalPrice.toLocaleString('en-IN')}` : ''})` : ''}`
+      : (data.customProduct ? `${data.customProduct}${data.productQuantity ? ` (Qty: ${data.productQuantity})` : ''}` : undefined);
+
+    const isCallFunnel = data.outcome !== 'WHATSAPP_CHAT';
+    const isWaSharedDuringCall = Boolean(data.isWaShared || data.sentMessage || (data.selectedProduct && data.subOption === 'INTERESTED'));
+
+    const nowMs = Date.now();
+    const attemptsToPrepend: ContactAttempt[] = [];
+
+    // 1. Call attempt (he talked) — Timestamp set to nowMs so it appears FIRST in Timeline
+    if (isCallFunnel) {
+      const callType: ContactType =
+        data.scheduledDate && data.targetStage === 'Meeting Scheduled'
+          ? 'FOLLOWUP_SCHEDULED'
+          : data.outcome === 'BUSY'
+          ? 'CALL_BUSY'
+          : data.outcome === 'NOT_RESPONDING'
+          ? 'CALL_MISSED'
+          : data.outcome === 'SWITCHED_OFF'
+          ? 'CALL_SWITCH_OFF'
+          : 'CALL_OUT';
+
+      const callOutcome: ContactOutcome =
+        data.scheduledDate && data.targetStage === 'Meeting Scheduled'
+          ? 'MEETING_SCHEDULED'
+          : data.outcome === 'BUSY'
+          ? 'BUSY'
+          : data.outcome === 'NOT_RESPONDING'
+          ? 'NO_ANSWER'
+          : data.outcome === 'SWITCHED_OFF'
+          ? 'SWITCH_OFF'
+          : 'TALKED';
+
+      const callAttempt: ContactAttempt = {
+        id: `att-call-${nowMs}`,
+        type: callType,
+        outcome: callOutcome,
+        by: enrichedData.callerName || 'Sales Rep',
+        byRole: enrichedData.callerRole || userRole,
+        timestamp: new Date(nowMs).toISOString(),
+        durationSeconds: callDurationSecs,
+        notes: data.notes || (prodInterestString ? `Talked with client: Discussed ${prodInterestString}` : 'Call completed'),
+        productInterest: prodInterestString,
+        followUpDate: data.scheduledDate,
+        followUpTime: data.scheduledTime,
+        scheduledType: data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL',
+      };
+
+      attemptsToPrepend.push(callAttempt);
+    }
+
+    // 2. WhatsApp attempt (he sent WhatsApp) — Timestamp set to (nowMs - 1000) so it appears immediately below Call
+    if (data.outcome === 'WHATSAPP_CHAT' || isWaSharedDuringCall) {
+      const waAttempt: ContactAttempt = {
+        id: `att-wa-${nowMs + 1}`,
+        type: 'WHATSAPP_DIRECT',
+        sharingMedium: 'WHATSAPP_DIRECT',
+        outcome: 'WA_SENT',
+        by: enrichedData.callerName || 'Sales Rep',
+        byRole: enrichedData.callerRole || userRole,
+        timestamp: new Date(isCallFunnel ? nowMs - 1000 : nowMs).toISOString(),
+        durationSeconds: 0,
+        notes: prodInterestString
+          ? `Product details shared via WhatsApp: ${prodInterestString}`
+          : (data.notes || 'WhatsApp Direct message sent'),
+        productInterest: prodInterestString,
+        followUpDate: data.scheduledDate,
+        followUpTime: data.scheduledTime,
+        sentMessage: data.sentMessage,
+      };
+
+      attemptsToPrepend.push(waAttempt);
+    }
 
     setContactHistory(prev => {
-      const updated = [newAttempt, ...prev];
+      const updated = [...attemptsToPrepend, ...prev];
       AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(updated)).catch(() => {});
       return updated;
     });
@@ -644,7 +734,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     setTelemetry(prev => ({
       ...prev,
       lastCalledAt: `Today, ${enrichedData.timestamp}`,
-      outgoingCount: prev.outgoingCount + 1,
+      outgoingCount: isCallFunnel ? prev.outgoingCount + 1 : prev.outgoingCount,
+      totalTalkTimeSeconds: isCallFunnel ? (prev.totalTalkTimeSeconds || 0) + callDurationSecs : prev.totalTalkTimeSeconds,
+      lastDurationStr: isCallFunnel ? (data.durationStr || `${Math.floor(callDurationSecs / 60)}m ${callDurationSecs % 60}s`) : prev.lastDurationStr,
       lastFollowupAt: data.scheduledDate ? `${data.scheduledDate} ${data.scheduledTime || ''}` : `Today, ${enrichedData.timestamp}`,
     }));
 
@@ -715,26 +807,99 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       }));
     }
 
-    // Persist activity to backend
-    apiService.logLeadActivity(token, {
-      activityType: data.outcome === 'WHATSAPP_CHAT' || data.isWaShared ? 'WHATSAPP' : 'CALL',
-      leadId,
-      notes: data.notes || `Outcome: ${data.outcome} - ${data.subOption || 'Call'}`,
-      subject: data.subOption || (data.isWaShared ? 'WHATSAPP_DIRECT' : 'Outreach'),
-      outcome: data.isWaShared ? 'WA_SENT' : data.outcome,
-      durationSeconds: data.durationStr ? 120 : 0,
-      metadata: {
-        productInterest: data.selectedProduct?.name,
-        productQuantity: data.productQuantity,
-        productTotalPrice: data.productTotalPrice,
-        isWaShared: data.isWaShared,
-        sentMessage: data.sentMessage,
-        followUpDate: data.scheduledDate,
-        followUpTime: data.scheduledTime,
-        by: enrichedData.callerName,
-        byRole: enrichedData.callerRole,
-      },
-    }).catch(() => {});
+    // ⚡ Persist activities to backend database via apiService
+    if (isCallFunnel && isWaSharedDuringCall) {
+      // Step A: Save WhatsApp activity first so its createdAt is earlier in database
+      apiService.logLeadActivity(token, {
+        activityType: 'NOTE',
+        leadId,
+        notes: prodInterestString ? `Product details shared via WhatsApp: ${prodInterestString}` : (data.notes || 'Product details shared via WhatsApp Direct'),
+        subject: 'WHATSAPP_DIRECT',
+        outcome: 'WA_SENT',
+        durationSeconds: 0,
+        metadata: {
+          type: 'WHATSAPP_DIRECT',
+          channel: 'WHATSAPP_DIRECT',
+          outcome: 'WA_SENT',
+          productInterest: prodInterestString,
+          productQuantity: data.productQuantity,
+          productTotalPrice: data.productTotalPrice,
+          isWaShared: true,
+          sentMessage: data.sentMessage,
+          followUpDate: data.scheduledDate,
+          followUpTime: data.scheduledTime,
+          by: enrichedData.callerName,
+          byRole: enrichedData.callerRole,
+        },
+      }).catch(() => {});
+
+      // Step B: Save Call activity second so its createdAt is newer in database (first in reverse chronological query)
+      apiService.logLeadActivity(token, {
+        activityType: 'CALL',
+        leadId,
+        notes: data.notes || (prodInterestString ? `Talked with client: Discussed ${prodInterestString}` : `Call completed: ${data.outcome}`),
+        subject: data.subOption || 'Call Outreach',
+        outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
+        durationSeconds: callDurationSecs,
+        durationMin: Math.ceil(callDurationSecs / 60),
+        metadata: {
+          type: 'CALL_OUT',
+          outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
+          durationSeconds: callDurationSecs,
+          productInterest: prodInterestString,
+          productQuantity: data.productQuantity,
+          productTotalPrice: data.productTotalPrice,
+          followUpDate: data.scheduledDate,
+          followUpTime: data.scheduledTime,
+          by: enrichedData.callerName,
+          byRole: enrichedData.callerRole,
+        },
+      }).catch(() => {});
+    } else if (isCallFunnel) {
+      // Pure Call Outreach
+      apiService.logLeadActivity(token, {
+        activityType: 'CALL',
+        leadId,
+        notes: data.notes || `Outcome: ${data.outcome} - ${data.subOption || 'Call'}`,
+        subject: data.subOption || 'Call Outreach',
+        outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
+        durationSeconds: callDurationSecs,
+        durationMin: Math.ceil(callDurationSecs / 60),
+        metadata: {
+          type: 'CALL_OUT',
+          outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
+          durationSeconds: callDurationSecs,
+          productInterest: prodInterestString,
+          followUpDate: data.scheduledDate,
+          followUpTime: data.scheduledTime,
+          by: enrichedData.callerName,
+          byRole: enrichedData.callerRole,
+        },
+      }).catch(() => {});
+    } else {
+      // Pure WhatsApp Outreach
+      apiService.logLeadActivity(token, {
+        activityType: 'NOTE',
+        leadId,
+        notes: data.notes || 'WhatsApp Direct communication logged',
+        subject: 'WHATSAPP_DIRECT',
+        outcome: 'WA_SENT',
+        durationSeconds: 0,
+        metadata: {
+          type: 'WHATSAPP_DIRECT',
+          channel: 'WHATSAPP_DIRECT',
+          outcome: 'WA_SENT',
+          productInterest: prodInterestString,
+          productQuantity: data.productQuantity,
+          productTotalPrice: data.productTotalPrice,
+          sentMessage: data.sentMessage,
+          followUpDate: data.scheduledDate,
+          followUpTime: data.scheduledTime,
+          by: enrichedData.callerName,
+          byRole: enrichedData.callerRole,
+        },
+      }).catch(() => {});
+    }
   };
 
   // 💳 Confirm Payment Outcome
@@ -1732,6 +1897,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         leadId={leadId}
         leadName={leadName}
         phone={leadPhone}
+        durationStr={telemetry.lastDurationStr || '2m 14s'}
         onSaveOutcome={handleSaveCallOutcome}
       />
 

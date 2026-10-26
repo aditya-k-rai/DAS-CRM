@@ -599,13 +599,93 @@ export default function LeadsScreen() {
 
   const handleSaveCallOutcome = (outcome: CallOutcomeData) => {
     setPostCallModalOpen(false);
-    if (outcome.targetStage && callingLeadData?.id) {
+    const targetLeadId = callingLeadData?.id;
+    if (outcome.targetStage && targetLeadId) {
       const newStatus = outcome.targetStage.toUpperCase();
       setLeadsList((prev) =>
-        prev.map((l) => (l.id === callingLeadData.id ? { ...l, status: newStatus } : l))
+        prev.map((l) => (l.id === targetLeadId ? { ...l, status: newStatus } : l))
       );
-      apiService.updateLeadStatus(token, callingLeadData.id, newStatus);
+      apiService.updateLeadStatus(token, targetLeadId, newStatus);
     }
+
+    if (targetLeadId) {
+      const isCall = outcome.outcome !== 'WHATSAPP_CHAT';
+      const hasWa = Boolean(outcome.isWaShared || outcome.sentMessage || outcome.selectedProduct);
+      const prodStr = outcome.selectedProduct?.name
+        ? `${outcome.selectedProduct.name}${outcome.productQuantity ? ` (Qty: ${outcome.productQuantity} · ${outcome.productTotalPrice ? `₹${outcome.productTotalPrice.toLocaleString('en-IN')}` : ''})` : ''}`
+        : undefined;
+
+      let callSecs = 120;
+      if (outcome.durationStr) {
+        const minMatch = outcome.durationStr.match(/(\d+)\s*m/);
+        const secMatch = outcome.durationStr.match(/(\d+)\s*s/);
+        const parsed = (minMatch ? parseInt(minMatch[1], 10) * 60 : 0) + (secMatch ? parseInt(secMatch[1], 10) : 0);
+        if (parsed > 0) callSecs = parsed;
+      }
+
+      if (isCall && hasWa) {
+        apiService.logLeadActivity(token, {
+          activityType: 'NOTE',
+          leadId: targetLeadId,
+          notes: prodStr ? `Product details shared via WhatsApp: ${prodStr}` : (outcome.notes || 'Product details shared via WhatsApp Direct'),
+          subject: 'WHATSAPP_DIRECT',
+          outcome: 'WA_SENT',
+          durationSeconds: 0,
+          metadata: {
+            type: 'WHATSAPP_DIRECT',
+            channel: 'WHATSAPP_DIRECT',
+            outcome: 'WA_SENT',
+            productInterest: prodStr,
+            sentMessage: outcome.sentMessage,
+            isWaShared: true,
+            followUpDate: outcome.scheduledDate,
+            followUpTime: outcome.scheduledTime,
+            by: currentUser?.name || 'Sales Rep',
+            byRole: userRole,
+          },
+        }).catch(() => {});
+
+        apiService.logLeadActivity(token, {
+          activityType: 'CALL',
+          leadId: targetLeadId,
+          notes: outcome.notes || (prodStr ? `Talked with client: Discussed ${prodStr}` : 'Call completed'),
+          subject: outcome.subOption || 'Call Outreach',
+          outcome: outcome.outcome === 'PICKED_UP' ? 'TALKED' : outcome.outcome,
+          durationSeconds: callSecs,
+          durationMin: Math.ceil(callSecs / 60),
+          metadata: {
+            type: 'CALL_OUT',
+            outcome: outcome.outcome === 'PICKED_UP' ? 'TALKED' : outcome.outcome,
+            durationSeconds: callSecs,
+            productInterest: prodStr,
+            followUpDate: outcome.scheduledDate,
+            followUpTime: outcome.scheduledTime,
+            by: currentUser?.name || 'Sales Rep',
+            byRole: userRole,
+          },
+        }).catch(() => {});
+      } else if (isCall) {
+        apiService.logLeadActivity(token, {
+          activityType: 'CALL',
+          leadId: targetLeadId,
+          notes: outcome.notes || 'Call completed',
+          subject: outcome.subOption || 'Call Outreach',
+          outcome: outcome.outcome === 'PICKED_UP' ? 'TALKED' : outcome.outcome,
+          durationSeconds: callSecs,
+          metadata: {
+            type: 'CALL_OUT',
+            outcome: outcome.outcome === 'PICKED_UP' ? 'TALKED' : outcome.outcome,
+            durationSeconds: callSecs,
+            productInterest: prodStr,
+            followUpDate: outcome.scheduledDate,
+            followUpTime: outcome.scheduledTime,
+            by: currentUser?.name || 'Sales Rep',
+            byRole: userRole,
+          },
+        }).catch(() => {});
+      }
+    }
+
     Alert.alert(
       'Outcome Logged',
       `Call result "${outcome.outcome.replace('_', ' ')}" (${outcome.targetStage || 'Updated'}) saved for ${callingLeadData?.name || 'Lead'}.${outcome.scheduledDate ? `\nFollow-up: ${outcome.scheduledDate} ${outcome.scheduledTime || ''}` : ''}`

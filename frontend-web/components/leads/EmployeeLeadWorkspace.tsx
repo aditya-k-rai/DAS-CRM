@@ -316,6 +316,32 @@ function mapServerActivitiesToContactHistory(
           followUpTime: fuTime,
         });
         seenIds.add(act.id);
+
+        // ⚡ If this activity originated from a call where product was shared via WhatsApp (legacy combined record fallback)
+        const durSecs = meta.durationSeconds || act.durationSeconds || 0;
+        const originatedFromCall = durSecs > 0 || Boolean(meta.isWaShared && (desc.toLowerCase().includes('call') || (meta.notes && meta.notes.toLowerCase().includes('call'))));
+        if (originatedFromCall) {
+          const callAttemptId = `${act.id}_call`;
+          if (!seenIds.has(callAttemptId)) {
+            const callActTime = new Date(new Date(actTime).getTime() + 1000).toISOString();
+            attempts.push({
+              id: callAttemptId,
+              type: 'CALL_OUT',
+              outcome: isMeeting ? 'MEETING_SCHEDULED' : 'TALKED',
+              scheduledType: isMeeting ? 'MEETING' : 'CALL',
+              by: userName,
+              byRole: cleanRole,
+              timestamp: callActTime,
+              durationSeconds: durSecs > 0 ? durSecs : 120,
+              notes: meta.notes || desc || (waProduct ? `Talked with client: ${waProduct} discussed` : 'Outbound phone call'),
+              productInterest: waProduct,
+              followUpDate: fuDate,
+              followUpTime: fuTime,
+              audioRecordingAvailable: Boolean(durSecs > 10),
+            });
+            seenIds.add(callAttemptId);
+          }
+        }
       } else if (typeStr === 'MEETING' || metaType === 'MEETING') {
         const desc = act.description || '';
         const schedMatch = desc.match(/\[Scheduled\s+(?:MEETING|FOLLOWUP|CALL)\s+for\s+([\d-]+)(?:\s+at\s+([^\]\n]+))?\]/i);

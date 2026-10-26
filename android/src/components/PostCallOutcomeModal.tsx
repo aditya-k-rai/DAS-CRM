@@ -99,6 +99,7 @@ interface PostCallOutcomeModalProps {
   leadId: string;
   leadName: string;
   phone: string;
+  durationStr?: string;
   onClose: () => void;
   onSaveOutcome: (data: CallOutcomeData) => void;
 }
@@ -135,6 +136,7 @@ export default function PostCallOutcomeModal({
   leadId,
   leadName,
   phone,
+  durationStr,
   onClose,
   onSaveOutcome,
 }: PostCallOutcomeModalProps) {
@@ -471,6 +473,8 @@ export default function PostCallOutcomeModal({
       outcome === 'SWITCHED_OFF' ||
       (outcome === 'WHATSAPP_CHAT' && (waChatSubOption === 'CHAT_LATER' || waChatSubOption === 'WILL_VISIT'));
 
+    const resolvedDuration = durationStr || (outcome === 'PICKED_UP' ? '2m 14s' : undefined);
+
     const data: CallOutcomeData = {
       leadId,
       leadName,
@@ -501,6 +505,7 @@ export default function PostCallOutcomeModal({
       customRequirement: customRequirement.trim() || undefined,
       selectedQuoteInvoice,
       notes: notesSummary || `Call disposition logged: ${outcome.replace('_', ' ')} (${targetStage}).`,
+      durationStr: resolvedDuration,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
