@@ -607,6 +607,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('das_crm_active_role');
     localStorage.removeItem('das_crm_subscription');
 
+    // Clear session column reordering & layout customization
+    localStorage.removeItem('das_crm_lead_col_order');
+    localStorage.removeItem('das_crm_lead_col_titles');
+    localStorage.removeItem('das_crm_lead_col_widths');
+    localStorage.removeItem('das_crm_leads_col_order');
+
     // Invalidate and purge stale lead and dashboard caches to prevent cross-account sticking
     clearLeadDirectoryCaches();
     clearAllDashboardCaches();

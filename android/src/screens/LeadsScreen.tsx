@@ -26,6 +26,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -232,8 +233,12 @@ export default function LeadsScreen() {
     });
   }, []);
 
-  // ── COLUMN ORDER STATE ────────────────────────────────────────────────────
-  const [columnOrder, setColumnOrder] = useState<string[]>([
+  // ── CONSTANTS FOR EXCEL COLUMNS & LOGIN-SESSION PERSISTENCE ─────────────
+  const LEADS_COL_ORDER_KEY = 'das_crm_leads_col_order';
+  const LEADS_COL_NAMES_KEY = 'das_crm_leads_col_names';
+  const LEADS_COL_WIDTHS_KEY = 'das_crm_leads_col_widths';
+
+  const DEFAULT_COLUMN_ORDER: string[] = [
     'name',
     'email',
     'phone',
@@ -245,9 +250,9 @@ export default function LeadsScreen() {
     'city',
     'budget',
     'requirement',
-  ]);
+  ];
 
-  const [columnNames, setColumnNames] = useState<Record<string, string>>({
+  const DEFAULT_COLUMN_NAMES: Record<string, string> = {
     name: 'NAME',
     email: 'EMAIL',
     phone: 'PHONE',
@@ -259,9 +264,9 @@ export default function LeadsScreen() {
     city: 'CITY',
     budget: 'BUDGET',
     requirement: 'REQUIREMENT',
-  });
+  };
 
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+  const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
     name: 150,
     email: 180,
     phone: 170,
@@ -273,7 +278,94 @@ export default function LeadsScreen() {
     city: 130,
     budget: 120,
     requirement: 160,
-  });
+  };
+
+  // ── COLUMN ORDER STATE (PERSISTED FOR THE ACTIVE LOGIN SESSION) ─────────────
+  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COLUMN_ORDER);
+  const [columnNames, setColumnNames] = useState<Record<string, string>>(DEFAULT_COLUMN_NAMES);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
+
+  // Load saved column layout for this login period (resets if user logged out)
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const [savedOrder, savedNames, savedWidths] = await Promise.all([
+          AsyncStorage.getItem(LEADS_COL_ORDER_KEY),
+          AsyncStorage.getItem(LEADS_COL_NAMES_KEY),
+          AsyncStorage.getItem(LEADS_COL_WIDTHS_KEY),
+        ]);
+
+        if (!isMounted) return;
+
+        if (savedOrder) {
+          const parsed = JSON.parse(savedOrder);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sanitized = parsed.filter(c => DEFAULT_COLUMN_ORDER.includes(c));
+            DEFAULT_COLUMN_ORDER.forEach(col => {
+              if (!sanitized.includes(col)) sanitized.push(col);
+            });
+            if (sanitized.length > 0) {
+              setColumnOrder(sanitized);
+            }
+          }
+        } else {
+          setColumnOrder(DEFAULT_COLUMN_ORDER);
+        }
+
+        if (savedNames) {
+          const parsed = JSON.parse(savedNames);
+          if (parsed && typeof parsed === 'object') {
+            setColumnNames(prev => ({ ...prev, ...parsed }));
+          }
+        } else {
+          setColumnNames(DEFAULT_COLUMN_NAMES);
+        }
+
+        if (savedWidths) {
+          const parsed = JSON.parse(savedWidths);
+          if (parsed && typeof parsed === 'object') {
+            setColumnWidths(prev => ({ ...prev, ...parsed }));
+          }
+        } else {
+          setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+        }
+      } catch (err) {
+        console.warn('[LeadsScreen] Error loading column layout from session storage:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
+
+  const persistColumnOrder = useCallback(async (newOrder: string[]) => {
+    setColumnOrder(newOrder);
+    try {
+      await AsyncStorage.setItem(LEADS_COL_ORDER_KEY, JSON.stringify(newOrder));
+    } catch (e) {
+      console.warn('[LeadsScreen] Error persisting column order:', e);
+    }
+  }, []);
+
+  const persistColumnNames = useCallback(async (newNames: Record<string, string>) => {
+    setColumnNames(newNames);
+    try {
+      await AsyncStorage.setItem(LEADS_COL_NAMES_KEY, JSON.stringify(newNames));
+    } catch (e) {
+      console.warn('[LeadsScreen] Error persisting column names:', e);
+    }
+  }, []);
+
+  const persistColumnWidths = useCallback(async (newWidths: Record<string, number>) => {
+    setColumnWidths(newWidths);
+    try {
+      await AsyncStorage.setItem(LEADS_COL_WIDTHS_KEY, JSON.stringify(newWidths));
+    } catch (e) {
+      console.warn('[LeadsScreen] Error persisting column widths:', e);
+    }
+  }, []);
 
   const totalExcelWidth = useMemo(() => {
     return 44 + columnOrder.reduce((acc, colKey) => acc + (columnWidths[colKey] || 140), 0);
@@ -286,7 +378,7 @@ export default function LeadsScreen() {
     const temp = newOrder[idx - 1];
     newOrder[idx - 1] = newOrder[idx];
     newOrder[idx] = temp;
-    setColumnOrder(newOrder);
+    persistColumnOrder(newOrder);
   };
 
   const moveColumnRight = (colKey: string) => {
@@ -296,7 +388,7 @@ export default function LeadsScreen() {
     const temp = newOrder[idx + 1];
     newOrder[idx + 1] = newOrder[idx];
     newOrder[idx] = temp;
-    setColumnOrder(newOrder);
+    persistColumnOrder(newOrder);
   };
 
   const toggleColumnWidth = (colKey: string) => {
@@ -306,7 +398,9 @@ export default function LeadsScreen() {
       if (currW < 180) nextW = 230;
       else if (currW < 260) nextW = 310;
       else nextW = 150;
-      return { ...prev, [colKey]: nextW };
+      const updated = { ...prev, [colKey]: nextW };
+      persistColumnWidths(updated);
+      return updated;
     });
   };
 
@@ -317,7 +411,8 @@ export default function LeadsScreen() {
 
   const saveHeaderRename = () => {
     if (editingColKey && editingColTitle.trim()) {
-      setColumnNames((prev) => ({ ...prev, [editingColKey]: editingColTitle.trim().toUpperCase() }));
+      const updated = { ...columnNames, [editingColKey]: editingColTitle.trim().toUpperCase() };
+      persistColumnNames(updated);
       setEditingColKey(null);
       setEditingColTitle('');
     }
@@ -1724,7 +1819,14 @@ export default function LeadsScreen() {
               ))}
             </ScrollView>
 
-            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 14 }]} onPress={() => setColOrderModalOpen(false)}>
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 14 }]}
+              onPress={() => {
+                persistColumnOrder(columnOrder);
+                persistColumnNames(columnNames);
+                setColOrderModalOpen(false);
+              }}
+            >
               <Text style={{ color: '#ffffff', fontWeight: '800' }}>Save Column Layout ✓</Text>
             </TouchableOpacity>
           </View>

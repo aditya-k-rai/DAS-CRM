@@ -398,6 +398,9 @@ const STORAGE_KEYS = {
   user: 'das_crm_user',
   token: 'das_crm_token',
   role: 'das_crm_active_role',
+  leadsColOrder: 'das_crm_leads_col_order',
+  leadsColNames: 'das_crm_leads_col_names',
+  leadsColWidths: 'das_crm_leads_col_widths',
 } as const;
 
 /**
@@ -615,6 +618,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       AsyncStorage.removeItem(STORAGE_KEYS.user),
       AsyncStorage.removeItem(STORAGE_KEYS.token),
       AsyncStorage.removeItem(STORAGE_KEYS.role),
+      AsyncStorage.removeItem(STORAGE_KEYS.leadsColOrder),
+      AsyncStorage.removeItem(STORAGE_KEYS.leadsColNames),
+      AsyncStorage.removeItem(STORAGE_KEYS.leadsColWidths),
     ]);
   },
 
