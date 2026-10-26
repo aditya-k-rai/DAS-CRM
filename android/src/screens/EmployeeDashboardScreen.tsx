@@ -125,13 +125,18 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [productDetailOpen, setProductDetailOpen] = useState<ProductItem | null>(null);
   const [pdfShareTarget, setPdfShareTarget] = useState<PdfItem | null>(null);
 
-  // Selected Sales Representative filter (defaults to current user or ALL)
+  // Permission & Role checks
+  const userId = currentUser?.id || '';
+  const rawRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+  const isSupervisor = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER', 'HR'].includes(rawRole);
+  const isSalesRep = !isSupervisor;
+  const userRole = (rawRole === 'SUPER_ADMIN' ? 'ADMIN' : rawRole) as import('../store/moduleAccessStore').UserRole;
+  const userEmail = currentUser?.email;
+
+  // Selected Sales Representative filter (Supervisor can toggle ALL/Reps; Sales Rep is strictly locked to self)
   const [selectedRep, setSelectedRep] = useState<string>(() => {
-    const cName = currentUser?.name || '';
-    if (cName.toLowerCase().includes('nandini')) return 'Nandini Rastogi';
-    if (cName.toLowerCase().includes('sulekha')) return 'Sulekha Tomar';
-    if (cName.toLowerCase().includes('sadhana')) return 'Sadhana';
-    return 'ALL';
+    if (isSupervisor) return 'ALL';
+    return currentUser?.name || 'Sales Rep';
   });
 
   // Follow-up & Meeting state
@@ -139,12 +144,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [meetings, setMeetings] = useState<SyncedMeeting[]>([]);
   const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>([]);
   const [followUpFilter, setFollowUpFilter] = useState<'ALL' | 'DUE' | 'OVERDUE' | 'COMPLETED'>('ALL');
-
-  // Permission checks
-  const userId = currentUser?.id || '';
-  const rawRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
-  const userRole = (rawRole === 'SUPER_ADMIN' ? 'ADMIN' : rawRole) as import('../store/moduleAccessStore').UserRole;
-  const userEmail = currentUser?.email;
 
   const leadsPerm = accessStore.getPermission(userId, userRole, 'LEADS', userEmail);
   const tasksPerm = accessStore.getPermission(userId, userRole, 'TASKS', userEmail);
@@ -192,8 +191,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     syncDashboardData();
   }, [syncDashboardData]);
 
-  // Dynamically compute list of all sales reps
+  // Dynamically compute list of all sales reps (strictly computed for Supervisors; never exposed to Sales Reps)
   const availableReps = useMemo(() => {
+    if (!isSupervisor) return [];
+
     const map = new Map<string, { id: string; name: string; count: number }>();
     map.set('Nandini Rastogi', { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', count: 0 });
     map.set('Sulekha Tomar', { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', count: 0 });
@@ -201,12 +202,14 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
     rawLeads.forEach((l) => {
       const owner = (l.owner || '').trim();
+      const assignedRep = (l.assignedRep || '').trim();
       const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').trim();
 
       for (const [repName, entry] of map.entries()) {
         const cleanRep = repName.toLowerCase();
         if (
           owner.toLowerCase().includes(cleanRep) ||
+          assignedRep.toLowerCase().includes(cleanRep) ||
           customRep.toLowerCase().includes(cleanRep) ||
           l.ownerId === entry.id
         ) {
@@ -214,8 +217,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         }
       }
 
-      if (owner.toLowerCase().includes('sales exec') || owner.toLowerCase().includes('sales rep')) {
-        const cleanName = owner.replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/gi, '').trim();
+      const repField = assignedRep || owner;
+      if (repField.toLowerCase().includes('sales exec') || repField.toLowerCase().includes('sales rep')) {
+        const cleanName = repField.replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/gi, '').trim();
         if (cleanName && cleanName !== 'Sales Executive' && cleanName !== 'Unassigned' && cleanName !== '—') {
           if (!map.has(cleanName)) {
             map.set(cleanName, { id: l.ownerId || `rep_${cleanName}`, name: cleanName, count: 1 });
@@ -225,35 +229,51 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     });
 
     return Array.from(map.values());
-  }, [rawLeads]);
+  }, [rawLeads, isSupervisor]);
 
-  // Filter leads based on selected Sales Rep
+  // Filter leads strictly based on SaaS RBAC isolation: Sales Reps ONLY see their own assigned data
   const scopedLeads = useMemo(() => {
-    if (selectedRep === 'ALL') return rawLeads;
-    const cleanTarget = selectedRep.toLowerCase().replace(/\s*\(sales exec\)|\s*\(rep\)/g, '').trim();
-    const targetFirst = cleanTarget.split(' ')[0];
+    if (isSupervisor && selectedRep === 'ALL') return rawLeads;
+
+    const targetRepName = (isSalesRep ? (currentUser?.name || '') : selectedRep).trim();
+    const targetUserId = isSalesRep ? (currentUser?.id || '') : '';
+    const cleanTarget = targetRepName.toLowerCase().replace(/\s*\(sales exec\)|\s*\(rep\)|\s*\(sales\)/gi, '').trim();
+    const targetFirst = cleanTarget.split(' ')[0] || '';
+
+    const knownIds: Record<string, string> = {
+      nandini: 'cmuhp0517000ngg2dq93a6nlp',
+      sulekha: 'cmukwwdv9000ng42dghtw6t3z',
+      sadhana: 'cmukykfoe000nht2d0ylnsd3t',
+    };
 
     return rawLeads.filter((l) => {
-      const owner = (l.owner || '').toLowerCase();
-      const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase();
+      const owner = (l.owner || '').toLowerCase().trim();
+      const assignedRep = (l.assignedRep || '').toLowerCase().trim();
+      const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase().trim();
       const ownerId = l.ownerId || '';
 
-      const knownIds: Record<string, string> = {
-        nandini: 'cmuhp0517000ngg2dq93a6nlp',
-        sulekha: 'cmukwwdv9000ng42dghtw6t3z',
-        sadhana: 'cmukykfoe000nht2d0ylnsd3t',
-      };
+      // 1. Direct ID match
+      if (targetUserId && ownerId === targetUserId) return true;
+
+      // 2. Known seed IDs
       for (const [key, id] of Object.entries(knownIds)) {
         if (cleanTarget.includes(key) && ownerId === id) return true;
       }
 
-      if (owner.includes(cleanTarget) || cleanTarget.includes(owner)) return true;
-      if (customRep.includes(cleanTarget) || cleanTarget.includes(customRep)) return true;
-      if (targetFirst && targetFirst.length >= 3 && (owner.includes(targetFirst) || customRep.includes(targetFirst))) return true;
+      // 3. Name matching against assignedRep, owner, or customFields
+      if (cleanTarget) {
+        if (assignedRep && (assignedRep.includes(cleanTarget) || cleanTarget.includes(assignedRep))) return true;
+        if (owner && (owner.includes(cleanTarget) || cleanTarget.includes(owner))) return true;
+        if (customRep && (customRep.includes(cleanTarget) || cleanTarget.includes(customRep))) return true;
+
+        if (targetFirst && targetFirst.length >= 3) {
+          if (assignedRep.includes(targetFirst) || owner.includes(targetFirst) || customRep.includes(targetFirst)) return true;
+        }
+      }
 
       return false;
     });
-  }, [rawLeads, selectedRep]);
+  }, [rawLeads, selectedRep, currentUser, isSupervisor, isSalesRep]);
 
   // Lead metrics
   const newLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'new'), [scopedLeads]);
@@ -487,46 +507,48 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             </View>
           </View>
 
-          {/* Rep Filter Selector Chips */}
-          <View style={{ marginTop: 10 }}>
-            <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 5 }}>
-              👤 VIEWING WORKSPACE AS:
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              <TouchableOpacity
-                style={[
-                  styles.repChip,
-                  { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
-                  selectedRep === 'ALL' && { backgroundColor: colors.primary, borderColor: colors.primary },
-                ]}
-                onPress={() => setSelectedRep('ALL')}
-              >
-                <Text style={[styles.repChipText, selectedRep === 'ALL' ? { color: '#ffffff', fontWeight: '900' } : { color: colors.text }]}>
-                  All Sales Reps ({rawLeads.length})
-                </Text>
-              </TouchableOpacity>
-              {availableReps.map((rep) => (
+          {/* Rep Filter Selector Chips — Visible strictly to Supervisors (Admin/Manager), NEVER to Sales Reps */}
+          {isSupervisor && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 5 }}>
+                👤 SUPERVISOR AUDIT · VIEWING WORKSPACE AS:
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                 <TouchableOpacity
-                  key={rep.id}
                   style={[
                     styles.repChip,
                     { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
-                    selectedRep === rep.name && { backgroundColor: colors.primary, borderColor: colors.primary },
+                    selectedRep === 'ALL' && { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
-                  onPress={() => setSelectedRep(rep.name)}
+                  onPress={() => setSelectedRep('ALL')}
                 >
-                  <Text
-                    style={[
-                      styles.repChipText,
-                      selectedRep === rep.name ? { color: '#ffffff', fontWeight: '900' } : { color: colors.text },
-                    ]}
-                  >
-                    {rep.name} ({rep.count})
+                  <Text style={[styles.repChipText, selectedRep === 'ALL' ? { color: '#ffffff', fontWeight: '900' } : { color: colors.text }]}>
+                    All Sales Reps ({rawLeads.length})
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+                {availableReps.map((rep) => (
+                  <TouchableOpacity
+                    key={rep.id}
+                    style={[
+                      styles.repChip,
+                      { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
+                      selectedRep === rep.name && { backgroundColor: colors.primary, borderColor: colors.primary },
+                    ]}
+                    onPress={() => setSelectedRep(rep.name)}
+                  >
+                    <Text
+                      style={[
+                        styles.repChipText,
+                        selectedRep === rep.name ? { color: '#ffffff', fontWeight: '900' } : { color: colors.text },
+                      ]}
+                    >
+                      {rep.name} ({rep.count})
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* ── 2. My Leads Overview ──────────────────────────────────────────── */}

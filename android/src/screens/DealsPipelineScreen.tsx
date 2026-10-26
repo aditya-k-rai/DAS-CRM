@@ -72,10 +72,25 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
     });
 
     const loadDealsData = async () => {
+      const userRole = (currentUser?.role || '').toUpperCase();
+      const isSupervisor = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER', 'HR', 'TEAM_LEADER', 'TL'].includes(userRole);
+      const isSalesRep = !isSupervisor;
+      const myName = (currentUser?.name || '').trim().toLowerCase();
+      const myFirst = myName.split(' ')[0] || '';
+      const myId = currentUser?.id || '';
+
       try {
         const backendDeals = await apiService.getDeals(token);
         if (Array.isArray(backendDeals) && backendDeals.length > 0) {
-          const mapped: DealItem[] = backendDeals.map((d: any, idx: number) => {
+          const scopedRaw = isSalesRep
+            ? backendDeals.filter((d: any) => {
+                const ownerStr = (d.owner?.name || d.assignedTo?.name || d.owner || '').toLowerCase();
+                const ownerId = d.ownerId || d.owner?.id || '';
+                return (myId && ownerId === myId) || (myName && ownerStr.includes(myName)) || (myFirst && myFirst.length >= 3 && ownerStr.includes(myFirst));
+              })
+            : backendDeals;
+
+          const mapped: DealItem[] = scopedRaw.map((d: any, idx: number) => {
             const rawVal = typeof d.value === 'number' ? d.value : parseFloat(String(d.value || d.amount || '0').replace(/[^0-9.]/g, '')) || (45000 + (idx * 15000));
             return {
               id: d.id || `deal_${idx}`,
@@ -96,7 +111,14 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
       // Fallback from leads
       apiService.getLeads(token).then((leads) => {
         if (Array.isArray(leads) && leads.length > 0) {
-          const mappedDeals: DealItem[] = leads.map((l, idx) => {
+          const scopedLeads = isSalesRep
+            ? leads.filter((l) => {
+                const rep = (l.assignedRep || l.owner || '').trim().toLowerCase();
+                return (myId && l.ownerId === myId) || (myName && rep.includes(myName)) || (myFirst && myFirst.length >= 3 && rep.includes(myFirst));
+              })
+            : leads;
+
+          const mappedDeals: DealItem[] = scopedLeads.map((l, idx) => {
             const rawVal = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || (35000 + (idx * 15000));
             return {
               id: `deal_${l.id}`,

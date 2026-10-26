@@ -119,7 +119,17 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     try {
       // 1. Fetch real leads from API / storage
       const fetchedLeads = await apiService.getLeads();
-      const validLeads = Array.isArray(fetchedLeads) ? fetchedLeads : [];
+      let validLeads = Array.isArray(fetchedLeads) ? fetchedLeads : [];
+      if (!isAdminOrManager) {
+        // SaaS RBAC: Sales Reps can only view & schedule follow-ups for their own assigned leads
+        const myName = (currentUser?.name || '').trim().toLowerCase();
+        const myFirst = myName.split(' ')[0] || '';
+        const myId = currentUser?.id || '';
+        validLeads = validLeads.filter((l) => {
+          const rep = (l.assignedRep || l.owner || '').trim().toLowerCase();
+          return (myId && l.ownerId === myId) || (myName && rep.includes(myName)) || (myFirst && myFirst.length >= 3 && rep.includes(myFirst));
+        });
+      }
       setRealLeads(validLeads);
 
       // 2. Load cached follow-ups
@@ -294,8 +304,22 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         return false;
       }
 
-      // Rep filter
-      if (selectedRepFilter !== 'ALL') {
+      // Rep filter & Strict SaaS RBAC isolation
+      if (!isAdminOrManager) {
+        // Sales Reps can strictly view only their own assigned follow-up tasks
+        const myName = (currentUser?.name || '').trim().toLowerCase();
+        const myFirst = myName.split(' ')[0] || '';
+        const myId = currentUser?.id || '';
+        const taskRepName = (t.assignedRepName || '').trim().toLowerCase();
+        const taskRepId = t.assignedRepId || '';
+
+        const isMine =
+          (myId && taskRepId === myId) ||
+          (myName && taskRepName.includes(myName)) ||
+          (myFirst && myFirst.length >= 3 && taskRepName.includes(myFirst));
+
+        if (!isMine) return false;
+      } else if (selectedRepFilter !== 'ALL') {
         if (!t.assignedRepName.toLowerCase().includes(selectedRepFilter.toLowerCase())) {
           return false;
         }

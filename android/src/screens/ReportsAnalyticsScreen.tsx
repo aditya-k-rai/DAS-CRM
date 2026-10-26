@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
+import { useAuthStore } from '../store/authStore';
 import { apiService, Lead, Employee } from '../services/apiService';
 
 export interface TelemetryCallLog {
@@ -80,20 +81,42 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
     loadData();
   }, [loadData]);
 
-  // Derive Reps List
+  const { currentUser } = useAuthStore();
+  const rawRole = (currentUser?.role || '').toUpperCase();
+  const isSupervisor = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER', 'HR', 'TEAM_LEADER', 'TL'].includes(rawRole);
+  const isSalesRep = !isSupervisor;
+
+  // Derive Reps List (Strictly scoped: Sales Reps ONLY see their own metrics)
   const repsList = useMemo(() => {
     const rawReps = employees.filter((e) => {
       const r = (e.role || '').toUpperCase();
       return r.includes('SALES') || r.includes('EXEC') || r.includes('REP') || r.includes('LEAD') || r.includes('TL');
     });
 
-    return rawReps.length > 0 ? rawReps : [
+    const listToUse = rawReps.length > 0 ? rawReps : [
       { id: 'emp-1', name: 'Nandini Rastogi', email: 'nandini@das.com', role: 'SALES_EXEC' },
       { id: 'emp-2', name: 'Sulekha Sharma', email: 'sulekha@das.com', role: 'SALES_EXEC' },
       { id: 'emp-3', name: 'Sadhana Verma', email: 'sadhana@das.com', role: 'SALES_EXEC' },
       { id: 'emp-4', name: 'Rahul Joshi', email: 'rahul@das.com', role: 'TEAM_LEADER' },
     ];
-  }, [employees]);
+
+    if (isSalesRep && currentUser) {
+      const selfEntry = listToUse.find(
+        (e) =>
+          (e.email || '').toLowerCase() === (currentUser.email || '').toLowerCase() ||
+          (e.name || '').toLowerCase() === (currentUser.name || '').toLowerCase()
+      );
+      if (selfEntry) return [selfEntry];
+      return [{
+        id: currentUser.id || 'self',
+        name: currentUser.name || 'Sales Representative',
+        email: currentUser.email || '',
+        role: currentUser.role || 'SALES_EXEC',
+      }];
+    }
+
+    return listToUse;
+  }, [employees, isSalesRep, currentUser]);
 
   // Compute Leaderboard Data
   const leaderboardData: LeaderboardRep[] = useMemo(() => {
@@ -167,18 +190,26 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
     { day: 'Sat', calls: 26, rev: '₹0.9L' },
   ], []);
 
-  // Call Logs
+  // Call Logs (Scoped: Sales Reps ONLY see their own call logs)
   const callLogs: TelemetryCallLog[] = useMemo(() => {
-    return leads.slice(0, 5).map((l, idx) => ({
+    const scopedLeads = isSalesRep
+      ? leads.filter((l) => {
+          const myName = (currentUser?.name || '').trim().toLowerCase();
+          const rep = (l.owner || l.assignedRep || '').trim().toLowerCase();
+          return myName ? rep.includes(myName) : true;
+        })
+      : leads;
+
+    return scopedLeads.slice(0, 5).map((l, idx) => ({
       id: `call-log-${l.id || idx}`,
-      repName: l.owner || repsList[idx % repsList.length]?.name || 'Nandini Rastogi',
+      repName: isSalesRep ? currentUser?.name || 'Sales Rep' : (l.owner || repsList[idx % repsList.length]?.name || 'Sales Rep'),
       clientName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
       duration: `${3 + (idx * 2)}m ${15 + (idx * 5)}s`,
       status: idx === 3 ? 'MISSED' : 'CONNECTED',
       sentiment: idx === 0 ? 'POSITIVE' : idx === 1 ? 'POSITIVE' : 'NEUTRAL',
       time: `Today, ${10 + idx}:15 AM`,
     }));
-  }, [leads, repsList]);
+  }, [leads, repsList, isSalesRep, currentUser]);
 
   // Traffic sources
   const trafficSources = useMemo(() => [

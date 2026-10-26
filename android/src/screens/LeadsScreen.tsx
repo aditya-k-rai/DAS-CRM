@@ -139,6 +139,10 @@ export default function LeadsScreen() {
   const { managedUsers } = useModuleAccessStore();
 
   const availablePersons = useMemo(() => {
+    if (isSalesRepRole) {
+      // Sales reps are strictly isolated and only see their own assigned leads
+      return currentUser?.name ? [currentUser.name] : ['My Assigned Leads'];
+    }
     const persons = new Set<string>();
     if (currentUser?.name) {
       persons.add(currentUser.name);
@@ -149,10 +153,14 @@ export default function LeadsScreen() {
       }
     });
     return Array.from(persons);
-  }, [leadsList, currentUser]);
+  }, [leadsList, currentUser, isSalesRepRole]);
 
-  // Lead Assignee Options for Reassignment: Strictly TL + Sales Exec (Admin & Manager EXCLUDED)
+  // Lead Assignee Options for Reassignment: Strictly TL + Managers (Sales Execs CANNOT reassign leads)
   const assignableRepOptions = useMemo(() => {
+    if (isSalesRepRole) {
+      return [];
+    }
+
     // 1. From managedUsers in moduleAccessStore
     const validUsers = (managedUsers || []).filter(u => isBatchAssignableRole(u.role));
     if (validUsers.length > 0) {
@@ -186,7 +194,7 @@ export default function LeadsScreen() {
     }
 
     return Array.from(persons);
-  }, [managedUsers, leadsList]);
+  }, [managedUsers, leadsList, isSalesRepRole]);
 
   // ── MULTI-DIMENSIONAL ADVANCED FILTER STATE ──────────────────────────────────
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -621,6 +629,36 @@ export default function LeadsScreen() {
   };
 
   const filteredLeads = leadsList.filter((item) => {
+    // 0. Strict SaaS RBAC Data Isolation: Sales Reps are strictly scoped to their own assigned leads
+    if (isSalesRepRole) {
+      const myName = (currentUser?.name || '').trim().toLowerCase();
+      const myFirst = myName.split(' ')[0] || '';
+      const myId = currentUser?.id || '';
+
+      const repName = (item.assignedRep || '').trim().toLowerCase();
+      const ownerName = (item.owner || '').trim().toLowerCase();
+      const ownerId = item.ownerId || '';
+
+      const knownIds: Record<string, string> = {
+        nandini: 'cmuhp0517000ngg2dq93a6nlp',
+        sulekha: 'cmukwwdv9000ng42dghtw6t3z',
+        sadhana: 'cmukykfoe000nht2d0ylnsd3t',
+      };
+      let idMatches = myId && (ownerId === myId);
+      if (!idMatches) {
+        for (const [key, id] of Object.entries(knownIds)) {
+          if (myName.includes(key) && ownerId === id) { idMatches = true; break; }
+        }
+      }
+
+      const isMine =
+        idMatches ||
+        (myName && (repName.includes(myName) || ownerName.includes(myName))) ||
+        (myFirst && myFirst.length >= 3 && (repName.includes(myFirst) || ownerName.includes(myFirst)));
+
+      if (!isMine) return false;
+    }
+
     // 1. Person-Wise Filter (Assigned Rep)
     if (filterPerson !== 'ALL') {
       if (filterPerson === 'UNASSIGNED') {
@@ -826,6 +864,10 @@ export default function LeadsScreen() {
                 isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
               ]}
               onPress={() => {
+                if (isSalesRepRole) {
+                  Alert.alert('Restricted Action', 'Lead reassignments are managed by Team Leaders and Managers.');
+                  return;
+                }
                 const assignOptions = [
                   ...assignableRepOptions.map((p) => ({
                     text: p,
@@ -835,7 +877,7 @@ export default function LeadsScreen() {
                   { text: 'Cancel', style: 'cancel' as const },
                 ];
                 Alert.alert(
-                  '👤 Reassign Lead (TL / Sales Rep Only)',
+                  '👤 Reassign Lead (TL / Managers Only)',
                   `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
                   assignOptions
                 );
@@ -1584,6 +1626,10 @@ export default function LeadsScreen() {
                             isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
                           ]}
                           onPress={() => {
+                            if (isSalesRepRole) {
+                              Alert.alert('Restricted Action', 'Lead reassignments are managed by Team Leaders and Managers.');
+                              return;
+                            }
                             const assignOptions = [
                               ...assignableRepOptions.map((p) => ({
                                 text: p,
@@ -1593,7 +1639,7 @@ export default function LeadsScreen() {
                               { text: 'Cancel', style: 'cancel' as const },
                             ];
                             Alert.alert(
-                              '👤 Reassign Lead (TL / Sales Rep Only)',
+                              '👤 Reassign Lead (TL / Managers Only)',
                               `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
                               assignOptions
                             );

@@ -69,7 +69,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const navigation = useNavigation();
   const { colors, isDark } = useTheme();
   const { currentUser, token } = useAuthStore();
-  const userRole = currentUser?.role || 'SALES_EXEC';
+  const userRole = (currentUser?.role || 'SALES_EXEC') as import('../store/authStore').UserRole;
+  const rawRole = String(userRole).toUpperCase();
+  const isAdminOrManagerOrTL = rawRole.includes('ADMIN') || rawRole.includes('MANAGER') || rawRole.includes('LEADER') || rawRole.includes('TL');
   const { managedUsers } = useModuleAccessStore();
 
   const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
@@ -475,6 +477,10 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   }, [leadData, leadSource, leadAssignedRep]);
 
   const handleReassignLead = () => {
+    if (!isAdminOrManagerOrTL) {
+      Alert.alert('Permission Denied', 'Only Team Leaders and Managers can reassign leads.');
+      return;
+    }
     const isUnassigned = !leadAssignedRep || leadAssignedRep === 'Unassigned' || leadAssignedRep === '—';
     const assignOptions = [
       ...assignableRepOptions.map(p => ({
@@ -1288,12 +1294,14 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.12)' : 'rgba(5,150,105,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(52,211,153,0.35)' : 'rgba(5,150,105,0.25)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Currently Assigned To</Text>
-              <TouchableOpacity
-                style={{ backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.4)' : '#6366f1', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
-                onPress={handleReassignLead}
-              >
-                <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5' }}>Reassign ✏️</Text>
-              </TouchableOpacity>
+              {isAdminOrManagerOrTL && (
+                <TouchableOpacity
+                  style={{ backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.4)' : '#6366f1', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
+                  onPress={handleReassignLead}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5' }}>Reassign ✏️</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginTop: 4 }}>{leadAssignedRep}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
