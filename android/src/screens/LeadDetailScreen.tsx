@@ -55,6 +55,8 @@ import ToastBanner, { ToastConfig } from '../components/ToastBanner';
 import CustomAlertModal, { CustomAlertState } from '../components/CustomAlertModal';
 import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { isBatchAssignableRole } from '../components/LeadAllocationEngineModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import FullContactHistory, { ContactAttempt, ContactType, ContactOutcome } from '../components/FullContactHistory';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
 
@@ -123,6 +125,24 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   // 📞 Post-Call Outcome & Status Modal State & History
   const [postCallModalOpen, setPostCallModalOpen] = useState(false);
   const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([]);
+  const [contactHistory, setContactHistory] = useState<ContactAttempt[]>([]);
+
+  // 💾 Hydrate cached contact history on lead load
+  useEffect(() => {
+    if (!leadId) return;
+    AsyncStorage.getItem(`das_crm_contact_history_${leadId}`)
+      .then(cached => {
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setContactHistory(parsed);
+            }
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+  }, [leadId]);
 
   // 🔄 Function to fetch lead and timeline activities from backend
   const fetchLeadDetailsAndActivities = useCallback(async () => {
@@ -196,6 +216,82 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           };
         });
         setRecentOutcomes(mapped);
+
+        // Map server activities into full ContactAttempt structure matching web
+        const mappedAttempts: ContactAttempt[] = activities.map((a: any) => {
+          const actType = (a.type || a.activityType || '').toUpperCase();
+          const meta = typeof a.metadata === 'object' && a.metadata !== null ? a.metadata : {};
+          const isCall = actType.includes('CALL');
+          const isWa = actType.includes('WHATSAPP') || actType.includes('WA') || meta.type === 'WHATSAPP_DIRECT';
+          const isEmail = actType.includes('EMAIL');
+          const isMeeting = actType.includes('MEETING') || meta.followUpType === 'MEETING';
+          const isInvoice = actType.includes('INVOICE') || meta.docType === 'INVOICE';
+          const isQuote = actType.includes('QUOTATION') || meta.docType === 'QUOTATION';
+
+          const actorName = a.user
+            ? `${a.user.firstName || ''} ${a.user.lastName || ''}`.trim()
+            : a.performedBy || a.userName || meta.by || leadAssignedRep || 'Sales Rep';
+
+          const actorRole = a.user?.role?.name || a.user?.role || a.userRole || meta.byRole || 'SALES_EXEC';
+
+          let type: ContactType = 'CALL_OUT';
+          let outcome: ContactOutcome = 'TALKED';
+
+          if (isWa) {
+            type = meta.channel === 'WA_CLOUD' || actType.includes('CLOUD') ? 'WHATSAPP_CLOUD' : 'WHATSAPP_DIRECT';
+            outcome = (meta.outcome || 'WA_SENT') as ContactOutcome;
+          } else if (isEmail) {
+            type = actType.includes('AUTO') ? 'EMAIL_AUTOMATION' : 'EMAIL_DIRECT';
+            outcome = 'EMAIL_SENT';
+          } else if (isInvoice) {
+            type = 'INVOICE';
+            outcome = 'INVOICE_SHARED';
+          } else if (isQuote) {
+            type = 'QUOTATION';
+            outcome = 'QUOTATION_SHARED';
+          } else if (isMeeting) {
+            type = 'FOLLOWUP_SCHEDULED';
+            outcome = 'MEETING_SCHEDULED';
+          } else if (isCall) {
+            if (a.outcome === 'BUSY' || meta.outcome === 'BUSY') {
+              type = 'CALL_BUSY';
+              outcome = 'BUSY';
+            } else if (a.outcome === 'NOT_RESPONDING' || a.outcome === 'NO_ANSWER' || meta.outcome === 'NOT_RESPONDING' || meta.outcome === 'NO_ANSWER') {
+              type = 'CALL_MISSED';
+              outcome = 'NO_ANSWER';
+            } else if (a.outcome === 'SWITCHED_OFF' || a.outcome === 'SWITCH_OFF' || meta.outcome === 'SWITCHED_OFF') {
+              type = 'CALL_SWITCH_OFF';
+              outcome = 'SWITCH_OFF';
+            } else {
+              type = 'CALL_OUT';
+              outcome = (a.outcome || meta.outcome || 'TALKED') as ContactOutcome;
+            }
+          }
+
+          const durSecs = a.durationSeconds || meta.durationSeconds || (isCall && outcome === 'TALKED' ? 90 : 0);
+
+          return {
+            id: String(a.id || `act-${Math.random()}`),
+            type,
+            outcome,
+            by: actorName,
+            byRole: actorRole,
+            timestamp: a.createdAt || new Date().toISOString(),
+            durationSeconds: durSecs,
+            notes: a.notes || a.description || meta.notes || '',
+            productInterest: meta.productInterest || a.productInterest,
+            followUpDate: meta.followUpDate || a.scheduledDate,
+            followUpTime: meta.followUpTime || a.scheduledTime,
+            sentMessage: meta.sentMessage || a.sentMessage,
+            docNo: meta.docNo || meta.invoiceNo || meta.quoteNumber,
+            docType: meta.docType || (isInvoice ? 'INVOICE' : isQuote ? 'QUOTATION' : undefined),
+            docAmount: meta.docAmount || meta.totalAmount,
+            sharingMedium: meta.sharingMedium,
+          };
+        });
+
+        setContactHistory(mappedAttempts);
+        AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(mappedAttempts)).catch(() => {});
       }
     } catch (e) {
       console.warn('Sync warning:', e);
@@ -477,6 +573,51 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       timestamp: data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     setRecentOutcomes(prev => [enrichedData, ...prev]);
+
+    // ⚡ Append to unified ContactAttempt history and persist to AsyncStorage
+    const newAttempt: ContactAttempt = {
+      id: `att-${Date.now()}`,
+      type: data.isWaShared || data.outcome === 'WHATSAPP_CHAT'
+        ? 'WHATSAPP_DIRECT'
+        : data.scheduledDate
+        ? 'FOLLOWUP_SCHEDULED'
+        : data.outcome === 'BUSY'
+        ? 'CALL_BUSY'
+        : data.outcome === 'NOT_RESPONDING'
+        ? 'CALL_NOT_RESPONDING'
+        : data.outcome === 'SWITCHED_OFF'
+        ? 'CALL_SWITCH_OFF'
+        : 'CALL_OUT',
+      outcome: data.isWaShared || data.outcome === 'WHATSAPP_CHAT'
+        ? 'WA_SENT'
+        : data.scheduledDate
+        ? 'MEETING_SCHEDULED'
+        : data.outcome === 'BUSY'
+        ? 'BUSY'
+        : data.outcome === 'NOT_RESPONDING'
+        ? 'NO_ANSWER'
+        : data.outcome === 'SWITCHED_OFF'
+        ? 'SWITCH_OFF'
+        : 'TALKED',
+      by: enrichedData.callerName || 'Sales Rep',
+      byRole: enrichedData.callerRole || userRole,
+      timestamp: new Date().toISOString(),
+      durationSeconds: data.durationStr ? 120 : 0,
+      notes: data.notes,
+      productInterest: data.selectedProduct?.name
+        ? `${data.selectedProduct.name}${data.productQuantity ? ` (Qty: ${data.productQuantity} · ${data.productTotalPrice ? `₹${data.productTotalPrice.toLocaleString('en-IN')}` : ''})` : ''}`
+        : undefined,
+      followUpDate: data.scheduledDate,
+      followUpTime: data.scheduledTime,
+      sentMessage: data.sentMessage,
+    };
+
+    setContactHistory(prev => {
+      const updated = [newAttempt, ...prev];
+      AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+
     setTelemetry(prev => ({
       ...prev,
       lastCalledAt: `Today, ${enrichedData.timestamp}`,
@@ -1136,167 +1277,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           <Text style={{ fontSize: 9, color: colors.textSecondary, textAlign: 'center', marginTop: 6 }}>← Scroll to see full allocation chain →</Text>
         </View>
 
-        {/* ── 📞 SYNCED CALL HISTORY & TELEMETRY WIDGET ───────────────────── */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>📞 Call Telemetry &amp; Follow-Up Audit</Text>
-        <View style={[styles.telemetryCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <View style={styles.telemetryHeaderRow}>
-            <Text style={[styles.telemetryHeaderTitle, { color: colors.text }]}>Call Log Sync Status</Text>
-            <View style={styles.connectedPill}>
-              <Text style={[styles.connectedPillText, { color: isDark ? '#34d399' : '#059669' }]}>🟢 {telemetry.connectionStatus}</Text>
-            </View>
-          </View>
-
-          <View style={styles.telemetryGrid}>
-            <View style={[styles.telemetryItem, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-              <Text style={[styles.telemetryVal, { color: isDark ? '#34d399' : '#059669' }]}>{telemetry.lastDurationStr}</Text>
-              <Text style={[styles.telemetryLbl, { color: colors.textSecondary }]}>Talk Duration</Text>
-            </View>
-
-            <View style={[styles.telemetryItem, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-              <Text style={[styles.telemetryVal, { color: isDark ? '#38bdf8' : '#0284c7' }]}>{telemetry.incomingCount} Calls</Text>
-              <Text style={[styles.telemetryLbl, { color: colors.textSecondary }]}>Incoming Calls</Text>
-            </View>
-
-            <View style={[styles.telemetryItem, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-              <Text style={[styles.telemetryVal, { color: isDark ? '#fbbf24' : '#b45309' }]}>{telemetry.outgoingCount} Calls</Text>
-              <Text style={[styles.telemetryLbl, { color: colors.textSecondary }]}>Outgoing Calls</Text>
-            </View>
-          </View>
-
-          <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
-
-          {/* ⚡ LAST UPDATED STATUS */}
-          <View style={[styles.lastStatusCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-            <View style={styles.lastStatusTopRow}>
-              <Text style={[styles.lastStatusTitle, { color: colors.textSecondary }]}>Last Updated Status:</Text>
-              <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(lastStatusUpdate.status) + '22', borderColor: getStatusColor(lastStatusUpdate.status) + '60' }]}>
-                <View style={[styles.statusDotSmall, { backgroundColor: getStatusColor(lastStatusUpdate.status) }]} />
-                <Text style={[styles.statusBadgeSmallText, { color: getStatusColor(lastStatusUpdate.status) }]}>
-                  {lastStatusUpdate.status}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.lastStatusMetaRow}>
-              <Text style={[styles.lastStatusMetaText, { color: colors.textSecondary }]}>
-                Through: <Text style={[styles.lastStatusMetaHighlight, { color: colors.text }]}>{lastStatusUpdate.medium}</Text>
-                {'  '}•{'  '}
-                Time: <Text style={[styles.lastStatusMetaHighlight, { color: isDark ? '#818cf8' : '#4f46e5' }]}>{lastStatusUpdate.time}</Text>
-              </Text>
-            </View>
-          </View>
-
-          {/* 1-Day Storage Notice */}
-          <View style={[styles.purgeNoticeBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-            <Text style={[styles.purgeNoticeText, { color: isDark ? '#a5b4fc' : '#4338ca' }]}>
-              ⌛ 1-Day Local Storage: Raw call logs auto-purge at Midnight 12:00 AM ({hoursToMidnight}h remaining). Cumulative lead telemetry is permanently saved.
-            </Text>
-          </View>
-        </View>
-
-        {/* ── 📋 LEAD FOLLOW-UP ACTIVITY & TIMELINE LOG HISTORY ───────────────── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, width: '100%', maxWidth: 500 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>📋 Call Timeline &amp; Contact Audit</Text>
-          <TouchableOpacity onPress={fetchLeadDetailsAndActivities}>
-            <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800' }}>Refresh 🔄</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.activityHistoryCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {recentOutcomes.length === 0 ? (
-            <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 26, marginBottom: 8 }}>📭</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>No Activity Logged Yet</Text>
-              <Text style={{ fontSize: 11, color: colors.textSecondary, textAlign: 'center', marginTop: 4 }}>
-                Calls, WhatsApp chats, meetings, and emails will appear here automatically.
-              </Text>
-            </View>
-          ) : (
-            recentOutcomes.map((item, idx) => {
-              const roleStr = String(item.callerRole || '').toUpperCase();
-              const roleColor = roleStr.includes('LEADER') || roleStr.includes('TL') ? (isDark ? '#38bdf8' : '#0284c7') : roleStr.includes('MANAGER') ? (isDark ? '#818cf8' : '#4f46e5') : roleStr.includes('ADMIN') ? (isDark ? '#f59e0b' : '#b45309') : (isDark ? '#34d399' : '#059669');
-              const roleLabel = roleStr.includes('LEADER') || roleStr.includes('TL') ? 'TL' : roleStr.includes('MANAGER') ? 'Manager' : roleStr.includes('ADMIN') ? 'Admin' : 'Sales Rep';
-
-              const isMeetingEvent = Boolean(item.scheduledDate) || item.notes.toLowerCase().includes('meeting');
-              const isEmailEvent = item.notes.toLowerCase().includes('email');
-              const isWaEvent = item.isWaShared || item.outcome === 'WHATSAPP_CHAT';
-              const prodName = item.selectedProduct?.name;
-
-              return (
-                <View key={idx} style={[styles.activityItemRow, idx < recentOutcomes.length - 1 && [styles.activityItemBorder, { borderBottomColor: colors.border }]]}>
-                  {/* Header Row */}
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={[styles.activityTitleText, { color: colors.text }]}>
-                        {item.isWaShared ? '💬 WhatsApp Product Shared' : isMeetingEvent ? '📅 Meeting / Follow-up' : isEmailEvent ? '✉️ Email Dispatched' : item.outcome === 'PICKED_UP' ? '🟢 Call Connected' : isWaEvent ? '💬 WhatsApp Sent' : item.outcome === 'BUSY' ? '🟡 Line Busy' : '🔴 Not Responding'}
-                      </Text>
-                      {item.subOption && (
-                        <View style={styles.subOptionPill}>
-                          <Text style={[styles.subOptionPillText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>
-                            🎯 {item.subOption.replace(/_/g, ' ')}
-                          </Text>
-                        </View>
-                      )}
-                      {item.isWaShared && (
-                        <View style={{ backgroundColor: isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.12)', borderWidth: 1, borderColor: isDark ? 'rgba(34,197,94,0.4)' : 'rgba(34,197,94,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#4ade80' : '#16a34a' }}>💬 WhatsApp</Text>
-                        </View>
-                      )}
-                      {prodName && (
-                        <View style={{ backgroundColor: isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.12)', borderWidth: 1, borderColor: isDark ? 'rgba(168,85,247,0.4)' : 'rgba(168,85,247,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#c084fc' : '#9333ea' }}>📦 {prodName}</Text>
-                        </View>
-                      )}
-                      {item.durationStr && (
-                        <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(5,150,105,0.12)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#34d399' : '#059669' }}>🎙 {item.durationStr}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '700' }}>
-                      {item.dateLabel ? `${item.dateLabel} · ` : ''}{item.timestamp}
-                    </Text>
-                  </View>
-
-                  {/* Scheduled Callback / Meeting Badge */}
-                  {item.scheduledDate && (
-                    <View style={{ backgroundColor: isDark ? 'rgba(56,189,248,0.12)' : 'rgba(2,132,199,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.35)' : 'rgba(2,132,199,0.25)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900' }}>
-                        🕒 Follow-up: {item.scheduledDate} {item.scheduledTime ? `@ ${item.scheduledTime}` : ''}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Actor Badge */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>By:</Text>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: colors.text }}>{item.callerName || 'Sales Executive'}</Text>
-                    <View style={{ backgroundColor: roleColor + '20', borderWidth: 1, borderColor: roleColor + '50', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                      <Text style={{ fontSize: 8, fontWeight: '900', color: roleColor }}>{roleLabel}</Text>
-                    </View>
-                  </View>
-
-                  {/* Notes & Reasoning */}
-                  {item.notes ? (
-                    <View style={{ backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginTop: 6 }}>
-                      <Text style={{ fontSize: 10, color: colors.textSecondary, fontStyle: 'italic' }}>"{item.notes}"</Text>
-                    </View>
-                  ) : null}
-
-                  {/* Sent WhatsApp Message Content */}
-                  {item.sentMessage ? (
-                    <View style={{ backgroundColor: isDark ? '#020617' : '#f0fdf4', borderWidth: 1, borderColor: isDark ? 'rgba(34,197,94,0.3)' : '#bbf7d0', borderRadius: 8, padding: 8, marginTop: 6 }}>
-                      <Text style={{ fontSize: 8, fontWeight: '900', color: '#16a34a', textTransform: 'uppercase', marginBottom: 2 }}>Sent Message Preview:</Text>
-                      <Text style={{ fontSize: 9, color: isDark ? '#cbd5e1' : '#166534', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', lineHeight: 13 }} numberOfLines={4}>
-                        {item.sentMessage}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })
-          )}
-        </View>
+        {/* ── ⚡ FULL CONTACT HISTORY & CALL TIMELINE (MATCHING WEB) ──────────── */}
+        <FullContactHistory
+          history={contactHistory}
+          leadName={leadName}
+          leadPhone={leadPhone}
+          leadRequirement={leadRequirement}
+          onRefresh={fetchLeadDetailsAndActivities}
+          isRefreshing={isSyncing}
+        />
 
         {/* Contact Details (With Copy-on-Tap Support for Phone & Email) */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 500, marginBottom: 8 }}>
