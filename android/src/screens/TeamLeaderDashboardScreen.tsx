@@ -789,7 +789,18 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
           setSelectedDrilldownRep(null);
         }}
         rep={selectedDrilldownRep}
-        onOpenLead={(leadId: string) => navigation?.navigate('LeadDetail', { leadId })}
+        onOpenLead={(leadId: string) => {
+          try {
+            navigation?.navigate('Leads', {
+              screen: 'LeadDetail',
+              params: { leadId, leadName: 'Lead File', origin: 'Home' },
+            });
+          } catch (_) {
+            try {
+              navigation?.navigate('LeadDetail', { leadId });
+            } catch {}
+          }
+        }}
       />
 
     </View>

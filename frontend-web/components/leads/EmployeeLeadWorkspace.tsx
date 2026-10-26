@@ -3695,7 +3695,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             <Phone size={14} /> 📞 Call
           </button>
 
-          {/* 3. WhatsApp Direct */}
+          {/* 3. Direct WhatsApp Template */}
           <button
             onClick={() => setActiveSection('wa_direct')}
             className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
@@ -3704,7 +3704,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 : 'bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
             }`}
           >
-            <Zap size={14} /> 💬 WhatsApp Direct
+            <Zap size={14} /> 💬 Direct WhatsApp Template
           </button>
 
           {/* 4. WA Cloud + AI */}

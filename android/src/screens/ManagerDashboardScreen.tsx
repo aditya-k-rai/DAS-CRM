@@ -165,7 +165,16 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
 
   const handleJumpToLeadDetail = (meeting: ManagerMeetingItem) => {
     setSelectedMeeting(null);
-    navigation?.navigate('LeadDetail', { leadId: meeting.leadId });
+    try {
+      navigation?.navigate('Leads', {
+        screen: 'LeadDetail',
+        params: { leadId: meeting.leadId, leadName: meeting.leadName, origin: 'Home' },
+      });
+    } catch (_) {
+      try {
+        navigation?.navigate('LeadDetail', { leadId: meeting.leadId });
+      } catch {}
+    }
   };
 
   const insetsValues = useSafeAreaInsets();

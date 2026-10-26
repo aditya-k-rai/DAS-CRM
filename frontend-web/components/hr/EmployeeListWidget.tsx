@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   ShieldCheck,
@@ -25,6 +25,8 @@ import {
   MessageSquare,
   Sparkles,
   Shield,
+  Target,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth, getPlanSeatQuota } from '@/context/AuthContext';
 import SalesExecControlScreenWeb from './SalesExecControlScreenWeb';
@@ -173,6 +175,143 @@ export function EmployeeListWidget({
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // ── 🎯 Reactive Assigned Leads & Status Telemetry State ──────────────────
+  const [leadsList, setLeadsList] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached =
+          localStorage.getItem('das_crm_all_leads_cache') ||
+          localStorage.getItem('das_crm_lead_directory_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return [];
+  });
+  const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
+  const loadLeadsData = useCallback(async () => {
+    setIsLoadingLeads(true);
+    // 1. Immediately read latest localStorage cache to avoid lag
+    if (typeof window !== 'undefined') {
+      try {
+        const cached =
+          localStorage.getItem('das_crm_all_leads_cache') ||
+          localStorage.getItem('das_crm_lead_directory_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLeadsList(parsed);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fetch fresh real-time leads from backend API
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const res = await fetch(`${apiBase}/leads?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const data = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        if (data.length > 0) {
+          setLeadsList(data);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(data));
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[EmployeeListWidget] Failed to sync leads from server:', e);
+    } finally {
+      setIsLoadingLeads(false);
+    }
+  }, []);
+
+  // Compute live assigned lead telemetry & status breakdown for any employee
+  const getEmployeeLeadStats = useCallback((emp: EmployeeProfileWeb) => {
+    const empId = String(emp.id || '').toLowerCase().trim();
+    const empEmail = String(emp.email || '').toLowerCase().trim();
+    const empName = String(emp.name || '').toLowerCase().trim();
+    const empFirstName = empName.split(' ')[0] || empName;
+
+    const assignedLeads = leadsList.filter((l) => {
+      if (!l) return false;
+      const ownerId = String(l.ownerId || l.owner?.id || '').toLowerCase().trim();
+      const assignedId = String(l.assignedToId || l.assignedTo?.id || '').toLowerCase().trim();
+      if (empId && (ownerId === empId || assignedId === empId)) return true;
+
+      const ownerEmail = String(l.owner?.email || '').toLowerCase().trim();
+      const assignedEmail = String(l.assignedTo?.email || '').toLowerCase().trim();
+      if (empEmail && (ownerEmail === empEmail || assignedEmail === empEmail)) return true;
+
+      const ownerName = String(l.owner?.firstName || l.owner?.name || '').toLowerCase().trim();
+      if (empFirstName && ownerName && (empFirstName === ownerName || ownerName.includes(empFirstName))) return true;
+
+      if (typeof l.assignedTo === 'string') {
+        const aName = l.assignedTo.toLowerCase().trim();
+        if (empName && (aName.includes(empName) || empName.includes(aName))) return true;
+        if (empFirstName && aName.includes(empFirstName)) return true;
+      }
+      return false;
+    });
+
+    const stats = {
+      total: assignedLeads.length,
+      new: 0,
+      contacted: 0,
+      qualified: 0,
+      proposal: 0,
+      won: 0,
+      lost: 0,
+    };
+
+    assignedLeads.forEach((lead) => {
+      const rawStatus = (
+        typeof lead.status === 'string'
+          ? lead.status
+          : lead.status?.name || lead.statusName || ''
+      ).toLowerCase().trim();
+
+      if (rawStatus.includes('new') || rawStatus.includes('fresh') || rawStatus.includes('open') || rawStatus.includes('unassigned') || rawStatus.includes('pending')) {
+        stats.new += 1;
+      } else if (rawStatus.includes('contact') || rawStatus.includes('connect') || rawStatus.includes('called') || rawStatus.includes('follow')) {
+        stats.contacted += 1;
+      } else if (rawStatus.includes('qualif')) {
+        stats.qualified += 1;
+      } else if (rawStatus.includes('propos') || rawStatus.includes('negot') || rawStatus.includes('meet')) {
+        stats.proposal += 1;
+      } else if (rawStatus.includes('won') || rawStatus.includes('convert') || rawStatus.includes('closed won') || lead.isWon) {
+        stats.won += 1;
+      } else if (rawStatus.includes('lost') || rawStatus.includes('unqualif') || rawStatus.includes('junk') || rawStatus.includes('closed lost') || lead.isLost) {
+        stats.lost += 1;
+      } else {
+        stats.new += 1;
+      }
+    });
+
+    // Fallback if leads list is empty during initial cold load
+    if (stats.total === 0 && emp.leads && emp.leads.totalReceived > 0) {
+      stats.total = emp.leads.totalReceived;
+      stats.contacted = emp.leads.connected || 0;
+      stats.proposal = (emp.leads.inNegotiation || 0) + (emp.leads.meetingScheduled || 0);
+      stats.won = emp.leads.won || 0;
+      stats.new = Math.max(0, stats.total - (stats.contacted + stats.proposal + stats.won));
+    }
+
+    return stats;
+  }, [leadsList]);
 
   // Helper to compute list of eligible supervisors for a user given their target role
   const getEligibleSupervisors = (targetRole: string, targetEmpId?: string) => {
@@ -758,6 +897,94 @@ export function EmployeeListWidget({
     };
   }, [currentUser?.id]);
 
+  // ── Reactive Listeners: Reassignment, Status Change, & SSE Sync ────────────
+  useEffect(() => {
+    loadLeadsData();
+
+    const handleLeadsUpdated = (e?: Event) => {
+      const customEvt = e as CustomEvent;
+      if (customEvt?.detail) {
+        const d = customEvt.detail;
+        if (d.leadId && (d.status || d.assigneeId || d.assignee)) {
+          setLeadsList((prev) =>
+            prev.map((lead) => {
+              if (lead.id === d.leadId) {
+                return {
+                  ...lead,
+                  status: d.status
+                    ? typeof d.status === 'object'
+                      ? d.status
+                      : { ...lead.status, name: d.status }
+                    : lead.status,
+                  ownerId: d.assigneeId || lead.ownerId,
+                  assignedToId: d.assigneeId || lead.assignedToId,
+                  owner: d.assignee ? { ...lead.owner, firstName: d.assignee } : lead.owner,
+                };
+              }
+              return lead;
+            })
+          );
+        }
+      }
+      loadLeadsData();
+    };
+
+    window.addEventListener('das_crm_leads_updated', handleLeadsUpdated);
+    window.addEventListener('das-crm-leads-updated', handleLeadsUpdated);
+    window.addEventListener('lead_status_updated', handleLeadsUpdated);
+    window.addEventListener('lead-status-updated', handleLeadsUpdated);
+    window.addEventListener('lead_reassigned', handleLeadsUpdated);
+    window.addEventListener('lead-reassigned', handleLeadsUpdated);
+
+    // Cross-tab BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    let bc2: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('das_crm_lead_sync');
+      bc.onmessage = () => loadLeadsData();
+    } catch (_) {}
+    try {
+      bc2 = new BroadcastChannel('das_crm_leads_channel');
+      bc2.onmessage = () => loadLeadsData();
+    } catch (_) {}
+
+    // Storage event for cross-tab cache changes
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'das_crm_all_leads_cache' || e.key === 'das_crm_lead_directory_cache') {
+        loadLeadsData();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Polling interval (30 seconds) for real-time background sync
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadLeadsData();
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('das_crm_leads_updated', handleLeadsUpdated);
+      window.removeEventListener('das-crm-leads-updated', handleLeadsUpdated);
+      window.removeEventListener('lead_status_updated', handleLeadsUpdated);
+      window.removeEventListener('lead-status-updated', handleLeadsUpdated);
+      window.removeEventListener('lead_reassigned', handleLeadsUpdated);
+      window.removeEventListener('lead-reassigned', handleLeadsUpdated);
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(pollInterval);
+      if (bc) {
+        try {
+          bc.close();
+        } catch (_) {}
+      }
+      if (bc2) {
+        try {
+          bc2.close();
+        } catch (_) {}
+      }
+    };
+  }, [loadLeadsData]);
+
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const unassignedEmps = employees.filter(e => e.role === 'UNASSIGNED');
   const assignedEmps = employees.filter(e => e.role !== 'UNASSIGNED');
@@ -1174,6 +1401,15 @@ export function EmployeeListWidget({
                 {activeTab === 'all' ? employees.length : assignedEmps.length} active
               </span>
             </h3>
+            <button
+              onClick={() => loadLeadsData()}
+              title="Refresh and sync assigned leads telemetry"
+              disabled={isLoadingLeads}
+              className="text-xs px-2.5 py-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 flex items-center gap-1.5 transition-all cursor-pointer font-semibold shadow-sm"
+            >
+              <RefreshCw size={11} className={isLoadingLeads ? 'animate-spin text-brand-400' : ''} />
+              <span>{isLoadingLeads ? 'Syncing...' : 'Sync Leads'}</span>
+            </button>
           </div>
 
           {(activeTab === 'all' ? employees : assignedEmps).length === 0 ? (
@@ -1314,6 +1550,113 @@ export function EmployeeListWidget({
                           </button>
                         )}
                       </div>
+
+                      {/* 🎯 Live Assigned Leads & Status Telemetry (Strictly for TL & Sales Rep roles) */}
+                      {(() => {
+                        const isTlOrSalesExec =
+                          emp.role === 'TEAM_LEADER' ||
+                          emp.role === 'SALES_EXEC' ||
+                          (emp.role as string) === 'LEADER' ||
+                          (emp.role as string) === 'SALES_REP';
+
+                        if (!isTlOrSalesExec) return null;
+
+                        const stats = getEmployeeLeadStats(emp);
+                        return (
+                          <div className="pt-2 mt-1 border-t border-slate-800/80 text-[11px] bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/70 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                                <Target size={13} className="text-brand-400 shrink-0" />
+                                <span>Assigned Leads:</span>
+                              </span>
+                              <span
+                                className={`font-mono text-xs font-black px-2 py-0.5 rounded-md border ${
+                                  stats.total > 0
+                                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
+                                    : 'bg-slate-800/80 text-slate-400 border-slate-700/60'
+                                }`}
+                              >
+                                {stats.total} {stats.total === 1 ? 'Lead' : 'Leads'}
+                              </span>
+                            </div>
+
+                            {/* Status Breakdown Pills (Numbers & Statuses) */}
+                            <div className="grid grid-cols-3 gap-1 text-[10px]">
+                              {/* New */}
+                              <div
+                                className="bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/25 rounded-lg px-2 py-1 flex items-center justify-between transition-colors min-w-0"
+                                title="New / Fresh Leads"
+                              >
+                                <span className="text-sky-300 font-bold flex items-center gap-1 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0"></span>
+                                  New
+                                </span>
+                                <span className="font-mono font-black text-sky-100 ml-1 shrink-0">{stats.new}</span>
+                              </div>
+
+                              {/* Contacted */}
+                              <div
+                                className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 rounded-lg px-2 py-1 flex items-center justify-between transition-colors min-w-0"
+                                title="Contacted / In-Touch Leads"
+                              >
+                                <span className="text-amber-300 font-bold flex items-center gap-1 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                                  Contacted
+                                </span>
+                                <span className="font-mono font-black text-amber-100 ml-1 shrink-0">{stats.contacted}</span>
+                              </div>
+
+                              {/* Qualified */}
+                              <div
+                                className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 rounded-lg px-2 py-1 flex items-center justify-between transition-colors min-w-0"
+                                title="Qualified / Progressing Leads"
+                              >
+                                <span className="text-blue-300 font-bold flex items-center gap-1 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></span>
+                                  Qualified
+                                </span>
+                                <span className="font-mono font-black text-blue-100 ml-1 shrink-0">{stats.qualified}</span>
+                              </div>
+
+                              {/* Proposal / Negotiation */}
+                              <div
+                                className="bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 rounded-lg px-2 py-1 flex items-center justify-between transition-colors min-w-0"
+                                title="Proposal & Negotiation Leads"
+                              >
+                                <span className="text-purple-300 font-bold flex items-center gap-1 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></span>
+                                  Proposal
+                                </span>
+                                <span className="font-mono font-black text-purple-100 ml-1 shrink-0">{stats.proposal}</span>
+                              </div>
+
+                              {/* Won */}
+                              <div
+                                className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 rounded-lg px-2 py-1 flex items-center justify-between transition-colors min-w-0"
+                                title="Won / Closed Converted Leads"
+                              >
+                                <span className="text-emerald-300 font-bold flex items-center gap-1 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                                  Won
+                                </span>
+                                <span className="font-mono font-black text-emerald-100 ml-1 shrink-0">{stats.won}</span>
+                              </div>
+
+                              {/* Lost */}
+                              <div
+                                className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 rounded-lg px-2 py-1 flex items-center justify-between transition-colors min-w-0"
+                                title="Lost / Dropped Leads"
+                              >
+                                <span className="text-rose-300 font-bold flex items-center gap-1 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
+                                  Lost
+                                </span>
+                                <span className="font-mono font-black text-rose-100 ml-1 shrink-0">{stats.lost}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* 📅 Last Login Details & Platform Device Breakdown */}
                       <div className="pt-2 mt-1 border-t border-slate-800/80 text-[11px] text-slate-400 space-y-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60">

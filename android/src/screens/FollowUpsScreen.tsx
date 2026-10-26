@@ -112,6 +112,24 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     setTimeout(() => setToastMessage(null), 3200);
   };
 
+  const handleOpenLead = (leadId: string, leadName?: string) => {
+    if (onNavigateToLead) {
+      onNavigateToLead(leadId);
+    } else if (navigation) {
+      if (onClose) onClose();
+      try {
+        navigation.navigate('Leads', {
+          screen: 'LeadDetail',
+          params: { leadId, leadName: leadName || 'Lead File', origin: 'Menu' },
+        });
+      } catch (_) {
+        try {
+          navigation.navigate('LeadDetail', { leadId, leadName });
+        } catch {}
+      }
+    }
+  };
+
   // ─── Fetch Real Leads & Follow-ups ──────────────────────────────────────────
 
   const fetchData = useCallback(async () => {
@@ -786,7 +804,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <TouchableOpacity
-                        onPress={() => onNavigateToLead?.(task.leadId)}
+                        onPress={() => handleOpenLead(task.leadId, task.leadName)}
                         activeOpacity={0.75}
                       >
                         <Text style={[styles.prospectName, { color: colors.text }]} numberOfLines={1}>

@@ -235,6 +235,12 @@ export function LeadsTable() {
   const [totalServerCount, setTotalServerCount] = useState<number | null>(0);
   const scrollBottomRef = useRef<HTMLDivElement | null>(null);
 
+  // 🚀 Virtual Windowing for Butter-Smooth 60-120fps Scrolling with 1,000+ leads
+  const ROW_HEIGHT = 54;
+  const OVERSCAN = 25;
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const [virtualIndices, setVirtualIndices] = useState({ start: 0, end: 50 });
+
   const activeSort = useMemo(() => {
     return SORT_OPTIONS.find(o => o.key === sortOption) || SORT_OPTIONS[0];
   }, [sortOption]);
@@ -785,13 +791,13 @@ export function LeadsTable() {
           setTotalServerCount(mappedServerLeads.length);
 
           if (typeof window !== 'undefined' && finalLeads.length > 0) {
-            try {
-              localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
-              localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(finalLeads));
-              finalLeads.forEach(item => {
-                sessionStorage.setItem(`das_crm_lead_${item.id}`, JSON.stringify(item));
-              });
-            } catch (_) {}
+            // Defer multi-MB JSON stringification to prevent blocking the UI thread on batch loads
+            setTimeout(() => {
+              try {
+                localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
+                localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(finalLeads));
+              } catch (_) {}
+            }, 60);
           }
           return finalLeads;
         } else {
@@ -801,10 +807,12 @@ export function LeadsTable() {
           mappedServerLeads.forEach(l => leadMap.set(l.id, l));
           const merged = Array.from(leadMap.values());
           if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(merged));
-              localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(merged));
-            } catch (_) {}
+            setTimeout(() => {
+              try {
+                localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(merged));
+                localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(merged));
+              } catch (_) {}
+            }, 60);
           }
           return merged;
         }
@@ -841,9 +849,16 @@ export function LeadsTable() {
       fetchLeadsPage(1, true);
     };
 
+    const handleStorageUpdate = (e: StorageEvent) => {
+      // Only react to explicit cross-tab synchronization triggers, avoid re-fetching on incidental localStorage mutations
+      if (e.key === 'das_crm_sync_trigger' || e.key === 'das_crm_leads_updated') {
+        fetchLeadsPage(1, true);
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('das_crm_leads_updated', handleUpdate);
-      window.addEventListener('storage', handleUpdate);
+      window.addEventListener('storage', handleStorageUpdate);
 
       let bc: BroadcastChannel | null = null;
       try {
@@ -855,7 +870,7 @@ export function LeadsTable() {
 
       return () => {
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
-        window.removeEventListener('storage', handleUpdate);
+        window.removeEventListener('storage', handleStorageUpdate);
         if (bc) bc.close();
       };
     }
@@ -1237,197 +1252,251 @@ export function LeadsTable() {
     setFilterPerson('ALL');
   };
 
-  const filtered = leadsList.filter((l) => {
-    if (!l) return false;
-    const lOwner = safeOwnerName(l.owner || (l as any).assignedRep || (l as any).currentAssignee || '').toLowerCase();
-    const lAssignee = safeOwnerName((l as any).currentAssignee || l.owner || '').toLowerCase();
-    const lStatus = safeStatus(l.status || '').toLowerCase();
-    const lName = safeString(l.name || '').toLowerCase();
-    const lCompany = safeCompany((l as any).company || '').toLowerCase();
-    const lEmail = safeString(l.email || '').toLowerCase();
-    const lPhone = safeString(l.phone || '').toLowerCase();
-    const lSource = safeSource(l.source || '').toLowerCase();
-    const lValue = safeString(l.value || '').toLowerCase();
-    const lCity = safeString(l.city || '').toLowerCase();
-    const lBudget = safeString(l.budget || '').toLowerCase();
-    const lRequirement = safeString(l.requirement || '').toLowerCase();
-    const lCreated = safeString(l.created || '').toLowerCase();
+  const filtered = useMemo(() => {
+    if (!leadsList || leadsList.length === 0) return [];
 
-    // 🔒 Role-Based Data Isolation Scoping
-    if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
-      const uLower = userName.toLowerCase().trim();
-      const eLower = (currentUser?.email || '').toLowerCase().trim();
-      const uFirst = uLower.split(' ')[0];
-      const lOwnerId = String(l.ownerId || (l as any).ownerId || (typeof (l as any).owner === 'object' ? (l as any).owner?.id : '') || (l as any).customFields?.ownerId || (l as any).customFields?.assigneeId || '');
-      const lOwnerEmail = (typeof (l as any).owner === 'object' && (l as any).owner?.email ? (l as any).owner.email : (l as any).customFields?.ownerEmail || '').toLowerCase().trim();
-      const lAssignedRep = safeString(l.assignedRep || (l as any).assignedRep || (l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+    // Pre-calculate / hoist constant filter parameters once outside the loop
+    const q = search.toLowerCase().trim();
+    const hasSearch = q.length > 0;
 
-      // Check allocation trail for assignment to this rep
-      const hasTrailMatch = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
-        const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
-        const evId = String(ev.assigneeId || '');
-        return (currentUser?.id && evId === currentUser.id) || (uLower && evTo.includes(uLower)) || (uFirst && uFirst.length >= 3 && evTo.includes(uFirst));
-      });
+    const uLower = userName.toLowerCase().trim();
+    const eLower = (currentUser?.email || '').toLowerCase().trim();
+    const uFirst = uLower.split(' ')[0];
+    const isSalesExecScoping = isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL');
 
-      const isAssignedToUser =
-        (currentUser?.id && lOwnerId && lOwnerId === currentUser.id) ||
-        (eLower && lOwnerEmail && eLower === lOwnerEmail) ||
-        (uLower && (lOwner.includes(uLower) || lAssignee.includes(uLower) || lAssignedRep.includes(uLower))) ||
-        (uFirst && uFirst.length >= 3 && (lOwner.includes(uFirst) || lAssignee.includes(uFirst) || lAssignedRep.includes(uFirst))) ||
-        hasTrailMatch ||
-        // If logged in under generic demo/test Sales Executive, allow viewing sales reps' leads
-        (uLower.includes('sales exec') || currentUser?.id === 'usr_rep');
+    const cleanTL = filterTL !== 'ALL' && filterTL !== 'UNASSIGNED'
+      ? filterTL.toLowerCase().replace(/\s*\(team leader\)|\s*\(tl\)/g, '').trim()
+      : '';
 
-      if (!isAssignedToUser) return false;
+    const cleanSales = filterSales !== 'ALL'
+      ? filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim()
+      : '';
+
+    const subReps = (!isSalesExec && filterTL !== 'ALL' && filterTL !== 'UNASSIGNED' && filterSales === 'ALL')
+      ? visibleSalesReps.map(s => (s.name || '').toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim()).filter(Boolean)
+      : [];
+
+    const pLower = (filterPerson !== 'ALL' && filterPerson !== 'UNASSIGNED')
+      ? filterPerson.toLowerCase()
+      : '';
+
+    // Date calculations hoisted
+    let todayStart = 0;
+    let todayEnd = 0;
+    let yesterdayStart = 0;
+    let thisMonthStart = 0;
+    let monthShort = '';
+    let customFromMs: number | null = null;
+    let customToMs: number | null = null;
+
+    if (filterDate !== 'ALL') {
+      const now = new Date();
+      todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      todayEnd = todayStart + 86400000;
+      yesterdayStart = todayStart - 86400000;
+      thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      monthShort = now.toLocaleString('en-US', { month: 'short' }).toLowerCase();
+
+      if (filterDate === 'CUSTOM') {
+        if (customDateFrom) customFromMs = new Date(customDateFrom).setHours(0, 0, 0, 0);
+        if (customDateTo) customToMs = new Date(customDateTo).setHours(23, 59, 59, 999);
+      }
     }
 
-    // 👑 Team Leader & 🎯 Sales Executive Two-Tier Filtering (only applies to Team Leaders / Managers / Admins)
-    if (!isSalesExec && filterTL !== 'ALL') {
-      if (filterTL === 'UNASSIGNED') {
-        const isUnassigned = !l.owner || l.owner === 'Unassigned' || l.owner === '—' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
-        if (!isUnassigned) return false;
-      } else {
-        const cleanTL = filterTL.toLowerCase().replace(/\s*\(team leader\)|\s*\(tl\)/g, '').trim();
+    const filterStatusLower = filterStatus !== 'ALL' ? filterStatus.toLowerCase() : '';
+    const activeStatusLower = activeStatus !== 'All' ? activeStatus.toLowerCase() : '';
 
+    return leadsList.filter((l) => {
+      if (!l) return false;
+      const lOwner = safeOwnerName(l.owner || (l as any).assignedRep || (l as any).currentAssignee || '').toLowerCase();
+      const lAssignee = safeOwnerName((l as any).currentAssignee || l.owner || '').toLowerCase();
+      const lStatus = safeStatus(l.status || '').toLowerCase();
+
+      // 🔒 Role-Based Data Isolation Scoping
+      if (isSalesExecScoping) {
+        const lOwnerId = String(l.ownerId || (l as any).ownerId || (typeof (l as any).owner === 'object' ? (l as any).owner?.id : '') || (l as any).customFields?.ownerId || (l as any).customFields?.assigneeId || '');
+        const lOwnerEmail = (typeof (l as any).owner === 'object' && (l as any).owner?.email ? (l as any).owner.email : (l as any).customFields?.ownerEmail || '').toLowerCase().trim();
+        const lAssignedRep = safeString(l.assignedRep || (l as any).assignedRep || (l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+
+        // Check allocation trail for assignment to this rep
+        const hasTrailMatch = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+          const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+          const evId = String(ev.assigneeId || '');
+          return (currentUser?.id && evId === currentUser.id) || (uLower && evTo.includes(uLower)) || (uFirst && uFirst.length >= 3 && evTo.includes(uFirst));
+        });
+
+        const isAssignedToUser =
+          (currentUser?.id && lOwnerId && lOwnerId === currentUser.id) ||
+          (eLower && lOwnerEmail && eLower === lOwnerEmail) ||
+          (uLower && (lOwner.includes(uLower) || lAssignee.includes(uLower) || lAssignedRep.includes(uLower))) ||
+          (uFirst && uFirst.length >= 3 && (lOwner.includes(uFirst) || lAssignee.includes(uFirst) || lAssignedRep.includes(uFirst))) ||
+          hasTrailMatch ||
+          // If logged in under generic demo/test Sales Executive, allow viewing sales reps' leads
+          (uLower.includes('sales exec') || currentUser?.id === 'usr_rep');
+
+        if (!isAssignedToUser) return false;
+      }
+
+      // 👑 Team Leader & 🎯 Sales Executive Two-Tier Filtering (only applies to Team Leaders / Managers / Admins)
+      if (!isSalesExec && filterTL !== 'ALL') {
+        if (filterTL === 'UNASSIGNED') {
+          const isUnassigned = !l.owner || l.owner === 'Unassigned' || l.owner === '—' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
+          if (!isUnassigned) return false;
+        } else {
+          if (filterSales !== 'ALL') {
+            // Specific Sales Rep selected under this TL
+            const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+            const hasTrailSales = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+              const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+              return cleanSales && evTo.includes(cleanSales);
+            });
+            const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales) || lCustomRep.includes(cleanSales) || hasTrailSales;
+            if (!repMatch) return false;
+          } else {
+            // WHOLE TL TEAM: Match leads assigned to the TL themselves OR any sales rep under this TL
+            const matchesTL = cleanTL && (lOwner.includes(cleanTL) || lAssignee.includes(cleanTL));
+            const matchesSubRep = subReps.some(rep => lOwner.includes(rep) || lAssignee.includes(rep));
+            if (!matchesTL && !matchesSubRep) return false;
+          }
+        }
+      } else if (!isSalesExec) {
+        // filterTL === 'ALL'
         if (filterSales !== 'ALL') {
-          // Specific Sales Rep selected under this TL
-          const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
           const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
           const hasTrailSales = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
             const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
-            return evTo.includes(cleanSales);
+            return cleanSales && evTo.includes(cleanSales);
           });
           const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales) || lCustomRep.includes(cleanSales) || hasTrailSales;
           if (!repMatch) return false;
-        } else {
-          // WHOLE TL TEAM: Match leads assigned to the TL themselves OR any sales rep under this TL
-          const subReps = visibleSalesReps.map(s => (s.name || '').toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim());
-          const matchesTL = lOwner.includes(cleanTL) || lAssignee.includes(cleanTL);
-          const matchesSubRep = subReps.some(rep => rep && (lOwner.includes(rep) || lAssignee.includes(rep)));
-          if (!matchesTL && !matchesSubRep) return false;
         }
       }
-    } else if (!isSalesExec) {
-      // filterTL === 'ALL'
-      if (filterSales !== 'ALL') {
-        const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
-        const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
-        const hasTrailSales = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
-          const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
-          return evTo.includes(cleanSales);
-        });
-        const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales) || lCustomRep.includes(cleanSales) || hasTrailSales;
-        if (!repMatch) return false;
-      }
-    }
 
-    // 👤 Person-Wise Filtering (Modal compatibility)
-    if (filterPerson !== 'ALL') {
-      if (filterPerson === 'UNASSIGNED') {
-        const isUnassigned = !l.owner || l.owner === 'Unassigned' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
-        if (!isUnassigned) return false;
-      } else {
-        const pLower = filterPerson.toLowerCase();
-        const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
-        const hasTrailPerson = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
-          const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
-          return evTo.includes(pLower);
-        });
-        const matchesOwner = lOwner.includes(pLower) || lAssignee.includes(pLower) || lCustomRep.includes(pLower) || hasTrailPerson;
-        if (!matchesOwner) return false;
-      }
-    }
-
-    // 🛡️ Role-Wise Filtering
-    if (filterRole !== 'ALL') {
-      if (filterRole === 'UNASSIGNED') {
-        if ((l as any).currentAssigneeRole) return false;
-      } else {
-        if ((l as any).currentAssigneeRole !== filterRole) return false;
-      }
-    }
-
-    // 📅 Date-Wise Filtering (Today, Yesterday, This Month, Custom Range From-To)
-    if (filterDate !== 'ALL') {
-      const leadDate = l.rawCreatedAt ? new Date(l.rawCreatedAt) : (l.created && l.created !== '—' ? new Date(l.created) : null);
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const todayEnd = todayStart + 86400000;
-      const yesterdayStart = todayStart - 86400000;
-
-      if (filterDate === 'TODAY') {
-        if (leadDate && !isNaN(leadDate.getTime())) {
-          const t = leadDate.getTime();
-          if (t < todayStart || t >= todayEnd) return false;
+      // 👤 Person-Wise Filtering (Modal compatibility)
+      if (filterPerson !== 'ALL') {
+        if (filterPerson === 'UNASSIGNED') {
+          const isUnassigned = !l.owner || l.owner === 'Unassigned' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
+          if (!isUnassigned) return false;
         } else {
-          if (!lCreated.includes('today') && !lCreated.includes('aug 9')) return false;
+          const lCustomRep = safeString((l as any).customFields?.assignedRep || (l as any).customFields?.owner || '').toLowerCase();
+          const hasTrailPerson = Array.isArray(l.allocationTrail) && l.allocationTrail.some((ev: any) => {
+            const evTo = safeString(ev.toName || ev.assigneeName).toLowerCase();
+            return pLower && evTo.includes(pLower);
+          });
+          const matchesOwner = lOwner.includes(pLower) || lAssignee.includes(pLower) || lCustomRep.includes(pLower) || hasTrailPerson;
+          if (!matchesOwner) return false;
         }
-      } else if (filterDate === 'YESTERDAY') {
-        if (leadDate && !isNaN(leadDate.getTime())) {
-          const t = leadDate.getTime();
-          if (t < yesterdayStart || t >= todayStart) return false;
+      }
+
+      // 🛡️ Role-Wise Filtering
+      if (filterRole !== 'ALL') {
+        if (filterRole === 'UNASSIGNED') {
+          if ((l as any).currentAssigneeRole) return false;
         } else {
-          if (!lCreated.includes('yesterday') && !lCreated.includes('aug 8')) return false;
+          if ((l as any).currentAssigneeRole !== filterRole) return false;
         }
-      } else if (filterDate === 'THIS_MONTH') {
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        if (leadDate && !isNaN(leadDate.getTime())) {
-          if (leadDate.getTime() < thisMonthStart) return false;
-        } else {
-          const monthShort = now.toLocaleString('en-US', { month: 'short' }).toLowerCase();
-          if (!lCreated.includes(monthShort)) return false;
-        }
-      } else if (filterDate === 'CUSTOM') {
-        if (customDateFrom || customDateTo) {
-          if (!leadDate || isNaN(leadDate.getTime())) return false;
-          const leadTime = leadDate.getTime();
-          if (customDateFrom) {
-            const fromStart = new Date(customDateFrom).setHours(0, 0, 0, 0);
-            if (leadTime < fromStart) return false;
+      }
+
+      // 📅 Date-Wise Filtering (Today, Yesterday, This Month, Custom Range From-To)
+      if (filterDate !== 'ALL') {
+        const leadDate = l.rawCreatedAt ? new Date(l.rawCreatedAt) : (l.created && l.created !== '—' ? new Date(l.created) : null);
+        const lCreated = safeString(l.created || '').toLowerCase();
+
+        if (filterDate === 'TODAY') {
+          if (leadDate && !isNaN(leadDate.getTime())) {
+            const t = leadDate.getTime();
+            if (t < todayStart || t >= todayEnd) return false;
+          } else {
+            if (!lCreated.includes('today') && !lCreated.includes('aug 9')) return false;
           }
-          if (customDateTo) {
-            const toEnd = new Date(customDateTo).setHours(23, 59, 59, 999);
-            if (leadTime > toEnd) return false;
+        } else if (filterDate === 'YESTERDAY') {
+          if (leadDate && !isNaN(leadDate.getTime())) {
+            const t = leadDate.getTime();
+            if (t < yesterdayStart || t >= todayStart) return false;
+          } else {
+            if (!lCreated.includes('yesterday') && !lCreated.includes('aug 8')) return false;
+          }
+        } else if (filterDate === 'THIS_MONTH') {
+          if (leadDate && !isNaN(leadDate.getTime())) {
+            if (leadDate.getTime() < thisMonthStart) return false;
+          } else {
+            if (!lCreated.includes(monthShort)) return false;
+          }
+        } else if (filterDate === 'CUSTOM') {
+          if (customFromMs !== null || customToMs !== null) {
+            if (!leadDate || isNaN(leadDate.getTime())) return false;
+            const leadTime = leadDate.getTime();
+            if (customFromMs !== null && leadTime < customFromMs) return false;
+            if (customToMs !== null && leadTime > customToMs) return false;
           }
         }
       }
-    }
 
-    // 📌 Status/Stage Filtering (Tabs or Modal)
-    if (filterStatus !== 'ALL') {
-      if (lStatus !== filterStatus.toLowerCase()) return false;
-    }
+      // 📌 Status/Stage Filtering (Tabs or Modal)
+      if (filterStatusLower) {
+        if (lStatus !== filterStatusLower) return false;
+      }
 
-    // Status tab filter
-    const matchStatusTab = activeStatus === 'All' || lStatus === activeStatus.toLowerCase();
-    if (!matchStatusTab) return false;
+      // Status tab filter
+      if (activeStatusLower) {
+        if (lStatus !== activeStatusLower) return false;
+      }
 
-    // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      const matchSearch =
-        lName.includes(q) ||
-        lCompany.includes(q) ||
-        lEmail.includes(q) ||
-        lPhone.includes(q) ||
-        lStatus.includes(q) ||
-        lSource.includes(q) ||
-        lOwner.includes(q) ||
-        lAssignee.includes(q) ||
-        lValue.includes(q) ||
-        lCity.includes(q) ||
-        lBudget.includes(q) ||
-        lRequirement.includes(q) ||
-        lCreated.includes(q) ||
-        (Array.isArray(l.tags) && l.tags.some(tag => tag && String(tag).toLowerCase().includes(q))) ||
-        String(l.score || '').includes(q);
-      if (!matchSearch) return false;
-    }
+      // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
+      if (hasSearch) {
+        const lName = safeString(l.name || '').toLowerCase();
+        const lCompany = safeCompany((l as any).company || '').toLowerCase();
+        const lEmail = safeString(l.email || '').toLowerCase();
+        const lPhone = safeString(l.phone || '').toLowerCase();
+        const lSource = safeSource(l.source || '').toLowerCase();
+        const lValue = safeString(l.value || '').toLowerCase();
+        const lCity = safeString(l.city || '').toLowerCase();
+        const lBudget = safeString(l.budget || '').toLowerCase();
+        const lRequirement = safeString(l.requirement || '').toLowerCase();
+        const lCreated = safeString(l.created || '').toLowerCase();
 
-    return true;
-  });
+        const matchSearch =
+          lName.includes(q) ||
+          lCompany.includes(q) ||
+          lEmail.includes(q) ||
+          lPhone.includes(q) ||
+          lStatus.includes(q) ||
+          lSource.includes(q) ||
+          lOwner.includes(q) ||
+          lAssignee.includes(q) ||
+          lValue.includes(q) ||
+          lCity.includes(q) ||
+          lBudget.includes(q) ||
+          lRequirement.includes(q) ||
+          lCreated.includes(q) ||
+          (Array.isArray(l.tags) && l.tags.some(tag => tag && String(tag).toLowerCase().includes(q))) ||
+          String(l.score || '').includes(q);
+        if (!matchSearch) return false;
+      }
+
+      return true;
+    });
+  }, [
+    leadsList,
+    isSalesExec,
+    userRole,
+    userName,
+    currentUser,
+    filterTL,
+    filterSales,
+    visibleSalesReps,
+    filterPerson,
+    filterRole,
+    filterDate,
+    customDateFrom,
+    customDateTo,
+    filterStatus,
+    activeStatus,
+    search,
+  ]);
 
   const sortedAndFiltered = useMemo(() => {
+    if (!filtered || filtered.length <= 1) return filtered || [];
     const list = [...filtered];
     list.sort((a, b) => {
       if (sortOption === 'created_desc') {
@@ -1469,6 +1538,90 @@ export function LeadsTable() {
     });
     return list;
   }, [filtered, sortOption]);
+
+  // 🚀 Virtual Windowing Calculations for 60-120fps Scrolling
+  const totalRows = sortedAndFiltered.length;
+  const startIndex = Math.min(virtualIndices.start, Math.max(0, totalRows - 1));
+  const endIndex = Math.min(Math.max(virtualIndices.end, startIndex + 1), totalRows);
+  const visibleRows = useMemo(() => {
+    return sortedAndFiltered.slice(startIndex, endIndex);
+  }, [sortedAndFiltered, startIndex, endIndex]);
+
+  const offsetTop = startIndex * ROW_HEIGHT;
+  const offsetBottom = Math.max(0, (totalRows - endIndex) * ROW_HEIGHT);
+
+  const updateVirtualRange = useCallback(() => {
+    const tableEl = tableContainerRef.current;
+    if (!tableEl) return;
+    const rect = tableEl.getBoundingClientRect();
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+    // Header height is ~44px. Table data rows begin below the header.
+    const tableBodyTop = rect.top + 44;
+    const scrolledPast = -tableBodyTop;
+    const effectiveScrollTop = Math.max(0, scrolledPast);
+
+    const visibleStartPx = effectiveScrollTop;
+    const visibleEndPx = effectiveScrollTop + viewportHeight;
+
+    const count = sortedAndFiltered.length;
+    if (count === 0) {
+      setVirtualIndices({ start: 0, end: 0 });
+      return;
+    }
+
+    const newStart = Math.max(0, Math.floor(visibleStartPx / ROW_HEIGHT) - OVERSCAN);
+    const newEnd = Math.min(count, Math.ceil(visibleEndPx / ROW_HEIGHT) + OVERSCAN);
+
+    setVirtualIndices(prev => {
+      if (prev.start === newStart && prev.end === newEnd) return prev;
+      return { start: newStart, end: newEnd };
+    });
+
+    // Auto-trigger infinite loading if user is near end of loaded leads
+    if (newEnd >= count - 25 && hasMore && !isLoading && !isLoadingMore && totalServerCount !== null && totalServerCount > 0) {
+      fetchLeadsPage(page + 1, false);
+    }
+  }, [sortedAndFiltered.length, hasMore, isLoading, isLoadingMore, totalServerCount, page, fetchLeadsPage]);
+
+  useEffect(() => {
+    let rafId: number | null = null;
+    const onScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateVirtualRange();
+      });
+    };
+
+    // Find closest scrollable ancestor
+    const tableEl = tableContainerRef.current;
+    let scrollAncestor: HTMLElement | null = tableEl?.parentElement || null;
+    while (scrollAncestor && scrollAncestor !== document.body) {
+      const style = window.getComputedStyle(scrollAncestor);
+      if (/(auto|scroll)/.test(style.overflow + style.overflowY)) {
+        break;
+      }
+      scrollAncestor = scrollAncestor.parentElement;
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    if (scrollAncestor) {
+      scrollAncestor.addEventListener('scroll', onScroll, { passive: true });
+    }
+
+    updateVirtualRange();
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
+      if (scrollAncestor) {
+        scrollAncestor.removeEventListener('scroll', onScroll);
+      }
+    };
+  }, [updateVirtualRange]);
 
   const activeFilterCount =
     (filterTL !== 'ALL' ? 1 : 0) +
@@ -1905,14 +2058,14 @@ export function LeadsTable() {
       </div>
 
       {/* Table (Excel Spreadsheet Grid View vs Standard) */}
-      <div className="overflow-x-auto select-none">
+      <div ref={tableContainerRef} className="overflow-x-auto select-none" style={{ WebkitOverflowScrolling: 'touch' }}>
         <table className="crm-table border-collapse" style={{ tableLayout: 'fixed', minWidth: '100%', width: 'max-content' }}>
-          <thead>
-            <tr className="bg-slate-900/90">
+          <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-md shadow-xs">
+            <tr className="bg-slate-900/95">
               {/* Checkbox, Big AI Score & Serial Header */}
               <th
                 style={{ width: 108, minWidth: 108, maxWidth: 108 }}
-                className="px-2 py-3 border-b border-r border-slate-800 bg-slate-900/90 text-center select-none"
+                className="px-2 py-3 border-b border-r border-slate-800 bg-slate-900/95 text-center select-none"
               >
                 <div className="flex items-center justify-between px-1">
                   <input
@@ -2042,9 +2195,20 @@ export function LeadsTable() {
                 </td>
               </tr>
             ) : (
-            sortedAndFiltered.map((lead, idx) => (
-              <React.Fragment key={lead.id}>
-              <tr className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
+              <>
+                {offsetTop > 0 && (
+                  <tr style={{ height: `${offsetTop}px`, pointerEvents: 'none' }} aria-hidden="true">
+                    <td
+                      colSpan={columnOrder.length + 2}
+                      style={{ height: `${offsetTop}px`, padding: 0, border: 0 }}
+                    />
+                  </tr>
+                )}
+                {visibleRows.map((lead, offsetIdx) => {
+                  const idx = startIndex + offsetIdx;
+                  return (
+                    <React.Fragment key={lead.id}>
+                    <tr className={`hover:bg-slate-900/60 ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
                 {/* Checkbox, Big AI Score Circle, and Serial Number */}
                 <td
                   style={{ width: 108, minWidth: 108, maxWidth: 108 }}
@@ -2345,8 +2509,18 @@ export function LeadsTable() {
                   </td>
                 </tr>
               )}
-              </React.Fragment>
-            ))
+                    </React.Fragment>
+                  );
+                })}
+                {offsetBottom > 0 && (
+                  <tr style={{ height: `${offsetBottom}px`, pointerEvents: 'none' }} aria-hidden="true">
+                    <td
+                      colSpan={columnOrder.length + 2}
+                      style={{ height: `${offsetBottom}px`, padding: 0, border: 0 }}
+                    />
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>

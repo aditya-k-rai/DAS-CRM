@@ -529,11 +529,20 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
     });
   };
 
-  const handleJumpToLeadDetail = (leadId?: string) => {
+  const handleJumpToLeadDetail = (leadId?: string, leadName?: string) => {
     setSelectedMeeting(null);
     setSelectedActivity(null);
     if (leadId) {
-      navigation?.navigate('LeadDetail', { leadId });
+      try {
+        navigation?.navigate('Leads', {
+          screen: 'LeadDetail',
+          params: { leadId, leadName: leadName || 'Lead File', origin: 'Home' },
+        });
+      } catch (_) {
+        try {
+          navigation?.navigate('LeadDetail', { leadId });
+        } catch {}
+      }
     }
   };
 

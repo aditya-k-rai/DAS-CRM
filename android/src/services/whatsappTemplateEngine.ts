@@ -117,6 +117,8 @@ export interface ProductItem {
   imageUrl: string;
   priceTiers: PriceTier[];
   sku?: string;
+  price?: number;
+  unit?: string;
 }
 
 export interface InvoiceItem {
@@ -132,6 +134,23 @@ export interface InvoiceItem {
   status: string;
   pdfUrl?: string;
 }
+
+export const STATUS_OPTIONS: Array<{
+  key: string;
+  label: string;
+  badge: string;
+  color: string;
+  desc?: string;
+}> = [
+  { key: 'Contacted', label: 'Connected / Contacted', badge: '📞', color: '#f59e0b', desc: 'Initial contact made' },
+  { key: 'Proposal', label: 'Proposal Sent (Negotiation)', badge: '📄', color: '#8b5cf6', desc: 'Commercial proposal sent' },
+  { key: 'Negotiation', label: 'Product / Invoice Sent (Negotiation)', badge: '📦', color: '#ec4899', desc: 'Invoice / pricing terms shared' },
+  { key: 'Meeting Scheduled', label: 'Meeting Details (Meeting Scheduled)', badge: '📅', color: '#3b82f6', desc: 'Demo / live walkthrough booked' },
+  { key: 'Qualified', label: 'Qualified (Requirements Gathered)', badge: '🎯', color: '#06b6d4', desc: 'Product requirements validated' },
+  { key: 'Won', label: 'Deal Closed / Payment Cleared (Won)', badge: '🏆', color: '#10b981', desc: 'Deal closed successfully' },
+  { key: 'Lost', label: 'Not Interested / Dropped (Lost)', badge: '❌', color: '#ef4444', desc: 'Not interested / drop off' },
+  { key: 'KEEP_CURRENT', label: "Keep Current Status (Don't Change)", badge: '⏸️', color: '#64748b', desc: 'Leave status untouched' },
+];
 
 export const CATALOG_PRODUCTS: ProductItem[] = [
   {
@@ -230,6 +249,16 @@ class WhatsAppTemplateEngine {
       digits = '91' + digits; // Default India 91 prefix for 10-digit numbers
     }
     return digits;
+  }
+
+  /** Format phone with + prefix and spacing for display */
+  formatPhoneDisplay(phone: string): string {
+    const cleaned = this.cleanPhone(phone);
+    if (!cleaned) return '—';
+    if (cleaned.startsWith('91') && cleaned.length === 12) {
+      return `+91 ${cleaned.slice(2, 7)} ${cleaned.slice(7)}`;
+    }
+    return `+${cleaned}`;
   }
 
   /** Compute Tiered Price based on Quantity */
@@ -333,6 +362,18 @@ class WhatsAppTemplateEngine {
     }
     await this.saveTemplates(list);
     return list;
+  }
+
+  /** Increment usage count for a template */
+  async incrementUsage(templateId: string): Promise<void> {
+    try {
+      const list = await this.getTemplates();
+      const target = list.find(t => t.id === templateId);
+      if (target) {
+        target.usageCount = (target.usageCount || 0) + 1;
+        await this.saveTemplates(list);
+      }
+    } catch (_) {}
   }
 
   /** Launch Direct WhatsApp app with pre-filled message */

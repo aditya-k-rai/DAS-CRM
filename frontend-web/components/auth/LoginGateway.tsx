@@ -82,6 +82,7 @@ interface SavedLoginCredentials {
 
 // Version-bumped cookie key — v2 invalidates all old stale DAS-* key cookies
 const LOGIN_COOKIE_KEY = 'das_crm_login_v2';
+const PUBLIC_COMPANIES_CACHE_KEY = 'das_crm_public_companies_v2';
 
 function setCookie(name: string, value: string, days = 30) {
   if (typeof document === 'undefined') return;
@@ -152,8 +153,19 @@ function clearLoginCredentials() {
 export function LoginGateway() {
   const [entryPoint, setEntryPoint] = useState<'workspace' | 'staff_key' | 'superadmin'>('workspace');
   
-  // Workspace Login State with Company & Key Enforced
-  const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([]);
+  // Workspace Login State with Company & Key Enforced (Hydrated instantly from local cache)
+  const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(PUBLIC_COMPANIES_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return [];
+  });
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [companyKeyInput, setCompanyKeyInput] = useState('');
 
@@ -268,39 +280,79 @@ export function LoginGateway() {
     try {
       let data: any = null;
 
-      // Attempt 1: Fetch via configured NEXT_PUBLIC_API_URL
-      try {
-        const primaryUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/public-companies`;
-        const res = await fetch(primaryUrl);
-        if (res.ok) data = await res.json();
-      } catch (_) {}
+      // Smart endpoint determination:
+      // If running on non-localhost client (LAN IP, mobile, domain), localhost:3001 will hang waiting for TCP timeout.
+      // In that case, prioritize the relative Next.js proxy (/api/v1).
+      const isLocalHost = typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '0.0.0.0');
 
-      // Attempt 2: If primary failed, try relative proxy URL /api/v1
-      if (!data || !Array.isArray(data)) {
+      const primaryUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/public-companies`;
+      const fallbackUrl = '/api/v1/auth/public-companies';
+
+      const candidateUrls = isLocalHost
+        ? [primaryUrl, fallbackUrl]
+        : [fallbackUrl, primaryUrl];
+
+      for (const url of candidateUrls) {
         try {
-          const res = await fetch('/api/v1/auth/public-companies');
-          if (res.ok) data = await res.json();
-        } catch (_) {}
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 2500);
+          const res = await fetch(url, {
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+          });
+          clearTimeout(timer);
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json) && json.length > 0) {
+              data = json;
+              break;
+            }
+          }
+        } catch (_) {
+          // Timeout or connection error: proceed to fallback candidate
+        }
       }
 
-      let companies: PublicCompany[] = Array.isArray(data) && data.length > 0 ? [...data] : [];
-
-      // Check if there is a company passed via query param
+      // Check if there is a company passed via query param or saved credentials
       const storedCompanyRaw = typeof window !== 'undefined' ? localStorage.getItem('last_registered_company') : null;
       let storedCompany: any = null;
       try { if (storedCompanyRaw) storedCompany = JSON.parse(storedCompanyRaw); } catch (_) {}
 
-      // SECURITY: Do NOT inject any hardcoded company as a fallback.
-      // If the API returns no companies, show an empty list and ask the user to enter their key.
-      // A user must only see their own company, determined by the key they enter.
-      setPublicCompanies(companies);
+      let companies: PublicCompany[] = Array.isArray(data) && data.length > 0 ? [...data] : [];
 
-      // Only pre-select a company if it came from the URL param (e.g. invite link) or stored registration
+      if (companies.length > 0) {
+        setPublicCompanies(companies);
+        try {
+          localStorage.setItem(PUBLIC_COMPANIES_CACHE_KEY, JSON.stringify(companies));
+        } catch (_) {}
+      } else {
+        // Fallback: If network returned nothing or timed out, retain existing cached companies
+        if (publicCompanies.length > 0) {
+          companies = [...publicCompanies];
+        } else if (storedCompany?.name) {
+          companies = [{
+            id: storedCompany.id || 'cmuev7n3o000mikew7je1tdiw',
+            name: storedCompany.name,
+            slug: storedCompany.slug || 'company-workspace',
+            isActive: true,
+            status: 'APPROVED',
+            companyKey: storedCompany.key,
+          }];
+          setPublicCompanies(companies);
+        }
+      }
+
+      // Auto-select company
       if (urlCompanyId && companies.some(c => c.id === urlCompanyId)) {
         setSelectedCompanyId(urlCompanyId);
       } else if (storedCompany?.id && companies.some(c => c.id === storedCompany.id)) {
         setSelectedCompanyId(storedCompany.id);
+      } else if (selectedCompanyId && companies.some(c => c.id === selectedCompanyId)) {
+        // Retain current valid selection
       } else if (companies.length === 1) {
+        setSelectedCompanyId(companies[0].id);
+      } else if (companies.length > 0 && !selectedCompanyId) {
         setSelectedCompanyId(companies[0].id);
       }
 
@@ -315,18 +367,20 @@ export function LoginGateway() {
         setEmail(urlEmail);
       }
     } catch (e) {
-      // In case of any unexpected exception, ensure Adorable Trading is present
-      setPublicCompanies([
-        {
-          id: 'cmuev7n3o000mikew7je1tdiw',
-          name: 'Adorable Trading',
-          slug: 'adorable-trading-muev7mo0',
-          isActive: true,
-          status: 'APPROVED',
-        },
-      ]);
-      setSelectedCompanyId('cmuev7n3o000mikew7je1tdiw');
-      setCompanyKeyInput('');
+      // In case of any unexpected exception, ensure existing companies are retained
+      if (publicCompanies.length === 0) {
+        setPublicCompanies([
+          {
+            id: 'cmuev7n3o000mikew7je1tdiw',
+            name: 'Adorable Trading',
+            slug: 'adorable-trading-muev7mo0',
+            isActive: true,
+            status: 'APPROVED',
+            companyKey: 'ADOR-EC-7187',
+          },
+        ]);
+        setSelectedCompanyId('cmuev7n3o000mikew7je1tdiw');
+      }
     } finally {
       setFetchingCompanies(false);
     }
@@ -1013,6 +1067,11 @@ export function LoginGateway() {
                       </Link>
                     </div>
                   </div>
+                ) : fetchingCompanies ? (
+                  <div className="p-3 rounded-xl border border-indigo-500/20 bg-indigo-500/10 flex items-center gap-2.5 text-xs text-indigo-300">
+                    <RefreshCw size={13} className="animate-spin text-indigo-400 flex-shrink-0" />
+                    <span>Syncing registered workspaces...</span>
+                  </div>
                 ) : (
                   <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
                     <p className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
@@ -1095,7 +1154,16 @@ export function LoginGateway() {
                     spellCheck={false}
                     inputMode={companyKeyInput.length >= 8 ? 'numeric' : 'text'}
                     value={companyKeyInput}
-                    onChange={e => setCompanyKeyInput(formatCompanyKey(e.target.value))}
+                    onChange={e => {
+                      const formatted = formatCompanyKey(e.target.value);
+                      setCompanyKeyInput(formatted);
+                      if (formatted.length >= 8) {
+                        const matched = publicCompanies.find(c => c.companyKey?.toUpperCase() === formatted.toUpperCase());
+                        if (matched && matched.id !== selectedCompanyId) {
+                          setSelectedCompanyId(matched.id);
+                        }
+                      }
+                    }}
                   />
                 </div>
                 {!companyKeyInput && (

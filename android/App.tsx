@@ -82,7 +82,7 @@ const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [];
 // Navigation Param Lists
 export type LeadsStackParamList = {
   LeadsList: undefined;
-  LeadDetail: { leadId: string; leadName: string };
+  LeadDetail: { leadId: string; leadName?: string; origin?: string };
 };
 
 const LeadsStack = createStackNavigator<LeadsStackParamList>();
