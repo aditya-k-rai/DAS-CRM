@@ -68,10 +68,10 @@ export async function POST(req: Request) {
     }
 
 
-    // 2. Also register image in Firestore if token is available
-    try {
-      await saveImageToFirestore(docId, finalUrl, fileName);
-    } catch (_) {}
+    // 2. Also register image in Firestore asynchronously in background without blocking response
+    if (finalUrl) {
+      saveImageToFirestore(docId, finalUrl, fileName).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

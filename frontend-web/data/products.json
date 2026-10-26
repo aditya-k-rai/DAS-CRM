@@ -16,10 +16,10 @@
     "stock": 100,
     "minOrderQty": 1,
     "taxRate": 18,
-    "imageUrl": "/products/puff-jackets.jpg",
+    "imageUrl": "/products/product-gallery_1792978373703.png",
     "images": [
-      "/products/puff-jackets.jpg",
-      "/products/puff-jackets.webp"
+      "/products/product-gallery_1792978373703.png",
+      "/products/product-gallery_1792978380388.png"
     ],
     "features": [
       "water proof"
@@ -42,7 +42,14 @@
     "isActive": true,
     "status": "ACTIVE",
     "createdAt": "2026-10-07T14:27:05.753Z",
-    "updatedAt": "2026-10-26T00:11:17.178Z"
+    "updatedAt": "2026-10-26T01:41:26.462Z",
+    "coverImage": "/products/product-gallery_1792978373703.png",
+    "rating": 5,
+    "sold": 0,
+    "overview": "Old Jacket in DAS CRM Catalog.",
+    "specs": [
+      "water proof"
+    ]
   },
   {
     "name": "Test Premium Leather Jacket",
@@ -56,7 +63,10 @@
     "stock": 100,
     "taxRate": 18,
     "description": "Premium jacket with durable weather protection.",
-    "features": ["Water resistant", "Insulated"],
+    "features": [
+      "Water resistant",
+      "Insulated"
+    ],
     "imageUrl": "/products/puff-jackets.jpg",
     "images": [
       "/products/puff-jackets.jpg",

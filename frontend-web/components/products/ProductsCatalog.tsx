@@ -529,18 +529,18 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 let finalCover = remoteP.coverImage;
                 let finalImages = remoteP.images;
 
-                // Server image takes precedence unless user explicitly uploaded custom base64 or valid custom image
-                if (customImgEntry && !isPlaceholderOrFallback(customImgEntry.coverImage)) {
-                  const isCustomUpload = customImgEntry.coverImage.startsWith('data:');
-                  if (isCustomUpload || isPlaceholderOrFallback(remoteP.coverImage)) {
-                    finalCover = customImgEntry.coverImage;
-                    finalImages = customImgEntry.images && customImgEntry.images.length > 0
-                      ? customImgEntry.images
-                      : [finalCover];
-                  }
-                } else if (isPlaceholderOrFallback(finalCover) && localMatch && !isPlaceholderOrFallback(localMatch.coverImage)) {
+                // Server image takes precedence if it is non-placeholder
+                if (!isPlaceholderOrFallback(remoteP.coverImage)) {
+                  finalCover = remoteP.coverImage;
+                  finalImages = Array.isArray(remoteP.images) && remoteP.images.length > 0 ? remoteP.images : [finalCover];
+                } else if (customImgEntry && !isPlaceholderOrFallback(customImgEntry.coverImage)) {
+                  finalCover = customImgEntry.coverImage;
+                  finalImages = Array.isArray(customImgEntry.images) && customImgEntry.images.length > 0
+                    ? customImgEntry.images
+                    : [finalCover];
+                } else if (localMatch && !isPlaceholderOrFallback(localMatch.coverImage)) {
                   finalCover = localMatch.coverImage;
-                  finalImages = localMatch.images && localMatch.images.length > 0 ? localMatch.images : [finalCover];
+                  finalImages = Array.isArray(localMatch.images) && localMatch.images.length > 0 ? localMatch.images : [finalCover];
                 }
 
                 finalCover = getProductCoverImage(finalCover, remoteP.id, remoteP.sku, remoteP.category, remoteP.name);
@@ -1163,19 +1163,17 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         ? editProdSku.trim().toUpperCase()
         : editingProduct.sku;
 
-      // Ensure any images are stored in Firebase Storage
-      let updatedImages = [...editProdImages];
+      // Ensure any images are stored in Firebase Storage or local static storage
+      let updatedImages = editProdImages.filter(im => im && typeof im === 'string' && im.trim() !== '');
       if (updatedImages.length > 0) {
         updatedImages = await Promise.all(
           updatedImages.map((im, idx) =>
             im.startsWith('data:') ? uploadProductImageToFirebase(im, `product-edit-${idx}`) : Promise.resolve(im)
           )
         );
-      } else if (editingProduct.coverImage) {
-        updatedImages = [editingProduct.coverImage];
       }
 
-      const coverImg = updatedImages[0] || editingProduct.coverImage || DEFAULT_PRODUCT_FALLBACK_IMAGE;
+      const coverImg = updatedImages.length > 0 ? updatedImages[0] : '';
 
       const stagedProduct: ProductItemWeb = {
         ...editingProduct,
@@ -1189,7 +1187,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         price: priceNum,
         stock: parseInt(editProdStock) || 0,
         taxRate: parseInt(editProdGst) || 18,
-        coverImage: coverImg,
+        coverImage: coverImg || DEFAULT_PRODUCT_FALLBACK_IMAGE,
         images: updatedImages,
         overview: editProdDescription.trim(),
         features: editProdFeatures,
@@ -1232,36 +1230,33 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               volumeDiscounts: stagedProduct.volumeDiscounts,
             }),
           });
-          if (!res.ok && apiBase !== '/api') {
-            res = await fetch(`/api/products/${stagedProduct.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(stagedProduct),
-            });
-          }
-        } catch (_) {
-          try {
-            res = await fetch(`/api/products/${stagedProduct.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(stagedProduct),
-            });
-          } catch {}
-        }
+        } catch (_) {}
+
+        // Always also sync to local Next.js API storage so it's instantly available in all local routes
+        try {
+          await fetch(`/api/products/${stagedProduct.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...stagedProduct,
+              imageUrl: stagedProduct.coverImage,
+            }),
+          });
+        } catch (_) {}
 
         if (res && res.ok) {
-          const apiData = await res.json();
+          const apiData = await res.json().catch(() => null);
           if (apiData && apiData.id) {
             finalSavedProduct = {
               ...stagedProduct,
               id: apiData.id,
-              coverImage: apiData.imageUrl || stagedProduct.coverImage,
-              images: apiData.images && apiData.images.length > 0 ? apiData.images : stagedProduct.images,
+              coverImage: apiData.imageUrl !== undefined ? apiData.imageUrl : stagedProduct.coverImage,
+              images: Array.isArray(apiData.images) ? apiData.images : stagedProduct.images,
             };
           }
         }
       } catch (apiErr) {
-        console.warn('API update failed, updating local state and broadcasting:', apiErr);
+        console.warn('API update notice:', apiErr);
       }
 
       // 2. Update local state and dedicated custom images map
@@ -1269,9 +1264,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         let customImagesMap: Record<string, { coverImage: string; images: string[] }> = {};
         const s = localStorage.getItem('das_crm_custom_product_images');
         if (s) customImagesMap = JSON.parse(s);
-        const finalImgs = finalSavedProduct.images && finalSavedProduct.images.length > 0
-          ? finalSavedProduct.images
-          : [finalSavedProduct.coverImage];
+        const finalImgs = finalSavedProduct.images || [];
         customImagesMap[editingProduct.id] = {
           coverImage: finalSavedProduct.coverImage,
           images: finalImgs,
@@ -1316,13 +1309,15 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         }
       } catch (_) {}
 
-      // 5. Close modal
+      // 5. Dismiss edit modal immediately and display non-blocking toast
       setEditingProduct(null);
       setEditConfirmProduct(null);
-      alert(`✅ Product "${finalSavedProduct.name}" (${finalSavedProduct.sku}) updated successfully in database! Images saved to Firebase Storage.`);
+      setToastMessage(`✓ Product "${finalSavedProduct.name}" (${finalSavedProduct.sku}) updated successfully!`);
+      setTimeout(() => setToastMessage(null), 4000);
     } catch (err) {
       console.error('Failed to update product:', err);
-      alert('Error saving product update: ' + (err as Error).message);
+      setToastMessage('⚠️ Error saving product update: ' + (err as Error).message);
+      setTimeout(() => setToastMessage(null), 5000);
     } finally {
       setIsUpdatingProduct(false);
     }

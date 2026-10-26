@@ -737,11 +737,11 @@ export class ProductsService {
     }
 
     let processedImages: string[] | undefined = undefined;
-    if (Array.isArray(dto.images) && dto.images.length > 0) {
+    if (Array.isArray(dto.images)) {
       processedImages = await Promise.all(
-        dto.images.map((im) => (im.startsWith('data:') ? this.uploadImageToFirebase(im, 'product-gallery') : Promise.resolve(im)))
+        dto.images.map((im) => (im && im.startsWith('data:') ? this.uploadImageToFirebase(im, 'product-gallery') : Promise.resolve(im)))
       );
-      if (!primaryImageUrl && processedImages.length > 0) {
+      if (primaryImageUrl === undefined && processedImages.length > 0) {
         primaryImageUrl = processedImages[0];
       }
     }
@@ -830,7 +830,7 @@ export class ProductsService {
       minOrderQty: dto.minOrderQty !== undefined ? Number(dto.minOrderQty) : (fallbackItem?.minOrderQty ?? 1),
       currency: dto.currency || fallbackItem?.currency || '₹',
       imageUrl: primaryImageUrl || fallbackItem?.imageUrl || '',
-      images: processedImages && processedImages.length > 0
+      images: processedImages !== undefined
         ? processedImages
         : (fallbackItem?.images || (primaryImageUrl ? [primaryImageUrl] : [])),
       features: dto.features || fallbackItem?.features || [],
