@@ -47,7 +47,7 @@ import SalesExecControlScreen from './SalesExecControlScreen';
 import TeamLeaderControlScreen from './TeamLeaderControlScreen';
 import ManagerControlScreen from './ManagerControlScreen';
 import HrControlScreen from './HrControlScreen';
-import { getApiBase } from '../config/api';
+import { getApiBase, fetchWithFailover } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
 
@@ -409,7 +409,7 @@ export default function EmployeesScreen() {
 
     // Fetch workspace registration key
     try {
-      const keyRes = await fetch(`${getApiBase()}/users/company-key?organizationId=${compId}&companyKey=${activeKey}`, {
+      const keyRes = await fetchWithFailover(`/users/company-key?organizationId=${compId}&companyKey=${activeKey}`, {
         headers,
       });
       if (keyRes.ok) {
@@ -422,7 +422,7 @@ export default function EmployeesScreen() {
     } catch (_) {}
 
     try {
-      const res = await fetch(`${getApiBase()}/users?organizationId=${compId}&companyKey=${activeKey}`, {
+      const res = await fetchWithFailover(`/users?organizationId=${compId}&companyKey=${activeKey}`, {
         headers,
       });
       if (res.ok) {
@@ -682,7 +682,7 @@ export default function EmployeesScreen() {
     // Sync to backend
     try {
       const token = useAuthStore.getState().token;
-      await fetch(`${getApiBase()}/users/${target.id}/verify-role`, {
+      await fetchWithFailover(`/users/${target.id}/verify-role`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -692,7 +692,7 @@ export default function EmployeesScreen() {
         body: JSON.stringify({ assignedRole, assignedManager, organizationId: compId }),
       }).catch(() => null);
 
-      await fetch(`${getApiBase()}/users/${target.id}/manager`, {
+      await fetchWithFailover(`/users/${target.id}/manager`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -734,7 +734,7 @@ export default function EmployeesScreen() {
 
     try {
       const token = useAuthStore.getState().token;
-      const res = await fetch(`${getApiBase()}/users/${targetUserId}/change-role`, {
+      const res = await fetchWithFailover(`/users/${targetUserId}/change-role`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -815,7 +815,7 @@ export default function EmployeesScreen() {
     try {
       const token = useAuthStore.getState().token;
       const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-      await fetch(`${getApiBase()}/users/${empId}/manager`, {
+      await fetchWithFailover(`/users/${empId}/manager`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -862,7 +862,7 @@ export default function EmployeesScreen() {
     // 3. Sync to backend
     try {
       const token = useAuthStore.getState().token;
-      await fetch(`${getApiBase()}/users/phone`, {
+      await fetchWithFailover(`/users/phone`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -941,7 +941,7 @@ export default function EmployeesScreen() {
     try {
       const token = useAuthStore.getState().token;
       const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-      await fetch(`${getApiBase()}/users`, {
+      await fetchWithFailover(`/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -999,7 +999,7 @@ export default function EmployeesScreen() {
             try {
               const token = useAuthStore.getState().token;
               const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-              await fetch(`${getApiBase()}/users/${user.id}?organizationId=${compId}`, {
+              await fetchWithFailover(`/users/${user.id}?organizationId=${compId}`, {
                 method: 'DELETE',
                 headers: {
                   'Content-Type': 'application/json',

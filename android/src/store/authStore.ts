@@ -152,6 +152,7 @@ export interface UserProfile {
   avatar: string;
   companyId: string;
   companyName: string;
+  companyKey?: string;
   managerId?: string;
   teamLeaderId?: string;
   isLocked?: boolean;

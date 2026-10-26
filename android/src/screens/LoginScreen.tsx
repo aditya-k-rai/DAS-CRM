@@ -39,6 +39,7 @@ import {
   setApiBase,
   getCandidateApiUrls,
   findFastestReachableEndpoint,
+  fetchWithFailover,
 } from '../config/api';
 
 // ─── Types & Helpers ──────────────────────────────────────────────────────────
@@ -175,18 +176,20 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       if (Array.isArray(comps) && comps.length > 0) {
         setPublicCompanies(comps);
 
-        // Select company prioritizing approved/active workspaces
+        // Select company: Prioritize active workspace that has a designated Company Key (e.g. Adorable Trading)
         setSelectedCompanyId((prevId) => {
-          if (prevId && comps.some((c) => c.id === prevId)) {
+          if (prevId && comps.some((c) => c.id === prevId && c.companyKey)) {
             return prevId;
           }
+          const withKey = comps.find((c) => (c.status === 'APPROVED' || c.isActive) && c.companyKey);
+          if (withKey) return withKey.id;
           const firstApproved = comps.find((c) => c.status === 'APPROVED' || c.isActive) || comps[0];
           return firstApproved ? firstApproved.id : comps[0].id;
         });
 
         // Auto-fill company key if the selected company has a known key and input is empty
         setSelectedCompanyId((currentId) => {
-          const matched = comps.find((c) => c.id === currentId) || comps[0];
+          const matched = comps.find((c) => c.id === currentId) || comps.find((c) => c.companyKey) || comps[0];
           if (matched && matched.companyKey) {
             setCompanyKeyInput((prevKey) => {
               if (!prevKey || prevKey === 'DAS-VW-8329' || prevKey === 'ADOR-AB-8329') {
@@ -234,8 +237,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       }
       setPublicCompanies(compsToUse);
       setSelectedCompanyId((prev) => {
-        const sel = prev || compsToUse[0].id;
-        const matched = compsToUse.find((c) => c.id === sel) || compsToUse[0];
+        const validKeyComp = compsToUse.find((c) => (c.status === 'APPROVED' || c.isActive) && c.companyKey);
+        const sel = prev && compsToUse.some((c) => c.id === prev && c.companyKey)
+          ? prev
+          : (validKeyComp ? validKeyComp.id : (prev || compsToUse[0].id));
+        const matched = compsToUse.find((c) => c.id === sel) || validKeyComp || compsToUse[0];
         if (matched?.companyKey) {
           setCompanyKeyInput((pk) =>
             !pk || pk === 'DAS-VW-8329' || pk === 'ADOR-AB-8329'
@@ -297,10 +303,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setCompanyKeyInput(formatted);
 
     // Auto-match company dropdown if key matches a known company
-    if (formatted.length >= 8) {
-      const clean = formatted.toUpperCase();
+    const clean = formatted.toUpperCase();
+    if (clean.length >= 4) {
       const matched = publicCompanies.find(
-        (c) => c.companyKey && c.companyKey.toUpperCase() === clean,
+        (c) => (c.companyKey && c.companyKey.toUpperCase() === clean) ||
+          (clean.startsWith('ADOR-') && (c.id === 'cmuev7n3o000mikew7je1tdiw' || c.name.toLowerCase().includes('adorable'))),
       );
       if (matched) {
         setSelectedCompanyId(matched.id);
@@ -317,7 +324,33 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setError('Please enter your Company Key.');
       return;
     }
-    if (!selectedCompanyId) {
+
+    const trimmedKey = companyKeyInput.trim().toUpperCase();
+    let effectiveCompanyId = selectedCompanyId;
+
+    // Auto-resolve organization if key matches any known company workspace
+    const matchedCompByKey = publicCompanies.find(
+      (c) => c.companyKey && c.companyKey.toUpperCase() === trimmedKey,
+    );
+    if (matchedCompByKey) {
+      effectiveCompanyId = matchedCompByKey.id;
+      setSelectedCompanyId(matchedCompByKey.id);
+    } else if (trimmedKey.startsWith('ADOR-') || trimmedKey.includes('ADOR')) {
+      const adr = publicCompanies.find(
+        (c) => c.id === 'cmuev7n3o000mikew7je1tdiw' || c.name.toLowerCase().includes('adorable'),
+      );
+      if (adr) {
+        effectiveCompanyId = adr.id;
+        setSelectedCompanyId(adr.id);
+      }
+    }
+
+    if (!effectiveCompanyId && publicCompanies.length > 0) {
+      effectiveCompanyId = publicCompanies[0].id;
+      setSelectedCompanyId(effectiveCompanyId);
+    }
+
+    if (!effectiveCompanyId) {
       setError('Please select your company workspace.');
       return;
     }
@@ -332,8 +365,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const loginPayload = {
       email: email.trim(),
       password,
-      key: companyKeyInput.trim().toUpperCase(),
-      organizationId: selectedCompanyId,
+      key: trimmedKey,
+      organizationId: effectiveCompanyId,
       selectedRole,
     };
 
@@ -649,7 +682,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setKeyValidating(true);
     setError(null);
     try {
-      const res = await fetch(`${getApiBase()}/auth/validate-user-key`, {
+      const res = await fetchWithFailover('/auth/validate-user-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: cleanKey }),
@@ -725,7 +758,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const cleanStaffPhone = staffPhone.trim();
 
     try {
-      const res = await fetch(`${getApiBase()}/auth/staff-register`, {
+      const res = await fetchWithFailover('/auth/staff-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

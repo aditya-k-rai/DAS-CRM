@@ -68,9 +68,10 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 2. Previously saved active API base from AsyncStorage if valid and not dead host
-  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('onrender.com') && !API_BASE.includes('nexcrm')) {
-    candidates.push(normalizeApiUrl(API_BASE));
+  // 2. Web & Desktop prioritization (direct localhost connection)
+  if (Platform.OS === 'web') {
+    candidates.push(LOCALHOST_API_URL);
+    candidates.push('http://127.0.0.1:3001/api/v1');
   }
 
   // 3. Dynamic host IP from Expo Metro bundler
@@ -79,15 +80,20 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Current host machine Wi-Fi LAN IP (Primary for real physical devices on local network)
-  candidates.push(CURRENT_LAN_API_URL);
-
-  // 5. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  // 4. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
   if (Platform.OS === 'android') {
     candidates.push(EMULATOR_API_URL);
   }
 
-  // 6. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
+  // 5. Current host machine Wi-Fi LAN IP (Primary for real physical devices on local network)
+  candidates.push(CURRENT_LAN_API_URL);
+
+  // 6. Previously saved active API base from AsyncStorage if valid and not dead host
+  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('onrender.com') && !API_BASE.includes('nexcrm')) {
+    candidates.push(normalizeApiUrl(API_BASE));
+  }
+
+  // 7. Localhost & 127.0.0.1 fallback
   candidates.push(LOCALHOST_API_URL);
   candidates.push('http://127.0.0.1:3001/api/v1');
 
@@ -99,6 +105,9 @@ export const getApiBaseUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
   }
+  if (Platform.OS === 'web') {
+    return LOCALHOST_API_URL;
+  }
   const expoIp = getExpoHostIp();
   if (expoIp) {
     return `http://${expoIp}:3001/api/v1`;
@@ -108,7 +117,6 @@ export const getApiBaseUrl = (): string => {
   }
   return LOCALHOST_API_URL;
 };
-
 
 export let API_BASE: string = getApiBaseUrl();
 
@@ -215,6 +223,109 @@ export async function findFastestReachableEndpoint(timeoutMs = 2500): Promise<st
  */
 export async function probeAndSetWorkingApiBase(): Promise<string | null> {
   return findFastestReachableEndpoint(2500);
+}
+
+/**
+ * Execute an API fetch with automatic fast failover across candidate backends.
+ * If the current base URL fails due to network error, timeout, or unreachable host,
+ * it swiftly probes candidate endpoints in parallel, updates API_BASE, and retries.
+ */
+export async function fetchWithFailover(
+  endpointPath: string,
+  init?: RequestInit,
+  timeoutMs = 6000
+): Promise<Response> {
+  const path = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
+
+  // 1. Try currently active API_BASE
+  const activeBase = getApiBase();
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const mergedHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((init?.headers as Record<string, string>) || {}),
+    };
+
+    // Auto-inject Bearer token if not explicitly provided
+    if (!mergedHeaders['Authorization']) {
+      try {
+        const storedToken = await AsyncStorage.getItem('das_crm_token');
+        if (storedToken) {
+          mergedHeaders['Authorization'] = `Bearer ${storedToken}`;
+        }
+      } catch (_) {}
+    }
+
+    const res = await fetch(`${activeBase}${path}`, {
+      ...init,
+      headers: mergedHeaders,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    // If server responded (even with 4xx or 5xx, host was reached)
+    return res;
+  } catch (err: any) {
+    // Current base was unreachable, timed out, or connection refused
+  }
+
+  // 2. Discover working endpoint from candidates
+  const workingBase = await findFastestReachableEndpoint(2500);
+  if (workingBase && workingBase !== activeBase) {
+    setApiBase(workingBase);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const mergedHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...((init?.headers as Record<string, string>) || {}),
+      };
+      if (!mergedHeaders['Authorization']) {
+        try {
+          const storedToken = await AsyncStorage.getItem('das_crm_token');
+          if (storedToken) mergedHeaders['Authorization'] = `Bearer ${storedToken}`;
+        } catch (_) {}
+      }
+
+      const res = await fetch(`${workingBase}${path}`, {
+        ...init,
+        headers: mergedHeaders,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      return res;
+    } catch (_) {}
+  }
+
+  // 3. Fallback attempt on localhost if not already tested
+  if (activeBase !== LOCALHOST_API_URL) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      const mergedHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...((init?.headers as Record<string, string>) || {}),
+      };
+      if (!mergedHeaders['Authorization']) {
+        try {
+          const storedToken = await AsyncStorage.getItem('das_crm_token');
+          if (storedToken) mergedHeaders['Authorization'] = `Bearer ${storedToken}`;
+        } catch (_) {}
+      }
+
+      const res = await fetch(`${LOCALHOST_API_URL}${path}`, {
+        ...init,
+        headers: mergedHeaders,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      setApiBase(LOCALHOST_API_URL);
+      return res;
+    } catch (_) {}
+  }
+
+  throw new Error(`All backend candidates failed for path: ${path}`);
 }
 
 // Hydrate and sanitize saved working API_BASE on app startup

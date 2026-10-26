@@ -4,7 +4,7 @@
  * End-to-End Sync for Authentication, Leads, Attendance, and Role Telemetry.
  */
 
-import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls, findFastestReachableEndpoint } from '../config/api';
+import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls, findFastestReachableEndpoint, fetchWithFailover } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { offlineSyncEngine } from './offlineSyncEngine';
 
@@ -112,16 +112,17 @@ export const FALLBACK_LEADS: LeadItem[] = [];
 
 
 class ApiService {
+  /** Central resilient API fetch across candidate backends with automatic Bearer token injection */
+  async apiFetch(endpointPath: string, init?: RequestInit): Promise<Response> {
+    return fetchWithFailover(endpointPath, init);
+  }
+
   /** Fetch employee directory (/users or /employees) */
   async getEmployees(token?: string | null): Promise<{ success: boolean; employees: Employee[] }> {
     try {
-      const activeBase = getApiBase();
-      const res = await fetch(`${activeBase}/users`, {
+      const res = await fetchWithFailover('/users', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (res.ok) {
         const data = await res.json();
@@ -151,20 +152,10 @@ class ApiService {
   /** Live NestJS Backend Health & Network Reachability Check */
   async checkBackendHealth(): Promise<{ isOnline: boolean; isBackendConnected: boolean; latencyMs: number; service?: string }> {
     const startTime = Date.now();
-    const activeBase = getApiBase();
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-      const res = await fetch(`${activeBase}/health`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
+      const res = await fetchWithFailover('/health', { method: 'GET' }, 2500);
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         const latencyMs = Date.now() - startTime;
         return {
           isOnline: true,
@@ -206,18 +197,11 @@ class ApiService {
 
   /** Fetch public active tenant companies for login dropdown with multi-candidate network retry and offline cache */
   async getPublicCompanies(): Promise<PublicCompany[]> {
-    // 1. Try currently active API base first with fast timeout
-    let workingBase = getApiBase();
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-      const res = await fetch(`${workingBase}/auth/public-companies`, {
+      const res = await fetchWithFailover('/auth/public-companies', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      }, 2500);
 
       if (res.ok) {
         const data = await res.json();
@@ -236,40 +220,7 @@ class ApiService {
       }
     } catch (_) {}
 
-    // 2. If active base failed, race candidate URLs concurrently to discover working server
-    const fastestUrl = await findFastestReachableEndpoint(2200);
-    if (fastestUrl) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-        const res = await fetch(`${fastestUrl}/auth/public-companies`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setApiBase(fastestUrl);
-            const companies: PublicCompany[] = data.map((c: any) => ({
-              id: c.id,
-              name: c.name || c.companyName,
-              slug: c.slug,
-              status: c.status || (c.isActive ? 'APPROVED' : 'PENDING'),
-              isActive: c.isActive ?? (c.status === 'APPROVED'),
-              companyKey: c.companyKey || c.registrationKeyId || undefined,
-            }));
-            AsyncStorage.setItem(STORAGE_KEY_PUBLIC_COMPANIES, JSON.stringify(companies)).catch(() => {});
-            return companies;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 3. If network attempts all failed, fall back to cached companies in AsyncStorage
+    // 2. If network attempts failed, fall back to cached companies in AsyncStorage
     try {
       const cached = await AsyncStorage.getItem(STORAGE_KEY_PUBLIC_COMPANIES);
       if (cached) {
@@ -287,7 +238,7 @@ class ApiService {
   /** Fetch current authenticated user profile (/auth/me) */
   async getCurrentUser(token: string) {
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, {
+      const res = await fetchWithFailover('/auth/me', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -300,6 +251,27 @@ class ApiService {
     } catch {
       // Fallback handled by authStore
     }
+    return null;
+  }
+
+  /** Live Dashboard Telemetry (/activities/today-summary) */
+  async getTodayActivitySummary(token?: string | null): Promise<any> {
+    try {
+      let authToken = token;
+      if (!authToken) {
+        authToken = await AsyncStorage.getItem('das_crm_token');
+      }
+      const res = await fetchWithFailover('/activities/today-summary', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -332,19 +304,13 @@ class ApiService {
     }
 
     try {
-      const activeBase = getApiBase();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-      const res = await fetch(`${activeBase}/leads?limit=500`, {
+      const res = await fetchWithFailover('/leads?limit=500', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
 
       if (res.ok) {
         const result = await res.json();
@@ -443,19 +409,13 @@ class ApiService {
     }
 
     try {
-      const activeBase = getApiBase();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4500);
-
-      const res = await fetch(`${activeBase}/leads/${encodeURIComponent(cleanId)}`, {
+      const res = await fetchWithFailover(`/leads/${encodeURIComponent(cleanId)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
 
       if (res.ok) {
         const item = await res.json();
@@ -542,19 +502,14 @@ class ApiService {
     // 2. If online and authenticated, push to backend
     if (authToken) {
       try {
-        const activeBase = getApiBase();
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(`${activeBase}/leads`, {
+        const res = await fetchWithFailover('/leads', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify(payload),
-          signal: controller.signal,
         });
-        clearTimeout(timeoutId);
 
         if (res.ok) {
           const created = await res.json();
@@ -625,19 +580,14 @@ class ApiService {
 
     if (authToken && !leadId.startsWith('lead-local-')) {
       try {
-        const activeBase = getApiBase();
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(`${activeBase}/leads/${encodeURIComponent(leadId)}`, {
+        const res = await fetchWithFailover(`/leads/${encodeURIComponent(leadId)}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify(payload),
-          signal: controller.signal,
         });
-        clearTimeout(timeoutId);
 
         if (res.ok) {
           await offlineSyncEngine.markLeadSynced(leadId);
@@ -679,19 +629,14 @@ class ApiService {
 
     if (authToken && !leadId.startsWith('lead-local-')) {
       try {
-        const activeBase = getApiBase();
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(`${activeBase}/leads/${encodeURIComponent(leadId)}/status`, {
+        const res = await fetchWithFailover(`/leads/${encodeURIComponent(leadId)}/status`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify(payload),
-          signal: controller.signal,
         });
-        clearTimeout(timeoutId);
 
         if (res.ok) {
           await offlineSyncEngine.markLeadSynced(leadId);

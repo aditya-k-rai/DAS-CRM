@@ -36,6 +36,14 @@ export class AuthService {
   // TTL-aware OTP store — auto-purges expired entries to prevent memory leak
   private readonly resetOtps = new Map<string, { otp: string; expiresAt: number }>();
 
+  // High-performance in-memory cache for public companies (reduces Supabase DB round trips from 1-3s to <2ms)
+  private publicCompaniesCache: { data: any[]; timestamp: number } | null = null;
+  private readonly PUBLIC_COMPANIES_CACHE_TTL = 30 * 1000; // 30 seconds
+
+  invalidatePublicCompaniesCache() {
+    this.publicCompaniesCache = null;
+  }
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -1066,14 +1074,17 @@ export class AuthService {
       ? await this.prisma.userInviteKey.findUnique({ where: { key: keyInput } })
       : null;
 
-    // If company was not explicitly passed in DTO, resolve from key
-    if (!selectedOrg) {
-      const orgIdFromKey = resolvedCompanyKey?.usedByOrganizationId || resolvedUserKey?.organizationId;
+    // If company was not explicitly passed in DTO, or if the provided key belongs to a registered company workspace
+    const orgIdFromKey = resolvedCompanyKey?.usedByOrganizationId || resolvedUserKey?.organizationId;
+    if (!selectedOrg || (orgIdFromKey && selectedOrg.id !== orgIdFromKey && selectedOrg.registrationKeyId !== keyInput)) {
       if (orgIdFromKey) {
-        selectedOrg = await this.prisma.organization.findUnique({
+        const orgFromKey = await this.prisma.organization.findUnique({
           where: { id: orgIdFromKey },
           include: { subscription: true },
         });
+        if (orgFromKey) {
+          selectedOrg = orgFromKey;
+        }
       }
     }
 
@@ -1728,6 +1739,8 @@ export class AuthService {
       },
     });
 
+    this.invalidatePublicCompaniesCache();
+
     return {
       success: true,
       message: `Company details for ${updatedOrg.name} updated successfully in database.`,
@@ -1907,6 +1920,8 @@ export class AuthService {
       this.logger.warn(`Mail notice: Approval email could not be sent: ${mailErr?.message}`);
     }
 
+    this.invalidatePublicCompaniesCache();
+
     return {
       success: true,
       companyId,
@@ -2052,6 +2067,8 @@ export class AuthService {
         settings: updatedSettings,
       },
     });
+
+    this.invalidatePublicCompaniesCache();
 
     return {
       success: true,
@@ -2294,6 +2311,13 @@ export class AuthService {
   }
 
   async getPublicCompanies() {
+    if (
+      this.publicCompaniesCache &&
+      Date.now() - this.publicCompaniesCache.timestamp < this.PUBLIC_COMPANIES_CACHE_TTL
+    ) {
+      return this.publicCompaniesCache.data;
+    }
+
     const orgs = await this.prisma.organization.findMany({
       select: {
         id: true,
@@ -2307,14 +2331,20 @@ export class AuthService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const regKeys = await this.prisma.companyRegistrationKey.findMany();
+    const regKeys = await this.prisma.companyRegistrationKey.findMany({
+      select: {
+        id: true,
+        key: true,
+        usedByOrganizationId: true,
+      },
+    });
     const keyMap = new Map<string, string>();
     for (const k of regKeys) {
       if (k.usedByOrganizationId) keyMap.set(k.usedByOrganizationId, k.key);
       keyMap.set(k.id, k.key);
     }
 
-    return orgs.map((org) => {
+    const result = orgs.map((org) => {
       const settings = (org.settings as any) || {};
       const status = settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING');
       const resolvedKey =
@@ -2332,6 +2362,13 @@ export class AuthService {
         companyKey: resolvedKey,
       };
     });
+
+    this.publicCompaniesCache = {
+      data: result,
+      timestamp: Date.now(),
+    };
+
+    return result;
   }
 
   async register(dto: RegisterDto) {
@@ -2513,6 +2550,8 @@ export class AuthService {
         : mailResult.provider === 'ethereal'
         ? `Live SMTP quota exceeded. Sandbox preview generated and saved to outbox.`
         : `Email saved to system outbox (${mailResult.outboxId || 'saved'}).`;
+
+    this.invalidatePublicCompaniesCache();
 
     return {
       user: this.sanitizeUser(result.user),
