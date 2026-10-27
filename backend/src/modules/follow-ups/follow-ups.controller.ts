@@ -77,6 +77,7 @@ export class FollowUpsController {
   }
 
   @Patch(':id/complete')
+  @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Complete a follow-up with outcome and optional next follow-up' })
   complete(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
@@ -84,6 +85,7 @@ export class FollowUpsController {
   }
 
   @Patch(':id/reschedule')
+  @Post(':id/reschedule')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reschedule a follow-up to a new date/time' })
   reschedule(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
@@ -91,6 +93,7 @@ export class FollowUpsController {
   }
 
   @Patch(':id/cancel')
+  @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel a follow-up' })
   cancel(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
