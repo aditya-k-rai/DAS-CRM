@@ -14,7 +14,7 @@ import { LeadAllocationTrail, AllocationEvent, buildAllocationTrailForLead, getU
 import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType, deduplicateContactAttempts } from './CallContactHistory';
 import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowService';
 import { DEFAULT_REAL_LEADS } from './LeadsTable';
-import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource, safeRequirement } from '@/lib/leadNormalizer';
+import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource, safeRequirement, isValidProductName } from '@/lib/leadNormalizer';
 import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 import { apiFetch } from '@/lib/apiClient';
 import {
@@ -989,9 +989,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               l.meetings
             );
 
-            const resolvedProduct = (norm.requirement && norm.requirement !== '—' && norm.requirement.trim())
-              ? norm.requirement
-              : (serverAttempts.find(a => a.productInterest)?.productInterest || '—');
+            const resolvedProduct = (norm.requirement && isValidProductName(norm.requirement))
+              ? norm.requirement.trim()
+              : ((() => {
+                  const found = serverAttempts.find(a => a.productInterest && isValidProductName(a.productInterest));
+                  return found ? found.productInterest!.trim() : '—';
+                })());
 
             const serverLead = {
               id: String(norm.id || leadId),
@@ -3980,7 +3983,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             <CallContactHistory
               history={contactHistory}
               leadName={lead.name}
-              interestedProduct={lead.requirement}
+              interestedProduct={isValidProductName(lead.requirement) ? lead.requirement : '—'}
               leadPhone={lead.phone}
               onOpenShareQuoteInvoice={openShareQuoteInvoiceModal}
             />

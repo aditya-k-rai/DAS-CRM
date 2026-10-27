@@ -57,7 +57,7 @@ import CustomAlertModal, { CustomAlertState } from '../components/CustomAlertMod
 import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { isBatchAssignableRole } from '../components/LeadAllocationEngineModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import FullContactHistory, { ContactAttempt, ContactType, ContactOutcome, deduplicateContactAttempts } from '../components/FullContactHistory';
+import FullContactHistory, { ContactAttempt, ContactType, ContactOutcome, deduplicateContactAttempts, isValidProductName } from '../components/FullContactHistory';
 import { followUpSyncEngine } from '../services/followUpSyncEngine';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
@@ -102,7 +102,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const leadCompany = leadData?.company || lead?.company || 'Independent Business';
   const leadValue = leadData?.value || lead?.value || '₹0';
   const leadEmail = leadData?.email || lead?.email || '—';
-  const leadRequirement = leadData?.requirement || lead?.requirement || '—';
+  const rawReq = leadData?.requirement || lead?.requirement || '';
+  const leadRequirement = isValidProductName(rawReq) ? rawReq : '—';
   const leadBudget = leadData?.budget || lead?.budget || '—';
   const leadCity = leadData?.city || lead?.city || '—';
   const leadSource = leadData?.source || lead?.source || 'Direct';

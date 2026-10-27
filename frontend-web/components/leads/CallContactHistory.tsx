@@ -8,6 +8,9 @@ import {
   Package, FileText, BarChart2, ArrowRight, Receipt, ExternalLink, Send, Target,
   Repeat, History
 } from 'lucide-react';
+import { isValidProductName, INVALID_PRODUCT_NAMES } from '@/lib/leadNormalizer';
+
+export { isValidProductName, INVALID_PRODUCT_NAMES };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -674,6 +677,7 @@ export function extractInterestedCommercials(
         const discMatch = clean.match(/\[([^\]]+)\]/);
         const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
         const finalName = nameClean || clean;
+        if (!isValidProductName(finalName)) continue;
         const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
 
         if (!attemptsKeysInThisContact.has(key)) {
@@ -709,6 +713,7 @@ export function extractInterestedCommercials(
         const discMatch = clean.match(/\[([^\]]+)\]/);
         const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
         const finalName = nameClean || clean;
+        if (!isValidProductName(finalName)) continue;
         const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
 
         if (!attemptsKeysInThisContact.has(key)) {
@@ -740,6 +745,7 @@ export function extractInterestedCommercials(
         if (
           pName &&
           pName.length > 2 &&
+          isValidProductName(pName) &&
           !pName.toLowerCase().includes('http') &&
           !pName.toLowerCase().includes('selected products') &&
           !pName.toLowerCase().includes('in stock')
@@ -790,31 +796,22 @@ export function extractInterestedCommercials(
     }
   }
 
-  // Fallback to non-dummy leadRequirement if no items found in history
-  if (groups.size === 0 && leadRequirement && leadRequirement !== '—' && !leadRequirement.toLowerCase().includes('enterprise') && !leadRequirement.toLowerCase().includes('das crm')) {
-    const key = `prod_${leadRequirement.toLowerCase().replace(/\s+/g, ' ')}`;
+  // Fallback: If no commercial items in history, but lead requirement exists and is a valid product
+  if (groups.size === 0 && isValidProductName(leadRequirement)) {
+    const cleanName = leadRequirement!.trim();
+    const key = `prod_${cleanName.toLowerCase().replace(/\s+/g, ' ')}`;
     const nowIso = new Date().toISOString();
-    const { date, time } = formatTimestamp(nowIso);
     groups.set(key, {
       id: 'req_lead',
       canonicalKey: key,
-      name: leadRequirement,
+      name: cleanName,
       docType: 'PRODUCT',
       sharedAt: nowIso,
       firstSharedAt: nowIso,
-      sharedBy: 'Lead Requirement',
-      medium: 'Lead Requirement Profile',
-      shareCount: 1,
-      shareHistory: [
-        {
-          id: 'req_lead_0',
-          timestamp: nowIso,
-          formattedDate: date,
-          formattedTime: time,
-          sharedBy: 'Lead Requirement',
-          medium: 'Lead Requirement Profile',
-        },
-      ],
+      sharedBy: 'Lead Profile Requirement',
+      medium: 'Lead Profile Interest',
+      shareCount: 0,
+      shareHistory: [],
     });
   }
 
@@ -906,7 +903,7 @@ export function CallContactHistory({
         : (interestedCommercials.length > 1
             ? `${primaryCommercial.name} +${interestedCommercials.length - 1} more`
             : primaryCommercial.name))
-    : (interestedProduct && interestedProduct !== '—' && !interestedProduct.toLowerCase().includes('enterprise')
+    : (isValidProductName(interestedProduct)
         ? interestedProduct
         : 'No Products Yet');
 
@@ -984,7 +981,9 @@ export function CallContactHistory({
               }`}
               title="Click to toggle / shrink Synced Interested Products & Invoices"
             >
-              <span>📦</span> {totalCommercialsCount} Unique Product{totalCommercialsCount > 1 ? 's' : ''} ({totalSharesCount} Share{totalSharesCount > 1 ? 's' : ''})
+              <span>📦</span> {totalSharesCount > 0
+                ? `${totalCommercialsCount} Unique Product${totalCommercialsCount > 1 ? 's' : ''} (${totalSharesCount} Share${totalSharesCount > 1 ? 's' : ''})`
+                : `${totalCommercialsCount} Interested Product${totalCommercialsCount > 1 ? 's' : ''} (Not Shared Yet)`}
               {filterType === 'INTERESTED_PRODUCTS' && (
                 <span className="text-[9px] bg-slate-950/40 text-amber-200 px-1.5 py-0.2 rounded font-mono">
                   {isCommercialsShrunk ? '▾ expand' : '▴ shrink'}
@@ -1124,9 +1123,13 @@ export function CallContactHistory({
               <div>
                 <h4 className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
                   <span>Synced Interested Products &amp; Shared Commercials</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {totalCommercialsCount} Unique Product{totalCommercialsCount !== 1 ? 's' : ''} ({totalSharesCount} Share{totalSharesCount !== 1 ? 's' : ''})
-                  </span>
+                  {totalCommercialsCount > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {totalSharesCount > 0
+                        ? `${totalCommercialsCount} Unique (${totalSharesCount} Share${totalSharesCount !== 1 ? 's' : ''})`
+                        : `${totalCommercialsCount} Interested (0 Shares)`}
+                    </span>
+                  )}
                 </h4>
                 <p className="text-[11px] text-slate-400">
                   Each product shown 1 time only with exact share count, latest price, and complete date &amp; time history across WhatsApp, calls, and email.
@@ -1136,23 +1139,25 @@ export function CallContactHistory({
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* 1-Tap Shrink / Expand Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setIsCommercialsShrunk(!isCommercialsShrunk)}
-                className="text-xs font-bold text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
-              >
-                {isCommercialsShrunk ? (
-                  <>
-                    <ChevronDown size={13} className="text-amber-400" />
-                    <span>Expand Products ({totalCommercialsCount})</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronUp size={13} className="text-amber-400" />
-                    <span>− Shrink / Collapse</span>
-                  </>
-                )}
-              </button>
+              {totalCommercialsCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsCommercialsShrunk(!isCommercialsShrunk)}
+                  className="text-xs font-bold text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+                >
+                  {isCommercialsShrunk ? (
+                    <>
+                      <ChevronDown size={13} className="text-amber-400" />
+                      <span>Expand Products ({totalCommercialsCount})</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronUp size={13} className="text-amber-400" />
+                      <span>− Shrink / Collapse</span>
+                    </>
+                  )}
+                </button>
+              )}
 
               {onOpenShareQuoteInvoice && (
                 <button
@@ -1167,7 +1172,26 @@ export function CallContactHistory({
           </div>
 
           {/* Shrunk Compact Strip vs Expanded Full Grid */}
-          {isCommercialsShrunk ? (
+          {totalCommercialsCount === 0 ? (
+            <div className="p-8 text-center rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-2.5 my-2">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto text-xl">
+                📦
+              </div>
+              <p className="text-xs font-bold text-white">No Products Shared or Interested</p>
+              <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                No products, quotations, or invoices have been shared with this lead yet.
+              </p>
+              {onOpenShareQuoteInvoice && (
+                <button
+                  type="button"
+                  onClick={onOpenShareQuoteInvoice}
+                  className="text-xs font-bold text-emerald-300 hover:text-white bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 cursor-pointer transition-colors mt-1"
+                >
+                  <span>📄</span> + Share Quote / Invoice
+                </button>
+              )}
+            </div>
+          ) : isCommercialsShrunk ? (
             <div
               onClick={() => setIsCommercialsShrunk(false)}
               className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/25 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-500/50 transition-all flex-wrap group"
@@ -1251,12 +1275,16 @@ export function CallContactHistory({
                     <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1 border ${
-                          item.shareCount > 1
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
-                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                          item.shareCount > 0
+                            ? (item.shareCount > 1
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                                : 'bg-slate-800 text-slate-300 border-slate-700')
+                            : 'bg-amber-500/10 text-amber-300/90 border-amber-500/25'
                         }`}>
                           <Repeat size={10} className={item.shareCount > 1 ? 'text-amber-400' : 'text-slate-400'} />
-                          {item.shareCount === 1 ? 'Shared 1 time to this user' : `Shared ${item.shareCount} times to this user`}
+                          {item.shareCount === 0
+                            ? 'Interested Product • Not shared yet'
+                            : (item.shareCount === 1 ? 'Shared 1 time to this user' : `Shared ${item.shareCount} times to this user`)}
                         </span>
 
                         {item.shareCount > 1 && (
@@ -1279,13 +1307,19 @@ export function CallContactHistory({
                     <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex-wrap gap-1">
                       <span className="flex items-center gap-1 text-slate-300">
                         <User size={10} className="text-slate-400" />
-                        <span className="text-slate-400 text-[9px] uppercase font-bold">{item.shareCount > 1 ? 'Latest by:' : 'Shared by:'}</span>
+                        <span className="text-slate-400 text-[9px] uppercase font-bold">
+                          {item.shareCount === 0 ? 'Source:' : (item.shareCount > 1 ? 'Latest by:' : 'Shared by:')}
+                        </span>
                         <span className="font-semibold">{item.sharedBy}</span>
                       </span>
                       <span className="flex items-center gap-1 text-amber-300/90 font-medium">
                         <span className="px-1.5 py-0.2 rounded bg-slate-950 border border-slate-800 text-[9px] font-bold text-emerald-400">{item.medium}</span>
-                        <span>•</span>
-                        <span className="font-mono">{latestDate} @ {latestTime}</span>
+                        {item.shareCount > 0 && (
+                          <>
+                            <span>•</span>
+                            <span className="font-mono">{latestDate} @ {latestTime}</span>
+                          </>
+                        )}
                       </span>
                     </div>
 

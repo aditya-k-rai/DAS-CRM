@@ -125,19 +125,77 @@ export function safeSource(val: any, fallback = 'Google Ads'): string {
   return fallback;
 }
 
+export const INVALID_PRODUCT_NAMES = new Set([
+  '—',
+  '-',
+  '--',
+  'none',
+  'null',
+  'undefined',
+  'n/a',
+  'na',
+  'not specified',
+  'no product',
+  'no products',
+  'no products yet',
+  'no requirement',
+  'individual lead',
+  'individual',
+  'individual leads',
+  'lead',
+  'leads',
+  'lead profile',
+  'lead requirement',
+  'lead requirement profile',
+  'direct requirement',
+  'system / ingestion',
+  'general',
+  'general lead',
+  'general requirement',
+  'customer',
+  'client',
+  'prospect',
+  'contact',
+  'unknown',
+  'other',
+  'other requirements',
+  'requirement',
+  'requirements',
+  'enterprise',
+  'enterprise solution',
+  'das crm',
+  'das crm suite',
+  'all',
+]);
+
+export function isValidProductName(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (trimmed.length < 2) return false;
+  const lower = trimmed.toLowerCase();
+  if (INVALID_PRODUCT_NAMES.has(lower)) return false;
+  if (/^(individual lead|individual|lead requirement|unspecified|not specified)\b/i.test(trimmed)) {
+    return false;
+  }
+  // Exclude phone numbers or emails mistakenly stored in product field
+  if (/^(\+?\d[\d\s-]{6,}|\S+@\S+\.\S+)$/.test(trimmed)) {
+    return false;
+  }
+  return true;
+}
+
 export function safeRequirement(val: any, fallback = '—'): string {
   if (val === null || val === undefined) return fallback;
+  let rawStr = '';
   if (typeof val === 'string') {
-    const trimmed = val.trim();
-    return trimmed.length > 0 ? trimmed : fallback;
+    rawStr = val.trim();
+  } else if (typeof val === 'object') {
+    if (typeof val.name === 'string') rawStr = val.name.trim();
+    else if (typeof val.product === 'string') rawStr = val.product.trim();
+    else if (typeof val.requirement === 'string') rawStr = val.requirement.trim();
   }
-  if (typeof val === 'object') {
-    if (typeof val.name === 'string') return val.name;
-    if (typeof val.product === 'string') return val.product;
-    if (typeof val.notes === 'string') return val.notes;
-    if (typeof val.requirement === 'string') return val.requirement;
-  }
-  return fallback;
+  if (!rawStr || !isValidProductName(rawStr)) return fallback;
+  return rawStr;
 }
 
 export function safeCity(val: any, fallback = '—'): string {
@@ -292,7 +350,7 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
     l.customFields?.source ||
     'Google Ads'
   );
-  const rawReq = safeRequirement(l.requirement || l.productInterest || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.productInterest);
+  const rawReq = safeRequirement(l.requirement || l.productInterest || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.productInterest);
   const rawCity = safeCity(l.city || l.customFields?.col_city || l.customFields?.city || l.customFields?.City);
   const rawBudget = safeString(l.budget || l.customFields?.col_budget || l.customFields?.budget || l.customFields?.Budget, '—');
   const val = safeLeadValue(l.value, l.estimatedValue);

@@ -431,6 +431,64 @@ export function resolveAttemptMedium(attempt?: Partial<ContactAttempt>): {
   };
 }
 
+export const INVALID_PRODUCT_NAMES = new Set([
+  '—',
+  '-',
+  '--',
+  'none',
+  'null',
+  'undefined',
+  'n/a',
+  'na',
+  'not specified',
+  'no product',
+  'no products',
+  'no products yet',
+  'no requirement',
+  'individual lead',
+  'individual',
+  'individual leads',
+  'lead',
+  'leads',
+  'lead profile',
+  'lead requirement',
+  'lead requirement profile',
+  'direct requirement',
+  'system / ingestion',
+  'general',
+  'general lead',
+  'general requirement',
+  'customer',
+  'client',
+  'prospect',
+  'contact',
+  'unknown',
+  'other',
+  'other requirements',
+  'requirement',
+  'requirements',
+  'enterprise',
+  'enterprise solution',
+  'das crm',
+  'das crm suite',
+  'all',
+]);
+
+export function isValidProductName(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (trimmed.length < 2) return false;
+  const lower = trimmed.toLowerCase();
+  if (INVALID_PRODUCT_NAMES.has(lower)) return false;
+  if (/^(individual lead|individual|lead requirement|unspecified|not specified)\b/i.test(trimmed)) {
+    return false;
+  }
+  if (/^(\+?\d[\d\s-]{6,}|\S+@\S+\.\S+)$/.test(trimmed)) {
+    return false;
+  }
+  return true;
+}
+
 export function extractInterestedCommercials(
   history: ContactAttempt[] = [],
   leadRequirement?: string
@@ -533,6 +591,7 @@ export function extractInterestedCommercials(
         const discMatch = clean.match(/\[([^\]]+)\]/);
         const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
         const finalName = nameClean || clean;
+        if (!isValidProductName(finalName)) continue;
         const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
 
         if (!attemptsKeysInThisContact.has(key)) {
@@ -566,6 +625,7 @@ export function extractInterestedCommercials(
         const discMatch = clean.match(/\[([^\]]+)\]/);
         const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
         const finalName = nameClean || clean;
+        if (!isValidProductName(finalName)) continue;
         const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
 
         if (!attemptsKeysInThisContact.has(key)) {
@@ -610,28 +670,20 @@ export function extractInterestedCommercials(
     }
   }
 
-  // Fallback: If no commercial items in history, but lead requirement exists
-  if (groups.size === 0 && leadRequirement && leadRequirement !== '—' && leadRequirement.length > 2) {
+  // Fallback: If no commercial items in history, but lead requirement exists and is a valid product
+  if (groups.size === 0 && isValidProductName(leadRequirement)) {
+    const cleanName = leadRequirement!.trim();
     groups.set('lead_req', {
       id: 'comm_lead_req',
       canonicalKey: 'lead_req',
-      name: leadRequirement,
+      name: cleanName,
       docType: 'PRODUCT',
       sharedAt: new Date().toISOString(),
       firstSharedAt: new Date().toISOString(),
-      sharedBy: 'System / Ingestion',
+      sharedBy: 'Lead Profile Requirement',
       medium: 'DIRECT REQUIREMENT',
-      shareCount: 1,
-      shareHistory: [
-        {
-          id: 'lead_req_first',
-          timestamp: new Date().toISOString(),
-          formattedDate: 'Today',
-          formattedTime: '',
-          sharedBy: 'System / Ingestion',
-          medium: 'DIRECT REQUIREMENT',
-        },
-      ],
+      shareCount: 0,
+      shareHistory: [],
     });
   }
 
@@ -787,7 +839,7 @@ export default function FullContactHistory({
   );
   const totalCommercialsCount = interestedCommercials.length;
   const totalSharesCount = useMemo(
-    () => interestedCommercials.reduce((acc, curr) => acc + (curr.shareCount || 1), 0),
+    () => interestedCommercials.reduce((acc, curr) => acc + (curr.shareCount || 0), 0),
     [interestedCommercials]
   );
 
@@ -796,7 +848,7 @@ export default function FullContactHistory({
       const top = interestedCommercials[0];
       return `${top.name}${top.price ? ` (${top.price})` : ''}`;
     }
-    return leadRequirement && leadRequirement !== '—' ? leadRequirement : '—';
+    return isValidProductName(leadRequirement) ? leadRequirement! : 'No Products Yet';
   }, [interestedCommercials, leadRequirement]);
 
   // 4. Filtered History based on selected filter tab
@@ -1061,11 +1113,15 @@ export default function FullContactHistory({
                   <Text style={[styles.commercialsHeading, { color: colors.text }]}>
                     Synced Products &amp; Invoices
                   </Text>
-                  <View style={[styles.uniqueCountPill, { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(245,158,11,0.4)' }]}>
-                    <Text style={{ fontSize: 8, fontWeight: '900', color: isDark ? '#fbbf24' : '#b45309' }}>
-                      {totalCommercialsCount} Unique ({totalSharesCount} Share{totalSharesCount !== 1 ? 's' : ''})
-                    </Text>
-                  </View>
+                  {totalCommercialsCount > 0 && (
+                    <View style={[styles.uniqueCountPill, { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(245,158,11,0.4)' }]}>
+                      <Text style={{ fontSize: 8, fontWeight: '900', color: isDark ? '#fbbf24' : '#b45309' }}>
+                        {totalSharesCount > 0
+                          ? `${totalCommercialsCount} Unique (${totalSharesCount} Share${totalSharesCount !== 1 ? 's' : ''})`
+                          : `${totalCommercialsCount} Interested (0 Shares)`}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={[styles.commercialsSubtext, { color: colors.textSecondary }]}>
                   Deduplicated with exact share count, price, and sharing history across channels.
@@ -1073,18 +1129,30 @@ export default function FullContactHistory({
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setIsCommercialsShrunk(!isCommercialsShrunk)}
-              style={[styles.shrinkBtn, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#fbbf24' : '#b45309' }}>
-                {isCommercialsShrunk ? `Expand (${totalCommercialsCount}) ▾` : '− Shrink ▴'}
-              </Text>
-            </TouchableOpacity>
+            {totalCommercialsCount > 0 && (
+              <TouchableOpacity
+                onPress={() => setIsCommercialsShrunk(!isCommercialsShrunk)}
+                style={[styles.shrinkBtn, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)' }]}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#fbbf24' : '#b45309' }}>
+                  {isCommercialsShrunk ? `Expand (${totalCommercialsCount}) ▾` : '− Shrink ▴'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {isCommercialsShrunk ? (
+          {totalCommercialsCount === 0 ? (
+            <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 24 }}>📦</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>
+                No Products Shared or Interested
+              </Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, textAlign: 'center' }}>
+                No products, quotations, or invoices have been shared with this lead yet.
+              </Text>
+            </View>
+          ) : isCommercialsShrunk ? (
             /* Shrunk Summary Strip */
             <TouchableOpacity
               onPress={() => setIsCommercialsShrunk(false)}
@@ -1194,7 +1262,7 @@ export default function FullContactHistory({
                         ]}
                       >
                         <Text style={{ fontSize: 8, fontWeight: '800', color: item.shareCount > 1 ? (isDark ? '#fbbf24' : '#b45309') : colors.textSecondary }}>
-                          🔁 {item.shareCount === 1 ? 'Shared 1 time to this user' : `Shared ${item.shareCount} times to this user`}
+                          🔁 {item.shareCount === 0 ? 'Interested • Not shared yet' : (item.shareCount === 1 ? 'Shared 1 time to this user' : `Shared ${item.shareCount} times to this user`)}
                         </Text>
                       </View>
 
@@ -1219,7 +1287,7 @@ export default function FullContactHistory({
                     {/* Latest share info footer */}
                     <View style={[styles.productCardFooter, { borderTopColor: colors.border }]}>
                       <Text style={{ fontSize: 8, color: colors.textSecondary }}>
-                        Shared by: <Text style={{ fontWeight: '800', color: colors.text }}>{item.sharedBy}</Text>
+                        {item.shareCount === 0 ? 'Source: ' : 'Shared by: '}<Text style={{ fontWeight: '800', color: colors.text }}>{item.sharedBy}</Text>
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <View style={[styles.mediumPillSmall, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
@@ -1227,9 +1295,11 @@ export default function FullContactHistory({
                             {item.medium}
                           </Text>
                         </View>
-                        <Text style={{ fontSize: 8, color: colors.textSecondary, fontWeight: '700' }}>
-                          • {latestDate} @ {latestTime}
-                        </Text>
+                        {item.shareCount > 0 && (
+                          <Text style={{ fontSize: 8, color: colors.textSecondary, fontWeight: '700' }}>
+                            • {latestDate} @ {latestTime}
+                          </Text>
+                        )}
                       </View>
                     </View>
 
