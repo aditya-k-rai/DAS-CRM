@@ -282,7 +282,8 @@ class _QuotationDetailsDialog(QDialog):
     def __init__(self, quotation: dict, parent=None):
         super().__init__(parent)
         self.quotation = quotation
-        self.setWindowTitle(f"📋  {quotation['id']}")
+        qid = quotation.get("id", "QT-000")
+        self.setWindowTitle(f"📋  {qid}")
         self.setStyleSheet("background: #1A2332; color: #E2E8F0;")
         self.setMinimumSize(700, 550)
         self._build_ui()
@@ -291,18 +292,26 @@ class _QuotationDetailsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
 
+        qid = self.quotation.get("id", "QT-000")
+        subject = self.quotation.get("subject", self.quotation.get("title", "Quotation"))
+        party = self.quotation.get("party", self.quotation.get("client_name", self.quotation.get("company", "—")))
+        date = self.quotation.get("date", self.quotation.get("created_at", "—"))
+        valid = self.quotation.get("valid", self.quotation.get("valid_until", "—"))
+        amount = self.quotation.get("amount", self.quotation.get("total", "—"))
+        status = self.quotation.get("status", "DRAFT")
+
         # Header
-        header = QLabel(f"<span style='color:#60A5FA;font-size:16px;font-weight:bold'>{self.quotation['id']}</span><br>"
-                         f"<span style='color:#94A3B8'>{self.quotation['subject']}</span>")
+        header = QLabel(f"<span style='color:#60A5FA;font-size:16px;font-weight:bold'>{qid}</span><br>"
+                         f"<span style='color:#94A3B8'>{subject}</span>")
         layout.addWidget(header)
 
         # Details grid
         details = [
-            ("Party", self.quotation["party"]),
-            ("Date", self.quotation["date"]),
-            ("Valid Until", self.quotation["valid"]),
-            ("Amount", self.quotation["amount"]),
-            ("Status", self.quotation["status"]),
+            ("Party", party),
+            ("Date", date),
+            ("Valid Until", valid),
+            ("Amount", amount),
+            ("Status", status),
         ]
         for label, value in details:
             row = QHBoxLayout()
