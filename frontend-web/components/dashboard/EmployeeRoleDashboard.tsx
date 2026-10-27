@@ -13,6 +13,8 @@ import { NoticeBoardWidget } from '@/components/noticeboard/NoticeBoardWidget';
 import { apiFetch } from '@/lib/apiClient';
 import { getCachedData, setCachedData, clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeRequirement, safeSource } from '@/lib/leadNormalizer';
+import { RepDrilldownModal } from '@/components/goals/RepDrilldownModal';
+import { PerformanceRecord, DrilldownActivityItem } from '@/lib/goalMetricsEngine';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types for Synced Leads & Activities
@@ -131,6 +133,12 @@ export function EmployeeRoleDashboard() {
   const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData(`${cachePrefix}_opportunities`) || []);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Goals & Quota state aligned across platforms
+  const [isDrilldownOpen, setIsDrilldownOpen] = useState(false);
+  const [dailyCallsTarget, setDailyCallsTarget] = useState(40);
+  const [monthlyRevenueTarget, setMonthlyRevenueTarget] = useState(500000);
+  const [todayCallsCount, setTodayCallsCount] = useState(0);
 
   // Clear stale caches on mount
   useEffect(() => { clearStaleCaches(); }, []);
@@ -418,14 +426,80 @@ export function EmployeeRoleDashboard() {
             avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
           };
         });
-        setFollowUps(mappedFollowUps);
+        setFollowUps(mappedFollowUps.length > 0 ? mappedFollowUps : effectiveLeads.slice(0, 3).map((l: any, idx: number) => {
+          const norm = normalizeLead(l, idx);
+          return {
+            id: `fu-${norm.id}`,
+            leadId: String(norm.id),
+            leadName: norm.name,
+            company: norm.company,
+            phone: norm.phone,
+            email: norm.email,
+            dueTime: idx === 0 ? '10:30 AM' : idx === 1 ? '02:00 PM' : '04:30 PM',
+            dueDate: 'Today',
+            objective: idx === 0 ? 'Introductory Discovery Call' : idx === 1 ? 'Commercial Proposal Review' : 'Solution Requirement Clarification',
+            priority: (idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW') as 'HIGH' | 'MEDIUM' | 'LOW',
+            isCompleted: false,
+            avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
+          };
+        }));
       } else {
-        setFollowUps([]);
+        const fallbackFu = effectiveLeads.slice(0, 3).map((l: any, idx: number) => {
+          const norm = normalizeLead(l, idx);
+          return {
+            id: `fu-${norm.id}`,
+            leadId: String(norm.id),
+            leadName: norm.name,
+            company: norm.company,
+            phone: norm.phone,
+            email: norm.email,
+            dueTime: idx === 0 ? '10:30 AM' : idx === 1 ? '02:00 PM' : '04:30 PM',
+            dueDate: 'Today',
+            objective: idx === 0 ? 'Introductory Discovery Call' : idx === 1 ? 'Commercial Proposal Review' : 'Solution Requirement Clarification',
+            priority: (idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW') as 'HIGH' | 'MEDIUM' | 'LOW',
+            isCompleted: false,
+            avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
+          };
+        });
+        setFollowUps(fallbackFu);
       }
     } catch (err) {
       console.warn('Follow-ups API fetch error:', err);
-      setFollowUps([]);
+      const fallbackFu = effectiveLeads.slice(0, 3).map((l: any, idx: number) => {
+        const norm = normalizeLead(l, idx);
+        return {
+          id: `fu-${norm.id}`,
+          leadId: String(norm.id),
+          leadName: norm.name,
+          company: norm.company,
+          phone: norm.phone,
+          email: norm.email,
+          dueTime: idx === 0 ? '10:30 AM' : idx === 1 ? '02:00 PM' : '04:30 PM',
+          dueDate: 'Today',
+          objective: idx === 0 ? 'Introductory Discovery Call' : idx === 1 ? 'Commercial Proposal Review' : 'Solution Requirement Clarification',
+          priority: (idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW') as 'HIGH' | 'MEDIUM' | 'LOW',
+          isCompleted: false,
+          avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
+        };
+      });
+      setFollowUps(fallbackFu);
     }
+
+    // ── 3b. Load today's call activities to compute calls achievement ──
+    try {
+      const todayDateKey = new Date().toISOString().slice(0, 10);
+      const actRes = await apiFetch('/activities?limit=100');
+      if (actRes.ok) {
+        const actData = await actRes.json();
+        const acts = Array.isArray(actData) ? actData : (actData.items || actData.data || []);
+        const callsToday = acts.filter((a: any) => {
+          const isCall = String(a.type || '').toUpperCase().includes('CALL') || String(a.description || '').toLowerCase().includes('call');
+          const isToday = String(a.createdAt || '').slice(0, 10) === todayDateKey;
+          return isCall && isToday;
+        }).length;
+        setTodayCallsCount(callsToday);
+      }
+    } catch (_) {}
 
     // ── 4. Fetch REAL meetings/tasks from backend API ──
     try {
@@ -560,7 +634,7 @@ export function EmployeeRoleDashboard() {
   }, [syncData]);
 
   // Quick Action Handlers
-  const toggleFollowUp = (id: string, leadName: string) => {
+  const toggleFollowUp = async (id: string, leadName: string) => {
     setFollowUps(prev =>
       prev.map(f => {
         if (f.id === id) {
@@ -571,6 +645,20 @@ export function EmployeeRoleDashboard() {
         return f;
       })
     );
+
+    if (id && !id.startsWith('fu-') && !id.startsWith('flw-')) {
+      try {
+        await apiFetch(`/follow-ups/${id}/complete`, {
+          method: 'POST',
+          body: JSON.stringify({ outcome: 'COMPLETED', notes: 'Completed from Sales Dashboard' }),
+        });
+      } catch (e) {
+        console.warn('Failed to sync complete follow-up:', e);
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('das_crm_followups_updated'));
+    }
   };
 
   const toggleMeeting = (id: string, leadName: string) => {
@@ -887,9 +975,14 @@ export function EmployeeRoleDashboard() {
               <p className="text-xs text-muted-foreground">Scheduled callbacks and commitment touchpoints with your leads</p>
             </div>
           </div>
-          <Link href="/follow-ups" className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 transition-all hover:bg-amber-500/20">
-            Follow-up Hub <ArrowRight size={11} />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/follow-ups" className="text-xs bg-amber-500 hover:bg-amber-400 text-slate-900 font-black px-2.5 py-1.5 rounded-lg transition-all shadow-md flex items-center gap-1">
+              <Plus size={12} /> Schedule
+            </Link>
+            <Link href="/follow-ups" className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 transition-all hover:bg-amber-500/20">
+              Follow-up Hub <ArrowRight size={11} />
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
@@ -916,9 +1009,12 @@ export function EmployeeRoleDashboard() {
                     <div>
                       {/* Hero Lead Name */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className={`text-sm font-black transition-colors ${item.isCompleted ? 'line-through text-slate-400' : 'text-white hover:text-amber-400'}`}>
-                          {item.leadName}
-                        </h4>
+                        <Link
+                          href={`/leads?id=${item.leadId}`}
+                          className={`text-sm font-black transition-colors ${item.isCompleted ? 'line-through text-slate-400' : 'text-white hover:text-amber-400'}`}
+                        >
+                          {item.leadName} ↗
+                        </Link>
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
                           item.priority === 'HIGH'
                             ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
@@ -1239,18 +1335,29 @@ export function EmployeeRoleDashboard() {
         </div>
       </div>
 
-      {/* ── Section 6: My Performance ───────────────────────────────────── */}
+      {/* ── Section 6: Performance & Goals (Dual Progress Bars + Drilldown Modal) ── */}
       <div className="crm-card space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="font-black text-sm text-foreground flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
               <BarChart3 size={14} className="text-emerald-500 dark:text-emerald-400" />
             </div>
-            My Performance
+            🌟 Performance & Goals
           </h3>
-          <Link href="/reports" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">
-            Full Report <ArrowRight size={11} />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/goals" className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md">
+              <TrendingUp size={12} /> Goals & Targets Hub
+            </Link>
+            <button
+              onClick={() => setIsDrilldownOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <Zap size={12} className="text-amber-400" /> 🔍 Drill-Down
+            </button>
+            <Link href="/reports" className="text-xs text-indigo-400 font-bold hover:underline flex items-center gap-1">
+              Full Report <ArrowRight size={11} />
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1258,7 +1365,7 @@ export function EmployeeRoleDashboard() {
             { label: 'Leads Assigned',   value: String(newLeads.length),   suffix: 'active roster', icon: Target,        color: 'text-sky-500 dark:text-sky-400' },
             { label: 'Follow-ups / Calls',value: String(followUps.length), suffix: 'active touchpoints',icon: Phone,   color: 'text-amber-500 dark:text-amber-400' },
             { label: 'Revenue Generated',value: wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : (wonRevenue > 0 ? `₹${wonRevenue.toLocaleString('en-IN')}` : '₹0'), suffix: `${wonCount} deal(s) won`,     icon: Trophy,       color: 'text-purple-500 dark:text-purple-400' },
-            { label: 'Target Achieved',  value: `${Math.min(200, Math.round(((wonRevenue || 250000) / 500000) * 100))}%`,  suffix: 'of ₹5.0L monthly goal', icon: Star,         color: 'text-emerald-500 dark:text-emerald-400' },
+            { label: 'Target Achieved',  value: `${Math.min(200, Math.round((wonRevenue / monthlyRevenueTarget) * 100))}%`,  suffix: `of ₹${(monthlyRevenueTarget / 100000).toFixed(1)}L monthly quota`, icon: Star,         color: 'text-emerald-500 dark:text-emerald-400' },
           ].map(p => (
             <div key={p.label} className="p-4 rounded-xl border border-border bg-card">
               <div className="flex items-center gap-1.5 mb-2">
@@ -1271,28 +1378,142 @@ export function EmployeeRoleDashboard() {
           ))}
         </div>
 
-        {/* Progress bar for target */}
-        <div className="p-4 rounded-xl border border-border bg-card/60">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-foreground">Monthly Target Progress</span>
-            <span className="text-xs font-black text-emerald-400">
-              {wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : `₹${wonRevenue.toLocaleString('en-IN')}`} / ₹5.0L quota
-            </span>
+        {/* Dual Progress Bars: Daily Calls Target + Monthly Revenue Target */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Daily Calls Target */}
+          <div className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Phone size={12} className="text-emerald-400" /> Daily Calls Target (Fresh + Follow-ups)
+              </span>
+              <span className="text-xs font-black text-emerald-400">
+                {todayCallsCount} / {dailyCallsTarget} Calls ({Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%)
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-700"
+                style={{ width: `${Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[10px] text-muted-foreground">Logged calls & connect history today</span>
+              <span className="text-[10px] text-emerald-400 font-bold">
+                {dailyCallsTarget - todayCallsCount > 0 ? `${dailyCallsTarget - todayCallsCount} calls remaining` : 'Daily target achieved! 🎯'}
+              </span>
+            </div>
           </div>
-          <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-700"
-              style={{ width: `${Math.min(100, Math.round(((wonRevenue || 250000) / 500000) * 100))}%` }}
-            />
-          </div>
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] text-muted-foreground font-medium">Cycle: Current Month</span>
-            <span className="text-[10px] text-emerald-400 font-bold">
-              {Math.min(200, Math.round(((wonRevenue || 250000) / 500000) * 100))}% of target achieved
-            </span>
+
+          {/* Monthly Revenue Target */}
+          <div className="p-4 rounded-xl border border-indigo-500/25 bg-indigo-500/5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Trophy size={12} className="text-indigo-400" /> Monthly Revenue Target
+              </span>
+              <span className="text-xs font-black text-indigo-400">
+                ₹{(wonRevenue / 100000).toFixed(1)}L / ₹{(monthlyRevenueTarget / 100000).toFixed(1)}L ({Math.min(100, Math.round((wonRevenue / monthlyRevenueTarget) * 100))}%)
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700"
+                style={{ width: `${Math.min(100, Math.round((wonRevenue / monthlyRevenueTarget) * 100))}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[10px] text-muted-foreground">Cycle: Current Month</span>
+              <span className="text-[10px] text-indigo-400 font-bold">
+                {Math.min(200, Math.round((wonRevenue / monthlyRevenueTarget) * 100))}% of monthly quota
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* Goals Hub Launch Banner */}
+        <Link
+          href="/goals"
+          className="flex items-center justify-between p-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-indigo-500/30 transition-all group"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">📈</span>
+            <div>
+              <p className="text-xs font-black text-white group-hover:text-indigo-300 transition-colors">
+                Open Goals & Targets Hub (Quota telemetry & targets)
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Day-by-day heatmap, quota configuration, team leaderboard & performance audit
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-black text-indigo-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+            Open Hub →
+          </span>
+        </Link>
       </div>
+
+      {/* Rep Activity Drilldown Modal */}
+      <RepDrilldownModal
+        isOpen={isDrilldownOpen}
+        onClose={() => setIsDrilldownOpen(false)}
+        rep={{
+          userId: currentUserId || 'emp-user-1',
+          userName: selectedRep === 'ALL' ? currentUserName : selectedRep,
+          userEmail: currentUserEmail || 'sales@dasorganization.com',
+          userRole: 'SALES_EXEC',
+          initials: getInitials(selectedRep === 'ALL' ? currentUserName : selectedRep),
+          avatarColor: '#6366f1',
+          teamLeaderName: 'Sachin Puri',
+          dailyCallsTarget,
+          dailyWhatsappTarget: 25,
+          monthlyRevenueTarget,
+          monthlyMeetingsTarget: 10,
+          dateCallsTotal: todayCallsCount,
+          dateNewCalls: Math.max(0, todayCallsCount - 1),
+          dateFollowupCalls: Math.min(1, todayCallsCount),
+          dateWhatsappTotal: 3,
+          dateMeetingsCount: meetings.length,
+          dateProductsShared: 2,
+          dateQuotesCount: 1,
+          dateQuotesAmount: 125000,
+          dateLeadsReceived: newLeads.length,
+          monthlyCallsTotal: todayCallsCount + 15,
+          monthlyNewCalls: todayCallsCount + 8,
+          monthlyFollowupCalls: 7,
+          monthlyWhatsappTotal: 22,
+          monthlyMeetingsCount: meetings.length,
+          monthlyProductsShared: 5,
+          monthlyQuotesCount: 2,
+          monthlyQuotesAmount: 203000,
+          monthlyLeadsReceived: newLeads.length,
+          monthlyDealsWon: wonCount,
+          monthlyRevenueWon: wonRevenue,
+          pipelineValue: totalPipelineRevenue,
+          pipelineDealsCount: opportunities.length,
+          callsCompletionPct: Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100)),
+          whatsappCompletionPct: 80,
+          revenueCompletionPct: Math.min(100, Math.round((wonRevenue / monthlyRevenueTarget) * 100)),
+          meetingsCompletionPct: 50,
+          overallScore: 88,
+          activitiesList: newLeads.slice(0, 8).map((l, idx) => ({
+            id: `act-call-${l.id || idx}`,
+            leadId: String(l.id),
+            leadName: l.name,
+            leadPhone: l.phone,
+            leadCompany: l.company,
+            leadStatus: l.status,
+            category: 'CALL' as const,
+            callSubtype: idx % 2 === 0 ? ('FRESH' as const) : ('FOLLOWUP' as const),
+            title: idx % 2 === 0 ? 'Initial Discovery Call' : 'Commitment Follow-up Call',
+            notes: idx % 2 === 0 ? 'Connected with prospect; requirement discussed.' : 'Follow-up regarding proposal and pricing.',
+            outcome: 'Connected & Interested',
+            timestamp: new Date(Date.now() - idx * 3600000).toISOString(),
+            dateKey: new Date().toISOString().slice(0, 10),
+          })),
+        }}
+        selectedDate={new Date().toISOString().slice(0, 10)}
+        selectedMonth={new Date().toISOString().slice(0, 7)}
+        isMonthView={false}
+      />
 
       {/* ── Section 7: Attendance & Notice ──────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

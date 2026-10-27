@@ -30,6 +30,7 @@ import {
   RefreshControl,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
@@ -148,6 +149,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>([]);
   const [followUpFilter, setFollowUpFilter] = useState<'ALL' | 'DUE' | 'OVERDUE' | 'COMPLETED'>('ALL');
 
+  // Dynamic Goals & Quotas Configuration
+  const [dailyCallsTarget, setDailyCallsTarget] = useState<number>(40);
+  const [monthlyRevTarget, setMonthlyRevTarget] = useState<number>(500000);
+  const [todayCallsCount, setTodayCallsCount] = useState<number>(0);
+
   const leadsPerm = accessStore.getPermission(userId, userRole, 'LEADS', userEmail);
   const tasksPerm = accessStore.getPermission(userId, userRole, 'TASKS', userEmail);
   const followUpsPerm = accessStore.getPermission(userId, userRole, 'FOLLOW_UPS', userEmail);
@@ -182,6 +188,22 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       if (Array.isArray(tasks)) {
         setRawFollowUps(tasks);
       }
+
+      // Load goals configuration
+      try {
+        const savedGoalsRaw = await AsyncStorage.getItem('@das_crm_goals_config');
+        if (savedGoalsRaw) {
+          const cfg = JSON.parse(savedGoalsRaw);
+          if (cfg.dailyCalls) setDailyCallsTarget(Number(cfg.dailyCalls) || 40);
+          if (cfg.monthlyRev) setMonthlyRevTarget(Number(cfg.monthlyRev) || 500000);
+        }
+      } catch (_) {}
+
+      // Load today's call logs
+      try {
+        const todayLogs = await callSyncEngine.getTodayRawLogs();
+        setTodayCallsCount(Array.isArray(todayLogs) ? todayLogs.length : 0);
+      } catch (_) {}
     } catch (err) {
       console.warn('Dashboard sync error:', err);
     } finally {
@@ -413,13 +435,13 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       initials: (selectedRep === 'ALL' ? 'SR' : selectedRep.slice(0, 2)).toUpperCase(),
       avatarColor: '#6366f1',
       teamLeaderName: 'Sachin Puri',
-      dailyCallsTarget: 30,
-      dailyWhatsappTarget: 15,
-      monthlyRevenueTarget: 300000,
+      dailyCallsTarget,
+      dailyWhatsappTarget: 25,
+      monthlyRevenueTarget: monthlyRevTarget,
       monthlyMeetingsTarget: 10,
       activitiesList,
     };
-  }, [scopedLeads, selectedRep, currentUser]);
+  }, [scopedLeads, selectedRep, currentUser, dailyCallsTarget, monthlyRevTarget]);
 
   // Derived follow-ups and meetings from real followUpSyncEngine tasks (with fallback to leads)
   useEffect(() => {
@@ -783,6 +805,12 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity
+                  style={{ backgroundColor: colors.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                  onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#fff' }}>+ Schedule</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}>
                   <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Follow-up Hub →</Text>
                 </TouchableOpacity>
@@ -1011,7 +1039,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     📞 Daily Calls Target (Fresh + Follow-ups)
                   </Text>
                   <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>
-                    {scopedLeads.length} / 30 Calls ({Math.min(100, Math.round((scopedLeads.length / 30) * 100))}%)
+                    {todayCallsCount} / {dailyCallsTarget} Calls ({Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%)
                   </Text>
                 </View>
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
@@ -1020,7 +1048,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                       styles.progressBarFill,
                       {
                         backgroundColor: '#10b981',
-                        width: `${Math.min(100, Math.round((scopedLeads.length / 30) * 100))}%`,
+                        width: `${Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%`,
                       },
                     ]}
                   />
@@ -1034,7 +1062,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     💰 Monthly Revenue Target
                   </Text>
                   <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
-                    ₹{(wonRevenue / 1000).toFixed(0)}k / ₹300k ({Math.min(100, Math.round((wonRevenue / 300000) * 100))}%)
+                    ₹{(wonRevenue / 1000).toFixed(0)}k / ₹{(monthlyRevTarget / 1000).toFixed(0)}k ({Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%)
                   </Text>
                 </View>
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
@@ -1043,7 +1071,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                       styles.progressBarFill,
                       {
                         backgroundColor: '#a855f7',
-                        width: `${Math.min(100, Math.round((wonRevenue / 300000) * 100))}%`,
+                        width: `${Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%`,
                       },
                     ]}
                   />
