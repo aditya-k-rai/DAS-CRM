@@ -95,6 +95,11 @@ export const getDeletedLeadIdentifiers = (): { ids: Set<string>; records: any[] 
   return { ids, records };
 };
 
+const GENERIC_EXCLUDE_TERMS = new Set([
+  'lead', 'prospect', 'contact', 'client', 'individual', 'individual lead',
+  'enterprise', 'account', 'meeting', 'visit', 'call', 'callback', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'dr', 'dr.', '—', 'n/a', 'null', 'undefined'
+]);
+
 export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string>; records: any[] }): boolean => {
   if (!task) return false;
   const { ids, records } = deletedData || getDeletedLeadIdentifiers();
@@ -114,9 +119,10 @@ export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string
 
   // Known deleted lead Pooja Nair checks
   if (
-    leadName.includes('pooja nair') ||
-    rawTitle.includes('pooja nair') ||
-    rawPurpose.includes('pooja nair') ||
+    leadName === 'pooja nair' ||
+    (leadName.includes('pooja') && leadName.includes('nair')) ||
+    (rawTitle.includes('pooja') && rawTitle.includes('nair')) ||
+    (rawPurpose.includes('pooja') && rawPurpose.includes('nair')) ||
     leadEmail === 'pooja.nair@example.com' ||
     (leadPhone && leadPhone.endsWith('9800010009'))
   ) {
@@ -129,18 +135,18 @@ export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string
     if (r.leadId && lId && String(r.leadId) === lId) return true;
 
     const rName = String(r.name || '').toLowerCase().trim();
-    if (rName && rName.length > 2) {
-      if (leadName === rName || leadName.includes(rName)) return true;
-      if (rawTitle.includes(rName) || rawPurpose.includes(rName)) return true;
+    if (rName && rName.length >= 3 && !GENERIC_EXCLUDE_TERMS.has(rName)) {
+      if (leadName === rName || (leadName.length > 5 && leadName.includes(rName))) return true;
+      if (rName.includes(' ') && rawTitle.includes(rName)) return true;
     }
 
     const rPhone = String(r.phone || '').replace(/[^0-9]/g, '');
-    if (rPhone && leadPhone && leadPhone.length >= 7 && rPhone.endsWith(leadPhone.slice(-8))) {
+    if (rPhone && rPhone.length >= 7 && leadPhone && leadPhone.length >= 7 && rPhone.endsWith(leadPhone.slice(-8))) {
       return true;
     }
 
     const rEmail = String(r.email || '').toLowerCase().trim();
-    if (rEmail && leadEmail && rEmail === leadEmail) {
+    if (rEmail && rEmail.includes('@') && leadEmail && leadEmail.includes('@') && rEmail === leadEmail) {
       return true;
     }
   }
@@ -701,7 +707,13 @@ export default function FollowUpsModule() {
       const allItems = mergeServerAndLocal(serverItems, local);
       const now = new Date();
       const nowMs = now.getTime();
-      const todayStr = now.toISOString().split('T')[0];
+      const twoMinutesAgoMs = nowMs - 2 * 60 * 1000;
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const todayLocalIso = `${yyyy}-${mm}-${dd}`;
 
       let todayCount = 0;
       let upcomingCount = 0;
@@ -713,20 +725,24 @@ export default function FollowUpsModule() {
       allItems.forEach(item => {
         const status = item.computedStatus || computeLocalStatus(item);
         const itemDate = item.dueAt ? new Date(item.dueAt) : null;
-        const itemDateStr = itemDate && !isNaN(itemDate.getTime()) ? itemDate.toISOString().split('T')[0] : item.scheduledDate;
+        const itemTime = itemDate && !isNaN(itemDate.getTime()) ? itemDate.getTime() : NaN;
+        const itemDateStr = item.scheduledDate || (itemDate && !isNaN(itemDate.getTime()) ? itemDate.toISOString().split('T')[0] : '');
 
         if (status === 'COMPLETED' || item.isCompleted) {
           completedCount++;
-          if (itemDateStr === todayStr) completedTodayCount++;
+          if (itemDateStr === todayLocalIso || (!isNaN(itemTime) && itemTime >= todayStart && itemTime < todayEnd)) completedTodayCount++;
         } else {
           // 2-minute grace period rule for Overdue:
-          const isOverdue = status === 'OVERDUE' || (itemDate && !isNaN(itemDate.getTime()) && nowMs > itemDate.getTime() + 2 * 60 * 1000);
+          const isOverdue = status === 'OVERDUE' || status === 'MISSED' || (!isNaN(itemTime) && itemTime < twoMinutesAgoMs);
           if (isOverdue) {
             overdueCount++;
-          } else if (itemDateStr === todayStr || status === 'DUE') {
-            todayCount++;
-          } else if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
-            upcomingCount++;
+          } else {
+            const isToday = itemDateStr === todayLocalIso || (!isNaN(itemTime) && itemTime >= todayStart && itemTime < todayEnd) || status === 'DUE';
+            if (isToday) {
+              todayCount++;
+            } else if (itemDateStr > todayLocalIso || (!isNaN(itemTime) && itemTime >= todayEnd) || status === 'PENDING') {
+              if (status !== 'CANCELLED') upcomingCount++;
+            }
           }
         }
 
@@ -762,12 +778,15 @@ export default function FollowUpsModule() {
       const local = getLocalCachedFollowUps();
 
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const todayLocalIso = `${yyyy}-${mm}-${dd}`;
 
       const localToday = local.filter(item => {
         const d = item.dueAt ? new Date(item.dueAt) : null;
-        const dStr = d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : item.scheduledDate;
-        return dStr === todayStr || item.computedStatus === 'DUE';
+        const dStr = item.scheduledDate || (d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : '');
+        return dStr === todayLocalIso || item.computedStatus === 'DUE';
       });
 
       const dueNow: any[] = [];
@@ -823,39 +842,34 @@ export default function FollowUpsModule() {
       setLoading(true);
       let endpoint = '/follow-ups?limit=100';
       if (statusFilter) endpoint += `&status=${statusFilter}`;
-      const serverRes = await fetchApi(endpoint, token).catch(() => null);
-      const serverItems = Array.isArray(serverRes) ? serverRes : (serverRes?.data || serverRes?.items || []);
-      const local = getLocalCachedFollowUps();
+      let serverRes = await fetchApi(endpoint, token).catch(() => null);
+      let serverItems = Array.isArray(serverRes) ? serverRes : (serverRes?.data || serverRes?.items || []);
 
+      // If server returned 0 items for UPCOMING filter, fallback to querying all follow-ups to extract upcoming tasks
+      if (statusFilter === 'UPCOMING' && serverItems.length === 0) {
+        const fallbackRes = await fetchApi('/follow-ups?limit=100', token).catch(() => null);
+        const fallbackItems = Array.isArray(fallbackRes) ? fallbackRes : (fallbackRes?.data || fallbackRes?.items || []);
+        if (fallbackItems.length > 0) {
+          serverItems = fallbackItems;
+        }
+      } else if (statusFilter === 'UPCOMING') {
+        serverItems.forEach((si: any) => {
+          if (si) si.__isServerUpcoming = true;
+        });
+      }
+
+      const local = getLocalCachedFollowUps();
       let merged = mergeServerAndLocal(serverItems, local);
 
-      // Auto-sync un-persisted local/contact-history followups to backend so Mobile App has full parity
-      local.forEach(async (locItem) => {
-        if (locItem && locItem.id && String(locItem.id).startsWith('synth_')) {
-          const isAlreadyOnServer = serverItems.some((s: any) =>
-            String(s.id) === String(locItem.id) ||
-            ((s.leadId === locItem.leadId || s.lead?.id === locItem.leadId) && (s.dueAt?.slice(0, 10) === locItem.scheduledDate || s.scheduledDate === locItem.scheduledDate))
-          );
-          if (!isAlreadyOnServer) {
-            try {
-              await fetchApi('/follow-ups', token, {
-                method: 'POST',
-                body: JSON.stringify({
-                  title: locItem.title,
-                  followUpType: locItem.followUpType || 'CALL',
-                  leadId: locItem.leadId,
-                  scheduledDate: locItem.scheduledDate,
-                  scheduledTime: locItem.scheduledTime,
-                  dueAt: locItem.dueAt,
-                  priority: locItem.priority || 'HIGH',
-                  purpose: locItem.purpose,
-                  notes: locItem.purpose,
-                }),
-              });
-            } catch (_) {}
-          }
-        }
-      });
+      const now = new Date();
+      const nowMs = now.getTime();
+      const twoMinutesAgoMs = nowMs - 2 * 60 * 1000;
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const todayLocalIso = `${yyyy}-${mm}-${dd}`;
 
       if (statusFilter) {
         if (statusFilter === 'COMPLETED') {
@@ -867,17 +881,18 @@ export default function FollowUpsModule() {
             if (st === 'COMPLETED' || st === 'CANCELLED') return false;
             if (st === 'OVERDUE' || st === 'MISSED') return true;
             const d = i.dueAt ? new Date(i.dueAt) : null;
-            return Boolean(d && !isNaN(d.getTime()) && Date.now() > d.getTime() + 2 * 60 * 1000);
+            return Boolean(d && !isNaN(d.getTime()) && d.getTime() < twoMinutesAgoMs);
           });
         } else if (statusFilter === 'UPCOMING' || statusFilter === 'PENDING') {
-          const todayIso = new Date().toISOString().split('T')[0];
           merged = merged.filter(i => {
             if (!i || i.isCompleted) return false;
             const st = i.computedStatus || i.status;
             if (st === 'COMPLETED' || st === 'CANCELLED') return false;
+            if (i.__isServerUpcoming) return true;
             const d = i.dueAt ? new Date(i.dueAt) : null;
-            const dStr = d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : i.scheduledDate;
-            return dStr ? dStr > todayIso : false;
+            const dMs = d && !isNaN(d.getTime()) ? d.getTime() : NaN;
+            const dStr = i.scheduledDate || (d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : '');
+            return (!isNaN(dMs) && dMs >= todayEnd) || (dStr ? dStr > todayLocalIso : false) || st === 'PENDING';
           });
         }
       }
@@ -985,8 +1000,12 @@ export default function FollowUpsModule() {
     else if (activeTab === 'COMPLETED') loadAllData('COMPLETED');
     else if (activeTab === 'CALENDAR') loadCalendarData();
 
+    let syncTimer: any = null;
     const handleSync = () => {
-      refreshAll();
+      if (syncTimer) clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => {
+        refreshAll();
+      }, 400);
     };
 
     window.addEventListener('das_crm_followups_updated', handleSync);
@@ -1015,12 +1034,13 @@ export default function FollowUpsModule() {
           event.data?.type === 'LEAD_STATUS_CHANGED' ||
           event.data?.type === 'LEAD_UPDATED'
         ) {
-          refreshAll();
+          handleSync();
         }
       };
     } catch (_) {}
 
     return () => {
+      if (syncTimer) clearTimeout(syncTimer);
       clearInterval(liveTimer);
       window.removeEventListener('das_crm_followups_updated', handleSync);
       window.removeEventListener('das_crm_followup_created', handleSync);

@@ -214,6 +214,11 @@ export const getDeletedLeadIdentifiers = async (): Promise<{ ids: Set<string>; r
   return { ids, records };
 };
 
+const GENERIC_EXCLUDE_TERMS = new Set([
+  'lead', 'prospect', 'contact', 'client', 'individual', 'individual lead',
+  'enterprise', 'account', 'meeting', 'visit', 'call', 'callback', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'dr', 'dr.', '—', 'n/a', 'null', 'undefined'
+]);
+
 export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string>; records: any[] }): boolean => {
   if (!task) return false;
   const ids = deletedData?.ids || new Set<string>(['cmuojhdgu000jikm4z3gs6v5r']);
@@ -234,9 +239,10 @@ export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string
 
   // Known deleted lead Pooja Nair checks
   if (
-    leadName.includes('pooja nair') ||
-    rawTitle.includes('pooja nair') ||
-    rawPurpose.includes('pooja nair') ||
+    leadName === 'pooja nair' ||
+    (leadName.includes('pooja') && leadName.includes('nair')) ||
+    (rawTitle.includes('pooja') && rawTitle.includes('nair')) ||
+    (rawPurpose.includes('pooja') && rawPurpose.includes('nair')) ||
     leadEmail === 'pooja.nair@example.com' ||
     (leadPhone && leadPhone.endsWith('9800010009'))
   ) {
@@ -249,18 +255,18 @@ export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string
     if (r.leadId && lId && String(r.leadId) === lId) return true;
 
     const rName = String(r.name || '').toLowerCase().trim();
-    if (rName && rName.length > 2) {
-      if (leadName === rName || leadName.includes(rName)) return true;
-      if (rawTitle.includes(rName) || rawPurpose.includes(rName)) return true;
+    if (rName && rName.length >= 3 && !GENERIC_EXCLUDE_TERMS.has(rName)) {
+      if (leadName === rName || (leadName.length > 5 && leadName.includes(rName))) return true;
+      if (rName.includes(' ') && rawTitle.includes(rName)) return true;
     }
 
     const rPhone = String(r.phone || '').replace(/[^0-9]/g, '');
-    if (rPhone && leadPhone && leadPhone.length >= 7 && rPhone.endsWith(leadPhone.slice(-8))) {
+    if (rPhone && rPhone.length >= 7 && leadPhone && leadPhone.length >= 7 && rPhone.endsWith(leadPhone.slice(-8))) {
       return true;
     }
 
     const rEmail = String(r.email || '').toLowerCase().trim();
-    if (rEmail && leadEmail && rEmail === leadEmail) {
+    if (rEmail && rEmail.includes('@') && leadEmail && leadEmail.includes('@') && rEmail === leadEmail) {
       return true;
     }
   }
@@ -623,18 +629,17 @@ class FollowUpSyncEngine {
 
       // Explicit rep filter from chips
       if (selectedRep !== 'ALL') {
+        if (selectedRep === 'MY_TASKS' || selectedRep === 'ME') {
+          const matchesName = uName ? repName.includes(uName) || uName.includes(repName) : false;
+          const matchesId = uId && repId ? uId === repId : false;
+          const matchesEmail = uEmail && t.leadEmail ? t.leadEmail.toLowerCase() === uEmail : false;
+          return matchesName || matchesId || matchesEmail;
+        }
         const target = selectedRep.toLowerCase().trim();
         return repName.includes(target) || (repId && repId === selectedRep);
       }
 
-      // If user is SALES_EXEC and viewing their default queue, strictly isolate to self
-      if (isSalesExec) {
-        const matchesName = uName ? repName.includes(uName) || uName.includes(repName) : false;
-        const matchesId = uId && repId ? uId === repId : false;
-        const matchesEmail = uEmail && t.leadEmail ? t.leadEmail.toLowerCase() === uEmail : false;
-        return matchesName || matchesId || matchesEmail;
-      }
-
+      // 'ALL' enables team pipeline visibility (Web parity)
       return true;
     });
   }
