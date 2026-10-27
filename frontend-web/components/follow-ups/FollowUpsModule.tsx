@@ -405,7 +405,7 @@ export default function FollowUpsModule() {
 
       const deletedData = getDeletedLeadIdentifiers();
 
-      // Filter out legacy mock seeds AND any task belonging to a deleted lead
+      // Filter out legacy mock seeds, synthetic contact history clones, and deleted leads
       let filtered: any[] = [];
       if (Array.isArray(parsed)) {
         filtered = parsed.filter(
@@ -414,8 +414,11 @@ export default function FollowUpsModule() {
             item.id &&
             !String(item.id).startsWith('seed_') &&
             !String(item.id).includes('seed') &&
+            !String(item.id).startsWith('synth_') &&
+            !String(item.id).startsWith('hist_') &&
             !String(item.title || '').includes('Dr. Vikram Malhotra') &&
             !String(item.title || '').includes('Pooja Nair') &&
+            !String(item.title || '').includes('Lead Contact') &&
             !isTaskFromDeletedLead(item, deletedData)
         );
 
@@ -424,63 +427,6 @@ export default function FollowUpsModule() {
           localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(filtered));
         }
       }
-
-      // Also inspect lead contact histories for scheduled callbacks (e.g. Rahul Kapoor callback)
-      try {
-        let leadsDir: any[] = [];
-        try { leadsDir = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]'); } catch (_) {}
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('das_crm_contact_history_')) {
-            const leadIdKey = key.replace('das_crm_contact_history_', '');
-            try {
-              const hist = JSON.parse(localStorage.getItem(key) || '[]');
-              if (Array.isArray(hist)) {
-                for (const att of hist) {
-                  if (att.followUpDate) {
-                    const matchedLead = Array.isArray(leadsDir) ? leadsDir.find((l: any) => String(l.id) === leadIdKey || l.phone === att.phone) : null;
-                    const leadName = matchedLead?.name || (matchedLead ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim() : '') || 'Lead Contact';
-                    const leadPhone = matchedLead?.phone || att.phone || '';
-                    const isMeeting = att.outcome === 'MEETING_SCHEDULED' || att.scheduledType === 'MEETING' || /meeting|visit|in-person/i.test(att.notes || '');
-                    
-                    const { dueAtIso, scheduledDateStr, scheduledTimeStr } = parseDateAndTimeToIso(att.followUpDate, att.followUpTime);
-
-                    const exists = filtered.some((f: any) => (f.leadId === leadIdKey || f.lead?.id === leadIdKey) && (f.dueAt === dueAtIso || f.scheduledDate === scheduledDateStr || f.dueAt?.includes(scheduledDateStr)));
-                    if (!exists) {
-                      filtered.push({
-                        id: `synth_${att.id || leadIdKey}_${scheduledDateStr}`,
-                        title: isMeeting ? `🏢 In-Person / Virtual Visit: ${leadName}${leadPhone ? ` (${leadPhone})` : ''}` : `📞 Callback: ${leadName}${leadPhone ? ` (${leadPhone})` : ''}`,
-                        leadId: leadIdKey,
-                        lead: {
-                          id: leadIdKey,
-                          firstName: leadName.split(' ')[0] || leadName,
-                          lastName: leadName.split(' ').slice(1).join(' ') || '',
-                          email: matchedLead?.email || '',
-                          phone: leadPhone,
-                          owner: { firstName: att.by || 'Sales Rep' },
-                          status: {
-                            name: isMeeting ? 'Meeting Scheduled' : (matchedLead?.status || 'Active'),
-                            color: isMeeting ? '#a855f7' : '#38bdf8',
-                          },
-                        },
-                        scheduledDate: scheduledDateStr,
-                        scheduledTime: scheduledTimeStr,
-                        dueAt: dueAtIso,
-                        followUpType: isMeeting ? 'MEETING' : (att.scheduledType || 'CALL'),
-                        priority: 'HIGH',
-                        status: 'PENDING',
-                        purpose: att.notes || (isMeeting ? 'Meeting / Visit Scheduled' : 'Follow-up Scheduled'),
-                        isCompleted: false,
-                        assignee: { firstName: att.by || 'Sales Rep' },
-                      });
-                    }
-                  }
-                }
-              }
-            } catch (_) {}
-          }
-        }
-      } catch (_) {}
 
       return (filtered || [])
         .map((item: any) => normalizeFollowUpItem(item))
@@ -700,6 +646,8 @@ export default function FollowUpsModule() {
   const mergeServerAndLocal = (serverItems: any[], localItems: any[]) => {
     const mergedMap = new Map<string, any>();
     const seenDedupKeys = new Set<string>();
+    const seenLeadIds = new Set<string>();
+    const seenPhones = new Set<string>();
     const deletedData = getDeletedLeadIdentifiers();
 
     (serverItems || []).forEach(item => {
@@ -708,6 +656,10 @@ export default function FollowUpsModule() {
         if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
           const key = getTaskDedupKey(norm);
           if (key) seenDedupKeys.add(key);
+          const lId = String(norm.leadId || norm.lead?.id || '').trim();
+          if (lId && lId !== '1' && !lId.startsWith('lead_')) seenLeadIds.add(lId);
+          const p = String(norm.lead?.phone || norm.leadPhone || '').replace(/[^0-9]/g, '').slice(-10);
+          if (p) seenPhones.add(p);
           mergedMap.set(String(norm.id), norm);
         }
       }
@@ -719,8 +671,15 @@ export default function FollowUpsModule() {
         const norm = normalizeFollowUpItem(item);
         if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
           const key = getTaskDedupKey(norm);
-          // Only add local item if no matching server item exists by ID or by lead + date
-          if (!mergedMap.has(idStr) && (!key || !seenDedupKeys.has(key))) {
+          const lId = String(norm.leadId || norm.lead?.id || '').trim();
+          const p = String(norm.lead?.phone || norm.leadPhone || '').replace(/[^0-9]/g, '').slice(-10);
+
+          // If this local item is a transient seed/clone (starts with task_ or local_)
+          // and a server item already exists for this lead or phone, discard the local duplicate
+          const isTransientLocal = idStr.startsWith('task_') || idStr.startsWith('local_') || idStr.startsWith('synth_');
+          const alreadyCoveredByServer = (lId && seenLeadIds.has(lId)) || (p && seenPhones.has(p));
+
+          if (!mergedMap.has(idStr) && (!key || !seenDedupKeys.has(key)) && !(isTransientLocal && alreadyCoveredByServer)) {
             if (key) seenDedupKeys.add(key);
             mergedMap.set(idStr, norm);
           }

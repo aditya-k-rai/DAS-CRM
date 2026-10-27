@@ -2340,7 +2340,25 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             ? `📞 Callback (${productInterestLogged.split(' (')[0]}): ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`
             : `📞 Callback: ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`);
 
-      const dueAtIso = `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`;
+      // Parse scheduled date & time cleanly to prevent malformed ISO dates
+      const rawTime = (funnelScheduledTime || '10:30').trim();
+      const timeMatch = rawTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+      let parsedH = 10;
+      let parsedM = 30;
+      if (timeMatch) {
+        let h = parseInt(timeMatch[1], 10);
+        const m = parseInt(timeMatch[2], 10);
+        const meridiem = timeMatch[4]?.toUpperCase();
+        if (meridiem === 'PM' && h < 12) h += 12;
+        if (meridiem === 'AM' && h === 12) h = 0;
+        parsedH = h;
+        parsedM = m;
+      }
+      const hh = String(parsedH).padStart(2, '0');
+      const mm = String(parsedM).padStart(2, '0');
+      const canonicalTime = `${hh}:${mm}:00`;
+      const dueAtIso = `${funnelScheduledDate}T${canonicalTime}+05:30`;
+
       const followUpPayload = {
         title: followUpTitle,
         followUpType: scheduledType,
@@ -2353,62 +2371,40 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         reminderMinutes: enablePreAlert5Min ? 5 : 0,
       };
 
-      // Push to backend
+      // Push to backend and store verified server task in local cache
       apiFetch('/follow-ups', {
         method: 'POST',
         body: JSON.stringify(followUpPayload),
-      }).catch((e) => console.warn('Follow-up create sync notice:', e));
-
-      // Local storage cache + live broadcast
-      if (typeof window !== 'undefined') {
-        try {
-          const cachedTasks = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
-          const repName = lead.owner || (lead as any).assignedRep || 'Sachin Puri';
-          cachedTasks.unshift({
-            id: `task_${Date.now()}`,
-            ...followUpPayload,
-            createdAt: new Date().toISOString(),
-            status: 'PENDING',
-            createdById: currentUser?.id || 'admin_user',
-            createdByName: currentUser?.name || 'Anurag Sharma',
-            createdByRole: currentUser?.role || 'ADMIN',
-            createdBy: {
-              id: currentUser?.id,
-              name: currentUser?.name || 'Anurag Sharma',
-              firstName: currentUser?.name ? currentUser.name.split(' ')[0] : 'Anurag',
-              lastName: currentUser?.name ? currentUser.name.split(' ').slice(1).join(' ') : 'Sharma',
-              role: currentUser?.role || 'ADMIN',
-            },
-            assignee: {
-              id: currentUser?.id,
-              name: String(repName || 'Sachin Puri'),
-              firstName: String(repName || 'Sachin').split(' ')[0],
-              lastName: String(repName || '').split(' ').slice(1).join(' ') || 'Puri',
-              role: 'SALES_REP',
-            },
-            lead: {
-              id: lead.id,
-              name: lead.name,
-              firstName: (lead as any).firstName || (lead.name ? lead.name.split(' ')[0] : 'Lead'),
-              lastName: (lead as any).lastName || (lead.name ? lead.name.split(' ').slice(1).join(' ') : ''),
-              phone: lead.phone,
-              email: lead.email,
-              owner: {
-                name: String(repName || 'Sachin Puri'),
-                firstName: String(repName || 'Sachin').split(' ')[0],
-                lastName: String(repName || '').split(' ').slice(1).join(' ') || 'Puri',
-                role: 'SALES_REP',
+      }).then(async (res: any) => {
+        const savedServerTask = (res && typeof res.json === 'function') ? await res.json().catch(() => null) : res;
+        if (typeof window !== 'undefined') {
+          try {
+            const cached = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
+            const verified = savedServerTask && savedServerTask.id ? savedServerTask : {
+              id: `task_${Date.now()}`,
+              ...followUpPayload,
+              createdAt: new Date().toISOString(),
+              status: 'PENDING',
+              lead: {
+                id: effectiveLeadId,
+                name: resolvedLeadName,
+                phone: lead.phone,
+                email: lead.email,
+                company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
+                status: { name: targetStatus, color: '#3b82f6' },
               },
-              company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
-              status: { name: targetStatus, color: '#3b82f6' },
-            },
-          });
-          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(cachedTasks.slice(0, 100)));
-          window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
-          window.dispatchEvent(new CustomEvent('das_crm_followup_created', { detail: followUpPayload }));
-          window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: followUpPayload }));
-        } catch (_) {}
-      }
+            };
+            const updated = [
+              verified,
+              ...cached.filter((t: any) => t.id !== verified.id && !String(t.id).startsWith('synth_') && !(t.leadId === effectiveLeadId && String(t.id).startsWith('task_')))
+            ];
+            localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updated.slice(0, 100)));
+            window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
+            window.dispatchEvent(new CustomEvent('das_crm_followup_created', { detail: verified }));
+            window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: verified }));
+          } catch (_) {}
+        }
+      }).catch((e) => console.warn('Follow-up create sync notice:', e));
     }
 
     // 7. Push to Contact History Timeline (CallContactHistory.tsx)

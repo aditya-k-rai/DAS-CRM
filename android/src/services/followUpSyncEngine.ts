@@ -188,13 +188,21 @@ class FollowUpSyncEngine {
     const list: FollowUpTask[] = [];
     const idMap = new Set<string>();
 
+    const isValidTask = (t: any): boolean => {
+      if (!t || !t.id) return false;
+      const idStr = String(t.id);
+      if (idStr.startsWith('hist_') || idStr.startsWith('synth_') || idStr.startsWith('seed_')) return false;
+      if (String(t.leadName || '').includes('Lead Prospect') && !t.leadPhone) return false;
+      return true;
+    };
+
     try {
       const rawPrimary = await AsyncStorage.getItem(STORAGE_FOLLOWUPS_PRIMARY);
       if (rawPrimary) {
         const parsed = JSON.parse(rawPrimary);
         if (Array.isArray(parsed)) {
           parsed.forEach((t) => {
-            if (t && t.id && !idMap.has(t.id)) {
+            if (isValidTask(t) && !idMap.has(t.id)) {
               idMap.add(t.id);
               list.push(t);
             }
@@ -209,7 +217,7 @@ class FollowUpSyncEngine {
         const parsed = JSON.parse(rawSecondary);
         if (Array.isArray(parsed)) {
           parsed.forEach((t) => {
-            if (t && t.id && !idMap.has(t.id)) {
+            if (isValidTask(t) && !idMap.has(t.id)) {
               idMap.add(t.id);
               list.push(t);
             }
@@ -446,98 +454,15 @@ class FollowUpSyncEngine {
       console.warn('Backend /follow-ups fetch error:', err);
     }
 
-    // 3. 🔍 CRITICAL FAILSAFE SCANNER: Inspect Lead Contact Histories
-    // Ensures any follow-up ever scheduled on any lead timeline appears in the pipeline
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const historyKeys = allKeys.filter((k) =>
-        k.startsWith('das_crm_contact_history_')
-      );
-
-      for (const key of historyKeys) {
-        const leadIdKey = key.replace('das_crm_contact_history_', '');
-        try {
-          const rawHist = await AsyncStorage.getItem(key);
-          if (rawHist) {
-            const hist = JSON.parse(rawHist);
-            if (Array.isArray(hist)) {
-              for (const att of hist) {
-                if (att && att.followUpDate) {
-                  const matchedLead = leads.find(
-                    (l) => l.id === leadIdKey || l.phone === att.phone
-                  );
-
-                  const leadName =
-                    matchedLead?.name ||
-                    (matchedLead
-                      ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim()
-                      : '') ||
-                    att.leadName ||
-                    'Lead Prospect';
-
-                  const leadPhone =
-                    matchedLead?.phone || att.phone || '';
-                  const leadCompany =
-                    matchedLead?.company || 'Corporate Client';
-                  const leadEmail =
-                    matchedLead?.email || '';
-
-                  const isMeeting =
-                    att.outcome === 'MEETING_SCHEDULED' ||
-                    att.scheduledType === 'MEETING' ||
-                    /meeting|visit|in-person/i.test(att.notes || '');
-
-                  const { dueAtIso, scheduledDateStr, scheduledTimeStr } =
-                    parseDateAndTimeToIso(att.followUpDate, att.followUpTime);
-
-                  // Check if this task already exists in our map
-                  let alreadyExists = false;
-                  for (const existing of taskMap.values()) {
-                    if (
-                      (existing.leadId === leadIdKey ||
-                        (leadPhone && existing.leadPhone === leadPhone)) &&
-                      (existing.dueAt === dueAtIso ||
-                        existing.scheduledDate === scheduledDateStr)
-                    ) {
-                      alreadyExists = true;
-                      break;
-                    }
-                  }
-
-                  if (!alreadyExists) {
-                    const synthId = `hist_${att.id || leadIdKey}_${scheduledDateStr}`;
-                    const synthTask: FollowUpTask = {
-                      id: synthId,
-                      leadId: leadIdKey,
-                      leadName,
-                      leadCompany,
-                      leadPhone,
-                      leadEmail,
-                      channel: isMeeting ? 'MEETING' : 'CALL',
-                      purpose:
-                        att.notes ||
-                        (isMeeting ? 'Scheduled In-Person / Virtual Meeting' : 'Follow-up Callback'),
-                      dueAt: dueAtIso,
-                      scheduledDate: scheduledDateStr,
-                      scheduledTime: scheduledTimeStr,
-                      isCompleted: false,
-                      assignedRepName: att.by || currentUser?.name || 'Sales Rep',
-                      priority: 'HIGH',
-                      status: 'PENDING',
-                    };
-                    taskMap.set(synthId, synthTask);
-                  }
-                }
-              }
-            }
-          }
-        } catch (_) {}
-      }
-    } catch (err) {
-      console.warn('Error scanning contact history for follow-ups:', err);
-    }
-
-    const mergedList = Array.from(taskMap.values());
+    const mergedList = Array.from(taskMap.values()).filter(
+      (t) =>
+        t &&
+        t.id &&
+        !String(t.id).startsWith('hist_') &&
+        !String(t.id).startsWith('synth_') &&
+        !String(t.id).startsWith('seed_') &&
+        !String(t.leadName || '').includes('Lead Prospect')
+    );
 
     // Sort by dueAt ascending (soonest due first)
     mergedList.sort((a, b) => {
