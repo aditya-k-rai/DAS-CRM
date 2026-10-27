@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { getAuthToken } from '@/lib/apiClient';
+import { getAuthToken, getApiBase } from '@/lib/apiClient';
 import { clearAllDashboardCaches } from '@/lib/cacheUtils';
 
 export interface RealtimeSyncOptions {
@@ -38,7 +38,7 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
         eventSourceRef.current.close();
       }
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const apiBase = getApiBase();
       const streamUrl = `${apiBase}/realtime/stream?token=${encodeURIComponent(token)}`;
 
       try {

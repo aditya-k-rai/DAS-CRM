@@ -64,9 +64,10 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      const token = useAuthStore.getState().token;
       const [lRes, eRes] = await Promise.all([
-        apiService.getLeads(),
-        apiService.getEmployees(),
+        apiService.getLeads(token),
+        apiService.getEmployees(token),
       ]);
       if (Array.isArray(lRes)) setLeads(lRes);
       if (eRes && eRes.success && Array.isArray(eRes.employees)) setEmployees(eRes.employees);

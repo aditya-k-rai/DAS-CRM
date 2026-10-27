@@ -159,7 +159,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     setIsLoading(true);
     try {
       // 1. Fetch real leads from API / storage
-      const fetchedLeads = await apiService.getLeads();
+      const fetchedLeads = await apiService.getLeads(token);
       const validLeads = Array.isArray(fetchedLeads) ? fetchedLeads : [];
       setRealLeads(validLeads);
 

@@ -315,9 +315,18 @@ export function EmployeeRoleDashboard() {
           (uFirst && uFirst.length >= 3 && !isDemoRep && t.toName.includes(uFirst))
         );
 
+        const knownRepIds: Record<string, string> = {
+          nandini: 'cmuhp0517000ngg2dq93a6nlp',
+          sulekha: 'cmukwwdv9000ng42dghtw6t3z',
+          sadhana: 'cmukykfoe000nht2d0ylnsd3t',
+        };
+        const matchesKnownRep = Object.entries(knownRepIds).some(
+          ([k, id]) => (uLower.includes(k) || (currentUserId && currentUserId === id)) && (lOwnerId === id || lOwner.includes(k) || lAssignedRep.includes(k))
+        );
+
         if (isDemoRep) return true; // Generic sales exec demo user can view all reps' leads
 
-        return Boolean(matchesId || matchesEmail || matchesName || matchesFirstName || matchesTrail);
+        return Boolean(matchesId || matchesEmail || matchesKnownRep || matchesName || matchesFirstName || matchesTrail);
       }
 
       if (targetRep === 'ALL') {

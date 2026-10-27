@@ -741,6 +741,7 @@ export default function LeadsScreen() {
     // 0. Strict SaaS RBAC Data Isolation: Sales Reps are strictly scoped to their own assigned leads
     if (isSalesRepRole) {
       const myName = (currentUser?.name || '').trim().toLowerCase();
+      const myEmail = (currentUser?.email || '').trim().toLowerCase();
       const myFirst = myName.split(' ')[0] || '';
       const myId = currentUser?.id || '';
 
@@ -756,13 +757,14 @@ export default function LeadsScreen() {
       let idMatches = myId && (ownerId === myId);
       if (!idMatches) {
         for (const [key, id] of Object.entries(knownIds)) {
-          if (myName.includes(key) && ownerId === id) { idMatches = true; break; }
+          if ((myName.includes(key) || myEmail.includes(key)) && ownerId === id) { idMatches = true; break; }
         }
       }
 
       const isMine =
         idMatches ||
         (myName && (repName.includes(myName) || ownerName.includes(myName))) ||
+        (myEmail && (repName.includes(myEmail) || ownerName.includes(myEmail))) ||
         (myFirst && myFirst.length >= 3 && (repName.includes(myFirst) || ownerName.includes(myFirst)));
 
       if (!isMine) return false;

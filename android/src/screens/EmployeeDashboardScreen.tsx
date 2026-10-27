@@ -169,7 +169,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       setLoading(true);
       const token = useAuthStore.getState().token;
       const [items, prods, tasks] = await Promise.all([
-        apiService.getLeads(),
+        apiService.getLeads(token),
         productCatalogService.getProducts(),
         followUpSyncEngine.loadAllFollowUps(token, currentUser, []),
       ]);
@@ -245,6 +245,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
     const targetRepName = (isSalesRep ? (currentUser?.name || '') : selectedRep).trim();
     const targetUserId = isSalesRep ? (currentUser?.id || '') : '';
+    const targetUserEmail = isSalesRep ? (currentUser?.email || '').toLowerCase().trim() : '';
     const cleanTarget = targetRepName.toLowerCase().replace(/\s*\(sales exec\)|\s*\(rep\)|\s*\(sales\)/gi, '').trim();
     const targetFirst = cleanTarget.split(' ')[0] || '';
 
@@ -265,10 +266,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
       // 2. Known seed IDs
       for (const [key, id] of Object.entries(knownIds)) {
-        if (cleanTarget.includes(key) && ownerId === id) return true;
+        if ((cleanTarget.includes(key) || targetUserEmail.includes(key)) && ownerId === id) return true;
       }
 
-      // 3. Name matching against assignedRep, owner, or customFields
+      // 3. Name or Email matching against assignedRep, owner, or customFields
       if (cleanTarget) {
         if (assignedRep && (assignedRep.includes(cleanTarget) || cleanTarget.includes(assignedRep))) return true;
         if (owner && (owner.includes(cleanTarget) || cleanTarget.includes(owner))) return true;
@@ -277,6 +278,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         if (targetFirst && targetFirst.length >= 3) {
           if (assignedRep.includes(targetFirst) || owner.includes(targetFirst) || customRep.includes(targetFirst)) return true;
         }
+      }
+
+      if (targetUserEmail) {
+        if (assignedRep && assignedRep.includes(targetUserEmail)) return true;
+        if (owner && owner.includes(targetUserEmail)) return true;
       }
 
       return false;

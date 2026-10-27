@@ -1325,9 +1325,19 @@ export function LeadsTable() {
           return (currentUser?.id && evId === currentUser.id) || (uLower && evTo.includes(uLower)) || (uFirst && uFirst.length >= 3 && evTo.includes(uFirst));
         });
 
+        const knownRepIds: Record<string, string> = {
+          nandini: 'cmuhp0517000ngg2dq93a6nlp',
+          sulekha: 'cmukwwdv9000ng42dghtw6t3z',
+          sadhana: 'cmukykfoe000nht2d0ylnsd3t',
+        };
+        const matchesKnownRep = Object.entries(knownRepIds).some(
+          ([k, id]) => (uLower.includes(k) || (currentUser?.id && currentUser.id === id)) && (lOwnerId === id || lOwner.includes(k) || lAssignedRep.includes(k))
+        );
+
         const isAssignedToUser =
           (currentUser?.id && lOwnerId && lOwnerId === currentUser.id) ||
           (eLower && lOwnerEmail && eLower === lOwnerEmail) ||
+          matchesKnownRep ||
           (uLower && (lOwner.includes(uLower) || lAssignee.includes(uLower) || lAssignedRep.includes(uLower))) ||
           (uFirst && uFirst.length >= 3 && (lOwner.includes(uFirst) || lAssignee.includes(uFirst) || lAssignedRep.includes(uFirst))) ||
           hasTrailMatch ||

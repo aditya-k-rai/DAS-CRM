@@ -4,14 +4,23 @@
  * transparent token refresh, and retry of failed requests.
  */
 
-const getApiBase = () => {
+export const getApiBase = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+    if (isLocal) {
+      return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/+$/, '');
+    }
+    // If accessing via local Wi-Fi or LAN IP (e.g. 192.168.x.x, 10.x.x.x), direct to port 3001 on that host
+    const isLanIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
+    if (isLanIp) {
+      return `http://${host}:3001/api/v1`;
+    }
     const envUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    if (!isLocal && (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+    if (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1')) {
       return '/api/v1';
     }
+    return envUrl.replace(/\/+$/, '');
   }
   return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/+$/, '');
 };

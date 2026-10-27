@@ -51,6 +51,9 @@ export interface LeadItem {
   requirement?: string;
   callSyncStatus?: string;
   customFields?: Record<string, any>;
+  allocationTrail?: any[];
+  createdById?: string;
+  rawCreatedAt?: string;
 
   // AI Lead Score
   aiScore?: AIScoreData;
@@ -318,31 +321,45 @@ class ApiService {
         
         const serverLeads: LeadItem[] = (rawList || [])
           .filter((item: any) => !isMockLead(item))
-          .map((item: any) => ({
-            id: String(item.id),
-            name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Lead',
-            company: (typeof item.company === 'object' ? item.company?.name : item.company) || item.companyName || '—',
-            email: item.email || '—',
-            phone: item.phone || item.mobile || '—',
-            status: (typeof item.status === 'object' ? item.status?.name : (item.stage || item.status || 'NEW LEAD')).toUpperCase(),
-            value: item.estimatedValue
-              ? `₹${Number(item.estimatedValue).toLocaleString('en-IN')}`
-              : (item.value ? (String(item.value).startsWith('₹') ? item.value : `₹${item.value}`) : '₹0'),
-            source: (typeof item.source === 'object' ? item.source?.name : item.source) || 'Direct',
-            priority: item.priority || 'Medium',
-            assignedRep: item.owner
-              ? (typeof item.owner === 'object' ? `${item.owner.firstName || ''} ${item.owner.lastName || ''}`.trim() || item.owner.name : String(item.owner))
-              : (item.assignedRep || item.assignedTo || 'Unassigned'),
-            city: item.city || item.customFields?.city || '—',
-            budget: item.budget || item.customFields?.budget || '—',
-            requirement: item.requirement || item.customFields?.requirement || '—',
-            callSyncStatus: item.callSyncStatus || (Array.isArray(item.activities) && item.activities.length > 0 ? `Activity (${item.activities.length})` : 'Never'),
-            aiScore: item.aiScore,
-            customFields: item.customFields,
-            _synced: true,
-            _isOfflineDraft: false,
-            _updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
-          }));
+          .map((item: any) => {
+            const ownerObj = typeof item.owner === 'object' && item.owner ? item.owner : null;
+            const repName = ownerObj
+              ? `${ownerObj.firstName || ''} ${ownerObj.lastName || ''}`.trim() || ownerObj.name || ownerObj.email
+              : (typeof item.owner === 'string' ? item.owner : (item.assignedRep || item.assignedTo || 'Unassigned'));
+            const ownerId = item.ownerId || ownerObj?.id || item.assignedToId || undefined;
+
+            return {
+              id: String(item.id),
+              name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Lead',
+              company: (typeof item.company === 'object' ? item.company?.name : item.company) || item.companyName || '—',
+              email: item.email || '—',
+              phone: item.phone || item.mobile || '—',
+              status: (typeof item.status === 'object' ? item.status?.name : (item.stage || item.status || 'NEW LEAD')).toUpperCase(),
+              value: item.estimatedValue
+                ? `₹${Number(item.estimatedValue).toLocaleString('en-IN')}`
+                : (item.value ? (String(item.value).startsWith('₹') ? item.value : `₹${item.value}`) : '₹0'),
+              source: (typeof item.source === 'object' ? item.source?.name : item.source) || 'Direct',
+              priority: item.priority || 'Medium',
+              owner: repName !== 'Unassigned' ? repName : undefined,
+              ownerId: ownerId,
+              assignedRep: repName,
+              firstName: item.firstName,
+              lastName: item.lastName,
+              organization: (typeof item.company === 'object' ? item.company?.name : item.company) || item.organization || item.companyName || '—',
+              city: item.city || item.customFields?.city || '—',
+              budget: item.budget || item.customFields?.budget || '—',
+              requirement: item.requirement || item.customFields?.requirement || '—',
+              callSyncStatus: item.callSyncStatus || (Array.isArray(item.activities) && item.activities.length > 0 ? `Activity (${item.activities.length})` : 'Never'),
+              allocationTrail: item.allocationTrail || [],
+              createdById: item.createdById || item.userId,
+              rawCreatedAt: item.createdAt,
+              aiScore: item.aiScore,
+              customFields: item.customFields,
+              _synced: true,
+              _isOfflineDraft: false,
+              _updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
+            };
+          });
 
         // Smart merge: Preserve any local offline drafts that haven't been pushed yet
         const pendingDrafts = cachedLeads.filter(
@@ -420,6 +437,12 @@ class ApiService {
       if (res.ok) {
         const item = await res.json();
         if (item && item.id) {
+          const ownerObj = typeof item.owner === 'object' && item.owner ? item.owner : null;
+          const repName = ownerObj
+            ? `${ownerObj.firstName || ''} ${ownerObj.lastName || ''}`.trim() || ownerObj.name || ownerObj.email
+            : (typeof item.owner === 'string' ? item.owner : (item.assignedRep || item.assignedTo || 'Unassigned'));
+          const ownerId = item.ownerId || ownerObj?.id || item.assignedToId || undefined;
+
           const mappedLead: LeadItem = {
             id: String(item.id),
             name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Lead',
@@ -432,13 +455,19 @@ class ApiService {
               : (item.value ? (String(item.value).startsWith('₹') ? item.value : `₹${item.value}`) : '₹0'),
             source: (typeof item.source === 'object' ? item.source?.name : item.source) || 'Direct',
             priority: item.priority || 'Medium',
-            assignedRep: item.owner
-              ? (typeof item.owner === 'object' ? `${item.owner.firstName || ''} ${item.owner.lastName || ''}`.trim() || item.owner.name : String(item.owner))
-              : (item.assignedRep || item.assignedTo || 'Unassigned'),
+            owner: repName !== 'Unassigned' ? repName : undefined,
+            ownerId: ownerId,
+            assignedRep: repName,
+            firstName: item.firstName,
+            lastName: item.lastName,
+            organization: (typeof item.company === 'object' ? item.company?.name : item.company) || item.organization || item.companyName || '—',
             city: item.city || item.customFields?.city || '—',
             budget: item.budget || item.customFields?.budget || '—',
             requirement: item.requirement || item.customFields?.requirement || '—',
             callSyncStatus: item.callSyncStatus || (Array.isArray(item.activities) && item.activities.length > 0 ? `Activity (${item.activities.length})` : 'Never'),
+            allocationTrail: item.allocationTrail || [],
+            createdById: item.createdById || item.userId,
+            rawCreatedAt: item.createdAt,
             aiScore: item.aiScore,
             customFields: item.customFields,
             _synced: true,
