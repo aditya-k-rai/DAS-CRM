@@ -260,7 +260,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               timestamp: callTs,
               durationSeconds: durSecs > 0 ? durSecs : 120,
               notes: a.notes || a.description || meta.notes || (meta.productInterest ? `Talked with client: Discussed ${meta.productInterest}` : 'Call completed'),
-              productInterest: meta.productInterest || a.productInterest,
+              productInterest: undefined,
               followUpDate: meta.followUpDate || a.scheduledDate,
               followUpTime: meta.followUpTime || a.scheduledTime,
             });

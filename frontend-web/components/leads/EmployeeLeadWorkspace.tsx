@@ -334,7 +334,7 @@ function mapServerActivitiesToContactHistory(
               timestamp: callActTime,
               durationSeconds: durSecs > 0 ? durSecs : 120,
               notes: meta.notes || desc || (waProduct ? `Talked with client: ${waProduct} discussed` : 'Outbound phone call'),
-              productInterest: waProduct,
+              productInterest: undefined,
               followUpDate: fuDate,
               followUpTime: fuTime,
               audioRecordingAvailable: Boolean(durSecs > 10),

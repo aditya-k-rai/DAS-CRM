@@ -554,7 +554,40 @@ export function extractInterestedCommercials(
       }
     }
 
-    // 2. Invoice / Quotation document
+    // 2. Extract from notes or sentMessage if not already captured from productInterest
+    const fullText = `${h.notes || ''} ${h.sentMessage || ''}`;
+    const hasSingleProdShare = fullText.includes('Product details shared via WhatsApp:');
+    if (hasSingleProdShare && attemptsKeysInThisContact.size === 0) {
+      const shareMatch = fullText.match(/Product details shared via WhatsApp:\s*([^;\n]+)/i);
+      if (shareMatch && shareMatch[1]) {
+        const clean = shareMatch[1].trim();
+        const qtyMatch = clean.match(/(?:Qty:\s*|\()(\d+[\s\w()]*?)(?:\s*·|\s*\)|$)/i);
+        const priceMatch = clean.match(/(?:₹|Rs\.?\s*)([\d,]+)/i);
+        const discMatch = clean.match(/\[([^\]]+)\]/);
+        const nameClean = clean.split(/\s*\(Qty:|\s*·\s*₹|\s*\[/)[0].replace(/^[•\s*-]+/, '').trim();
+        const finalName = nameClean || clean;
+        const key = `prod_${finalName.toLowerCase().replace(/\s+/g, ' ')}`;
+
+        if (!attemptsKeysInThisContact.has(key)) {
+          attemptsKeysInThisContact.add(key);
+          registerShare(key, {
+            name: finalName,
+            quantity: qtyMatch ? qtyMatch[1].replace(/[()]/g, '').trim() : undefined,
+            price: priceMatch ? `₹${priceMatch[1]}` : undefined,
+            discount: discMatch ? discMatch[1].trim() : undefined,
+            docType: 'PRODUCT',
+            sharedAt: ts,
+            sharedBy: rep,
+            medium: med,
+            notes: h.notes,
+            sentMessage: h.sentMessage,
+            attemptId: h.id,
+          });
+        }
+      }
+    }
+
+    // 3. Invoice / Quotation document
     if (h.docNo || h.docType || h.type === 'INVOICE' || h.type === 'QUOTATION') {
       const docType = h.docType === 'INVOICE' || h.type === 'INVOICE' ? 'INVOICE' : 'QUOTATION';
       const key = `doc_${h.docNo || h.id}`;
