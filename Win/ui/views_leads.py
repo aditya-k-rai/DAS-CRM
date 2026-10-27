@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 from PyQt6.QtCore import (Qt, QTimer, QStringListModel, QSortFilterProxyModel,
                             QRegularExpression, pyqtSignal)
-from PyQt6.QtGui import QFont, QAction
+from PyQt6.QtGui import QFont, QAction, QColor, QPainter, QBrush, QPen
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QLabel, QFrame, QPushButton, QScrollArea,
                               QSizePolicy, QSpacerItem, QTableWidget,

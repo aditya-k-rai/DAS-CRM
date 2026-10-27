@@ -294,7 +294,6 @@ class DashboardView(QFrame):
 
         series = QBarSeries()
         series.append(bar_set)
-        series.setColor(QColor("#22C55E"))
 
         chart = QChart()
         chart.addSeries(series)

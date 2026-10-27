@@ -9,8 +9,10 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QComboBox, QDateEdit, QTableWidget, QTableWidgetItem,
                               QHeaderView, QAbstractItemView, QFileDialog,
                               QMessageBox)
-from PyQt6.QtCharts import QChartView, QLineSeries, QBarSeries, QBarSet,
-                             QPieSeries, QChart, QValueAxis, QCategoryAxis
+from PyQt6.QtCharts import (
+    QChartView, QLineSeries, QBarSeries, QBarSet,
+    QPieSeries, QChart, QValueAxis, QCategoryAxis
+)
 from datetime import datetime, timedelta
 
 
@@ -180,8 +182,10 @@ class ReportsView(QFrame):
         values = [4.2, 5.8, 4.9, 6.3, 7.1, 8.4]
         for i, v in enumerate(values):
             series.append(i, v)
-        series.setColor(QColor("#3B82F6"))
-        series.setWidth(2)
+        pen = series.pen()
+        pen.setColor(QColor("#3B82F6"))
+        pen.setWidth(2)
+        series.setPen(pen)
 
         chart = QChart()
         chart.addSeries(series)
@@ -220,7 +224,6 @@ class ReportsView(QFrame):
 
         series = QBarSeries()
         series.append(bar_set)
-        series.setColor(QColor("#22C55E"))
 
         chart = QChart()
         chart.addSeries(series)

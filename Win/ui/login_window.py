@@ -844,7 +844,7 @@ class LoginWindow(QDialog):
         # Google button
         google_btn = QPushButton("🌐  Sign in with Google (Gmail Verified)")
         google_btn.setObjectName("btnGoogle")
-        google_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.SemiBold))
+        google_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
         google_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         google_btn.setStyleSheet(BTN_GOOGLE_CSS)
         google_btn.setFixedHeight(44)

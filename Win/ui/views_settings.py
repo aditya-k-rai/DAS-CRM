@@ -121,7 +121,7 @@ class SettingsView(QFrame):
             ("💬  In-App Alerts", [
                 ("Sound on notifications", True),
                 ("Show preview text", True),
-                ("Toast duration", "5 seconds"),
+                ("Toast duration (5s alerts)", True),
             ]),
         ]
         for section_title, items in notifs:
@@ -132,7 +132,6 @@ class SettingsView(QFrame):
             fl = QVBoxLayout(frame)
             fl.setSpacing(8)
             fl.addWidget(QLabel(section_title))
-            fl.addWidget(QLabel(section_title))  # title
             for item, default in items:
                 row = QHBoxLayout()
                 row.addWidget(QLabel(item))
