@@ -239,6 +239,83 @@ export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[]
 }
 
 /**
+ * Auto-reconciles any locally saved contact attempts (e.g. offline WhatsApp / Call shares)
+ * to PostgreSQL /activities if they haven't been persisted to the server.
+ */
+export async function reconcileUnsyncedLocalAttempts(serverActivities: any[]) {
+  if (typeof window === 'undefined') return;
+  const localItems = getLocalContactAttempts();
+  if (!localItems || localItems.length === 0) return;
+
+  const serverSigs = new Set<string>();
+  serverActivities.forEach(a => {
+    const lId = String(a.leadId || '');
+    const cType = String(a.type || a.metadata?.channel || a.metadata?.type || '').toUpperCase();
+    const tMin = a.createdAt ? String(a.createdAt).slice(0, 16) : '';
+    const notePart = (a.description || a.notes || '').slice(0, 30).trim().toLowerCase();
+    serverSigs.add(`${lId}_${cType}_${tMin}`);
+    if (notePart) serverSigs.add(`${lId}_${notePart}`);
+    if (a.id) serverSigs.add(String(a.id));
+  });
+
+  for (const { leadId, attempts } of localItems) {
+    if (!leadId || leadId === '1' || leadId.startsWith('lead_')) continue;
+
+    for (const att of attempts) {
+      if (!att) continue;
+      const attId = String(att.id || '');
+      if (attId.startsWith('act_')) continue;
+
+      const attType = String(att.type || att.sharingMedium || '').toUpperCase();
+      const tMin = att.timestamp ? String(att.timestamp).slice(0, 16) : '';
+      const notePart = (att.notes || att.sentMessage || '').slice(0, 30).trim().toLowerCase();
+
+      const sig1 = `${leadId}_${attType}_${tMin}`;
+      const sig2 = `${leadId}_${notePart}`;
+      if (serverSigs.has(sig1) || (notePart && serverSigs.has(sig2)) || (attId && serverSigs.has(attId))) {
+        continue;
+      }
+
+      // Found an unsynced local attempt — sync to /activities
+      try {
+        const isWA = attType.includes('WA') || attType.includes('WHATSAPP');
+        const isCall = attType.includes('CALL') || attType.includes('PHONE');
+        const isMeeting = attType.includes('MEETING') || att.scheduledType === 'MEETING';
+
+        await apiFetch('/activities', {
+          method: 'POST',
+          body: JSON.stringify({
+            activityType: isCall ? 'CALL' : (isMeeting ? 'MEETING' : 'NOTE'),
+            leadId,
+            notes: att.notes || (isWA ? 'Direct WhatsApp Outreach' : 'Contact attempt logged'),
+            outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
+            metadata: {
+              channel: isWA ? 'WHATSAPP_DIRECT' : (isCall ? 'CALL' : 'DIRECT'),
+              type: att.type || (isWA ? 'WHATSAPP_DIRECT' : 'NOTE'),
+              outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
+              productInterest: att.productInterest,
+              products: att.products || att.metadata?.products,
+              by: att.by || 'Sales Rep',
+              byRole: att.byRole || 'SALES_EXEC',
+              sentMessage: att.sentMessage,
+              durationSeconds: att.durationSeconds || 0,
+              followUpDate: att.followUpDate,
+              followUpTime: att.followUpTime,
+              reconciledFromLocal: true,
+            },
+          }),
+        });
+
+        serverSigs.add(sig1);
+        if (notePart) serverSigs.add(sig2);
+      } catch (err) {
+        console.warn('[goalMetricsEngine] Auto-reconciliation notice:', err);
+      }
+    }
+  }
+}
+
+/**
  * Fetch and build raw unified datasets from all CRM subsystems.
  */
 export async function fetchUnifiedCRMData() {
@@ -329,6 +406,13 @@ export async function fetchUnifiedCRMData() {
 
   // Goals config
   const goalsPayload = results[4].status === 'fulfilled' ? results[4].value : null;
+
+  // Auto-reconcile any local unsynced contact attempts to backend /activities in background
+  if (typeof window !== 'undefined' && rawActivities.length > 0) {
+    try {
+      reconcileUnsyncedLocalAttempts(rawActivities).catch(() => {});
+    } catch (_) {}
+  }
 
   return {
     users: rawUsers,
@@ -447,11 +531,34 @@ export function calculatePerformanceRecords({
       const bothDoc = (cand.type === 'DOCUMENT' && ex.type === 'DOCUMENT') || (Boolean(cand.docNo) && cand.docNo === ex.docNo);
 
       if (bothCall || bothWA || bothMeeting || bothDoc) {
+        const isBothServerActs = cand.id.startsWith('act_') && ex.id.startsWith('act_');
         const exTime = new Date(ex.timestamp || 0).getTime();
         const timeDiff = Math.abs(candTime - exTime);
-        // If within 3 minutes of each other on the same calendar date
-        if (timeDiff <= 3 * 60 * 1000 && cand.dateKey === ex.dateKey) {
-          return true;
+
+        // Content match check
+        const candSnippet = (cand.notes || '').trim().toLowerCase().slice(0, 40);
+        const exSnippet = (ex.notes || '').trim().toLowerCase().slice(0, 40);
+        const sameContent = candSnippet === exSnippet && candSnippet.length > 0;
+        const sameProducts = JSON.stringify(cand.productNames || []) === JSON.stringify(ex.productNames || []);
+
+        if (isBothServerActs) {
+          // If two distinct records in DB, only deduplicate if identical content posted within 15 seconds (rapid click duplicate)
+          if (sameContent && sameProducts && timeDiff <= 15 * 1000) {
+            return true;
+          }
+          return false;
+        }
+
+        // Local attempt vs server activity or local vs local:
+        if (cand.dateKey === ex.dateKey) {
+          if (sameContent && timeDiff <= 60 * 1000) {
+            return true;
+          }
+          if ((cand.id.startsWith('att_') !== ex.id.startsWith('att_')) && timeDiff <= 120 * 1000) {
+            if (sameContent || sameProducts || (!cand.notes && !ex.notes)) {
+              return true;
+            }
+          }
         }
       }
 
@@ -635,9 +742,13 @@ export function calculatePerformanceRecords({
 
     // Match interactions for this user
     const userInteractions = normalizedInteractions.filter(item => {
+      // 1. Direct match by exact userId if available
+      if (item.userId && String(item.userId) === uId) return true;
+      // 2. Match by byName against rep name or email
       if (!item.byName) return false;
-      const bLower = item.byName.toLowerCase();
+      const bLower = item.byName.toLowerCase().trim();
       if (bLower === nameLower || bLower.includes(nameLower) || nameLower.includes(bLower)) return true;
+      if (uEmail && bLower === uEmail.toLowerCase().trim()) return true;
       return false;
     });
 
@@ -814,7 +925,7 @@ export function calculatePerformanceRecords({
       }
 
       if (item.isWaDirect || (item.type === 'WHATSAPP' && !item.isWaCloud)) {
-        const waKey = `WHATSAPP_${leadId}_${minuteStr}`;
+        const waKey = `WHATSAPP_${item.id || leadId}_${item.timestamp || minuteStr}`;
         if (!seenActKeys.has(waKey)) {
           seenActKeys.add(waKey);
           activitiesList.push({
@@ -834,7 +945,7 @@ export function calculatePerformanceRecords({
       }
 
       if (item.productsCount > 0) {
-        const prodKey = `PRODUCT_${leadId}_${minuteStr}`;
+        const prodKey = `PRODUCT_${item.id || leadId}_${item.timestamp || minuteStr}`;
         if (!seenActKeys.has(prodKey)) {
           seenActKeys.add(prodKey);
           const resolvedProducts = (item.productNames && item.productNames.length > 0)
@@ -860,7 +971,7 @@ export function calculatePerformanceRecords({
       }
 
       if (item.isMeeting || item.type === 'MEETING') {
-        const meetKey = `MEETING_${leadId}_${minuteStr}`;
+        const meetKey = `MEETING_${item.id || leadId}_${item.timestamp || minuteStr}`;
         if (!seenActKeys.has(meetKey)) {
           seenActKeys.add(meetKey);
           activitiesList.push({

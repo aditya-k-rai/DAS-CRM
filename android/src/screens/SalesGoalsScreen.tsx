@@ -50,6 +50,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
   const [followUps, setFollowUps] = useState<FollowUpTask[]>([]);
   const [quotations, setQuotations] = useState<any[]>([]);
   const [contactHistoriesMap, setContactHistoriesMap] = useState<Map<string, any[]>>(new Map());
+  const [serverActivities, setServerActivities] = useState<any[]>([]);
 
   // Dynamic Date / Month definitions
   const todayDateStr = useMemo(() => {
@@ -107,12 +108,13 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         }
       } catch (_) {}
 
-      // 2. Fetch remote leads, staff, quotes, and follow-ups concurrently
-      const [lRes, eRes, qRes, fuRes] = await Promise.all([
+      // 2. Fetch remote leads, staff, quotes, follow-ups, and activities concurrently
+      const [lRes, eRes, qRes, fuRes, actRes] = await Promise.all([
         apiService.getLeads(token).catch(() => []),
         apiService.getEmployees(token).catch(() => ({ success: false, employees: [] })),
         apiService.getQuotations(token).catch(() => []),
         followUpSyncEngine.loadAllFollowUps(token, currentUser, []).catch(() => []),
+        apiService.getActivities(token).catch(() => []),
       ]);
 
       const validLeads = Array.isArray(lRes) ? lRes : [];
@@ -124,6 +126,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
 
       setQuotations(Array.isArray(qRes) ? qRes : []);
       setFollowUps(Array.isArray(fuRes) ? fuRes : []);
+      setServerActivities(Array.isArray(actRes) ? actRes : ((actRes as any)?.items || []));
 
       // 3. Scan contact histories from AsyncStorage across all leads
       try {
@@ -299,12 +302,74 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       const repAttempts: any[] = [];
       const seenAttemptIds = new Set<string>();
 
+      // 4a. Ingest Server Activities from PostgreSQL
+      serverActivities.forEach((act) => {
+        const actUserId = String(act.userId || act.user?.id || act.createdBy || '');
+        const actUserRole = String(act.user?.role || act.metadata?.byRole || '').toUpperCase();
+        const actByName = String(
+          (act.user ? `${act.user.firstName || ''} ${act.user.lastName || ''}`.trim() : (act.userName || act.metadata?.by || ''))
+        ).toLowerCase().trim();
+
+        const isUserMatch = (actUserId && (actUserId === repIdStr || actUserId === repEmailLower)) ||
+                            (actByName && (actByName === repNameLower || actByName.includes(repNameLower) || repNameLower.includes(actByName))) ||
+                            (repList.length === 1 && !actUserRole.includes('ADMIN'));
+
+        if (!isUserMatch) return;
+
+        const aType = String(act.type || '').toUpperCase();
+        const aDesc = String(act.description || act.notes || '');
+        const aDescLower = aDesc.toLowerCase();
+        const aChannel = String(act.metadata?.channel || act.metadata?.type || '').toUpperCase();
+        const aOutcome = String(act.metadata?.outcome || act.outcome || '').toUpperCase();
+
+        const isCall = aType === 'CALL' || aDescLower.includes('call') || aChannel.includes('CALL') || aType.includes('CALL');
+        const isWA = aChannel.includes('WA') || aChannel.includes('WHATSAPP') || aDescLower.includes('whatsapp') || aType.includes('WHATSAPP');
+        const isMtg = aType === 'MEETING' || aOutcome === 'MEETING_SCHEDULED' || aDescLower.includes('meeting') || aDescLower.includes('visit');
+
+        const isWaCloud = isWA && (aChannel.includes('CLOUD') || aDescLower.includes('cloud'));
+        const isWaDirect = isWA && !isWaCloud;
+
+        const prodInterest = act.metadata?.productInterest || (act.metadata?.products ? act.metadata.products.join('; ') : '');
+        const hasProd = Boolean(prodInterest || act.metadata?.products?.length || aDescLower.includes('product details shared'));
+        const prodCount = act.metadata?.products?.length || (prodInterest ? prodInterest.split(';').length : (hasProd ? 1 : 0));
+
+        const matchedLead = leads.find(l => String(l.id) === String(act.leadId));
+        const leadName = matchedLead?.name || (matchedLead ? `${(matchedLead as any).firstName || ''} ${(matchedLead as any).lastName || ''}`.trim() : 'Lead Contact');
+
+        const aId = act.id ? `act_${act.id}` : `${act.leadId}_${act.createdAt}_${aType}`;
+        seenAttemptIds.add(aId);
+        const sig = `${act.leadId}_${aType}_${String(act.createdAt).slice(0, 16)}`;
+        seenAttemptIds.add(sig);
+
+        repAttempts.push({
+          id: aId,
+          type: isCall ? 'CALL' : (isWA ? 'WHATSAPP_DIRECT' : (isMtg ? 'MEETING' : aType)),
+          outcome: aOutcome,
+          notes: aDesc,
+          productInterest: prodInterest,
+          productCount: prodCount,
+          timestamp: act.createdAt,
+          leadId: String(act.leadId || ''),
+          leadName,
+          leadPhone: matchedLead?.phone || '—',
+          leadCompany: matchedLead?.company || 'Enterprise Account',
+          isFresh: false,
+          isWaDirect,
+        });
+      });
+
+      // 4b. Ingest Local Contact Attempts from AsyncStorage (merge unsynced/local offline attempts)
       repLeads.forEach(l => {
         const hist = contactHistoriesMap.get(String(l.id)) || [];
         hist.forEach(att => {
+          const aType = String(att.type || att.sharingMedium || '').toUpperCase();
+          const tMin = String(att.timestamp || '').slice(0, 16);
           const aId = att.id || `${l.id}_${att.timestamp || ''}_${att.type || ''}`;
-          if (!seenAttemptIds.has(aId)) {
+          const sig = `${l.id}_${aType}_${tMin}`;
+
+          if (!seenAttemptIds.has(aId) && !seenAttemptIds.has(sig)) {
             seenAttemptIds.add(aId);
+            seenAttemptIds.add(sig);
             repAttempts.push({
               ...att,
               leadId: String(l.id),
@@ -321,9 +386,14 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         attempts.forEach(att => {
           const byStr = (att.by || '').toLowerCase().trim();
           if (byStr && (byStr === repNameLower || byStr.includes(repNameLower))) {
+            const aType = String(att.type || att.sharingMedium || '').toUpperCase();
+            const tMin = String(att.timestamp || '').slice(0, 16);
             const aId = att.id || `${lId}_${att.timestamp || ''}_${att.type || ''}`;
-            if (!seenAttemptIds.has(aId)) {
+            const sig = `${lId}_${aType}_${tMin}`;
+
+            if (!seenAttemptIds.has(aId) && !seenAttemptIds.has(sig)) {
               seenAttemptIds.add(aId);
+              seenAttemptIds.add(sig);
               const matchedLead = leads.find(l => String(l.id) === String(lId));
               repAttempts.push({
                 ...att,
@@ -363,9 +433,10 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         const aNotes = (att.notes || '').toLowerCase();
 
         const isCall = aType.includes('CALL') || aType.includes('PHONE') || aOutcome.includes('CALL') || aNotes.includes('call');
-        const isWA = aType.includes('WHATSAPP') || aType.includes('WA_') || aNotes.includes('whatsapp');
+        const isWA = aType.includes('WHATSAPP') || aType.includes('WA_') || aNotes.includes('whatsapp') || att.isWaDirect;
         const isMtg = aType.includes('MEETING') || aType.includes('VISIT') || aOutcome.includes('MEETING') || aNotes.includes('meeting');
-        const isProd = !!att.productInterest || (att.products && att.products.length > 0) || aNotes.includes('product') || aNotes.includes('catalog');
+        const isProd = !!att.productInterest || (att.products && att.products.length > 0) || aNotes.includes('product') || aNotes.includes('catalog') || (att.productCount && att.productCount > 0);
+        const prodInc = att.productCount || (att.products && att.products.length > 0 ? att.products.length : (isProd ? 1 : 0));
 
         const isFresh = att.callSubtype === 'FRESH' || aNotes.includes('fresh') || aNotes.includes('discovery') || aNotes.includes('first call');
 
@@ -377,7 +448,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           }
           if (isWA) dateWhatsappTotal++;
           if (isMtg) dateMeetingsCount++;
-          if (isProd) dateProductsShared++;
+          if (isProd) dateProductsShared += prodInc;
         }
 
         if (isCurrentMonth) {
@@ -388,7 +459,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           }
           if (isWA) monthlyWhatsappTotal++;
           if (isMtg) monthlyMeetingsCount++;
-          if (isProd) monthlyProductsShared++;
+          if (isProd) monthlyProductsShared += prodInc;
         }
       });
 

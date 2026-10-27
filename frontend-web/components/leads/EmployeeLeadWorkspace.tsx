@@ -1621,7 +1621,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       method: 'POST',
       body: JSON.stringify({
         activityType: 'DOCUMENT',
-        leadId: lead.id,
+        leadId: effectiveLeadId,
+        userId: currentUser?.id,
         notes: `${docTypeLabel} #${docNo} (${amountFormatted}) shared via ${sharingMediumLabel}`,
         outcome: isInvoice ? 'INVOICE_SHARED' : 'QUOTATION_SHARED',
         metadata: {
@@ -1629,10 +1630,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           docType: isInvoice ? 'INVOICE' : 'QUOTATION',
           totalAmount: selectedQuoteInvoice.totalAmount,
           sharingMedium: sharingMediumLabel,
+          channel: sharingMediumLabel.toLowerCase().includes('whatsapp') ? 'WHATSAPP_DIRECT' : sharingMediumLabel,
           sharingMode: quoteSharingMode,
+          userId: currentUser?.id,
           by: currentUser?.name || lead.owner,
+          byRole: (currentUser?.role || 'SALES_EXEC').toUpperCase(),
         },
       }),
+    }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('das_crm_activities_updated'));
+      }
     }).catch((e) => console.warn('Activity log sync notice:', e));
 
     setShowQuoteInvoiceModal(false);
@@ -2122,12 +2130,19 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       return next;
     });
 
+    const effectiveLeadId = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
+      ? lead.id
+      : (leadId && leadId !== '1' && !leadId.startsWith('lead_')
+        ? leadId
+        : (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('das_crm_active_lead') || '{}').id || lead.id || '1') : (lead.id || '1')));
+
     // 4. Persist to PostgreSQL Activity Table via Backend API
     apiFetch('/activities', {
       method: 'POST',
       body: JSON.stringify({
         activityType: 'NOTE',
-        leadId: lead.id,
+        leadId: effectiveLeadId,
+        userId: currentUser?.id,
         notes: `Product details shared via WhatsApp: ${productInterestFormatted}`,
         outcome: 'WA_SENT',
         metadata: {
@@ -2136,10 +2151,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           outcome: 'WA_SENT',
           productInterest: productInterestFormatted,
           sentMessage: finalMsg,
+          userId: currentUser?.id,
           by: currentUser?.name || lead.owner || 'Sales Rep',
           byRole: cleanRole,
         },
       }),
+    }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('das_crm_activities_updated'));
+      }
     }).catch(e => console.warn('Activity log notice for WhatsApp product share:', e));
 
     // 5. Update Lead Requirement / Product in state & localStorage
@@ -2471,7 +2491,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       method: 'POST',
       body: JSON.stringify({
         activityType: 'CALL',
-        leadId: lead.id,
+        leadId: effectiveLeadId,
+        userId: currentUser?.id,
         notes: callResponseNotes || dispositionSummaryTitle,
         durationSeconds: callDuration,
         durationMin: Math.ceil(callDuration / 60),
@@ -2483,6 +2504,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           durationSeconds: callDuration,
           productInterest: callProductInterest,
           notes: callResponseNotes || dispositionSummaryTitle,
+          userId: currentUser?.id,
           by: currentUser?.name || lead.owner || 'Sales Rep',
           byRole: cleanRole,
           followUpDate: autoQueueFollowUp ? funnelScheduledDate : undefined,
@@ -2490,6 +2512,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           audioRecordingAvailable: callDuration > 10,
         },
       }),
+    }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('das_crm_activities_updated'));
+      }
     }).catch(e => console.warn('Could not persist call activity:', e));
 
     if (productInterestLogged) {
@@ -3402,10 +3428,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       body: JSON.stringify({
         activityType: isScheduled ? (isMeeting ? 'MEETING' : 'NOTE') : 'NOTE',
         leadId: effectiveLeadId,
+        userId: currentUser?.id,
         notes: `WhatsApp Direct (${effectiveTitle}): Status → ${effectiveTargetStatus}${isScheduled ? ` [Scheduled ${directScheduleType} for ${meetingScheduledDate} at ${meetingScheduledTime}]` : ''}${waDirectNotes ? ` — ${waDirectNotes}` : ''}`,
         outcome: newContactAttempt.outcome,
         metadata: {
-          channel: 'WHATSAPP',
+          channel: 'WHATSAPP_DIRECT',
           type: newContactAttempt.type,
           outcome: newContactAttempt.outcome,
           productInterest: activeProductInterest,
@@ -3421,10 +3448,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           docAmount: newContactAttempt.docAmount,
           sentMessage: finalMsg,
           notes: newContactAttempt.notes,
+          userId: currentUser?.id,
           by: currentUser?.name || lead.owner,
           byRole: cleanRole,
         },
       }),
+    }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('das_crm_activities_updated'));
+      }
     }).catch(() => {});
 
     // 7. Record SyncedActivityLog

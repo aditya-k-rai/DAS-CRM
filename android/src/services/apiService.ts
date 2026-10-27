@@ -1420,10 +1420,28 @@ class ApiService {
     return [];
   }
 
+  async getActivities(token: string | null, limit = 1000): Promise<any[]> {
+    try {
+      const res = await fetchWithFailover(`/activities?limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res && res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data?.items || data?.activities || []);
+      }
+    } catch (e) {
+      console.warn('[apiService] getActivities error:', e);
+    }
+    return [];
+  }
+
   async logLeadActivity(token: string | null, activityData: any): Promise<boolean> {
     try {
-      const activeBase = getApiBase();
-      const res = await fetch(`${activeBase}/activities`, {
+      const res = await fetchWithFailover('/activities', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1431,8 +1449,16 @@ class ApiService {
         },
         body: JSON.stringify(activityData),
       });
-      return res.ok;
+      if (res && res.ok) return true;
     } catch {}
+    try {
+      await offlineSyncEngine.enqueue({
+        action: 'GENERIC_MUTATION',
+        endpoint: '/activities',
+        method: 'POST',
+        payload: activityData,
+      });
+    } catch (_) {}
     return true;
   }
 

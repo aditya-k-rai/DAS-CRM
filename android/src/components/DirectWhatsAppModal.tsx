@@ -531,18 +531,24 @@ export const DirectWhatsAppModal: React.FC<DirectWhatsAppModalProps> = ({
     // Persist activity to backend
     apiService.logLeadActivity(token, {
       leadId,
-      activityType: 'WHATSAPP',
+      userId: currentUser?.id,
+      activityType: 'NOTE',
       subject: `Direct WhatsApp (${isCustomMode ? customTitle : selectedTemplate?.title || category})`,
       notes: additionalNotes ? `WhatsApp Direct: ${additionalNotes}` : `WhatsApp Direct sent to ${leadName}`,
       outcome: 'WA_SENT',
       metadata: {
+        type: 'WHATSAPP_DIRECT',
         channel: 'WHATSAPP_DIRECT',
+        outcome: 'WA_SENT',
         sentMessage: finalMsg,
         productInterest: activeProductInterest,
         category,
         targetStatus: effectiveStatus,
         docNo: selectedInvoice?.quoteNumber,
         docAmount: selectedInvoice?.totalAmount || (proposalGrandTotal > 0 ? proposalGrandTotal : undefined),
+        userId: currentUser?.id,
+        by: currentUser?.name || 'Sales Rep',
+        byRole: (currentUser?.role || 'SALES_EXEC').toUpperCase(),
       },
     }).catch(() => {});
 

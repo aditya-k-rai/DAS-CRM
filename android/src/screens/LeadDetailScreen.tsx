@@ -853,6 +853,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       apiService.logLeadActivity(token, {
         activityType: 'NOTE',
         leadId,
+        userId: currentUser?.id,
         notes: prodInterestString ? `Product details shared via WhatsApp: ${prodInterestString}` : (data.notes || 'Product details shared via WhatsApp Direct'),
         subject: 'WHATSAPP_DIRECT',
         outcome: 'WA_SENT',
@@ -868,6 +869,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           sentMessage: data.sentMessage,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
         },
@@ -877,6 +879,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       apiService.logLeadActivity(token, {
         activityType: 'CALL',
         leadId,
+        userId: currentUser?.id,
         notes: data.notes || (callProductInterest ? `Talked with client: Discussed ${callProductInterest}` : `Call completed: ${data.outcome}`),
         subject: data.subOption || 'Call Outreach',
         outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
@@ -890,6 +893,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           productInterest: undefined,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
         },
@@ -899,6 +903,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       apiService.logLeadActivity(token, {
         activityType: 'CALL',
         leadId,
+        userId: currentUser?.id,
         notes: data.notes || `Outcome: ${data.outcome} - ${data.subOption || 'Call'}`,
         subject: data.subOption || 'Call Outreach',
         outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
@@ -911,6 +916,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           productInterest: prodInterestString,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
         },
@@ -920,6 +926,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       apiService.logLeadActivity(token, {
         activityType: 'NOTE',
         leadId,
+        userId: currentUser?.id,
         notes: data.notes || 'WhatsApp Direct communication logged',
         subject: 'WHATSAPP_DIRECT',
         outcome: 'WA_SENT',
@@ -934,6 +941,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           sentMessage: data.sentMessage,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
         },
