@@ -97,10 +97,13 @@ export class FollowUpsService {
     if (task.dueAt) {
       const now = new Date();
       const dueTime = new Date(task.dueAt);
-      if (dueTime < now) return 'OVERDUE';
-      // Due within 30 minutes
-      const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000);
-      if (dueTime <= thirtyMinFromNow) return 'DUE';
+      if (!isNaN(dueTime.getTime())) {
+        // Follow-up transitions to OVERDUE only after 2 minutes have crossed
+        if (now.getTime() > dueTime.getTime() + 2 * 60 * 1000) return 'OVERDUE';
+        // Due within 30 minutes before up to 2 minutes after
+        const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+        if (dueTime <= thirtyMinFromNow) return 'DUE';
+      }
     }
     return 'PENDING';
   }
@@ -206,7 +209,7 @@ export class FollowUpsService {
       if (status === 'OVERDUE') {
         where.isCompleted = false;
         where.status = { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] };
-        where.dueAt = { lt: now };
+        where.dueAt = { lt: new Date(now.getTime() - 2 * 60 * 1000) };
       } else if (status === 'TODAY') {
         where.dueAt = { gte: todayStart, lte: todayEnd };
       } else if (status === 'UPCOMING' || status === 'PENDING') {
@@ -828,7 +831,7 @@ export class FollowUpsService {
             ...base,
             isCompleted: false,
             status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] },
-            dueAt: { lt: now },
+            dueAt: { lt: new Date(now.getTime() - 2 * 60 * 1000) },
           },
         }),
         this.prisma.task.count({

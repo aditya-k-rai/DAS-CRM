@@ -263,6 +263,114 @@ export default function FollowUpsModule() {
     router.push(`/leads/${encodeURIComponent(leadId)}`);
   };
 
+  /**
+   * Robust date/time parser that converts any human date ('Tue, 27 Oct', '27 Oct', YYYY-MM-DD, ISO)
+   * and time ('09:30 AM', '14:00') into unambiguous canonical ISO strings and formatted parts.
+   */
+  const parseDateAndTimeToIso = (dateStr?: string, timeStr?: string): {
+    dueAtIso: string;
+    scheduledDateStr: string;
+    scheduledTimeStr: string;
+  } => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const monthNames: Record<string, number> = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    };
+
+    let hours = 10;
+    let minutes = 30;
+
+    if (timeStr && typeof timeStr === 'string') {
+      const isPM = /pm/i.test(timeStr);
+      const isAM = /am/i.test(timeStr);
+      const cleanTime = timeStr.replace(/[^\d:]/g, '');
+      const parts = cleanTime.split(':');
+      if (parts.length >= 2) {
+        let h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        hours = Math.min(23, Math.max(0, h));
+        minutes = Math.min(59, Math.max(0, m));
+      }
+    }
+
+    let finalDate = new Date();
+
+    if (dateStr && typeof dateStr === 'string') {
+      const trimmed = dateStr.trim();
+      if (trimmed.includes('T')) {
+        const parsedIso = new Date(trimmed);
+        if (!isNaN(parsedIso.getTime())) {
+          finalDate = parsedIso;
+          if (!timeStr) {
+            hours = finalDate.getHours();
+            minutes = finalDate.getMinutes();
+          }
+        }
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+        const [y, m, d] = trimmed.slice(0, 10).split('-').map(Number);
+        finalDate = new Date(y, m - 1, d, hours, minutes, 0);
+      } else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(trimmed)) {
+        const parts = trimmed.split('/');
+        finalDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), hours, minutes, 0);
+      } else {
+        // Strip day of week prefix like 'Tue, ' or 'Tuesday '
+        const clean = trimmed.replace(/^(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*[,\s]*/i, '').replace(/@.*$/, '').trim();
+        // Match '27 Oct' or '27 Oct 2026' or '27 October 2026'
+        const m1 = clean.match(/^(\d{1,2})\s+([a-zA-Z]+)(?:\s+(\d{4}))?/);
+        if (m1) {
+          const day = parseInt(m1[1], 10);
+          const mon = monthNames[m1[2].slice(0, 3).toLowerCase()];
+          const yr = m1[3] ? parseInt(m1[3], 10) : currentYear;
+          if (mon !== undefined) {
+            finalDate = new Date(yr, mon, day, hours, minutes, 0);
+          }
+        } else {
+          // Match 'Oct 27' or 'Oct 27, 2026'
+          const m2 = clean.match(/^([a-zA-Z]+)\s+(\d{1,2})(?:,?\s+(\d{4}))?/);
+          if (m2) {
+            const mon = monthNames[m2[1].slice(0, 3).toLowerCase()];
+            const day = parseInt(m2[2], 10);
+            const yr = m2[3] ? parseInt(m2[3], 10) : currentYear;
+            if (mon !== undefined) {
+              finalDate = new Date(yr, mon, day, hours, minutes, 0);
+            }
+          } else {
+            const direct = new Date(clean);
+            if (!isNaN(direct.getTime())) {
+              finalDate = direct;
+              finalDate.setHours(hours, minutes, 0, 0);
+            }
+          }
+        }
+      }
+    }
+
+    finalDate.setHours(hours, minutes, 0, 0);
+    if (isNaN(finalDate.getTime())) {
+      finalDate = new Date();
+      finalDate.setHours(hours, minutes, 0, 0);
+    }
+
+    const yyyy = finalDate.getFullYear();
+    const mm = String(finalDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(finalDate.getDate()).padStart(2, '0');
+    const canonicalDateStr = `${yyyy}-${mm}-${dd}`;
+
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const canonicalTimeStr = `${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+
+    return {
+      dueAtIso: finalDate.toISOString(),
+      scheduledDateStr: canonicalDateStr,
+      scheduledTimeStr: timeStr || canonicalTimeStr,
+    };
+  };
+
   const computeLocalStatus = (task: any): string => {
     if (task.status === 'CANCELLED') return 'CANCELLED';
     if (task.status === 'MISSED') return 'MISSED';
@@ -273,7 +381,8 @@ export default function FollowUpsModule() {
       const dueDate = new Date(due);
       const now = new Date();
       if (!isNaN(dueDate.getTime())) {
-        if (dueDate < now) return 'OVERDUE';
+        // Follow-up transitions to OVERDUE only after 2 minutes have elapsed past the scheduled time
+        if (now.getTime() > dueDate.getTime() + 2 * 60 * 1000) return 'OVERDUE';
         const thirtyMin = new Date(now.getTime() + 30 * 60 * 1000);
         if (dueDate <= thirtyMin) return 'DUE';
         return 'PENDING';
@@ -333,10 +442,13 @@ export default function FollowUpsModule() {
                     const leadName = matchedLead?.name || (matchedLead ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim() : '') || 'Lead Contact';
                     const leadPhone = matchedLead?.phone || att.phone || '';
                     const isMeeting = att.outcome === 'MEETING_SCHEDULED' || att.scheduledType === 'MEETING' || /meeting|visit|in-person/i.test(att.notes || '');
-                    const exists = filtered.some((f: any) => (f.leadId === leadIdKey || f.lead?.id === leadIdKey) && (f.dueAt?.includes(att.followUpDate) || f.scheduledDate === att.followUpDate));
+                    
+                    const { dueAtIso, scheduledDateStr, scheduledTimeStr } = parseDateAndTimeToIso(att.followUpDate, att.followUpTime);
+
+                    const exists = filtered.some((f: any) => (f.leadId === leadIdKey || f.lead?.id === leadIdKey) && (f.dueAt === dueAtIso || f.scheduledDate === scheduledDateStr || f.dueAt?.includes(scheduledDateStr)));
                     if (!exists) {
                       filtered.push({
-                        id: `synth_${att.id || leadIdKey}_${att.followUpDate}`,
+                        id: `synth_${att.id || leadIdKey}_${scheduledDateStr}`,
                         title: isMeeting ? `🏢 In-Person / Virtual Visit: ${leadName}${leadPhone ? ` (${leadPhone})` : ''}` : `📞 Callback: ${leadName}${leadPhone ? ` (${leadPhone})` : ''}`,
                         leadId: leadIdKey,
                         lead: {
@@ -351,9 +463,9 @@ export default function FollowUpsModule() {
                             color: isMeeting ? '#a855f7' : '#38bdf8',
                           },
                         },
-                        scheduledDate: att.followUpDate,
-                        scheduledTime: att.followUpTime || '11:30',
-                        dueAt: `${att.followUpDate}T${att.followUpTime || '11:30'}:00`,
+                        scheduledDate: scheduledDateStr,
+                        scheduledTime: scheduledTimeStr,
+                        dueAt: dueAtIso,
                         followUpType: isMeeting ? 'MEETING' : (att.scheduledType || 'CALL'),
                         priority: 'HIGH',
                         status: 'PENDING',
@@ -387,7 +499,11 @@ export default function FollowUpsModule() {
     const cleanType = (item.followUpType || 'CALL').toUpperCase();
     const candidateId = String(item.lead?.id || item.leadId || '');
     const titleRaw = item.title || '';
-    const dueTime = item.dueAt || (item.scheduledDate ? `${item.scheduledDate}T${item.scheduledTime || '10:30'}:00` : new Date().toISOString());
+    const { dueAtIso, scheduledDateStr, scheduledTimeStr } = parseDateAndTimeToIso(
+      item.dueAt || item.scheduledDate,
+      item.scheduledTime
+    );
+    const dueTime = dueAtIso;
 
     // 1. Resolve Lead Name
     let leadName = '';
@@ -513,8 +629,8 @@ export default function FollowUpsModule() {
       computedStatus: computeLocalStatus({ ...item, dueAt: dueTime }),
       purpose: item.purpose || item.notes || item.description || item.title,
       dueAt: dueTime,
-      scheduledDate: item.scheduledDate,
-      scheduledTime: item.scheduledTime,
+      scheduledDate: scheduledDateStr || item.scheduledDate,
+      scheduledTime: scheduledTimeStr || item.scheduledTime,
       createdAt: item.createdAt || new Date().toISOString(),
       isCompleted: item.status === 'COMPLETED' || item.isCompleted,
 
@@ -617,10 +733,15 @@ export default function FollowUpsModule() {
 
   const loadSummary = async () => {
     try {
-      const serverSummary = await fetchApi('/follow-ups/summary', token).catch(() => null);
+      const [serverSummary, serverFollowUps] = await Promise.all([
+        fetchApi('/follow-ups/summary', token).catch(() => null),
+        fetchApi('/follow-ups?limit=100', token).catch(() => null),
+      ]);
+      const serverItems = Array.isArray(serverFollowUps) ? serverFollowUps : (serverFollowUps?.data || serverFollowUps?.items || []);
       const local = getLocalCachedFollowUps();
-      const allItems = mergeServerAndLocal([], local);
+      const allItems = mergeServerAndLocal(serverItems, local);
       const now = new Date();
+      const nowMs = now.getTime();
       const todayStr = now.toISOString().split('T')[0];
 
       let todayCount = 0;
@@ -639,14 +760,13 @@ export default function FollowUpsModule() {
           completedCount++;
           if (itemDateStr === todayStr) completedTodayCount++;
         } else {
-          // All active uncompleted follow-ups
-          if (itemDateStr === todayStr || status === 'DUE') {
-            todayCount++;
-          }
-          if (status === 'OVERDUE' || (itemDate && itemDate < now)) {
+          // 2-minute grace period rule for Overdue:
+          const isOverdue = status === 'OVERDUE' || (itemDate && !isNaN(itemDate.getTime()) && nowMs > itemDate.getTime() + 2 * 60 * 1000);
+          if (isOverdue) {
             overdueCount++;
-          }
-          if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
+          } else if (itemDateStr === todayStr || status === 'DUE') {
+            todayCount++;
+          } else if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
             upcomingCount++;
           }
         }
@@ -656,33 +776,21 @@ export default function FollowUpsModule() {
         else normP++;
       });
 
-      if (serverSummary && typeof serverSummary === 'object' && typeof serverSummary.total === 'number') {
-        const finalToday = serverSummary.today !== undefined ? serverSummary.today : todayCount;
-        const finalOverdue = Math.max(serverSummary.overdue ?? 0, overdueCount);
-        setSummary({
-          total: Math.max(serverSummary.total ?? 0, allItems.length),
-          today: finalToday,
-          upcoming: serverSummary.upcoming ?? upcomingCount,
-          overdue: finalOverdue,
-          completed: serverSummary.completed ?? completedCount,
-          completedToday: serverSummary.completedToday ?? completedTodayCount,
-          priority: {
-            high: serverSummary.priority?.high ?? highP,
-            medium: serverSummary.priority?.medium ?? medP,
-            normal: serverSummary.priority?.normal ?? normP,
-          },
-        });
-      } else {
-        setSummary({
-          total: allItems.length,
-          today: todayCount,
-          upcoming: upcomingCount,
-          overdue: overdueCount,
-          completed: completedCount,
-          completedToday: completedTodayCount,
-          priority: { high: highP, medium: medP, normal: normP },
-        });
-      }
+      const totalCount = Math.max(allItems.length, serverSummary?.total ?? 0);
+
+      setSummary({
+        total: totalCount,
+        today: Math.max(todayCount, serverSummary?.today ?? 0),
+        upcoming: Math.max(upcomingCount, serverSummary?.upcoming ?? 0),
+        overdue: Math.max(overdueCount, serverSummary?.overdue ?? 0),
+        completed: Math.max(completedCount, serverSummary?.completed ?? 0),
+        completedToday: Math.max(completedTodayCount, serverSummary?.completedToday ?? 0),
+        priority: {
+          high: Math.max(highP, serverSummary?.priority?.high ?? 0),
+          medium: Math.max(medP, serverSummary?.priority?.medium ?? 0),
+          normal: Math.max(normP, serverSummary?.priority?.normal ?? 0),
+        },
+      });
     } catch (err) {
       console.warn('Follow-up summary fetch notice:', err);
     }
@@ -762,6 +870,34 @@ export default function FollowUpsModule() {
 
       let merged = mergeServerAndLocal(serverItems, local);
 
+      // Auto-sync un-persisted local/contact-history followups to backend so Mobile App has full parity
+      local.forEach(async (locItem) => {
+        if (locItem && locItem.id && String(locItem.id).startsWith('synth_')) {
+          const isAlreadyOnServer = serverItems.some((s: any) =>
+            String(s.id) === String(locItem.id) ||
+            ((s.leadId === locItem.leadId || s.lead?.id === locItem.leadId) && (s.dueAt?.slice(0, 10) === locItem.scheduledDate || s.scheduledDate === locItem.scheduledDate))
+          );
+          if (!isAlreadyOnServer) {
+            try {
+              await fetchApi('/follow-ups', token, {
+                method: 'POST',
+                body: JSON.stringify({
+                  title: locItem.title,
+                  followUpType: locItem.followUpType || 'CALL',
+                  leadId: locItem.leadId,
+                  scheduledDate: locItem.scheduledDate,
+                  scheduledTime: locItem.scheduledTime,
+                  dueAt: locItem.dueAt,
+                  priority: locItem.priority || 'HIGH',
+                  purpose: locItem.purpose,
+                  notes: locItem.purpose,
+                }),
+              });
+            } catch (_) {}
+          }
+        }
+      });
+
       if (statusFilter) {
         if (statusFilter === 'COMPLETED') {
           merged = merged.filter(i => i && (i.isCompleted || (i.computedStatus || i.status) === 'COMPLETED'));
@@ -772,7 +908,7 @@ export default function FollowUpsModule() {
             if (st === 'COMPLETED' || st === 'CANCELLED') return false;
             if (st === 'OVERDUE' || st === 'MISSED') return true;
             const d = i.dueAt ? new Date(i.dueAt) : null;
-            return Boolean(d && !isNaN(d.getTime()) && d < new Date());
+            return Boolean(d && !isNaN(d.getTime()) && Date.now() > d.getTime() + 2 * 60 * 1000);
           });
         } else if (statusFilter === 'UPCOMING' || statusFilter === 'PENDING') {
           const todayIso = new Date().toISOString().split('T')[0];
@@ -787,7 +923,15 @@ export default function FollowUpsModule() {
         }
       }
 
-      setAllData(merged.filter(Boolean));
+      const filteredResult = merged.filter(Boolean);
+      setAllData(filteredResult);
+
+      if (!statusFilter) {
+        setSummary((prev: any) => ({
+          ...prev,
+          total: Math.max(prev.total ?? 0, filteredResult.length),
+        }));
+      }
     } catch (err) {
       console.warn('Follow-ups fetch notice:', err);
     } finally {
@@ -1935,12 +2079,13 @@ function FollowUpCard({
       : 'border-l-4 border-l-slate-700';
 
   const dueTime = item.dueAt ? new Date(item.dueAt) : null;
-  const timeFormatted = dueTime
-    ? dueTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
-    : 'No time';
-  const dateFormatted = dueTime
-    ? dueTime.toLocaleDateString([], { month: 'short', day: 'numeric' })
-    : '';
+  const isDueTimeValid = Boolean(dueTime && !isNaN(dueTime.getTime()));
+  const timeFormatted = isDueTimeValid
+    ? dueTime!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+    : (item.scheduledTime || 'No time');
+  const dateFormatted = isDueTimeValid
+    ? dueTime!.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    : (item.scheduledDate || 'Scheduled');
 
   const createdTime = item.createdAt ? new Date(item.createdAt) : null;
   const createdTimeFormatted = createdTime
@@ -2162,9 +2307,11 @@ function FollowUpDetails({
   const detailFollowUpType = (item.followUpType || '').toUpperCase();
   const resolvedLeadStatus = item.lead?.status?.name || (typeof item.lead?.status === 'string' ? item.lead.status : (item.leadStatus || (detailFollowUpType === 'MEETING' ? 'Meeting Scheduled' : 'Active Prospect')));
 
-  const scheduledDateFormatted = item.dueAt
-    ? new Date(item.dueAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-    : 'Not Set';
+  const dueDetail = item.dueAt ? new Date(item.dueAt) : null;
+  const isDueDetailValid = Boolean(dueDetail && !isNaN(dueDetail.getTime()));
+  const scheduledDateFormatted = isDueDetailValid
+    ? dueDetail!.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+    : (item.scheduledDate ? `${item.scheduledDate} ${item.scheduledTime || ''}`.trim() : 'Not Set');
 
   const createdAtFormatted = item.createdAt
     ? new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })

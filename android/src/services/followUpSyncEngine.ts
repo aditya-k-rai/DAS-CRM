@@ -113,22 +113,46 @@ export function parseDateAndTimeToIso(dateStr?: string, timeStr?: string): {
       const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
       finalDate = new Date(y, m - 1, d, hours, minutes, 0);
     } else {
-      // e.g. 'Tue, 27 Oct' or '27 Oct' or 'Tue, 27 Oct @09:30 AM'
-      let candidate = dateStr.replace(/@.*$/, '').trim();
-      // If year is not mentioned, append current year
-      if (!new RegExp(`\\b${currentYear}\\b`).test(candidate)) {
-        candidate = `${candidate} ${currentYear}`;
-      }
-      const testParsed = new Date(
-        `${candidate} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`
-      );
-      if (!isNaN(testParsed.getTime())) {
-        finalDate = testParsed;
+      const monthNames: Record<string, number> = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+      };
+      // Strip day of week like 'Tue, ' or 'Tuesday '
+      const clean = dateStr.replace(/^(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*[,\s]*/i, '').replace(/@.*$/, '').trim();
+      const m1 = clean.match(/^(\d{1,2})\s+([a-zA-Z]+)(?:\s+(\d{4}))?/);
+      if (m1) {
+        const day = parseInt(m1[1], 10);
+        const mon = monthNames[m1[2].slice(0, 3).toLowerCase()];
+        const yr = m1[3] ? parseInt(m1[3], 10) : currentYear;
+        if (mon !== undefined) {
+          finalDate = new Date(yr, mon, day, hours, minutes, 0);
+        }
       } else {
-        const direct = new Date(candidate);
-        if (!isNaN(direct.getTime())) {
-          finalDate = direct;
-          finalDate.setHours(hours, minutes, 0, 0);
+        const m2 = clean.match(/^([a-zA-Z]+)\s+(\d{1,2})(?:,?\s+(\d{4}))?/);
+        if (m2) {
+          const mon = monthNames[m2[1].slice(0, 3).toLowerCase()];
+          const day = parseInt(m2[2], 10);
+          const yr = m2[3] ? parseInt(m2[3], 10) : currentYear;
+          if (mon !== undefined) {
+            finalDate = new Date(yr, mon, day, hours, minutes, 0);
+          }
+        } else {
+          let candidate = dateStr.replace(/@.*$/, '').trim();
+          if (!new RegExp(`\\b${currentYear}\\b`).test(candidate)) {
+            candidate = `${candidate} ${currentYear}`;
+          }
+          const testParsed = new Date(
+            `${candidate} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`
+          );
+          if (!isNaN(testParsed.getTime())) {
+            finalDate = testParsed;
+          } else {
+            const direct = new Date(candidate);
+            if (!isNaN(direct.getTime())) {
+              finalDate = direct;
+              finalDate.setHours(hours, minutes, 0, 0);
+            }
+          }
         }
       }
     }

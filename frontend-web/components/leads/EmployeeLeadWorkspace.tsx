@@ -2789,7 +2789,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
          meetingScheduledTime.includes('04:00') ? '16:00' :
          meetingScheduledTime.includes('06:00') ? '18:00' : '11:30');
 
-    const dueAtIso = `${meetingScheduledDate}T${cleanTime}:00`;
+    let parsedDueAt = new Date(`${meetingScheduledDate}T${cleanTime}:00`);
+    if (isNaN(parsedDueAt.getTime())) {
+      const yr = new Date().getFullYear();
+      let cand = meetingScheduledDate.replace(/^(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*[,\s]*/i, '').replace(/@.*$/, '').trim();
+      if (!new RegExp(`\\b${yr}\\b`).test(cand)) cand = `${cand} ${yr}`;
+      parsedDueAt = new Date(`${cand} ${cleanTime}:00`);
+    }
+    const dueAtIso = !isNaN(parsedDueAt.getTime()) ? parsedDueAt.toISOString() : new Date().toISOString();
+    const canonicalScheduledDate = !isNaN(parsedDueAt.getTime()) ? parsedDueAt.toISOString().split('T')[0] : meetingScheduledDate;
     const repName = lead.owner || (lead as any).assignedRep || currentUser?.name || 'Sales Rep';
 
     const effectiveTitle = isCustomTemplateMode
@@ -2811,7 +2819,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       leadPhone: lead.phone,
       leadEmail: lead.email,
       leadStatus: updatedStatus,
-      scheduledDate: meetingScheduledDate,
+      scheduledDate: canonicalScheduledDate,
       scheduledTime: meetingScheduledTime,
       dueAt: dueAtIso,
       priority: 'HIGH',

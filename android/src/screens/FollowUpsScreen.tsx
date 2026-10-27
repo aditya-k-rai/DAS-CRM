@@ -165,9 +165,10 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
 
   const summary = useMemo(() => {
     const now = new Date();
+    const nowMs = now.getTime();
+    const twoMinutesAgoMs = nowMs - 2 * 60 * 1000;
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const todayEnd = todayStart + 24 * 60 * 60 * 1000;
-    const nowMs = now.getTime();
 
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -185,15 +186,19 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         return;
       }
       const dueTime = new Date(t.dueAt).getTime();
-      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : '';
+      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : (t.scheduledDate || '');
+      // Transitions to OVERDUE only after 2 minutes have crossed
+      const isPastDue = !isNaN(dueTime) && dueTime < twoMinutesAgoMs;
 
-      const isToday = taskDateIso === todayIsoDate || (dueTime >= todayStart && dueTime < todayEnd);
-      const isPastDue = !isNaN(dueTime) && dueTime < nowMs;
-
-      if (isToday) todayCount++;
-      if (isPastDue) overdueCount++;
-      if (taskDateIso > todayIsoDate || (!isToday && !isPastDue && dueTime >= todayEnd)) {
-        upcomingCount++;
+      if (isPastDue) {
+        overdueCount++;
+      } else {
+        const isScheduledToday = taskDateIso === todayIsoDate || (!isNaN(dueTime) && dueTime >= todayStart && dueTime < todayEnd);
+        if (isScheduledToday) {
+          todayCount++;
+        } else if (taskDateIso > todayIsoDate || (!isNaN(dueTime) && dueTime >= todayEnd)) {
+          upcomingCount++;
+        }
       }
     });
 
@@ -214,9 +219,10 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
 
   const filteredTasks = useMemo(() => {
     const now = new Date();
+    const nowMs = now.getTime();
+    const twoMinutesAgoMs = nowMs - 2 * 60 * 1000;
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const todayEnd = todayStart + 24 * 60 * 60 * 1000;
-    const nowMs = now.getTime();
 
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -225,15 +231,16 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
 
     return tasks.filter((t) => {
       const taskTime = new Date(t.dueAt).getTime();
-      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : '';
-      const isToday = taskDateIso === todayIsoDate || (taskTime >= todayStart && taskTime < todayEnd);
-      const isPastDue = !isNaN(taskTime) && taskTime < nowMs;
-      const isUpcoming = taskDateIso > todayIsoDate || taskTime >= todayEnd;
+      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : (t.scheduledDate || '');
+      // Overdue after 2 minutes past due time
+      const isPastDue = !isNaN(taskTime) && taskTime < twoMinutesAgoMs;
+      const isScheduledToday = !isPastDue && (taskDateIso === todayIsoDate || (!isNaN(taskTime) && taskTime >= todayStart && taskTime < todayEnd));
+      const isUpcoming = !isPastDue && (taskDateIso > todayIsoDate || (!isNaN(taskTime) && taskTime >= todayEnd));
 
       // Tab filter
       if (activeTab === 'TODAY') {
         if (t.isCompleted) return false;
-        if (!isToday) return false;
+        if (!isScheduledToday) return false;
       } else if (activeTab === 'UPCOMING') {
         if (t.isCompleted) return false;
         if (!isUpcoming) return false;
@@ -243,6 +250,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
       } else if (activeTab === 'COMPLETED') {
         if (!t.isCompleted) return false;
       }
+      // 'ALL' tab includes all tasks regardless of completed/pending status
 
       // Channel filter
       if (activeChannel !== 'ALL' && t.channel !== activeChannel) {
@@ -566,6 +574,18 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
             <Text style={[styles.metricVal, { color: '#34d399' }]}>{summary.completed}</Text>
             <Text style={[styles.metricLbl, { color: colors.textMuted }]}>Done</Text>
           </TouchableOpacity>
+
+          <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
+
+          <TouchableOpacity
+            style={[styles.metricCardItem, activeTab === 'ALL' && { backgroundColor: isDark ? '#4c1d95' : '#ede9fe' }]}
+            onPress={() => setActiveTab('ALL')}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 13, marginBottom: 2 }}>📋</Text>
+            <Text style={[styles.metricVal, { color: '#a855f7' }]}>{summary.total}</Text>
+            <Text style={[styles.metricLbl, { color: colors.textMuted }]}>Total</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
@@ -683,8 +703,12 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
               {activeTab === 'TODAY'
                 ? 'No follow-ups left for today!'
+                : activeTab === 'UPCOMING'
+                ? 'No upcoming follow-ups scheduled.'
                 : activeTab === 'OVERDUE'
                 ? 'Great job! No overdue tasks.'
+                : activeTab === 'COMPLETED'
+                ? 'No completed follow-ups yet.'
                 : 'No follow-ups found.'}
             </Text>
             <Text style={[styles.emptyDesc, { color: colors.textMuted }]}>
@@ -696,9 +720,10 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
             {filteredTasks.map((task) => {
               const dueDate = new Date(task.dueAt);
               const nowMs = Date.now();
-              const isPastDue = !task.isCompleted && !isNaN(dueDate.getTime()) && dueDate.getTime() < nowMs;
-              const timeStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:30 AM';
-              const dateStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Scheduled';
+              // Transitions to OVERDUE only after 2 minutes have crossed
+              const isPastDue = !task.isCompleted && !isNaN(dueDate.getTime()) && nowMs > dueDate.getTime() + 2 * 60 * 1000;
+              const timeStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (task.scheduledTime || '10:30 AM');
+              const dateStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : (task.scheduledDate || 'Scheduled');
 
               return (
                 <View
