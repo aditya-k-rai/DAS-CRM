@@ -44,7 +44,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TabId = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL';
-export type ChannelFilter = 'ALL' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING';
+export type ChannelFilter = 'ALL' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING' | 'HIGH_PRIORITY';
 export { FollowUpTask };
 
 interface Props {
@@ -252,29 +252,15 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
       }
       // 'ALL' tab includes all tasks regardless of completed/pending status
 
-      // Channel filter
-      if (activeChannel !== 'ALL' && t.channel !== activeChannel) {
+      // Channel & Type filter (Web parity)
+      if (activeChannel === 'HIGH_PRIORITY') {
+        if (t.priority !== 'URGENT' && t.priority !== 'HIGH') return false;
+      } else if (activeChannel !== 'ALL' && t.channel !== activeChannel) {
         return false;
       }
 
-      // Rep filter & SaaS RBAC isolation
-      if (!isAdminOrManager) {
-        const myName = (currentUser?.name || '').trim().toLowerCase();
-        const myFirst = myName.split(' ')[0] || '';
-        const myId = currentUser?.id || '';
-        const taskRepName = (t.assignedRepName || '').trim().toLowerCase();
-        const taskRepId = t.assignedRepId || '';
-
-        const isMine =
-          !taskRepName ||
-          taskRepName === 'sales rep' ||
-          taskRepName.includes('sales') ||
-          (myId && taskRepId === myId) ||
-          (myName && taskRepName.includes(myName)) ||
-          (myFirst && myFirst.length >= 3 && taskRepName.includes(myFirst));
-
-        if (!isMine) return false;
-      } else if (selectedRepFilter !== 'ALL') {
+      // Rep filter (Optional dropdown/chip selection)
+      if (selectedRepFilter !== 'ALL') {
         if (!t.assignedRepName.toLowerCase().includes(selectedRepFilter.toLowerCase())) {
           return false;
         }
@@ -297,6 +283,21 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
   }, [tasks, activeTab, activeChannel, selectedRepFilter, search, isAdminOrManager, currentUser]);
 
   // ─── Quick Actions ──────────────────────────────────────────────────────────
+
+  // ─── Quick Preset Launcher (Web Parity) ───────────────────────────────────
+
+  const handleQuickCreatePreset = (channel: ChannelType) => {
+    setNewChannel(channel);
+    setNewLeadSearch('');
+    setNewLeadId('');
+    setNewPurpose('');
+    if (channel === 'MEETING') {
+      setNewDuePreset('TOMORROW_1000');
+    } else {
+      setNewDuePreset('TODAY_1130');
+    }
+    setShowScheduleModal(true);
+  };
 
   const handleCall = (phone: string) => {
     const clean = phone.replace(/[^0-9+]/g, '');
@@ -525,6 +526,56 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         </TouchableOpacity>
       </View>
 
+      {/* ── Web-Parity Quick Actions Launcher Bar ────────────────────────────── */}
+      <View style={[styles.quickBarContainer, { backgroundColor: colors.cardBg, borderBottomColor: colors.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[styles.btnQuickLaunch, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }]}
+            onPress={() => handleQuickCreatePreset('CALL')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.btnQuickLaunchText, { color: '#fbbf24' }]}>📞 + Call</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.btnQuickLaunch, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.35)' }]}
+            onPress={() => handleQuickCreatePreset('WHATSAPP')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.btnQuickLaunchText, { color: '#34d399' }]}>💬 + WhatsApp</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.btnQuickLaunch, { backgroundColor: 'rgba(56,189,248,0.12)', borderColor: 'rgba(56,189,248,0.35)' }]}
+            onPress={() => handleQuickCreatePreset('MEETING')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.btnQuickLaunchText, { color: '#38bdf8' }]}>🏢 + Meeting</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.btnQuickLaunch, { backgroundColor: '#4f46e5', borderColor: '#6366f1' }]}
+            onPress={() => setShowScheduleModal(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.btnQuickLaunchText, { color: '#ffffff' }]}>+ New Follow-up</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={fetchData}
+            disabled={isLoading}
+            style={[styles.btnQuickLaunch, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+            activeOpacity={0.75}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={[styles.btnQuickLaunchText, { color: colors.textMuted }]}>🔄 Live Sync</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 24) + 80 }} showsVerticalScrollIndicator={false}>
 
         {/* ── 4 Live Telemetry Metrics Cards ─────────────────────────────────── */}
@@ -635,14 +686,15 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
           })}
         </ScrollView>
 
-        {/* Channel Filter Chips */}
+        {/* Channel Filter Chips (Web Parity) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollBarRow} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
           {[
-            { id: 'ALL' as ChannelFilter, label: '🌐 All Channels' },
+            { id: 'ALL' as ChannelFilter, label: '🌐 All Actions' },
             { id: 'CALL' as ChannelFilter, label: '📞 Phone Calls' },
             { id: 'WHATSAPP' as ChannelFilter, label: '💬 WhatsApp' },
             { id: 'EMAIL' as ChannelFilter, label: '✉️ Email' },
             { id: 'MEETING' as ChannelFilter, label: '🏢 Meetings & Demos' },
+            { id: 'HIGH_PRIORITY' as ChannelFilter, label: '🔥 High Priority' },
           ].map((ch) => {
             const active = activeChannel === ch.id;
             return (
@@ -1417,6 +1469,24 @@ const styles = StyleSheet.create({
   metricDivider: { width: 1, height: '70%' },
   metricVal: { fontSize: 18, fontWeight: '900' },
   metricLbl: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', marginTop: 1 },
+
+  // Quick Launch Bar (Web Parity)
+  quickBarContainer: {
+    borderBottomWidth: 1,
+  },
+  btnQuickLaunch: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnQuickLaunchText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
 
   // Search
   searchBar: {

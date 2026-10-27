@@ -10,7 +10,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getApiBase } from '../config/api';
+import { getApiBase, fetchWithFailover } from '../config/api';
 import { LeadItem } from './apiService';
 
 export const STORAGE_FOLLOWUPS_PRIMARY = '@das_crm_followup_tasks_cache';
@@ -290,9 +290,8 @@ class FollowUpSyncEngine {
     ];
     await this.persistTasks(nextTasks);
 
-    // 2. Synchronize to Backend /follow-ups API
+    // 2. Synchronize to Backend /follow-ups API with multi-endpoint failover
     try {
-      const apiBase = getApiBase();
       const serverPayload = {
         title: resolvedTitle,
         followUpType: channel,
@@ -307,7 +306,7 @@ class FollowUpSyncEngine {
         assigneeId: payload.assigneeId,
       };
 
-      const res = await fetch(`${apiBase}/follow-ups`, {
+      const res = await fetchWithFailover('/follow-ups', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -352,11 +351,11 @@ class FollowUpSyncEngine {
       if (t && t.id) taskMap.set(t.id, t);
     });
 
-    // 2. Query Backend /follow-ups API
+    // 2. Query Backend /follow-ups API with multi-endpoint failover
     try {
-      const apiBase = getApiBase();
       const compId = currentUser?.companyId || '';
-      const res = await fetch(`${apiBase}/follow-ups?limit=100`, {
+      const res = await fetchWithFailover('/follow-ups?limit=100', {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -589,10 +588,9 @@ class FollowUpSyncEngine {
 
     await this.persistTasks(updatedTasks);
 
-    // Backend sync
+    // Backend sync with multi-endpoint failover
     try {
-      const apiBase = getApiBase();
-      await fetch(`${apiBase}/follow-ups/${taskId}/reschedule`, {
+      await fetchWithFailover(`/follow-ups/${taskId}/reschedule`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -638,10 +636,9 @@ class FollowUpSyncEngine {
 
     await this.persistTasks(updatedTasks);
 
-    // Backend sync
+    // Backend sync with multi-endpoint failover
     try {
-      const apiBase = getApiBase();
-      await fetch(`${apiBase}/follow-ups/${taskId}/complete`, {
+      await fetchWithFailover(`/follow-ups/${taskId}/complete`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -698,10 +695,9 @@ class FollowUpSyncEngine {
 
     await this.persistTasks(updatedTasks);
 
-    // Backend sync
+    // Backend sync with multi-endpoint failover
     try {
-      const apiBase = getApiBase();
-      await fetch(`${apiBase}/follow-ups/${taskId}/cancel`, {
+      await fetchWithFailover(`/follow-ups/${taskId}/cancel`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

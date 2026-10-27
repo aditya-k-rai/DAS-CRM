@@ -55,13 +55,8 @@ export class FollowUpsService {
         ],
       };
     }
-    return {
-      OR: [
-        { assigneeId: userId },
-        { createdById: userId },
-        { lead: { ownerId: userId } },
-      ],
-    };
+    // Sales Executive: Organization pipeline visibility like Web dashboard, allowing reps to view and manage company follow-ups
+    return {};
   }
 
   /**
