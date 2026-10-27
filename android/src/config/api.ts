@@ -51,7 +51,8 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
+export const CURRENT_LAN_API_URL = 'http://192.168.1.34:3001/api/v1';
+export const PREV_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
 export const DEFAULT_CLOUD_API_URL = CURRENT_LAN_API_URL;
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
@@ -80,13 +81,21 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  // 4. Active Host Machine Wi-Fi LAN IP (Primary for real physical devices on local network)
+  candidates.push(CURRENT_LAN_API_URL);
+  candidates.push('http://192.168.1.34:3001/api/v1');
+  candidates.push(PREV_LAN_API_URL);
+  candidates.push('http://192.168.29.26:3001/api/v1');
+
+  // Common local subnet fallback candidates (192.168.1.x / 192.168.29.x / 192.168.0.x)
+  candidates.push('http://192.168.1.2:3001/api/v1');
+  candidates.push('http://192.168.1.100:3001/api/v1');
+  candidates.push('http://192.168.0.100:3001/api/v1');
+
+  // 5. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
   if (Platform.OS === 'android') {
     candidates.push(EMULATOR_API_URL);
   }
-
-  // 5. Current host machine Wi-Fi LAN IP (Primary for real physical devices on local network)
-  candidates.push(CURRENT_LAN_API_URL);
 
   // 6. Previously saved active API base from AsyncStorage if valid and not dead host
   if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('onrender.com') && !API_BASE.includes('nexcrm')) {
@@ -330,14 +339,22 @@ export async function fetchWithFailover(
 
 // Hydrate and sanitize saved working API_BASE on app startup
 try {
-  AsyncStorage.getItem(STORAGE_KEY_API_BASE).then((saved) => {
+  AsyncStorage.getItem(STORAGE_KEY_API_BASE).then(async (saved) => {
     if (saved && typeof saved === 'string' && saved.startsWith('http')) {
-      if (saved.includes('nexcrm') || saved.includes('onrender.com')) {
-        // Purge dead/invalid host and reset to clean LAN endpoint
+      if (saved.includes('nexcrm') || saved.includes('onrender.com') || saved.includes('192.168.29.26')) {
+        // Purge dead/invalid host and reset to clean active LAN endpoint
         AsyncStorage.removeItem(STORAGE_KEY_API_BASE).catch(() => {});
         API_BASE = getApiBaseUrl();
       } else {
         API_BASE = normalizeApiUrl(saved);
+      }
+    }
+    // Proactively verify reachability of API_BASE; if failing, discover fastest reachable candidate
+    const ping = await testApiEndpoint(API_BASE, 1500);
+    if (!ping.success) {
+      const working = await findFastestReachableEndpoint(2000);
+      if (working) {
+        setApiBase(working);
       }
     }
   }).catch(() => {});

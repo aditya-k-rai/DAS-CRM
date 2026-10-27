@@ -107,7 +107,7 @@ export default function NetworkStatusBanner({ token, isOfflineSession, onRequest
         activeOpacity={0.85}
         onPress={() => {
           if (!syncState.isBackendConnected) {
-            offlineSyncEngine.checkNetworkStatus();
+            offlineSyncEngine.checkNetworkStatus(true);
           }
         }}
       >
@@ -131,7 +131,7 @@ export default function NetworkStatusBanner({ token, isOfflineSession, onRequest
           <TouchableOpacity
             style={styles.configBtn}
             onPress={() => {
-              offlineSyncEngine.checkNetworkStatus();
+              offlineSyncEngine.checkNetworkStatus(true);
             }}
             activeOpacity={0.75}
           >

@@ -161,7 +161,7 @@ class OfflineSyncEngine {
   }
 
   /** Perform live network and backend reachability check */
-  public async checkNetworkStatus(): Promise<boolean> {
+  public async checkNetworkStatus(forceProbe = false): Promise<boolean> {
     const apiBase = getApiBase();
     let isBackendLive = false;
     let isNetLive = false;
@@ -169,7 +169,7 @@ class OfflineSyncEngine {
     // 1. Try Backend Health Ping on current API_BASE
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
       const res = await fetch(`${apiBase}/health`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -183,8 +183,8 @@ class OfflineSyncEngine {
       }
     } catch (_) {}
 
-    // 2. If current API_BASE failed, auto-probe candidate URLs (LAN IP, Expo Host, etc.) with 60s cooldown
-    if (!isBackendLive && Date.now() - this.lastProbeTime > 60000) {
+    // 2. If current API_BASE failed, auto-probe candidate URLs (LAN IP, Expo Host, etc.) with responsive cooldown
+    if (!isBackendLive && (forceProbe || Date.now() - this.lastProbeTime > 10000)) {
       this.lastProbeTime = Date.now();
       try {
         const workingUrl = await probeAndSetWorkingApiBase();
