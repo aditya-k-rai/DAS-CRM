@@ -35,6 +35,7 @@ import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { apiService, Lead } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
+import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 import PostCallOutcomeModal from '../components/PostCallOutcomeModal';
 import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '../components/RepDrilldownModal';
 import { useModuleAccessStore } from '../store/moduleAccessStore';
@@ -121,6 +122,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [refreshing, setRefreshing] = useState(false);
   const [rawLeads, setRawLeads] = useState<Lead[]>([]);
   const [liveProducts, setLiveProducts] = useState<CatalogProductItem[]>([]);
+  const [rawFollowUps, setRawFollowUps] = useState<FollowUpTask[]>([]);
   const [activeCallLead, setActiveCallLead] = useState<{ id: string; name: string; phone: string } | null>(null);
   const [drilldownModalOpen, setDrilldownModalOpen] = useState(false);
   const [productDetailOpen, setProductDetailOpen] = useState<ProductItem | null>(null);
@@ -165,9 +167,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const syncDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const [items, prods] = await Promise.all([
+      const token = useAuthStore.getState().token;
+      const [items, prods, tasks] = await Promise.all([
         apiService.getLeads(),
         productCatalogService.getProducts(),
+        followUpSyncEngine.loadAllFollowUps(token, currentUser, []),
       ]);
       if (Array.isArray(items)) {
         setRawLeads(items);
@@ -175,13 +179,16 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       if (Array.isArray(prods)) {
         setLiveProducts(prods);
       }
+      if (Array.isArray(tasks)) {
+        setRawFollowUps(tasks);
+      }
     } catch (err) {
       console.warn('Dashboard sync error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     syncDashboardData();
@@ -408,38 +415,103 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     };
   }, [scopedLeads, selectedRep, currentUser]);
 
-  // Derived follow-ups from scoped leads
+  // Derived follow-ups and meetings from real followUpSyncEngine tasks (with fallback to leads)
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    const mapped: SyncedFollowUp[] = scopedLeads.slice(0, 6).map((l, idx) => ({
-      id: `fu-${l.id || idx}`,
-      leadId: String(l.id),
-      leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
-      company: l.company || l.organization || 'Direct Buyer',
-      phone: l.phone || '9876543210',
-      dueTime: idx === 0 ? '11:30 AM' : idx === 1 ? '02:00 PM' : '04:30 PM',
-      dueDate: idx === 2 ? 'Yesterday' : today,
-      objective: idx === 0 ? 'Review proposal pricing & terms' : idx === 1 ? 'Schedule on-site technical inspection' : 'Send updated contract terms',
-      priority: idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW',
-      isCompleted: idx === 3,
-      isOverdue: idx === 2,
-    }));
-    setFollowUps(mapped);
+    const targetRep = isSupervisor ? selectedRep : (currentUser?.name || 'Me');
+    const scopedTasks = followUpSyncEngine.filterTasksForUser(rawFollowUps, currentUser, targetRep);
 
-    const meets: SyncedMeeting[] = scopedLeads.slice(0, 3).map((l, idx) => ({
-      id: `mt-${l.id || idx}`,
-      leadId: String(l.id),
-      leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
-      company: l.company || l.organization || 'Corporate Client',
-      phone: l.phone || '9876543210',
-      title: idx === 0 ? 'Product Demo & Solution Walkthrough' : idx === 1 ? 'Commercial SLA Terms Negotiation' : 'Technical Rooftop Site Survey',
-      time: idx === 0 ? '11:00 AM' : idx === 1 ? '03:30 PM' : '05:00 PM',
-      date: 'Today',
-      platform: idx === 0 ? 'Google Meet' : idx === 1 ? 'Zoom' : 'Phone Call',
-      meetUrl: idx === 0 ? 'https://meet.google.com/das-crm-demo' : undefined,
-      isCompleted: false,
-    }));
-    setMeetings(meets);
+    if (scopedTasks.length > 0) {
+      const mapped: SyncedFollowUp[] = scopedTasks.map((t) => {
+        const dueDate = new Date(t.dueAt);
+        const nowMs = Date.now();
+        const isOverdue = !t.isCompleted && !isNaN(dueDate.getTime()) && nowMs > dueDate.getTime() + 2 * 60 * 1000;
+        const timeStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (t.scheduledTime || '10:30 AM');
+        const dateStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : (t.scheduledDate || today);
+
+        return {
+          id: t.id,
+          leadId: t.leadId,
+          leadName: t.leadName,
+          company: t.leadCompany,
+          phone: t.leadPhone,
+          dueTime: timeStr,
+          dueDate: dateStr,
+          objective: t.purpose,
+          priority: t.priority === 'URGENT' || t.priority === 'HIGH' ? 'HIGH' : t.priority === 'MEDIUM' ? 'MEDIUM' : 'LOW',
+          isCompleted: Boolean(t.isCompleted || t.status === 'COMPLETED'),
+          isOverdue,
+        };
+      });
+      setFollowUps(mapped);
+
+      const realMeetings = scopedTasks.filter((t) => t.channel === 'MEETING');
+      if (realMeetings.length > 0) {
+        const meets: SyncedMeeting[] = realMeetings.map((m) => {
+          const dueDate = new Date(m.dueAt);
+          const timeStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (m.scheduledTime || '11:00 AM');
+          const dateStr = !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : (m.scheduledDate || 'Today');
+          return {
+            id: m.id,
+            leadId: m.leadId,
+            leadName: m.leadName,
+            company: m.leadCompany,
+            phone: m.leadPhone,
+            title: m.purpose || 'Client Product Demonstration',
+            time: timeStr,
+            date: dateStr,
+            platform: 'Phone Call',
+            isCompleted: Boolean(m.isCompleted || m.status === 'COMPLETED'),
+          };
+        });
+        setMeetings(meets);
+      } else {
+        const meets: SyncedMeeting[] = scopedLeads.slice(0, 2).map((l, idx) => ({
+          id: `mt-${l.id || idx}`,
+          leadId: String(l.id),
+          leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
+          company: l.company || l.organization || 'Corporate Client',
+          phone: l.phone || '9876543210',
+          title: idx === 0 ? 'Product Demo & Solution Walkthrough' : 'Commercial SLA Terms Negotiation',
+          time: idx === 0 ? '11:00 AM' : '03:30 PM',
+          date: 'Today',
+          platform: idx === 0 ? 'Google Meet' : 'Zoom',
+          meetUrl: idx === 0 ? 'https://meet.google.com/das-crm-demo' : undefined,
+          isCompleted: false,
+        }));
+        setMeetings(meets);
+      }
+    } else {
+      const mapped: SyncedFollowUp[] = scopedLeads.slice(0, 6).map((l, idx) => ({
+        id: `fu-${l.id || idx}`,
+        leadId: String(l.id),
+        leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
+        company: l.company || l.organization || 'Direct Buyer',
+        phone: l.phone || '9876543210',
+        dueTime: idx === 0 ? '11:30 AM' : idx === 1 ? '02:00 PM' : '04:30 PM',
+        dueDate: idx === 2 ? 'Yesterday' : today,
+        objective: idx === 0 ? 'Review proposal pricing & terms' : idx === 1 ? 'Schedule on-site technical inspection' : 'Send updated contract terms',
+        priority: idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW',
+        isCompleted: false,
+        isOverdue: false,
+      }));
+      setFollowUps(mapped);
+
+      const meets: SyncedMeeting[] = scopedLeads.slice(0, 2).map((l, idx) => ({
+        id: `mt-${l.id || idx}`,
+        leadId: String(l.id),
+        leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
+        company: l.company || l.organization || 'Corporate Client',
+        phone: l.phone || '9876543210',
+        title: idx === 0 ? 'Product Demo & Solution Walkthrough' : 'Commercial SLA Terms Negotiation',
+        time: idx === 0 ? '11:00 AM' : '03:30 PM',
+        date: 'Today',
+        platform: idx === 0 ? 'Google Meet' : 'Zoom',
+        meetUrl: idx === 0 ? 'https://meet.google.com/das-crm-demo' : undefined,
+        isCompleted: false,
+      }));
+      setMeetings(meets);
+    }
 
     const opps: SyncedOpportunity[] = scopedLeads.slice(0, 4).map((l, idx) => ({
       id: `opp-${l.id || idx}`,
@@ -455,7 +527,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       nextStep: idx === 0 ? 'Contract review with Director' : 'Send revised component list',
     }));
     setOpportunities(opps);
-  }, [scopedLeads]);
+  }, [scopedLeads, rawFollowUps, selectedRep, currentUser, isSupervisor]);
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const handleDial = (lead: { id: string; name: string; phone: string }) => {
@@ -475,10 +547,24 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     });
   };
 
-  const toggleFollowUp = (id: string) => {
+  const toggleFollowUp = async (id: string) => {
+    const target = followUps.find((f) => f.id === id);
+    const nextCompleted = !target?.isCompleted;
+
     setFollowUps((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, isCompleted: !f.isCompleted } : f))
+      prev.map((f) => (f.id === id ? { ...f, isCompleted: nextCompleted } : f))
     );
+
+    if (id && !id.startsWith('fu-')) {
+      try {
+        const token = useAuthStore.getState().token;
+        if (nextCompleted) {
+          await followUpSyncEngine.completeFollowUp(token, id, 'Completed from Sales Dashboard');
+        }
+      } catch (err) {
+        console.warn('Follow-up complete sync error:', err);
+      }
+    }
   };
 
   const handleOpenLead = (leadId: string, leadName?: string) => {

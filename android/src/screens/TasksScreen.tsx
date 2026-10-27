@@ -27,6 +27,10 @@ import { useAuthStore } from '../store/authStore';
 import { apiService } from '../services/apiService';
 
 import ProductsCatalogScreen from './ProductsCatalogScreen';
+import { SalesGoalsScreen } from './SalesGoalsScreen';
+import { FollowUpsScreen } from './FollowUpsScreen';
+import { QuotationsInvoicesScreen } from './QuotationsInvoicesScreen';
+import { DealsPipelineScreen } from './DealsPipelineScreen';
 
 // Module Selector Types
 type MoreModule = 'PRODUCTS' | 'QUOTATIONS' | 'DEALS' | 'GOALS' | 'REVENUE' | 'COMMS' | 'TASKS';
@@ -167,49 +171,8 @@ export default function TasksScreen({ route }: any) {
         {/* 📝 MODULE 2: QUOTATIONS & INVOICE BUILDER                                  */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeModule === 'QUOTATIONS' && (
-          <View style={styles.moduleSection}>
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.moduleTitle}>📝 Quotations &amp; Invoice Builder ({quotations.length})</Text>
-                <Text style={styles.moduleSub}>Generate custom proposals, track approval status, and export PDF quotes.</Text>
-              </View>
-              <TouchableOpacity style={styles.createBtn} onPress={() => setCreateQuoteModal(true)}>
-                <Text style={styles.createBtnText}>+ New Quote</Text>
-              </TouchableOpacity>
-            </View>
-
-            {quotations.length === 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 12, color: '#94a3b8' }}>No quotations created yet.</Text>
-              </View>
-            ) : (
-              quotations.map(q => (
-                <View key={q.id} style={styles.cardItem}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.itemTitle}>{q.quoteNumber}</Text>
-                    <View style={[styles.statusBadge, {
-                      backgroundColor: q.status === 'APPROVED' ? 'rgba(16,185,129,0.15)' : q.status === 'SENT' ? 'rgba(56,189,248,0.15)' : 'rgba(245,158,11,0.15)',
-                      borderColor: q.status === 'APPROVED' ? 'rgba(16,185,129,0.4)' : q.status === 'SENT' ? 'rgba(56,189,248,0.4)' : 'rgba(245,158,11,0.4)',
-                    }]}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: q.status === 'APPROVED' ? '#34d399' : q.status === 'SENT' ? '#38bdf8' : '#fbbf24' }}>
-                        {q.status}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.itemMeta}>Client: {q.clientName} • Valid Until: {q.validUntil}</Text>
-                  
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, alignItems: 'center' }}>
-                    <Text style={styles.itemPrice}>{q.amount}</Text>
-                    <TouchableOpacity onPress={() => Alert.alert('PDF Export', `Exported PDF proposal for ${q.quoteNumber}.`)}>
-                      <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800', textDecorationLine: 'underline' }}>
-                        📄 Download PDF →
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
-            )}
+          <View style={{ flex: 1, minHeight: 650 }}>
+            <QuotationsInvoicesScreen />
           </View>
         )}
 
@@ -217,29 +180,8 @@ export default function TasksScreen({ route }: any) {
         {/* 💼 MODULE 3: DEALS PIPELINE KANBAN                                         */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeModule === 'DEALS' && (
-          <View style={styles.moduleSection}>
-            <Text style={styles.moduleTitle}>💼 Deals &amp; Active Sales Pipeline Kanban</Text>
-            <Text style={styles.moduleSub}>Track deal stages from initial prospecting to closed-won revenue.</Text>
-
-            {deals.length === 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 12, color: '#94a3b8' }}>No active deals in pipeline.</Text>
-              </View>
-            ) : (
-              deals.map(d => (
-                <View key={d.id} style={styles.cardItem}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.itemTitle}>{d.title}</Text>
-                    <Text style={styles.itemPrice}>{d.value}</Text>
-                  </View>
-                  <Text style={styles.itemMeta}>Company: {d.company} • Rep: {d.rep}</Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                    <Text style={{ fontSize: 10, color: '#fbbf24', fontWeight: '800' }}>STAGE: {d.stage.toUpperCase()}</Text>
-                    <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '700' }}>Win Probability</Text>
-                  </View>
-                </View>
-              ))
-            )}
+          <View style={{ flex: 1, minHeight: 650 }}>
+            <DealsPipelineScreen />
           </View>
         )}
 
@@ -247,27 +189,8 @@ export default function TasksScreen({ route }: any) {
         {/* 🎯 MODULE 4: GOALS & TARGETS                                                */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeModule === 'GOALS' && (
-          <View style={styles.moduleSection}>
-            <Text style={styles.moduleTitle}>🎯 Quarterly Goals &amp; Sales Targets</Text>
-            <Text style={styles.moduleSub}>Track organizational revenue targets and team quota progress.</Text>
-
-            <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>Quarterly Revenue Target: ₹0</Text>
-              <Text style={styles.itemMeta}>Current Achieved: ₹0 (0.0% Progress)</Text>
-
-              <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: '0%' }]} />
-              </View>
-            </View>
-
-            <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>Monthly New Lead Ingestion Target: 0 Leads</Text>
-              <Text style={styles.itemMeta}>Current Achieved: 0 Leads (0.0% Progress)</Text>
-
-              <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: '0%', backgroundColor: '#34d399' }]} />
-              </View>
-            </View>
+          <View style={{ flex: 1, minHeight: 650 }}>
+            <SalesGoalsScreen />
           </View>
         )}
 
@@ -275,20 +198,8 @@ export default function TasksScreen({ route }: any) {
         {/* 💰 MODULE 5: REVENUE TELEMETRY                                             */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeModule === 'REVENUE' && (
-          <View style={styles.moduleSection}>
-            <Text style={styles.moduleTitle}>💰 Revenue &amp; Financial Telemetry Audit</Text>
-            <Text style={styles.moduleSub}>Detailed breakdown of closed-won revenue, active pipeline, and average deal size.</Text>
-
-            <View style={styles.metricsGrid}>
-              <View style={styles.metricCard}>
-                <Text style={styles.metricVal}>₹0</Text>
-                <Text style={styles.metricLbl}>Won Revenue</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Text style={[styles.metricVal, { color: '#38bdf8' }]}>₹0</Text>
-                <Text style={styles.metricLbl}>Active Pipeline</Text>
-              </View>
-            </View>
+          <View style={{ flex: 1, minHeight: 650 }}>
+            <SalesGoalsScreen />
           </View>
         )}
 
@@ -301,12 +212,12 @@ export default function TasksScreen({ route }: any) {
             <Text style={styles.moduleSub}>Audit outbound WhatsApp messages, call logs, and response times.</Text>
 
             <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>📞 Today's Outbound Calling Telemetry: 0 Calls Logged</Text>
-              <Text style={styles.itemMeta}>Avg Call Duration: 0s • Connected Rate: 0.0%</Text>
+              <Text style={styles.itemTitle}>📞 Outbound Calling &amp; Follow-up Sync: Active 🟢</Text>
+              <Text style={styles.itemMeta}>Direct dialer telemetry connected to live lead activity logs.</Text>
             </View>
             <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>💬 WhatsApp Automated Ingestion: 0 Messages Sent</Text>
-              <Text style={styles.itemMeta}>Active Webhook Hook: Ready 🟢</Text>
+              <Text style={styles.itemTitle}>💬 WhatsApp Automated &amp; Direct Messaging: Ready 🟢</Text>
+              <Text style={styles.itemMeta}>Active Webhook Hook &amp; Direct Native WhatsApp Protocol.</Text>
             </View>
           </View>
         )}
@@ -315,24 +226,8 @@ export default function TasksScreen({ route }: any) {
         {/* 📋 MODULE 7: TASKS & REMINDERS                                              */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeModule === 'TASKS' && (
-          <View style={styles.moduleSection}>
-            <Text style={styles.moduleTitle}>📋 Task Operations &amp; Call Reminders</Text>
-
-            {tasks.length === 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 12, color: '#94a3b8' }}>No operational tasks or reminders.</Text>
-              </View>
-            ) : (
-              tasks.map(t => (
-                <View key={t.id} style={styles.cardItem}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.itemTitle}>{t.title}</Text>
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#ef4444' }}>{t.priority}</Text>
-                  </View>
-                  <Text style={styles.itemMeta}>Lead: {t.lead} • Due: {t.dueDate}</Text>
-                </View>
-              ))
-            )}
+          <View style={{ flex: 1, minHeight: 650 }}>
+            <FollowUpsScreen embedded={true} />
           </View>
         )}
 

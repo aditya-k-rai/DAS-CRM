@@ -43,7 +43,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TabId = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL';
+export type TabId = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL' | 'CALENDAR';
 export type ChannelFilter = 'ALL' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING' | 'HIGH_PRIORITY';
 export { FollowUpTask };
 
@@ -62,14 +62,34 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
   const token = useAuthStore((s) => s.token);
   const currentUser = useAuthStore((s) => s.currentUser);
 
+  // Role resolution
+  const userRole = (currentUser?.role || 'ADMIN').toUpperCase();
+  const isAdminOrManager = userRole.includes('ADMIN') || userRole.includes('MANAGER') || userRole === 'SUPER_ADMIN';
+  const isTL = userRole.includes('TEAM_LEADER') || userRole.includes('LEADER');
+  const isSalesExec = !isAdminOrManager && !isTL;
+
   const [tasks, setTasks] = useState<FollowUpTask[]>([]);
   const [realLeads, setRealLeads] = useState<LeadItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('TODAY');
   const [activeChannel, setActiveChannel] = useState<ChannelFilter>('ALL');
-  const [selectedRepFilter, setSelectedRepFilter] = useState<string>('ALL');
+  // Default rep filter: Sales Exec defaults to their own name; Supervisors default to 'ALL'
+  const [selectedRepFilter, setSelectedRepFilter] = useState<string>(() => {
+    if (isSalesExec && currentUser?.name) {
+      return currentUser.name;
+    }
+    return 'ALL';
+  });
+  const [calendarDate, setCalendarDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Sync selectedRepFilter if currentUser loads asynchronously
+  useEffect(() => {
+    if (isSalesExec && currentUser?.name) {
+      setSelectedRepFilter(currentUser.name);
+    }
+  }, [isSalesExec, currentUser?.name]);
 
   // Modal States
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -110,10 +130,6 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
   const [newDuePreset, setNewDuePreset] = useState<'TODAY_1130' | 'TODAY_1500' | 'TOMORROW_1000' | 'NEXT_WEEK' | 'CUSTOM'>('TODAY_1130');
   const [newAssignedRep, setNewAssignedRep] = useState<string>(currentUser?.name || 'Admin');
 
-  // Role resolution
-  const userRole = (currentUser?.role || 'ADMIN').toUpperCase();
-  const isAdminOrManager = userRole.includes('ADMIN') || userRole.includes('MANAGER') || userRole === 'SUPER_ADMIN';
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3200);
@@ -147,7 +163,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
       const validLeads = Array.isArray(fetchedLeads) ? fetchedLeads : [];
       setRealLeads(validLeads);
 
-      // 2. Multi-source Follow-ups Load (Server + Local Cache + Lead Contact History Scanner)
+      // 2. Multi-source Follow-ups Load (Authoritative Server + Local Cache Reconciled)
       const allFollowUps = await followUpSyncEngine.loadAllFollowUps(token, currentUser, validLeads);
       setTasks(allFollowUps);
     } catch (err) {
@@ -161,59 +177,17 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     fetchData();
   }, [fetchData]);
 
-  // ─── Telemetry Summary Metrics ──────────────────────────────────────────────
+  // ─── Scoped Tasks for Current Viewer / Rep ───────────────────────────────────
+
+  const scopedTasks = useMemo(() => {
+    return followUpSyncEngine.filterTasksForUser(tasks, currentUser, selectedRepFilter);
+  }, [tasks, currentUser, selectedRepFilter]);
+
+  // ─── Telemetry Summary Metrics (Web Parity: Calculated from Scoped View) ────
 
   const summary = useMemo(() => {
-    const now = new Date();
-    const nowMs = now.getTime();
-    const twoMinutesAgoMs = nowMs - 2 * 60 * 1000;
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const todayEnd = todayStart + 24 * 60 * 60 * 1000;
-
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const todayIsoDate = `${yyyy}-${mm}-${dd}`;
-
-    let todayCount = 0;
-    let upcomingCount = 0;
-    let overdueCount = 0;
-    let completedCount = 0;
-
-    tasks.forEach((t) => {
-      if (t.isCompleted) {
-        completedCount++;
-        return;
-      }
-      const dueTime = new Date(t.dueAt).getTime();
-      const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : (t.scheduledDate || '');
-      // Transitions to OVERDUE only after 2 minutes have crossed
-      const isPastDue = !isNaN(dueTime) && dueTime < twoMinutesAgoMs;
-
-      if (isPastDue) {
-        overdueCount++;
-      } else {
-        const isScheduledToday = taskDateIso === todayIsoDate || (!isNaN(dueTime) && dueTime >= todayStart && dueTime < todayEnd);
-        if (isScheduledToday) {
-          todayCount++;
-        } else if (taskDateIso > todayIsoDate || (!isNaN(dueTime) && dueTime >= todayEnd)) {
-          upcomingCount++;
-        }
-      }
-    });
-
-    const totalActive = tasks.length;
-    const completionRate = totalActive > 0 ? Math.round((completedCount / totalActive) * 100) : 0;
-
-    return {
-      today: todayCount,
-      upcoming: upcomingCount,
-      overdue: overdueCount,
-      completed: completedCount,
-      total: totalActive,
-      completionRate,
-    };
-  }, [tasks]);
+    return followUpSyncEngine.getFollowUpSummary(scopedTasks);
+  }, [scopedTasks]);
 
   // ─── Filtered Tasks List ────────────────────────────────────────────────────
 
@@ -229,7 +203,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     const dd = String(now.getDate()).padStart(2, '0');
     const todayIsoDate = `${yyyy}-${mm}-${dd}`;
 
-    return tasks.filter((t) => {
+    return scopedTasks.filter((t) => {
       const taskTime = new Date(t.dueAt).getTime();
       const taskDateIso = t.dueAt ? t.dueAt.slice(0, 10) : (t.scheduledDate || '');
       // Overdue after 2 minutes past due time
@@ -249,6 +223,8 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         if (!isPastDue) return false;
       } else if (activeTab === 'COMPLETED') {
         if (!t.isCompleted) return false;
+      } else if (activeTab === 'CALENDAR') {
+        if (taskDateIso !== calendarDate) return false;
       }
       // 'ALL' tab includes all tasks regardless of completed/pending status
 
@@ -257,13 +233,6 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         if (t.priority !== 'URGENT' && t.priority !== 'HIGH') return false;
       } else if (activeChannel !== 'ALL' && t.channel !== activeChannel) {
         return false;
-      }
-
-      // Rep filter (Optional dropdown/chip selection)
-      if (selectedRepFilter !== 'ALL') {
-        if (!t.assignedRepName.toLowerCase().includes(selectedRepFilter.toLowerCase())) {
-          return false;
-        }
       }
 
       // Search
@@ -280,7 +249,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
 
       return true;
     });
-  }, [tasks, activeTab, activeChannel, selectedRepFilter, search, isAdminOrManager, currentUser]);
+  }, [scopedTasks, activeTab, activeChannel, calendarDate, search]);
 
   // ─── Quick Actions ──────────────────────────────────────────────────────────
 
@@ -658,13 +627,15 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         </View>
 
         {/* Tabs Bar */}
+        {/* Tabs Bar (Web Parity) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollBarRow} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
           {[
             { id: 'TODAY' as TabId, label: `📅 Today (${summary.today})` },
             { id: 'UPCOMING' as TabId, label: `⏳ Upcoming (${summary.upcoming})` },
             { id: 'OVERDUE' as TabId, label: `⚠️ Overdue (${summary.overdue})` },
             { id: 'COMPLETED' as TabId, label: `✅ Completed (${summary.completed})` },
-            { id: 'ALL' as TabId, label: `📋 All (${summary.total})` },
+            { id: 'ALL' as TabId, label: `📋 All Tasks (${summary.total})` },
+            { id: 'CALENDAR' as TabId, label: '📆 Calendar View' },
           ].map((tab) => {
             const active = activeTab === tab.id;
             return (
@@ -685,6 +656,63 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
             );
           })}
         </ScrollView>
+
+        {/* Calendar View Date Ribbon (Shown when CALENDAR tab is active) */}
+        {activeTab === 'CALENDAR' && (
+          <View style={{ marginBottom: 10, padding: 10, borderRadius: 12, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '900', color: colors.text }}>
+                📆 Selected Date: {calendarDate}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setCalendarDate(new Date().toISOString().split('T')[0])}
+                style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.primary + '25', borderWidth: 1, borderColor: colors.primary + '50' }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>Jump to Today</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              {Array.from({ length: 14 }).map((_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - 3 + i);
+                const iso = d.toISOString().split('T')[0];
+                const dayName = d.toLocaleDateString([], { weekday: 'short' });
+                const dayNum = d.getDate();
+                const isSelected = iso === calendarDate;
+                const isToday = iso === new Date().toISOString().split('T')[0];
+
+                const dayTasksCount = scopedTasks.filter((t) => (t.dueAt ? t.dueAt.slice(0, 10) : t.scheduledDate) === iso).length;
+
+                return (
+                  <TouchableOpacity
+                    key={iso}
+                    onPress={() => setCalendarDate(iso)}
+                    style={{
+                      alignItems: 'center',
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      backgroundColor: isSelected ? colors.primary : colors.cardBgElevated,
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      minWidth: 48,
+                    }}
+                  >
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: isSelected ? '#ffffff' : colors.textMuted, textTransform: 'uppercase' }}>
+                      {dayName}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: isSelected ? '#ffffff' : (isToday ? colors.primary : colors.text), marginTop: 2 }}>
+                      {dayNum}
+                    </Text>
+                    {dayTasksCount > 0 && (
+                      <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isSelected ? '#ffffff' : '#f59e0b', marginTop: 4 }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Channel Filter Chips (Web Parity) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollBarRow} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
@@ -716,8 +744,38 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
           })}
         </ScrollView>
 
-        {/* Admin / Manager Sales Rep Filter */}
-        {isAdminOrManager && (
+        {/* ── Workspace Scoping & Rep Selector Bar ──────────────────────────── */}
+        {isSalesExec ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, paddingVertical: 2 }}>
+            <TouchableOpacity
+              style={[
+                styles.repChip,
+                selectedRepFilter !== 'ALL' && { backgroundColor: colors.primary, borderColor: colors.primary },
+                selectedRepFilter === 'ALL' && { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
+              ]}
+              onPress={() => setSelectedRepFilter(currentUser?.name || 'Me')}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.repChipText, { color: selectedRepFilter !== 'ALL' ? '#ffffff' : colors.textMuted }]}>
+                👤 My Tasks ({currentUser?.name?.split(' ')?.[0] || 'My Queue'})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.repChip,
+                selectedRepFilter === 'ALL' && { backgroundColor: '#7c3aed', borderColor: '#a855f7' },
+                selectedRepFilter !== 'ALL' && { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
+              ]}
+              onPress={() => setSelectedRepFilter('ALL')}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.repChipText, { color: selectedRepFilter === 'ALL' ? '#ffffff' : colors.textMuted }]}>
+                👥 All Company Outreach
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollBarRow} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
             {[
               { id: 'ALL', label: '👥 All Reps' },

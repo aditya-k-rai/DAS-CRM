@@ -34,6 +34,7 @@ import { useTheme } from '../context/ThemeContext';
 import { apiService, Lead, Employee } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
 import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '../components/RepDrilldownModal';
+import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 
 interface SquadMember {
   id: string;
@@ -67,13 +68,14 @@ interface SyncedTeamFollowUp {
 
 export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAttendance }: any) {
   const { colors, isDark } = useTheme();
-  const { currentUser } = useAuthStore();
+  const { currentUser, token } = useAuthStore();
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rawLeads, setRawLeads] = useState<Lead[]>([]);
   const [rawEmployees, setRawEmployees] = useState<Employee[]>([]);
+  const [rawFollowUps, setRawFollowUps] = useState<FollowUpTask[]>([]);
 
   // Active Stage Filter
   const [activeStageFilter, setActiveStageFilter] = useState<string>('All Leads');
@@ -93,9 +95,10 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
   const syncData = useCallback(async () => {
     try {
       setLoading(true);
-      const [leadsRes, empsRes] = await Promise.all([
-        apiService.getLeads(),
-        apiService.getEmployees(),
+      const [leadsRes, empsRes, fuRes] = await Promise.all([
+        apiService.getLeads(token).catch(() => []),
+        apiService.getEmployees(token).catch(() => ({ success: false, employees: [] })),
+        followUpSyncEngine.loadAllFollowUps(token, currentUser, []).catch(() => []),
       ]);
 
       if (Array.isArray(leadsRes)) {
@@ -104,13 +107,16 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       if (empsRes && empsRes.success && Array.isArray(empsRes.employees)) {
         setRawEmployees(empsRes.employees);
       }
+      if (Array.isArray(fuRes)) {
+        setRawFollowUps(fuRes);
+      }
     } catch (err) {
       console.warn('TL dashboard sync error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [token, currentUser]);
 
   useEffect(() => {
     syncData();
@@ -226,30 +232,55 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
     return rawLeads.filter((l) => (l.status || '').toLowerCase().includes(filterKey));
   }, [rawLeads, unassignedLeads, activeStageFilter]);
 
-  // Squad Follow-ups
-  const [squadFollowUps, setSquadFollowUps] = useState<SyncedTeamFollowUp[]>([]);
+  // Squad Follow-ups derived from real followUpSyncEngine tasks
+  const squadFollowUps: SyncedTeamFollowUp[] = useMemo(() => {
+    if (rawFollowUps.length > 0) {
+      return rawFollowUps.slice(0, 8).map((fu) => {
+        const dueDate = new Date(fu.dueAt);
+        const isOverdue = !fu.isCompleted && !isNaN(dueDate.getTime()) && Date.now() > dueDate.getTime();
+        const timeStr = fu.scheduledTime || (!isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '11:00 AM');
+        const dateStr = fu.scheduledDate || (!isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Today');
 
-  useEffect(() => {
+        return {
+          id: fu.id,
+          leadId: fu.leadId,
+          leadName: fu.leadName,
+          company: fu.leadCompany || 'Commercial Account',
+          repName: fu.assignedRepName || 'Sales Rep',
+          phone: fu.leadPhone || '9876543210',
+          dueTime: timeStr,
+          dueDate: dateStr,
+          isOverdue,
+          objective: fu.purpose || 'Follow-up Call',
+          isCompleted: fu.isCompleted,
+          priority: fu.priority === 'URGENT' || fu.priority === 'HIGH' ? 'HIGH' : fu.priority === 'MEDIUM' ? 'MEDIUM' : 'LOW',
+        };
+      });
+    }
+
+    // Fallback: map from active open leads if no explicit follow-up tasks exist yet
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    const mapped: SyncedTeamFollowUp[] = rawLeads.slice(0, 6).map((l, idx) => {
-      const rep = squadMembers[idx % squadMembers.length];
-      return {
-        id: `tl-fu-${l.id || idx}`,
-        leadId: String(l.id),
-        leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
-        company: l.company || l.organization || 'Commercial Account',
-        repName: rep ? rep.name : 'Sales Rep',
-        phone: l.phone || '9876543210',
-        dueTime: idx === 0 ? '11:00 AM' : idx === 1 ? '01:30 PM' : '03:45 PM',
-        dueDate: idx === 2 ? 'Overdue' : today,
-        isOverdue: idx === 2,
-        objective: idx === 0 ? 'Pricing negotiation & discount review' : 'Technical spec walkthrough',
-        isCompleted: idx === 3,
-        priority: idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW',
-      };
-    });
-    setSquadFollowUps(mapped);
-  }, [rawLeads, squadMembers]);
+    return rawLeads
+      .filter((l) => !(l.status || '').toLowerCase().includes('won') && !(l.status || '').toLowerCase().includes('lost'))
+      .slice(0, 5)
+      .map((l, idx) => {
+        const rep = squadMembers[idx % (squadMembers.length || 1)];
+        return {
+          id: `tl-fu-${l.id || idx}`,
+          leadId: String(l.id),
+          leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
+          company: l.company || l.organization || 'Commercial Account',
+          repName: l.owner || (rep ? rep.name : 'Sales Rep'),
+          phone: l.phone || '9876543210',
+          dueTime: '11:00 AM',
+          dueDate: today,
+          isOverdue: false,
+          objective: 'Scheduled follow-up discussion',
+          isCompleted: false,
+          priority: 'MEDIUM',
+        };
+      });
+  }, [rawFollowUps, rawLeads, squadMembers]);
 
   // Total Unit Won Revenue
   const unitWonRevenue = useMemo(() => {
@@ -672,43 +703,51 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
         </View>
 
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {squadFollowUps.map((fu, idx) => (
-            <View
-              key={fu.id}
-              style={[
-                styles.followupRow,
-                idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
-              ]}
-            >
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <Text style={[styles.fuLeadName, { color: colors.text }]}>{fu.leadName}</Text>
-                  <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '800' }}>({fu.repName})</Text>
-                  <Text style={{ fontSize: 9, color: fu.isOverdue ? '#f87171' : '#fbbf24', fontWeight: '800' }}>
-                    ⏰ {fu.dueTime}
+          {squadFollowUps.length === 0 ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                No pending follow-ups scheduled for the squad. All leads up to date.
+              </Text>
+            </View>
+          ) : (
+            squadFollowUps.map((fu, idx) => (
+              <View
+                key={fu.id}
+                style={[
+                  styles.followupRow,
+                  idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={[styles.fuLeadName, { color: colors.text }]}>{fu.leadName}</Text>
+                    <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '800' }}>({fu.repName})</Text>
+                    <Text style={{ fontSize: 9, color: fu.isOverdue ? '#f87171' : '#fbbf24', fontWeight: '800' }}>
+                      ⏰ {fu.dueTime}
+                    </Text>
+                  </View>
+                  <Text style={[styles.fuObjective, { color: colors.textMuted }]} numberOfLines={1}>
+                    {fu.objective}
                   </Text>
                 </View>
-                <Text style={[styles.fuObjective, { color: colors.textMuted }]} numberOfLines={1}>
-                  {fu.objective}
-                </Text>
-              </View>
 
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity
-                  style={[styles.smallIconCircle, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
-                  onPress={() => handleDial(fu.phone)}
-                >
-                  <Text style={{ fontSize: 11 }}>📞</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.smallIconCircle, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
-                  onPress={() => handleWhatsApp(fu.phone, fu.leadName)}
-                >
-                  <Text style={{ fontSize: 11 }}>💬</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity
+                    style={[styles.smallIconCircle, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                    onPress={() => handleDial(fu.phone)}
+                  >
+                    <Text style={{ fontSize: 11 }}>📞</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.smallIconCircle, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
+                    onPress={() => handleWhatsApp(fu.phone, fu.leadName)}
+                  >
+                    <Text style={{ fontSize: 11 }}>💬</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         {/* ── 7. Team Communications & Attendance ───────────────────────────── */}

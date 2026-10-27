@@ -25,6 +25,7 @@ import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 import { apiService, LeadItem } from '../services/apiService';
+import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 
 interface DashboardScreenProps {
   userRole?: UserRole;
@@ -49,6 +50,7 @@ export default function DashboardScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [leads, setLeads] = useState<LeadItem[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUpTask[]>([]);
   const [telemetry, setTelemetry] = useState<any>({
     todayLeads: 0,
     todayCalls: 0,
@@ -59,9 +61,10 @@ export default function DashboardScreen({
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const [leadsRes, summaryRes] = await Promise.all([
+      const [leadsRes, summaryRes, fuRes] = await Promise.all([
         apiService.getLeads(token),
         apiService.getTodayActivitySummary(token),
+        followUpSyncEngine.loadAllFollowUps(token, currentUser, []).catch(() => []),
       ]);
 
       if (Array.isArray(leadsRes)) {
@@ -70,13 +73,16 @@ export default function DashboardScreen({
       if (summaryRes) {
         setTelemetry(summaryRes);
       }
+      if (Array.isArray(fuRes)) {
+        setFollowUps(fuRes);
+      }
     } catch (e) {
       console.warn('[DashboardScreen] Failed to fetch data:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, currentUser]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -172,12 +178,52 @@ export default function DashboardScreen({
     return leads.slice(0, 5);
   }, [leads]);
 
-  // Upcoming follow-up items
+  const isSalesExec = selectedRole === 'SALES_EXEC';
+
+  // Upcoming follow-up items derived from real followUpSyncEngine tasks (with fallback to leads)
   const upcomingFollowUps = useMemo(() => {
-    return leads.filter(
-      (l) => l.status && !l.status.toLowerCase().includes('won') && !l.status.toLowerCase().includes('lost'),
-    ).slice(0, 3);
-  }, [leads]);
+    const scoped = followUpSyncEngine.filterTasksForUser(
+      followUps,
+      currentUser,
+      isSalesExec ? currentUser?.name || 'ALL' : 'ALL',
+    );
+
+    if (scoped.length > 0) {
+      const pending = scoped.filter((t) => !t.isCompleted);
+      const list = pending.length > 0 ? pending : scoped;
+      return list.slice(0, 4).map((t) => {
+        const dueDate = new Date(t.dueAt);
+        const isOverdue = !t.isCompleted && !isNaN(dueDate.getTime()) && Date.now() > dueDate.getTime();
+        const timeStr = t.scheduledTime || (!isNaN(dueDate.getTime()) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:30 AM');
+        const dateStr = t.scheduledDate || (!isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Today');
+
+        return {
+          id: t.id,
+          name: t.leadName,
+          company: t.leadCompany || 'Enterprise Account',
+          phone: t.leadPhone || '',
+          status: isOverdue ? 'Overdue' : 'Due Today',
+          assignedRep: t.assignedRepName || 'Sales Rep',
+          value: `⏰ ${timeStr} · ${dateStr}`,
+          objective: t.purpose || 'Follow-up Call',
+        };
+      });
+    }
+
+    return leads
+      .filter((l) => l.status && !l.status.toLowerCase().includes('won') && !l.status.toLowerCase().includes('lost'))
+      .slice(0, 3)
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        company: l.company,
+        phone: l.phone,
+        status: l.status,
+        assignedRep: l.assignedRep || 'Unassigned',
+        value: l.value,
+        objective: 'Follow-up discussion',
+      }));
+  }, [followUps, currentUser, isSalesExec, leads]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
@@ -302,6 +348,11 @@ export default function DashboardScreen({
                   <Text style={[styles.leadItemSub, { color: colors.textMuted }]}>
                     {item.company} · {item.phone}
                   </Text>
+                  {Boolean(item.objective) && (
+                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 1 }} numberOfLines={1}>
+                      🎯 {item.objective}
+                    </Text>
+                  )}
                   <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2, fontWeight: '700' }}>
                     👤 Rep: {item.assignedRep || 'Unassigned'} · 💰 {item.value}
                   </Text>
