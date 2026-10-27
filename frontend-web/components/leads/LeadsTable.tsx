@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff, ArrowDownUp, RefreshCw, Trash2, AlertTriangle, AlertCircle, History } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff, ArrowDownUp, RefreshCw, Trash2, AlertTriangle, AlertCircle, History, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { exportLeadsToExcel, exportLeadsToCSV } from '@/lib/leadsExportEngine';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent, getUserRoleFromName, buildAllocationTrailForLead, sanitizeAllocationEvent, getSafeRoleMeta } from './LeadAllocationTrail';
@@ -244,6 +245,13 @@ export function LeadsTable() {
   const activeSort = useMemo(() => {
     return SORT_OPTIONS.find(o => o.key === sortOption) || SORT_OPTIONS[0];
   }, [sortOption]);
+
+  // 📥 Lead & Follow-up Export State & Engine
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<'SELECTED' | 'FILTERED' | 'ALL'>('FILTERED');
+  const [exportFormat, setExportFormat] = useState<'XLSX' | 'CSV'>('XLSX');
+  const [isExporting, setIsExporting] = useState(false);
+
 
   // Synchronize real team users from User Directory Cache
   useEffect(() => {
@@ -1549,6 +1557,47 @@ export function LeadsTable() {
     return list;
   }, [filtered, sortOption]);
 
+  const handleExecuteExport = useCallback((formatOverride?: 'XLSX' | 'CSV', scopeOverride?: 'SELECTED' | 'FILTERED' | 'ALL') => {
+    const chosenScope = scopeOverride || (selected.length > 0 ? 'SELECTED' : exportScope);
+    const chosenFormat = formatOverride || exportFormat;
+
+    let targetLeads: LeadDataWeb[] = [];
+    if (chosenScope === 'SELECTED') {
+      const selectedSet = new Set(selected);
+      targetLeads = leadsList.filter(l => selectedSet.has(l.id));
+      if (targetLeads.length === 0) {
+        targetLeads = (sortedAndFiltered || []).filter(l => selectedSet.has(l.id));
+      }
+    } else if (chosenScope === 'FILTERED') {
+      targetLeads = sortedAndFiltered || [];
+    } else {
+      targetLeads = leadsList.length > 0 ? leadsList : (sortedAndFiltered || []);
+    }
+
+    if (targetLeads.length === 0) {
+      alert('No leads available to export with the chosen selection.');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `DAS_CRM_Leads_FollowUps_${chosenScope.toLowerCase()}_${dateStr}.${chosenFormat.toLowerCase()}`;
+      if (chosenFormat === 'XLSX') {
+        exportLeadsToExcel(targetLeads, filename);
+      } else {
+        exportLeadsToCSV(targetLeads, filename);
+      }
+      setIsExportMenuOpen(false);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Failed to export leads. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [selected, leadsList, sortedAndFiltered, exportScope, exportFormat]);
+
+
   // 🚀 Virtual Windowing Calculations for 60-120fps Scrolling
   const totalRows = sortedAndFiltered.length;
   const startIndex = Math.min(virtualIndices.start, Math.max(0, totalRows - 1));
@@ -1907,6 +1956,173 @@ export function LeadsTable() {
                   <span>Deleted History</span>
                 </button>
               )}
+
+              {/* 📥 Select & Export Leads with Follow-ups & Products Button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all shadow-md ${
+                    selected.length > 0
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 shadow-emerald-950/40 ring-2 ring-emerald-500/40 animate-pulse'
+                      : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 shadow-emerald-950/20 hover:text-white'
+                  }`}
+                  title="Export leads with complete follow-up details, product requirements, and activity timeline to Excel or CSV"
+                >
+                  <Download size={13} className="text-emerald-400" />
+                  <span>
+                    {selected.length > 0
+                      ? `Export Selected (${selected.length})`
+                      : 'Export Leads'}
+                  </span>
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isExportMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsExportMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">📊</span>
+                          <div>
+                            <div className="text-xs font-bold text-white leading-tight">Export Leads & Details</div>
+                            <div className="text-[10px] text-slate-400">Includes Follow-ups, Products & Calls</div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsExportMenuOpen(false)}
+                          className="text-slate-500 hover:text-slate-300 p-1 rounded hover:bg-slate-800"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+
+                      {/* 1. Scope Selection */}
+                      <div className="space-y-1 mb-3">
+                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 mb-1">
+                          1. Leads Scope
+                        </div>
+
+                        {selected.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setExportScope('SELECTED')}
+                            className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors text-left ${
+                              exportScope === 'SELECTED'
+                                ? 'bg-emerald-600 text-white font-bold'
+                                : 'text-slate-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span>☑️</span>
+                              <span>Selected Leads ({selected.length})</span>
+                            </span>
+                            {exportScope === 'SELECTED' && <Check size={13} className="text-white stroke-[3]" />}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setExportScope('FILTERED')}
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors text-left ${
+                            exportScope === 'FILTERED'
+                              ? 'bg-emerald-600 text-white font-bold'
+                              : 'text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>🔍</span>
+                            <span>Current Filtered List ({sortedAndFiltered.length})</span>
+                          </span>
+                          {exportScope === 'FILTERED' && <Check size={13} className="text-white stroke-[3]" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setExportScope('ALL')}
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors text-left ${
+                            exportScope === 'ALL'
+                              ? 'bg-emerald-600 text-white font-bold'
+                              : 'text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>📁</span>
+                            <span>All Loaded Leads ({leadsList.length})</span>
+                          </span>
+                          {exportScope === 'ALL' && <Check size={13} className="text-white stroke-[3]" />}
+                        </button>
+                      </div>
+
+                      {/* 2. Format Selection */}
+                      <div className="space-y-1 mb-3 pt-2 border-t border-slate-800">
+                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 mb-1">
+                          2. File Format
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExportFormat('XLSX')}
+                            className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition-all ${
+                              exportFormat === 'XLSX'
+                                ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300 shadow-sm'
+                                : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:bg-slate-800'
+                            }`}
+                          >
+                            <FileSpreadsheet size={16} className={exportFormat === 'XLSX' ? 'text-emerald-400' : 'text-slate-400'} />
+                            <span>Excel (.xlsx)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExportFormat('CSV')}
+                            className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition-all ${
+                              exportFormat === 'CSV'
+                                ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300 shadow-sm'
+                                : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:bg-slate-800'
+                            }`}
+                          >
+                            <FileText size={16} className={exportFormat === 'CSV' ? 'text-cyan-400' : 'text-slate-400'} />
+                            <span>CSV (.csv)</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Included Details Summary */}
+                      <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/80 mb-3 text-[10px] text-slate-400 space-y-1">
+                        <div className="font-semibold text-slate-300 flex items-center gap-1">
+                          <Check size={11} className="text-emerald-400" /> Exported Details Included:
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 pl-3">
+                          <div>• Next Follow-up Date/Time</div>
+                          <div>• Products / Requirement</div>
+                          <div>• Follow-up Notes & Remarks</div>
+                          <div>• Lead Value & Budget</div>
+                          <div>• Total Calls & Timeline</div>
+                          <div>• Assigned Rep & TL</div>
+                        </div>
+                      </div>
+
+                      {/* Trigger Download Button */}
+                      <button
+                        type="button"
+                        disabled={isExporting}
+                        onClick={() => handleExecuteExport()}
+                        className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Download size={14} />
+                        <span>
+                          {isExporting ? 'Generating File...' : `Download ${exportFormat} Now`}
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2041,6 +2257,17 @@ export function LeadsTable() {
             <div className="flex items-center gap-2 text-sm flex-wrap" style={{ color: 'rgb(var(--muted-foreground))' }}>
               <span className="font-medium" style={{ color: 'rgb(var(--brand-400))' }}>{selected.length} selected</span>
               <button className="btn-secondary text-xs py-1 px-3" onClick={() => setSelected([])}>Clear Selection</button>
+
+              {/* Direct Export Selected Leads Button */}
+              <button
+                type="button"
+                onClick={() => handleExecuteExport('XLSX', 'SELECTED')}
+                className="px-3 py-1 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-md shadow-emerald-950/40 transition-all border border-emerald-500/50 cursor-pointer"
+                title="Export selected leads with all follow-up details and products interested to Excel (.xlsx)"
+              >
+                <Download size={12} />
+                <span>Export ({selected.length})</span>
+              </button>
 
               {/* Delete Selected Leads Button */}
               {canDeleteLeads ? (
