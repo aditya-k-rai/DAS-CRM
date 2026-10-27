@@ -70,8 +70,35 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
   // Timeframe & filters
   const [isMonthView, setIsMonthView] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
   const [searchQuery, setSearchQuery] = useState('');
   const [drilldownRep, setDrilldownRep] = useState<PerformanceRecord | null>(null);
+
+  const handlePrevMonth = () => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const newMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(newMonthStr);
+  };
+
+  const handleNextMonth = () => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const nextDate = new Date(y, m, 1);
+    const newMonthStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(newMonthStr);
+  };
+
+  const handleJumpToday = () => {
+    setSelectedMonth(todayDateStr.slice(0, 7));
+    setSelectedDate(todayDateStr);
+    setIsMonthView(false);
+  };
+
+  const activeMonthName = useMemo(() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m - 1, 1);
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }, [selectedMonth]);
 
   // Set Goal Modal & Quotas
   const [isSetGoalOpen, setIsSetGoalOpen] = useState(false);
@@ -693,6 +720,84 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
     return records.filter((r) => r.userName.toLowerCase().includes(q) || r.userRole.toLowerCase().includes(q));
   }, [records, searchQuery]);
 
+  // Monthly Calendar Heatmap Engine (1:1 Parity with Web GoalsCalendar)
+  const heatmapData = useMemo(() => {
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = parseInt(yearStr, 10) || new Date().getFullYear();
+    const month = parseInt(monthStr, 10) || (new Date().getMonth() + 1);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
+
+    const dailyCallsTarget = parseInt(dailyCallsTargetInput, 10) || 40;
+
+    const days = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayPadded = String(day).padStart(2, '0');
+      const dateStr = `${selectedMonth}-${dayPadded}`;
+
+      let callsCount = 0;
+      let whatsappCount = 0;
+      let meetingsCount = 0;
+      let quotesCount = 0;
+      let quotesAmount = 0;
+      let productsCount = 0;
+
+      records.forEach((r) => {
+        (r.activitiesList || []).forEach((act) => {
+          if (act.dateKey === dateStr) {
+            if (act.category === 'CALL') callsCount++;
+            else if (act.category === 'WHATSAPP') whatsappCount++;
+            else if (act.category === 'PRODUCT') productsCount += (act.productCount || 1);
+            else if (act.category === 'QUOTE') {
+              quotesCount++;
+              quotesAmount += (act.quoteAmount || 0);
+            }
+          }
+        });
+        (r.activitiesList || []).forEach((act) => {
+          if (act.dateKey === dateStr && act.title && act.title.toLowerCase().includes('meeting')) {
+            meetingsCount++;
+          }
+        });
+      });
+
+      const target = dailyCallsTarget * (records.length || 1);
+      const score = target > 0 ? Math.min(100, Math.round((callsCount / target) * 100)) : (callsCount > 0 ? 100 : 0);
+
+      days.push({
+        dateStr,
+        dayNumber: day,
+        callsCount,
+        whatsappCount,
+        meetingsCount,
+        quotesCount,
+        quotesAmount,
+        productsCount,
+        completionScore: score,
+        targetMet: score >= 80,
+      });
+    }
+
+    return { days, firstDayOfWeek, year, month, daysInMonth };
+  }, [selectedMonth, records, dailyCallsTargetInput]);
+
+  const selectedDayData = useMemo(() => {
+    return (
+      heatmapData.days.find((d) => d.dateStr === selectedDate) || {
+        dateStr: selectedDate,
+        dayNumber: parseInt(selectedDate.slice(8), 10) || 1,
+        callsCount: 0,
+        whatsappCount: 0,
+        meetingsCount: 0,
+        quotesCount: 0,
+        quotesAmount: 0,
+        productsCount: 0,
+        completionScore: 0,
+        targetMet: false,
+      }
+    );
+  }, [heatmapData, selectedDate]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: insets.top + 6 }]}>
       {/* Header Bar */}
@@ -763,9 +868,173 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             activeOpacity={0.8}
           >
             <Text style={[styles.tfPillText, isMonthView ? { color: '#fff', fontWeight: '800' } : { color: colors.textMuted }]}>
-              📆 Monthly Quotas ({currentMonthName})
+              📆 Monthly Quotas ({activeMonthName})
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* ── PERFORMANCE CALENDAR & DATE INSPECTOR (Web Parity GoalsCalendar) ── */}
+        <View style={[styles.calendarContainer, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          {/* Calendar Header with Month Navigation */}
+          <View style={styles.calendarHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 14 }}>📅</Text>
+                <Text style={[styles.calendarTitle, { color: colors.text }]}>Goals Calendar Heatmap</Text>
+              </View>
+              <Text style={[styles.calendarSub, { color: colors.textMuted }]}>
+                {activeMonthName} • Tap any day to inspect historical telemetry
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <TouchableOpacity
+                style={[styles.calNavBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                onPress={handlePrevMonth}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 12, color: colors.text, fontWeight: '900' }}>◀</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.calTodayBtn, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}
+                onPress={handleJumpToday}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800' }}>Today</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.calNavBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                onPress={handleNextMonth}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 12, color: colors.text, fontWeight: '900' }}>▶</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Weekday Labels (Sun - Sat) */}
+          <View style={styles.weekdaysRow}>
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <Text key={day} style={[styles.weekdayLabel, { color: colors.textMuted }]}>{day}</Text>
+            ))}
+          </View>
+
+          {/* Heatmap Day Tiles Grid */}
+          <View style={styles.daysGrid}>
+            {/* Blank offset tiles for first day of week */}
+            {Array.from({ length: heatmapData.firstDayOfWeek }).map((_, idx) => (
+              <View key={`empty-${idx}`} style={styles.emptyDaySlot} />
+            ))}
+
+            {heatmapData.days.map((d) => {
+              const isSelected = d.dateStr === selectedDate && !isMonthView;
+              const isToday = d.dateStr === todayDateStr;
+              const score = d.completionScore;
+              const dotColor = score >= 80 ? '#34d399' : score >= 50 ? '#fbbf24' : '#64748b';
+
+              return (
+                <TouchableOpacity
+                  key={d.dateStr}
+                  style={[
+                    styles.dayTile,
+                    {
+                      backgroundColor: isSelected
+                        ? 'rgba(99,102,241,0.25)'
+                        : isToday
+                        ? (isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.06)')
+                        : colors.cardBgElevated,
+                      borderColor: isSelected
+                        ? '#6366f1'
+                        : isToday
+                        ? 'rgba(99,102,241,0.5)'
+                        : colors.border,
+                      borderWidth: isSelected ? 2 : 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedDate(d.dateStr);
+                    setIsMonthView(false);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <Text
+                      style={[
+                        styles.dayNumberText,
+                        { color: isSelected ? '#a5b4fc' : isToday ? '#818cf8' : colors.text },
+                        isSelected && { fontWeight: '900' },
+                      ]}
+                    >
+                      {d.dayNumber}
+                    </Text>
+                    <View style={[styles.dayStatusDot, { backgroundColor: dotColor }]} />
+                  </View>
+
+                  <View style={styles.dayMicroStats}>
+                    <Text style={{ fontSize: 7, color: colors.textMuted }} numberOfLines={1}>
+                      📞{d.callsCount}
+                    </Text>
+                    <Text style={{ fontSize: 7, color: '#38bdf8' }} numberOfLines={1}>
+                      💬{d.whatsappCount}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Selected Date Inspector Summary Card */}
+          <View style={[styles.inspectorCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+            <View style={styles.inspectorHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 13 }}>🔍</Text>
+                <Text style={[styles.inspectorTitle, { color: colors.text }]}>
+                  {isMonthView ? `${activeMonthName} Rollup` : `Selected Date: ${selectedDate}`}
+                </Text>
+              </View>
+              <View style={[styles.badgePill, (isMonthView ? activeStats.callsPct : selectedDayData.completionScore) >= 80 ? styles.badgeSuccess : styles.badgeWarn]}>
+                <Text style={[styles.badgeText, (isMonthView ? activeStats.callsPct : selectedDayData.completionScore) >= 80 ? { color: '#34d399' } : { color: '#fbbf24' }]}>
+                  {(isMonthView ? activeStats.callsPct : selectedDayData.completionScore)}% TARGET SCORE
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.inspectorGrid}>
+              <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>📞 Logged Calls</Text>
+                <Text style={[styles.inspectorVal, { color: '#34d399' }]}>
+                  {isMonthView ? heatmapData.days.reduce((s, d) => s + d.callsCount, 0) : selectedDayData.callsCount}
+                </Text>
+              </View>
+
+              <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>💬 WhatsApp</Text>
+                <Text style={[styles.inspectorVal, { color: '#38bdf8' }]}>
+                  {isMonthView ? heatmapData.days.reduce((s, d) => s + d.whatsappCount, 0) : selectedDayData.whatsappCount}
+                </Text>
+              </View>
+
+              <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>📦 Products Pitch</Text>
+                <Text style={[styles.inspectorVal, { color: '#c084fc' }]}>
+                  {isMonthView ? heatmapData.days.reduce((s, d) => s + d.productsCount, 0) : selectedDayData.productsCount}
+                </Text>
+              </View>
+
+              <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>📝 Quotes Value</Text>
+                <Text style={[styles.inspectorVal, { color: '#f59e0b' }]}>
+                  ₹{(
+                    (isMonthView
+                      ? heatmapData.days.reduce((s, d) => s + d.quotesAmount, 0)
+                      : selectedDayData.quotesAmount) / 1000
+                  ).toFixed(1)}k
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* ── TOP 4 METRIC CARDS ── */}
@@ -1043,6 +1312,28 @@ const styles = StyleSheet.create({
   timeframeBar: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 4, marginBottom: 12 },
   tfPill: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   tfPillText: { fontSize: 11, fontWeight: '700' },
+
+  // Performance Calendar & Inspector
+  calendarContainer: { borderRadius: 16, borderWidth: 1, padding: 12, marginBottom: 14 },
+  calendarHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  calendarTitle: { fontSize: 13, fontWeight: '900' },
+  calendarSub: { fontSize: 10, marginTop: 1 },
+  calNavBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  calTodayBtn: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  weekdaysRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2, marginBottom: 6 },
+  weekdayLabel: { flex: 1, textAlign: 'center', fontSize: 10, fontWeight: '800' },
+  daysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  emptyDaySlot: { width: '13.4%', aspectRatio: 1 },
+  dayTile: { width: '13.4%', aspectRatio: 1, borderRadius: 8, padding: 3, justifyContent: 'space-between', alignItems: 'center' },
+  dayNumberText: { fontSize: 10, fontWeight: '700' },
+  dayStatusDot: { width: 5, height: 5, borderRadius: 2.5 },
+  dayMicroStats: { width: '100%', flexDirection: 'column', alignItems: 'flex-start' },
+  inspectorCard: { marginTop: 10, borderRadius: 12, borderWidth: 1, padding: 10 },
+  inspectorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  inspectorTitle: { fontSize: 11, fontWeight: '800' },
+  inspectorGrid: { flexDirection: 'row', gap: 6 },
+  inspectorPill: { flex: 1, borderRadius: 8, borderWidth: 1, padding: 6, alignItems: 'center' },
+  inspectorVal: { fontSize: 12, fontWeight: '900', marginTop: 2 },
 
   metricsGrid: { gap: 10, marginBottom: 14 },
   metricCard: { borderRadius: 16, borderWidth: 1, padding: 14 },

@@ -127,8 +127,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       return;
     }
     // Only open if permitted/active
-    if (!isAdmin) {
-      const perm = getPermission(userId, userRole, key);
+    if (!isAdmin && key !== 'GOALS' && key !== 'FOLLOW_UPS') {
+      const perm = getPermission(userId, userRole, key, currentUser?.email);
       if (!perm.active) {
         return;
       }
@@ -147,6 +147,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     ...(isAdmin ? [{ key: 'ADMIN_CONTROL' as ModuleKey, icon: '🛡️', label: 'Admin Control Center' }] : []),
     ...(role === 'TEAM_LEADER' || isAdmin ? [{ key: 'LEAD_ASSIGNMENT' as ModuleKey, icon: '🎯', label: 'Lead Distribution Hub' }] : []),
     { key: 'FOLLOW_UPS', icon: '⏱️', label: 'Tasks & Follow-ups' },
+    { key: 'GOALS', icon: '📈', label: isSalesRole ? 'My Goal & Target' : (role === 'TEAM_LEADER' ? 'Team Goal & Target' : 'Goals & Targets') },
     { key: 'PRODUCTS', icon: '📦', label: 'Product Catalogue' },
     { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
     { key: 'COMMUNICATIONS', icon: '☁️', label: 'WhatsApp Cloud' },
@@ -160,7 +161,6 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'DATABASE', icon: '🗄️', label: 'Database' },
     { key: 'ATTENDANCE', icon: '⏱️', label: 'Attendance' },
     { key: 'DEALS', icon: '💼', label: 'Deals & Opportunities' },
-    { key: 'GOALS', icon: '📈', label: 'Goals & Targets' },
     { key: 'INTERVIEWS', icon: '👤', label: 'Interview for Hiring' },
     { key: 'UPCOMING_COMMS', icon: '📌', label: 'The Notice Board' },
     { key: 'SETTINGS', icon: '⚙️', label: 'Settings' },
@@ -174,6 +174,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       case 'ADMIN_CONTROL': return 'Admin Control Center';
       case 'LEAD_ASSIGNMENT': return 'Lead Distribution Hub';
       case 'FOLLOW_UPS': return 'Tasks & Follow-ups';
+      case 'GOALS': return isSalesRole ? 'My Goal & Target' : (role === 'TEAM_LEADER' ? 'Team Goal & Target' : (t.modGoals || defaultLabel));
       case 'PRODUCTS': return t.modProducts || defaultLabel;
       case 'QUOTES': return t.modQuotes || defaultLabel;
       case 'COMMUNICATIONS': return t.modComms || defaultLabel;
@@ -188,7 +189,6 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       case 'IMPORT_EXPORT': return t.modImportExport || defaultLabel;
       case 'ATTENDANCE': return t.modAttendance || defaultLabel;
       case 'DEALS': return t.modDeals || defaultLabel;
-      case 'GOALS': return t.modGoals || defaultLabel;
       case 'INTERVIEWS': return t.modInterviews || defaultLabel;
       case 'UPCOMING_COMMS': return t.modNoticeBoard || defaultLabel;
       case 'SETTINGS': return t.modSettings || defaultLabel;
@@ -313,7 +313,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
               return isAdmin;
             }
             if (isAdmin) return true;
-            const perm = getPermission(userId, userRole, item.key);
+            if (item.key === 'GOALS' || item.key === 'FOLLOW_UPS') return true;
+            const perm = getPermission(userId, userRole, item.key, currentUser?.email);
             return Boolean(perm.active);
           }).map((item) => {
             return (

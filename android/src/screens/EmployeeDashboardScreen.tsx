@@ -42,6 +42,7 @@ import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '..
 import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { productCatalogService, CatalogProductItem } from '../services/productCatalogService';
 import ProductImage from '../components/ProductImage';
+import { SalesGoalsScreen } from './SalesGoalsScreen';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [rawFollowUps, setRawFollowUps] = useState<FollowUpTask[]>([]);
   const [activeCallLead, setActiveCallLead] = useState<{ id: string; name: string; phone: string } | null>(null);
   const [drilldownModalOpen, setDrilldownModalOpen] = useState(false);
+  const [goalsHubOpen, setGoalsHubOpen] = useState(false);
   const [productDetailOpen, setProductDetailOpen] = useState<ProductItem | null>(null);
   const [pdfShareTarget, setPdfShareTarget] = useState<PdfItem | null>(null);
 
@@ -160,7 +162,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const hasTasksAccess = tasksPerm.active || followUpsPerm.active;
   const goalsPerm = accessStore.getPermission(userId, userRole, 'GOALS', userEmail);
   const reportsPerm = accessStore.getPermission(userId, userRole, 'REPORTS', userEmail);
-  const hasGoalsAccess = goalsPerm.active || reportsPerm.active;
+  const hasGoalsAccess = goalsPerm.active || reportsPerm.active || isSalesRep || userRole === 'SALES_EXEC';
   const dealsPerm = accessStore.getPermission(userId, userRole, 'DEALS', userEmail);
   const attendancePerm = accessStore.getPermission(userId, userRole, 'ATTENDANCE', userEmail);
   const noticePerm = accessStore.getPermission(userId, userRole, 'UPCOMING_COMMS', userEmail);
@@ -1008,18 +1010,18 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           </>
         )}
 
-        {/* ── 5. Performance & Goals (Target Bars + Drilldown Trigger) ────────── */}
+        {/* ── 5. Performance & Goals (Full Web Parity: 4 KPI Cards + Dual Progress Bars + Launch Banner) ── */}
         {hasGoalsAccess && (
           <>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>🌟 Performance & Goals</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <TouchableOpacity
                   style={[styles.drilldownButton, { backgroundColor: colors.primary }]}
-                  onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
+                  onPress={() => setGoalsHubOpen(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.drilldownButtonText}>📈 Goals & Targets</Text>
+                  <Text style={styles.drilldownButtonText}>📈 Goals & Targets Hub</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
@@ -1028,69 +1030,144 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 >
                   <Text style={[styles.drilldownButtonText, { color: colors.text }]}>🔍 Drill-Down</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ paddingHorizontal: 4 }}
+                  onPress={() => navigation?.navigate('Menu', { initialModule: 'REPORTS' })}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Full Report →</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
-            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            {/* 4 Top KPI Stat Cards (Matching Web EmployeeRoleDashboard) */}
+            <View style={styles.goalsKpiGrid}>
+              {/* Card 1: Leads Assigned */}
+              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={styles.goalsKpiTop}>
+                  <Text style={{ fontSize: 13 }}>🎯</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>LEADS ASSIGNED</Text>
+                </View>
+                <Text style={[styles.goalsKpiValue, { color: '#38bdf8' }]}>{scopedLeads.length}</Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active roster</Text>
+              </View>
+
+              {/* Card 2: Follow-ups / Calls */}
+              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={styles.goalsKpiTop}>
+                  <Text style={{ fontSize: 13 }}>📞</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>FOLLOW-UPS / CALLS</Text>
+                </View>
+                <Text style={[styles.goalsKpiValue, { color: '#fbbf24' }]}>{followUps.length}</Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active touchpoints</Text>
+              </View>
+
+              {/* Card 3: Revenue Generated */}
+              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={styles.goalsKpiTop}>
+                  <Text style={{ fontSize: 13 }}>🏆</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>REVENUE GENERATED</Text>
+                </View>
+                <Text style={[styles.goalsKpiValue, { color: '#c084fc' }]}>
+                  {wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : (wonRevenue > 0 ? `₹${wonRevenue.toLocaleString('en-IN')}` : '₹0')}
+                </Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>{wonLeads.length} deal(s) won</Text>
+              </View>
+
+              {/* Card 4: Target Achieved */}
+              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={styles.goalsKpiTop}>
+                  <Text style={{ fontSize: 13 }}>⭐</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>TARGET ACHIEVED</Text>
+                </View>
+                <Text style={[styles.goalsKpiValue, { color: '#34d399' }]}>
+                  {Math.min(200, Math.round((wonRevenue / monthlyRevTarget) * 100))}%
+                </Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>of ₹{(monthlyRevTarget / 100000).toFixed(1)}L quota</Text>
+              </View>
+            </View>
+
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, marginTop: 10 }]}>
               {/* Daily Calls Target */}
-              <View style={{ marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
+              <View style={{ marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
                     📞 Daily Calls Target (Fresh + Follow-ups)
                   </Text>
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>
                     {todayCallsCount} / {dailyCallsTarget} Calls ({Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%)
                   </Text>
                 </View>
-                <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                <View style={[styles.progressBarBg, { backgroundColor: colors.border, height: 8, borderRadius: 4 }]}>
                   <View
                     style={[
                       styles.progressBarFill,
                       {
                         backgroundColor: '#10b981',
+                        height: 8,
+                        borderRadius: 4,
                         width: `${Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%`,
                       },
                     ]}
                   />
                 </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted }}>Logged calls & connect history today</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#10b981' }}>
+                    {dailyCallsTarget - todayCallsCount > 0 ? `${dailyCallsTarget - todayCallsCount} calls remaining` : 'Daily target achieved! 🎯'}
+                  </Text>
+                </View>
               </View>
 
               {/* Monthly Revenue Target */}
-              <View style={{ marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
+              <View style={{ marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
                     💰 Monthly Revenue Target
                   </Text>
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#c084fc' }}>
-                    ₹{(wonRevenue / 1000).toFixed(0)}k / ₹{(monthlyRevTarget / 1000).toFixed(0)}k ({Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%)
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#c084fc' }}>
+                    ₹{(wonRevenue / 100000).toFixed(1)}L / ₹{(monthlyRevTarget / 100000).toFixed(1)}L ({Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%)
                   </Text>
                 </View>
-                <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                <View style={[styles.progressBarBg, { backgroundColor: colors.border, height: 8, borderRadius: 4 }]}>
                   <View
                     style={[
                       styles.progressBarFill,
                       {
                         backgroundColor: '#a855f7',
+                        height: 8,
+                        borderRadius: 4,
                         width: `${Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%`,
                       },
                     ]}
                   />
                 </View>
-              </View>
-
-              {/* Goal & Target Hub Banner */}
-              <TouchableOpacity
-                style={[styles.drilldownFullBar, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.3)', marginBottom: 8 }]}
-                onPress={() => navigation?.navigate('Menu', { initialModule: 'GOALS' })}
-                activeOpacity={0.8}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 14 }}>📈</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
-                    Open Goals & Targets Hub (Quota telemetry & targets)
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted }}>Cycle: Current Month</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#c084fc' }}>
+                    {Math.min(200, Math.round((wonRevenue / monthlyRevTarget) * 100))}% of monthly quota
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
+              </View>
+
+              {/* Goal & Target Hub Banner (Matching Web) */}
+              <TouchableOpacity
+                style={[styles.drilldownFullBar, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.3)', marginBottom: 8 }]}
+                onPress={() => setGoalsHubOpen(true)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <Text style={{ fontSize: 18 }}>📈</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.primary }}>
+                      Open Goals & Targets Hub (Quota telemetry & targets)
+                    </Text>
+                    <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }}>
+                      Day-by-day heatmap, quota configuration, team leaderboard & performance audit
+                    </Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open Hub →</Text>
               </TouchableOpacity>
 
               {/* Drilldown Trigger Link */}
@@ -1099,11 +1176,16 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 onPress={() => setDrilldownModalOpen(true)}
                 activeOpacity={0.8}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 14 }}>📊</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
-                    View 4-Category Activity Breakdown (Calls, WhatsApp Cloud, Product Catalogue, Quotations & Invoices)
-                  </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <Text style={{ fontSize: 18 }}>📊</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
+                      View 4-Category Activity Breakdown
+                    </Text>
+                    <Text style={{ fontSize: 10, color: colors.textMuted }}>
+                      Calls, WhatsApp Cloud, Product Catalogue, Quotations & Invoices
+                    </Text>
+                  </View>
                 </View>
                 <Text style={{ fontSize: 11, fontWeight: '900', color: colors.primary }}>Open →</Text>
               </TouchableOpacity>
@@ -1320,6 +1402,16 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           onSaveOutcome={() => setActiveCallLead(null)}
         />
       )}
+
+      {/* ── 📈 Fullscreen Goals & Targets Hub Modal ────────────────────────── */}
+      <Modal
+        visible={goalsHubOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setGoalsHubOpen(false)}
+      >
+        <SalesGoalsScreen onClose={() => setGoalsHubOpen(false)} />
+      </Modal>
     </View>
   );
 }
@@ -1353,6 +1445,14 @@ const styles = StyleSheet.create({
   cardBox: { width: '100%', maxWidth: 600, borderRadius: 16, borderWidth: 1, padding: 12, marginBottom: 14 },
   cardTitle: { fontSize: 12, fontWeight: '800' },
   cardSub: { fontSize: 10, marginTop: 2 },
+
+  // Goals & Targets Web-Parity KPI Cards
+  goalsKpiGrid: { width: '100%', maxWidth: 600, flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  goalsKpiCard: { flexBasis: '48%', flexGrow: 1, borderRadius: 14, borderWidth: 1, padding: 12 },
+  goalsKpiTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  goalsKpiLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  goalsKpiValue: { fontSize: 20, fontWeight: '900' },
+  goalsKpiSuffix: { fontSize: 10, marginTop: 2 },
 
   // Lead action cards
   leadActionCard: { borderRadius: 14, borderWidth: 1, padding: 12, gap: 10 },

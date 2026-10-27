@@ -68,9 +68,9 @@ const RESTRICTED_BY_DEFAULT: Record<UserRole, ModuleKey[]> = {
 export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<UserRole, ModuleKey[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
-  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'FOLLOW_UPS', 'SETTINGS'],
-  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS'],
-  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS'],
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'FOLLOW_UPS', 'SETTINGS', 'PDF_CATALOG', 'COMMUNICATIONS'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS', 'PRODUCTS', 'QUOTES', 'PDF_CATALOG', 'COMMUNICATIONS'],
+  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS', 'GOALS', 'PRODUCTS', 'QUOTES', 'PDF_CATALOG', 'COMMUNICATIONS'],
   HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
   UNASSIGNED:  [],
 };
@@ -177,27 +177,48 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
       return { active: true, canView: true, canShare: true, canEdit: true };
     }
 
+    // Goals & Targets is a universal core CRM telemetry module for all personnel
+    if (moduleKey === 'GOALS') {
+      return {
+        active: true,
+        canView: true,
+        canShare: true,
+        canEdit: normalizedRole === 'MANAGER' || normalizedRole.includes('ADMIN'),
+      };
+    }
+
     const { policies } = get();
     const keysToCheck = getNormalizedKeys(moduleKey);
+    const defaultList = DEFAULT_MODULE_KEYS_BY_ROLE[role] ?? [];
+    const isDefault = keysToCheck.some((k) => defaultList.includes(k as ModuleKey));
 
     for (const k of keysToCheck) {
       const key: PolicyKey = `${userId}:${k}`;
-      if (policies[key] !== undefined) return policies[key];
+      if (policies[key] !== undefined) {
+        // Core default modules cannot be disabled
+        if (isDefault && !policies[key].active) {
+          return { active: true, canView: true, canShare: true, canEdit: false };
+        }
+        return policies[key];
+      }
 
       if (userEmail) {
         const emailKey: PolicyKey = `${userEmail.toLowerCase().trim()}:${k}`;
-        if (policies[emailKey] !== undefined) return policies[emailKey];
+        if (policies[emailKey] !== undefined) {
+          if (isDefault && !policies[emailKey].active) {
+            return { active: true, canView: true, canShare: true, canEdit: false };
+          }
+          return policies[emailKey];
+        }
       }
     }
 
     // Fresh user without explicit override: ONLY access role's default modules!
-    const defaultList = DEFAULT_MODULE_KEYS_BY_ROLE[role] ?? [];
-    const isDefault = keysToCheck.some((k) => defaultList.includes(k as ModuleKey));
     return {
       active: isDefault,
       canView: isDefault,
       canShare: isDefault,
-      canEdit: isDefault && (role === 'MANAGER' || (role === 'TEAM_LEADER' && (moduleKey === 'DEALS' || moduleKey === 'GOALS' || moduleKey === 'LEADS' || moduleKey === 'PIPELINE'))),
+      canEdit: isDefault && (role === 'MANAGER' || (role === 'TEAM_LEADER' && (moduleKey === 'DEALS' || moduleKey === 'LEADS' || moduleKey === 'PIPELINE'))),
     };
   },
 
