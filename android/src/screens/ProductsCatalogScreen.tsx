@@ -40,6 +40,7 @@ import {
 } from '../services/productCatalogService';
 import { useAuthStore, normalizeRoleStr } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
+import ProductImage from '../components/ProductImage';
 
 interface ProductsCatalogScreenProps {
   onClose?: () => void;
@@ -293,8 +294,12 @@ export default function ProductsCatalogScreen({
     setStockQtyInput(p.stockQuantity.toString());
     setMoqInput(p.moq.toString());
     setTaxRateInput(p.taxRate);
-    setImageUrlInput(p.imageUrl);
-    setImagesInput(p.images && p.images.length > 0 ? p.images : [p.imageUrl, PRESET_PRODUCT_IMAGES[1]]);
+    const resolvedCover = productCatalogService.resolveImageUrl(p.imageUrl);
+    const resolvedImages = p.images && p.images.length > 0
+      ? p.images.map(im => productCatalogService.resolveImageUrl(im))
+      : [resolvedCover, PRESET_PRODUCT_IMAGES[1]];
+    setImageUrlInput(resolvedCover);
+    setImagesInput(resolvedImages);
     setDescriptionInput(p.description);
     setFeaturesList(p.features && p.features.length > 0 ? p.features : ['Enterprise Quality Verified']);
     setFeatureTagInput('');
@@ -306,7 +311,7 @@ export default function ProductsCatalogScreen({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
-        quality: 0.8,
+        quality: 0.6,
         base64: true,
       });
 
@@ -315,12 +320,12 @@ export default function ProductsCatalogScreen({
         let hasOverSize = false;
 
         for (const asset of result.assets) {
-          // File size validation: under 1MB (1048576 bytes)
-          if (asset.fileSize && asset.fileSize > 1024 * 1024) {
+          // File size validation: under 10MB
+          if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
             hasOverSize = true;
             continue;
           }
-          if (asset.base64 && asset.base64.length > 1.4 * 1024 * 1024) {
+          if (asset.base64 && asset.base64.length > 14 * 1024 * 1024) {
             hasOverSize = true;
             continue;
           }
@@ -332,11 +337,12 @@ export default function ProductsCatalogScreen({
               finalImg = await productCatalogService.uploadProductImage(rawUri, 'catalog-prod');
             } catch (_) {}
           }
-          newImages.push(finalImg);
+          const resolved = productCatalogService.resolveImageUrl(finalImg);
+          newImages.push(resolved);
         }
 
         if (hasOverSize) {
-          Alert.alert('⚠️ Size Limit Notice', 'One or more images were larger than 1MB and were skipped. Each image must be under 1MB.');
+          Alert.alert('⚠️ Size Limit Notice', 'One or more images were larger than 10MB and were skipped.');
         }
 
         if (newImages.length > 0) {
@@ -684,6 +690,9 @@ export default function ProductsCatalogScreen({
       return;
     }
 
+    const resolvedCover = productCatalogService.resolveImageUrl(imagesInput[0] || imageUrlInput.trim() || PRESET_PRODUCT_IMAGES[0]);
+    const resolvedImages = imagesInput.map(im => productCatalogService.resolveImageUrl(im));
+
     const payload = {
       name: nameInput.trim(),
       sku: finalSku,
@@ -698,8 +707,8 @@ export default function ProductsCatalogScreen({
       stockQuantity: stockQty,
       moq,
       taxRate: taxRateInput,
-      imageUrl: imagesInput[0] || imageUrlInput.trim() || PRESET_PRODUCT_IMAGES[0],
-      images: imagesInput,
+      imageUrl: resolvedCover,
+      images: resolvedImages.length > 0 ? resolvedImages : [resolvedCover],
       description: descriptionInput.trim() || 'No description provided.',
       features: featuresList.length > 0 ? featuresList : ['Enterprise Quality Verified'],
     };
@@ -1126,7 +1135,7 @@ export default function ProductsCatalogScreen({
                   <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                     {cardConfig.showImage && (
                       <View style={{ position: 'relative' }}>
-                        <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
+                        <ProductImage uri={p.imageUrl} style={styles.productImg} />
                         {p.images && p.images.length > 1 && (
                           <View style={styles.multiImgBadge}>
                             <Text style={styles.multiImgBadgeText}>📷 {p.images.length}</Text>
@@ -1279,7 +1288,7 @@ export default function ProductsCatalogScreen({
               <View style={[styles.productCard, { marginHorizontal: 0, marginBottom: 16, backgroundColor: '#020617', borderColor: '#4f46e5' }]}>
                 <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                   {tempConfig.showImage && (
-                    <Image source={{ uri: PRESET_PRODUCT_IMAGES[0] }} style={styles.productImg} />
+                    <ProductImage uri={PRESET_PRODUCT_IMAGES[0]} style={styles.productImg} />
                   )}
                   <View style={{ flex: 1 }}>
                     {(tempConfig.showCategory || tempConfig.showSubCategory || tempConfig.showSku) && (
@@ -1577,7 +1586,7 @@ export default function ProductsCatalogScreen({
 
                   return (
                     <View style={{ marginBottom: 8 }}>
-                      <Image source={{ uri: currentImage }} style={styles.detailCoverImg} />
+                      <ProductImage uri={currentImage} style={styles.detailCoverImg} />
                       {displayImages.length > 1 && (
                         <View style={{ marginTop: 8 }}>
                           <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 }}>
@@ -1596,7 +1605,7 @@ export default function ProductsCatalogScreen({
                                   ]}
                                   activeOpacity={0.8}
                                 >
-                                  <Image source={{ uri: imgUri }} style={styles.detailThumbImg} />
+                                  <ProductImage uri={imgUri} style={styles.detailThumbImg} />
                                   {isSelected && <View style={styles.detailThumbActiveDot} />}
                                 </TouchableOpacity>
                               );
@@ -2477,7 +2486,7 @@ export default function ProductsCatalogScreen({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
                   {imagesInput.map((imgUri, idx) => (
                     <View key={idx} style={styles.uploadedImgWrap}>
-                      <Image source={{ uri: imgUri }} style={styles.uploadedImg} />
+                      <ProductImage uri={imgUri} style={styles.uploadedImg} />
                       <TouchableOpacity
                         style={styles.removeImgBtn}
                         onPress={() => handleRemoveImage(idx)}
@@ -2505,7 +2514,7 @@ export default function ProductsCatalogScreen({
                     }}
                     style={styles.imgPresetBtn}
                   >
-                    <Image source={{ uri: img }} style={styles.imgPresetThumb} />
+                    <ProductImage uri={img} style={styles.imgPresetThumb} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>

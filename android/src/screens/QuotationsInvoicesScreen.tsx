@@ -34,6 +34,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../context/ThemeContext';
 import { productCatalogService, CatalogProductItem } from '../services/productCatalogService';
+import ProductImage from '../components/ProductImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -1209,7 +1210,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                       <Text style={[styles.a4TdNum, { width: colW.num }]}>{idx + 1}</Text>
                       <View style={{ width: colW.item, flex: 1, minWidth: colW.item, paddingRight: 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-                          {it.showImage && it.imageUrl ? <Image source={{ uri: it.imageUrl }} style={{ width: 18, height: 18, borderRadius: 2, marginTop: 1 }} /> : null}
+                          {it.showImage && it.imageUrl ? <ProductImage uri={it.imageUrl} style={{ width: 18, height: 18, borderRadius: 2, marginTop: 1 }} /> : null}
                           <View style={{ flex: 1 }}>
                             <Text style={styles.a4TdName} numberOfLines={2}>{it.productName}</Text>
                             {it.showDescription && it.description ? <Text style={styles.a4TdDesc} numberOfLines={2}>{it.description}</Text> : null}
@@ -2259,7 +2260,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                         onPress={() => handleSelectCatalogProduct(prod, catalogModalOpen)}
                       >
                         {prod.imageUrl ? (
-                          <Image source={{ uri: prod.imageUrl }} style={styles.catalogImg} />
+                          <ProductImage uri={prod.imageUrl} style={styles.catalogImg} />
                         ) : (
                           <View style={[styles.catalogImg, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
                             <Text style={{ fontSize: 18 }}>📦</Text>

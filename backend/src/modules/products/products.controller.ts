@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -35,6 +36,19 @@ export class ProductsController {
     }
     const url = await this.productsService.uploadImageToFirebase(body.dataUrl, body.fileName || 'product');
     return { success: true, url };
+  }
+
+  // ─── SERVE PRODUCT STATIC IMAGES & FALLBACKS ──────────────────────────────────
+  @Get('images/:fileName')
+  @ApiOperation({ summary: 'Serve product image with multiple static storage directory fallbacks' })
+  async getProductImage(@Param('fileName') fileName: string, @Res() res: any) {
+    return this.productsService.serveProductImage(fileName, res);
+  }
+
+  @Get('static/:fileName')
+  @ApiOperation({ summary: 'Serve product static image alias' })
+  async getProductStaticImage(@Param('fileName') fileName: string, @Res() res: any) {
+    return this.productsService.serveProductImage(fileName, res);
   }
 
   // ─── GET ALL ACTIVE PRODUCTS ──────────────────────────────────────────────────

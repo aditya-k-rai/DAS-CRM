@@ -130,6 +130,11 @@ export class CreateProductDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  coverImage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsArray()
   images?: string[];
 
@@ -234,6 +239,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  coverImage?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -600,7 +610,7 @@ export class ProductsService {
     // Upload images to Firebase Cloud Storage if they are base64
     let primaryImg = (dto.images && dto.images.length > 0)
       ? dto.images[0]
-      : (dto.imageUrl || '');
+      : (dto.imageUrl || dto.coverImage || '');
     if (primaryImg && primaryImg.startsWith('data:')) {
       primaryImg = await this.uploadImageToFirebase(primaryImg, 'product-cover');
     }
@@ -731,7 +741,7 @@ export class ProductsService {
     }
 
     // Upload updated images to Firebase Cloud Storage if they are base64
-    let primaryImageUrl = dto.imageUrl;
+    let primaryImageUrl = dto.imageUrl || dto.coverImage;
     if (primaryImageUrl && primaryImageUrl.startsWith('data:')) {
       primaryImageUrl = await this.uploadImageToFirebase(primaryImageUrl, 'product-cover');
     }
@@ -997,4 +1007,51 @@ export class ProductsService {
       deletedId: id,
     };
   }
+
+  // ─── SERVE PRODUCT IMAGE STREAM ─────────────────────────────────────────────
+  async serveProductImage(fileName: string, res: any) {
+    const cleanFileName = path.basename(fileName);
+    const candidateDirs = [
+      path.resolve(process.cwd(), 'public', 'products'),
+      path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
+      path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
+      path.resolve(process.cwd(), '..', 'backend', 'public', 'products'),
+    ];
+
+    for (const dir of candidateDirs) {
+      try {
+        const fullPath = path.join(dir, cleanFileName);
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+          const ext = path.extname(fullPath).toLowerCase();
+          const contentType =
+            ext === '.png'
+              ? 'image/png'
+              : ext === '.webp'
+              ? 'image/webp'
+              : ext === '.svg'
+              ? 'image/svg+xml'
+              : 'image/jpeg';
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return fs.createReadStream(fullPath).pipe(res);
+        }
+      } catch (_) {}
+    }
+
+    // Fallback: If requesting a jacket or product image, try puff-jackets.jpg
+    for (const dir of candidateDirs) {
+      try {
+        const puffPath = path.join(dir, 'puff-jackets.jpg');
+        if (fs.existsSync(puffPath) && fs.statSync(puffPath).isFile()) {
+          res.setHeader('Content-Type', 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return fs.createReadStream(puffPath).pipe(res);
+        }
+      } catch (_) {}
+    }
+
+    // Ultimate fallback: redirect to high-quality Unsplash preset
+    return res.redirect(302, 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80');
+  }
 }
+

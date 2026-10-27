@@ -30,8 +30,27 @@ async function bootstrap() {
 
   // Security & Optimization
   const express = require('express');
+  const path = require('path');
+  const fs = require('fs');
+
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Static product assets serving for Web & Android App parity
+  const staticProductDirs = [
+    path.resolve(process.cwd(), 'public', 'products'),
+    path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
+    path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
+    path.resolve(process.cwd(), '..', 'backend', 'public', 'products'),
+  ];
+  for (const sDir of staticProductDirs) {
+    try {
+      if (!fs.existsSync(sDir)) fs.mkdirSync(sDir, { recursive: true });
+      app.use('/products', express.static(sDir, { maxAge: '7d', index: false }));
+      app.use('/uploads', express.static(sDir, { maxAge: '7d', index: false }));
+      app.use('/api/v1/products/static', express.static(sDir, { maxAge: '7d', index: false }));
+    } catch (_) {}
+  }
 
   if (typeof helmet === 'function') {
     app.use(helmet());

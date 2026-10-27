@@ -43,6 +43,7 @@ import {
   whatsappTemplateEngine,
 } from '../services/whatsappTemplateEngine';
 import { productCatalogService } from '../services/productCatalogService';
+import ProductImage from './ProductImage';
 import { apiService } from '../services/apiService';
 import { followUpSyncEngine } from '../services/followUpSyncEngine';
 import { useAuthStore } from '../store/authStore';
@@ -877,9 +878,10 @@ export const DirectWhatsAppModal: React.FC<DirectWhatsAppModalProps> = ({
                                   isSelected && { borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)' },
                                 ]}
                               >
-                                <Image
-                                  source={{ uri: prod.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200' }}
+                                <ProductImage
+                                  uri={prod.imageUrl}
                                   style={styles.productImg}
+                                  fallback="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200"
                                 />
                                 <View style={{ flex: 1, minWidth: 0 }}>
                                   <Text style={[styles.productName, { color: colors.text }]} numberOfLines={1}>
@@ -940,7 +942,11 @@ export const DirectWhatsAppModal: React.FC<DirectWhatsAppModalProps> = ({
                             const priceNum = prod.price || (prod.minPrice ? parseInt(prod.minPrice.replace(/[^\d]/g, ''), 10) : 0);
                             return (
                               <View key={pId} style={[styles.attachedMiniRow, { backgroundColor: colors.cardBgElevated }]}>
-                                <Image source={{ uri: prod.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=100' }} style={styles.attachedMiniImg} />
+                                <ProductImage
+                                  uri={prod.imageUrl}
+                                  style={styles.attachedMiniImg}
+                                  fallback="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=100"
+                                />
                                 <View style={{ flex: 1, minWidth: 0 }}>
                                   <Text style={[styles.attachedMiniName, { color: colors.text }]} numberOfLines={1}>
                                     {prod.name}

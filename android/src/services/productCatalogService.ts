@@ -336,6 +336,52 @@ class ProductCatalogService {
     return updated;
   }
 
+  // ── Image URL Resolution Helper ───────────────────────────────────────────
+
+  resolveImageUrl(url?: string | null): string {
+    if (!url || typeof url !== 'string') {
+      return PRESET_PRODUCT_IMAGES[0];
+    }
+    const trimmed = url.trim();
+    if (!trimmed) {
+      return PRESET_PRODUCT_IMAGES[0];
+    }
+
+    // 1. React Native Image does not support SVG data URIs
+    if (trimmed.startsWith('data:image/svg+xml') || trimmed.includes('image/svg+xml')) {
+      return PRESET_PRODUCT_IMAGES[0];
+    }
+
+    // 2. Base64 raster image data URIs or local file/content URIs
+    if (trimmed.startsWith('data:image/') || trimmed.startsWith('file://') || trimmed.startsWith('content://')) {
+      return trimmed;
+    }
+
+    // 3. Absolute HTTP/HTTPS URLs
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      // If pointing to localhost/127.0.0.1, rewrite host with active device gateway
+      if (trimmed.includes('localhost:') || trimmed.includes('127.0.0.1:')) {
+        try {
+          const apiBase = getApiBase();
+          const apiUrl = new URL(apiBase);
+          const imgUrl = new URL(trimmed);
+          imgUrl.hostname = apiUrl.hostname;
+          if (apiUrl.port) imgUrl.port = apiUrl.port;
+          return imgUrl.toString();
+        } catch (_) {}
+      }
+      return trimmed;
+    }
+
+    // 4. Relative paths like /products/... or /uploads/...
+    const apiBase = getApiBase();
+    let hostBase = apiBase.replace(/\/api\/v1\/?$/, '');
+    hostBase = hostBase.replace(/\/+$/, '');
+    const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+
+    return `${hostBase}${cleanPath}`;
+  }
+
   // ── Products Core (Real-Time Cloud & Cache Sync) ───────────────────────────
 
   async getProducts(forceRefresh = false): Promise<CatalogProductItem[]> {
@@ -362,6 +408,12 @@ class ProductCatalogService {
             if (stock <= 0) status = 'OUT_OF_STOCK';
             else if (stock < 10) status = 'LOW_STOCK';
 
+            const rawImg = p.coverImage || p.imageUrl || p.image;
+            const resolvedCover = this.resolveImageUrl(rawImg);
+            const resolvedGallery = Array.isArray(p.images) && p.images.length > 0
+              ? p.images.map((im: string) => this.resolveImageUrl(im))
+              : [resolvedCover];
+
             return {
               id: String(p.id),
               name: p.name || 'Product Item',
@@ -379,8 +431,8 @@ class ProductCatalogService {
               taxRate: p.taxRate !== undefined ? Number(p.taxRate) : p.tax ? Number(p.tax) : 18,
               description: p.description || p.overview || '',
               features: Array.isArray(p.features) ? p.features : Array.isArray(p.specs) ? p.specs : [],
-              imageUrl: p.coverImage || p.imageUrl || p.image || PRESET_PRODUCT_IMAGES[0],
-              images: Array.isArray(p.images) ? p.images : [],
+              imageUrl: resolvedCover,
+              images: resolvedGallery,
               status,
               createdAt: p.createdAt || new Date().toISOString().split('T')[0],
             };
@@ -426,7 +478,17 @@ class ProductCatalogService {
       if (storedProds) {
         const parsed = JSON.parse(storedProds);
         if (Array.isArray(parsed)) {
-          this.products = parsed;
+          this.products = parsed.map((p: any) => {
+            const resolvedCover = this.resolveImageUrl(p.imageUrl);
+            const resolvedGallery = Array.isArray(p.images) && p.images.length > 0
+              ? p.images.map((im: string) => this.resolveImageUrl(im))
+              : [resolvedCover];
+            return {
+              ...p,
+              imageUrl: resolvedCover,
+              images: resolvedGallery,
+            };
+          });
         }
       }
       const storedCats = await AsyncStorage.getItem(STORAGE_CATS_KEY);
@@ -454,8 +516,15 @@ class ProductCatalogService {
     else if (product.stockQuantity < 10) status = 'LOW_STOCK';
 
     const tempId = `prod-${Date.now()}`;
+    const resolvedCover = this.resolveImageUrl(product.imageUrl);
+    const resolvedImages = Array.isArray(product.images) && product.images.length > 0
+      ? product.images.map((im) => this.resolveImageUrl(im))
+      : [resolvedCover];
+
     const newProd: CatalogProductItem = {
       ...product,
+      imageUrl: resolvedCover,
+      images: resolvedImages,
       id: tempId,
       status,
       createdAt: new Date().toISOString().split('T')[0],
@@ -465,7 +534,7 @@ class ProductCatalogService {
     const updated = [newProd, ...this.products];
     await this.saveProducts(updated);
 
-    // 2. Sync to backend API
+    // 2. Sync to backend API with both imageUrl and coverImage to ensure DTO acceptance
     const activeBase = getApiBase();
     const headers = this.getRequestHeaders();
     try {
@@ -488,8 +557,9 @@ class ProductCatalogService {
           taxRate: product.taxRate,
           description: product.description,
           features: product.features,
-          coverImage: product.imageUrl,
-          images: product.images,
+          imageUrl: resolvedCover,
+          coverImage: resolvedCover,
+          images: resolvedImages,
         }),
       });
 
@@ -507,6 +577,11 @@ class ProductCatalogService {
   }
 
   async updateProduct(id: string, updates: Partial<CatalogProductItem>): Promise<CatalogProductItem[]> {
+    const resolvedCover = updates.imageUrl !== undefined ? this.resolveImageUrl(updates.imageUrl) : undefined;
+    const resolvedImages = updates.images !== undefined
+      ? (Array.isArray(updates.images) ? updates.images.map((im) => this.resolveImageUrl(im)) : [])
+      : undefined;
+
     const updated = this.products.map((p) => {
       if (p.id === id) {
         const newQty = updates.stockQuantity !== undefined ? updates.stockQuantity : p.stockQuantity;
@@ -515,17 +590,30 @@ class ProductCatalogService {
         else if (newQty < 10) newStatus = 'LOW_STOCK';
         else if (newStatus === 'OUT_OF_STOCK' || newStatus === 'LOW_STOCK') newStatus = 'ACTIVE';
 
-        return { ...p, ...updates, status: newStatus };
+        return {
+          ...p,
+          ...updates,
+          imageUrl: resolvedCover !== undefined ? resolvedCover : p.imageUrl,
+          images: resolvedImages !== undefined ? resolvedImages : p.images,
+          status: newStatus,
+        };
       }
       return p;
     });
 
     await this.saveProducts(updated);
 
-    // Sync to backend API
+    // Sync to backend API with both imageUrl and coverImage for full schema parity
     const activeBase = getApiBase();
     const headers = this.getRequestHeaders();
     try {
+      const targetCover = resolvedCover !== undefined
+        ? resolvedCover
+        : (updated.find((p) => p.id === id)?.imageUrl || '');
+      const targetImages = resolvedImages !== undefined
+        ? resolvedImages
+        : (updated.find((p) => p.id === id)?.images || []);
+
       await fetch(`${activeBase}/products/${id}`, {
         method: 'PUT',
         headers,
@@ -545,8 +633,9 @@ class ProductCatalogService {
           taxRate: updates.taxRate,
           description: updates.description,
           features: updates.features,
-          coverImage: updates.imageUrl,
-          images: updates.images,
+          imageUrl: targetCover,
+          coverImage: targetCover,
+          images: targetImages,
         }),
       });
     } catch (_) {}
@@ -616,7 +705,7 @@ class ProductCatalogService {
 
   async uploadProductImage(dataUrl: string, prefix = 'product'): Promise<string> {
     if (!dataUrl || !dataUrl.startsWith('data:')) {
-      return dataUrl || '';
+      return this.resolveImageUrl(dataUrl || '');
     }
 
     const activeBase = getApiBase();
@@ -629,7 +718,9 @@ class ProductCatalogService {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data?.url) return data.url;
+        if (data?.url) {
+          return this.resolveImageUrl(data.url);
+        }
       }
     } catch (_) {}
 
@@ -638,3 +729,4 @@ class ProductCatalogService {
 }
 
 export const productCatalogService = new ProductCatalogService();
+

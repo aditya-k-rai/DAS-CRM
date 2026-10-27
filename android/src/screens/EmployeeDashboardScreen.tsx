@@ -39,6 +39,7 @@ import PostCallOutcomeModal from '../components/PostCallOutcomeModal';
 import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '../components/RepDrilldownModal';
 import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { productCatalogService, CatalogProductItem } from '../services/productCatalogService';
+import ProductImage from '../components/ProductImage';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -1125,7 +1126,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     activeOpacity={0.8}
                   >
                     {prod.imageUrl ? (
-                      <Image source={{ uri: prod.imageUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginBottom: 4 }} />
+                      <ProductImage uri={prod.imageUrl} style={{ width: 44, height: 44, borderRadius: 8, marginBottom: 4 }} />
                     ) : (
                       <Text style={{ fontSize: 26, marginBottom: 4 }}>📦</Text>
                     )}

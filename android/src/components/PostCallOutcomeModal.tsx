@@ -49,6 +49,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOG_PRODUCTS, ProductItem } from '../services/whatsappTemplateEngine';
 import { productCatalogService } from '../services/productCatalogService';
+import ProductImage from './ProductImage';
 import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
 
@@ -714,7 +715,7 @@ export default function PostCallOutcomeModal({
                               }}
                               activeOpacity={0.8}
                             >
-                              <Image source={{ uri: prod.imageUrl }} style={styles.prodThumb} />
+                              <ProductImage uri={prod.imageUrl} style={styles.prodThumb} />
                               <View style={{ flex: 1 }}>
                                 <Text style={[styles.prodTitle, isSelected && { color: '#34d399' }]} numberOfLines={1}>
                                   {prod.name}
