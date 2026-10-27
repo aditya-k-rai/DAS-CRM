@@ -424,6 +424,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   // Dynamic Status Picker Modal State
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [availableStatuses, setAvailableStatuses] = useState<LeadStatusItem[]>(DEFAULT_ANDROID_STATUSES);
+  const [selectedStatusChoice, setSelectedStatusChoice] = useState<string>('NEW LEAD');
+  const [statusNotes, setStatusNotes] = useState<string>('');
 
   // 💳 Payment Status Modal
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -1404,18 +1406,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </TouchableOpacity>
           </View>
 
-          {/* DYNAMIC LEAD STATUS BADGE */}
-          <TouchableOpacity
-            style={[styles.statusBadgeContainer, { backgroundColor: statusColor + '18', borderColor: statusColor + '50' }]}
-            onPress={() => setStatusPickerOpen(true)}
-            activeOpacity={0.7}
+          {/* DYNAMIC LEAD STATUS BADGE (CLEAN WEB-STYLE DISPLAY) */}
+          <View
+            style={[styles.statusBadgeContainer, { backgroundColor: statusColor + '18', borderColor: statusColor + '50', justifyContent: 'center' }]}
           >
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusText, { color: statusColor }]}>{leadStatusState || lead?.status || 'NEW LEAD'}</Text>
-            <View style={[styles.autoActivityPill, { backgroundColor: statusColor + '25', borderColor: statusColor + '40' }]}>
-              <Text style={[styles.autoActivityText, { color: statusColor }]}>⚡ Change Status ▾</Text>
-            </View>
-          </TouchableOpacity>
+            <Text style={[styles.statusText, { color: statusColor, fontWeight: '900', letterSpacing: 0.6 }]}>
+              {leadStatusState || lead?.status || 'NEW LEAD'}
+            </Text>
+          </View>
         </View>
 
         {/* Action Buttons Toolbar (6 Glassmorphism Cards) */}
@@ -1457,7 +1456,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </TouchableOpacity>
           </View>
 
-          {/* Row 2: Follow-up, Meeting, Direct Email, Update Status */}
+          {/* Row 2: Follow-up, Direct Email, Update Status (Web Parity) */}
           <View style={{ flexDirection: 'row', gap: 6 }}>
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(79,70,229,0.12)', borderWidth: 1, borderColor: isDark ? '#818cf8' : '#4f46e5', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
@@ -1465,14 +1464,6 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               activeOpacity={0.8}
             >
               <Text style={{ color: isDark ? '#a5b4fc' : '#4338ca', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>⏰ Follow-up</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ flex: 1, backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(2,132,199,0.12)', borderWidth: 1, borderColor: isDark ? '#38bdf8' : '#0284c7', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setMeetingModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: isDark ? '#38bdf8' : '#0284c7', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>📅 Meeting</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1487,12 +1478,31 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               <Text style={{ color: isDark ? '#c084fc' : '#7c3aed', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>✉️ Email</Text>
             </TouchableOpacity>
 
+            {/* Redesigned Web-Style Update Status Button */}
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: isDark ? 'rgba(251,191,36,0.15)' : 'rgba(217,119,6,0.12)', borderWidth: 1, borderColor: isDark ? '#fbbf24' : '#d97706', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setStatusPickerOpen(true)}
+              style={{
+                flex: 1.15,
+                backgroundColor: isDark ? 'rgba(244,63,94,0.16)' : 'rgba(225,29,72,0.12)',
+                borderWidth: 1.5,
+                borderColor: isDark ? '#fb7185' : '#e11d48',
+                borderRadius: 12,
+                paddingVertical: 11,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 5,
+              }}
+              onPress={() => {
+                setSelectedStatusChoice(leadStatusState || lead?.status || 'NEW LEAD');
+                setStatusNotes('');
+                setStatusPickerOpen(true);
+              }}
               activeOpacity={0.8}
             >
-              <Text style={{ color: isDark ? '#fbbf24' : '#b45309', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>📝 Status</Text>
+              <Text style={{ fontSize: 12 }}>📝</Text>
+              <Text style={{ color: isDark ? '#fda4af' : '#e11d48', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>
+                Update Status
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2095,62 +2105,153 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 📝 STATUS PICKER MODAL                                                      */}
+      {/* 📝 UPDATE LEAD STATUS & STAGE MODAL (WEB PARITY)                            */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={statusPickerOpen} transparent animationType="fade" onRequestClose={() => setStatusPickerOpen(false)}>
-        <View style={[styles.waModalOverlay, { backgroundColor: 'rgba(0,0,0,0.7)' }]}>
-          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border, maxWidth: 360 }]}>
-            <View style={[styles.waModalHeaderRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.waModalTitle, { color: colors.text }]}>📝 Update Lead Status</Text>
+        <View style={[styles.waModalOverlay, { backgroundColor: 'rgba(0,0,0,0.75)' }]}>
+          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border, maxWidth: 390, width: '92%', borderRadius: 20 }]}>
+            {/* Header */}
+            <View style={[styles.waModalHeaderRow, { borderBottomColor: colors.border, paddingBottom: 12 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.waModalTitle, { color: colors.text, fontSize: 15 }]}>📝 Update Lead Stage & Status</Text>
+                <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>
+                  Current: <Text style={{ color: statusColor, fontWeight: '800' }}>{leadStatusState || lead?.status || 'NEW LEAD'}</Text>
+                </Text>
+              </View>
               <TouchableOpacity onPress={() => setStatusPickerOpen(false)} style={[styles.waCloseBtn, { backgroundColor: colors.cardBgElevated }]}>
                 <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 350 }}>
-              {availableStatuses.map(st => (
-                <TouchableOpacity
-                  key={st.id || st.name}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                  }}
-                  onPress={() => {
-                    setStatusPickerOpen(false);
-                    const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                    setLeadStatusState(st.name);
-                    setLastStatusUpdate({
-                      status: st.name,
-                      medium: 'Manual Update',
-                      time: timeString,
-                    });
-                    apiService.updateLeadStatus(token, leadId, st.name);
-                    handleSaveCallOutcome({
-                      leadId,
-                      leadName,
-                      phone: leadPhone,
-                      outcome: 'PICKED_UP',
-                      subOption: 'TALKED',
-                      notes: `Lead status updated to ${st.name}`,
-                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    });
-                    setToastConfig({
-                      id: String(Date.now()),
-                      title: 'Status Updated',
-                      message: `Lead status updated to ${st.name}.`,
-                      type: 'SUCCESS',
-                    });
-                  }}
-                >
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: st.color }} />
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>{st.name}</Text>
-                </TouchableOpacity>
-              ))}
+
+            {/* Status list with Web parity badges & descriptions */}
+            <ScrollView style={{ maxHeight: 290 }} showsVerticalScrollIndicator={false}>
+              <View style={{ gap: 6, paddingVertical: 8 }}>
+                {availableStatuses.map(st => {
+                  const isSelected = (selectedStatusChoice || leadStatusState || '').trim().toUpperCase() === st.name.trim().toUpperCase();
+                  return (
+                    <TouchableOpacity
+                      key={st.id || st.name}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: 12,
+                        borderWidth: isSelected ? 1.5 : 1,
+                        borderColor: isSelected ? st.color : colors.border,
+                        backgroundColor: isSelected ? (st.color + '18') : (colors.cardBgElevated || 'transparent'),
+                      }}
+                      onPress={() => setSelectedStatusChoice(st.name)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <Text style={{ fontSize: 16 }}>{st.icon || '🏷️'}</Text>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: isSelected ? st.color : colors.text }}>
+                              {st.name}
+                            </Text>
+                          </View>
+                          {st.desc ? (
+                            <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }} numberOfLines={1}>
+                              {st.desc}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <View style={{ backgroundColor: st.color, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>✓</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </ScrollView>
+
+            {/* Status Notes Input */}
+            <View style={{ marginTop: 8, marginBottom: 12 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>
+                Status Remarks / Notes (Optional)
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: colors.cardBgElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  fontSize: 12,
+                  color: colors.text,
+                }}
+                placeholder="Enter remarks or status reason..."
+                placeholderTextColor={colors.textMuted}
+                value={statusNotes}
+                onChangeText={setStatusNotes}
+              />
+            </View>
+
+            {/* Modal Actions */}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setStatusPickerOpen(false)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.cardBgElevated,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '800' }}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  const targetStatus = selectedStatusChoice || leadStatusState || 'NEW LEAD';
+                  setStatusPickerOpen(false);
+                  const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                  setLeadStatusState(targetStatus);
+                  setLastStatusUpdate({
+                    status: targetStatus,
+                    medium: 'Manual Update',
+                    time: timeString,
+                  });
+                  apiService.updateLeadStatus(token, leadId, targetStatus);
+                  handleSaveCallOutcome({
+                    leadId,
+                    leadName,
+                    phone: leadPhone,
+                    outcome: 'PICKED_UP',
+                    subOption: 'TALKED',
+                    notes: statusNotes.trim() ? `Lead status updated to ${targetStatus}: ${statusNotes.trim()}` : `Lead status updated to ${targetStatus}`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  });
+                  setToastConfig({
+                    id: String(Date.now()),
+                    title: 'Status Updated',
+                    message: `Lead status updated to ${targetStatus}.`,
+                    type: 'SUCCESS',
+                  });
+                }}
+                style={{
+                  flex: 2,
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: '#e11d48',
+                  alignItems: 'center',
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>Save & Verify Status →</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
