@@ -429,6 +429,25 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       }
     });
 
+    // Also include real follow-up activities
+    rawFollowUps.forEach((fu, fIdx) => {
+      const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : todayStr);
+      activitiesList.push({
+        id: fu.id || `fu-act-${fIdx}`,
+        leadId: fu.leadId || '',
+        leadName: fu.leadName || 'Client Prospect',
+        leadPhone: fu.leadPhone || '—',
+        leadCompany: fu.leadCompany || 'Corporate Account',
+        category: fu.channel === 'WHATSAPP' ? 'WHATSAPP' : 'CALL',
+        callSubtype: 'FOLLOWUP',
+        title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
+        notes: fu.outcomeNote || undefined,
+        outcome: fu.isCompleted ? 'COMPLETED' : 'SCHEDULED',
+        timestamp: fu.dueAt || fuDate,
+        dateKey: fuDate,
+      });
+    });
+
     return {
       userId: currentUser?.id || 'emp-user-1',
       userName: selectedRep === 'ALL' ? currentUser?.name || 'All Sales Reps' : selectedRep,
@@ -443,7 +462,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       monthlyMeetingsTarget: 10,
       activitiesList,
     };
-  }, [scopedLeads, selectedRep, currentUser, dailyCallsTarget, monthlyRevTarget]);
+  }, [scopedLeads, rawFollowUps, selectedRep, currentUser, dailyCallsTarget, monthlyRevTarget]);
 
   // Derived follow-ups and meetings from real followUpSyncEngine tasks (with fallback to leads)
   useEffect(() => {
@@ -1040,30 +1059,42 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               </View>
             </View>
 
-            {/* 4 Top KPI Stat Cards (Matching Web EmployeeRoleDashboard) */}
+            {/* 4 Top KPI Stat Cards (Matching Web EmployeeRoleDashboard — Tap to Drilldown) */}
             <View style={styles.goalsKpiGrid}>
               {/* Card 1: Leads Assigned */}
-              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setDrilldownModalOpen(true)}
+                style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+              >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>🎯</Text>
                   <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>LEADS ASSIGNED</Text>
                 </View>
                 <Text style={[styles.goalsKpiValue, { color: '#38bdf8' }]}>{scopedLeads.length}</Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active roster</Text>
-              </View>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active roster ↗</Text>
+              </TouchableOpacity>
 
               {/* Card 2: Follow-ups / Calls */}
-              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setDrilldownModalOpen(true)}
+                style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+              >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>📞</Text>
                   <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>FOLLOW-UPS / CALLS</Text>
                 </View>
                 <Text style={[styles.goalsKpiValue, { color: '#fbbf24' }]}>{followUps.length}</Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active touchpoints</Text>
-              </View>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active touchpoints ↗</Text>
+              </TouchableOpacity>
 
               {/* Card 3: Revenue Generated */}
-              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setDrilldownModalOpen(true)}
+                style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+              >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>🏆</Text>
                   <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>REVENUE GENERATED</Text>
@@ -1071,11 +1102,15 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 <Text style={[styles.goalsKpiValue, { color: '#c084fc' }]}>
                   {wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : (wonRevenue > 0 ? `₹${wonRevenue.toLocaleString('en-IN')}` : '₹0')}
                 </Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>{wonLeads.length} deal(s) won</Text>
-              </View>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>{wonLeads.length} deal(s) won ↗</Text>
+              </TouchableOpacity>
 
               {/* Card 4: Target Achieved */}
-              <View style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setDrilldownModalOpen(true)}
+                style={[styles.goalsKpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+              >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>⭐</Text>
                   <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>TARGET ACHIEVED</Text>
@@ -1083,8 +1118,8 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 <Text style={[styles.goalsKpiValue, { color: '#34d399' }]}>
                   {Math.min(200, Math.round((wonRevenue / monthlyRevTarget) * 100))}%
                 </Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>of ₹{(monthlyRevTarget / 100000).toFixed(1)}L quota</Text>
-              </View>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>of ₹{(monthlyRevTarget / 100000).toFixed(1)}L quota ↗</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, marginTop: 10 }]}>

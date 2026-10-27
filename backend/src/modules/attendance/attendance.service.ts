@@ -9,19 +9,20 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
-  async checkIn(organizationId: string, userId: string) {
-    // Check if employee can self-check-in
-    const profile = await this.prisma.employeeProfile.findUnique({
-      where: { userId },
-    });
-    if (!profile?.canSelfCheckIn) {
-      throw new BadRequestException(
-        'Self check-in is not enabled for your account. Please contact HR.',
-      );
-    }
-
+  /**
+   * Record punch in/out with comprehensive database persistence,
+   * working hours computation, geo-tagging, and selfie metadata.
+   */
+  async recordPunch(
+    organizationId: string,
+    userId: string,
+    body: { type: 'IN' | 'OUT'; location?: string; image?: string; notes?: string },
+  ) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    const now = new Date();
+    const isOut = body.type === 'OUT';
 
     const existing = await this.prisma.employeeAttendance.findUnique({
       where: {
@@ -29,36 +30,98 @@ export class AttendanceService {
       },
     });
 
-    if (existing?.checkIn)
-      throw new BadRequestException('Already checked in today');
-
-    const now = new Date();
-    return this.prisma.employeeAttendance.upsert({
-      where: {
-        organizationId_userId_date: { organizationId, userId, date: today },
-      },
-      create: {
-        organizationId,
-        userId,
-        date: today,
-        checkIn: now,
-        status: 'PRESENT',
-        isManualEntry: false,
-      },
-      update: { checkIn: now, status: 'PRESENT' },
-    });
-  }
-
-  async checkOut(organizationId: string, userId: string) {
-    const profile = await this.prisma.employeeProfile.findUnique({
-      where: { userId },
-    });
-    if (!profile?.canSelfCheckIn) {
-      throw new BadRequestException(
-        'Self check-out is not enabled for your account.',
-      );
+    let meta: any = {};
+    if (existing?.notes) {
+      try {
+        meta = JSON.parse(existing.notes);
+      } catch {
+        meta = { originalNotes: existing.notes };
+      }
     }
 
+    if (body.location) {
+      if (isOut) meta.outLocation = body.location;
+      else meta.inLocation = body.location;
+    }
+    if (body.image) {
+      if (isOut) meta.outImage = body.image;
+      else meta.selfieUrl = body.image;
+    }
+    if (body.notes) {
+      meta.userNote = body.notes;
+    }
+
+    const updatedNotes = JSON.stringify(meta);
+
+    if (isOut) {
+      const checkInTime = existing?.checkIn || now;
+      const diffMs = Math.max(0, now.getTime() - checkInTime.getTime());
+      const workingHours = Math.round((diffMs / 3600000) * 100) / 100;
+      const status =
+        workingHours >= 6
+          ? 'PRESENT'
+          : workingHours >= 4
+            ? 'HALF_DAY'
+            : (existing?.status || 'PRESENT');
+
+      return this.prisma.employeeAttendance.upsert({
+        where: {
+          organizationId_userId_date: { organizationId, userId, date: today },
+        },
+        create: {
+          organizationId,
+          userId,
+          date: today,
+          checkIn: checkInTime,
+          checkOut: now,
+          workingHours,
+          status,
+          isManualEntry: false,
+          notes: updatedNotes,
+        },
+        update: {
+          checkOut: now,
+          workingHours,
+          status,
+          notes: updatedNotes,
+        },
+      });
+    } else {
+      // PUNCH IN
+      return this.prisma.employeeAttendance.upsert({
+        where: {
+          organizationId_userId_date: { organizationId, userId, date: today },
+        },
+        create: {
+          organizationId,
+          userId,
+          date: today,
+          checkIn: now,
+          status: 'PRESENT',
+          isManualEntry: false,
+          notes: updatedNotes,
+        },
+        update: {
+          checkIn: existing?.checkIn || now,
+          status: 'PRESENT',
+          notes: updatedNotes,
+        },
+      });
+    }
+  }
+
+  async checkIn(organizationId: string, userId: string, location?: string, image?: string) {
+    return this.recordPunch(organizationId, userId, { type: 'IN', location, image });
+  }
+
+  async checkOut(organizationId: string, userId: string, location?: string, image?: string) {
+    return this.recordPunch(organizationId, userId, { type: 'OUT', location, image });
+  }
+
+  /**
+   * Get today's attendance status for the user from the database.
+   */
+  async getTodayStatus(organizationId: string, userId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -67,24 +130,39 @@ export class AttendanceService {
         organizationId_userId_date: { organizationId, userId, date: today },
       },
     });
-    if (!record?.checkIn)
-      throw new BadRequestException('No check-in found for today');
-    if (record.checkOut)
-      throw new BadRequestException('Already checked out today');
 
-    const now = new Date();
-    const workingHours = (now.getTime() - record.checkIn.getTime()) / 3600000;
-    const status =
-      workingHours >= 4 && workingHours < 6
-        ? 'HALF_DAY'
-        : workingHours >= 6
-          ? 'PRESENT'
-          : 'HALF_DAY';
+    const isCheckedIn = !!record?.checkIn;
+    const isCheckedOut = !!record?.checkOut;
 
-    return this.prisma.employeeAttendance.update({
-      where: { id: record.id },
-      data: { checkOut: now, workingHours, status },
-    });
+    let inLocation: string | null = null;
+    let outLocation: string | null = null;
+    let selfieUrl: string | null = null;
+
+    if (record?.notes) {
+      try {
+        const meta = JSON.parse(record.notes);
+        inLocation = meta.inLocation || null;
+        outLocation = meta.outLocation || null;
+        selfieUrl = meta.selfieUrl || meta.outImage || null;
+      } catch {}
+    }
+
+    return {
+      date: today.toISOString().slice(0, 10),
+      punchedIn: isCheckedIn && !isCheckedOut,
+      punchedOut: isCheckedOut,
+      hasCheckIn: isCheckedIn,
+      hasCheckOut: isCheckedOut,
+      checkIn: record?.checkIn ? record.checkIn.toISOString() : null,
+      checkOut: record?.checkOut ? record.checkOut.toISOString() : null,
+      workingHours: record ? Number(record.workingHours) : 0,
+      status: record?.status || 'NOT_MARKED',
+      inLocation,
+      outLocation,
+      selfieUrl,
+      notes: record?.notes || null,
+      record,
+    };
   }
 
   async getMyAttendance(userId: string, month?: number, year?: number) {
@@ -92,7 +170,7 @@ export class AttendanceService {
     const m = month ?? now.getMonth() + 1;
     const y = year ?? now.getFullYear();
     const startDate = new Date(y, m - 1, 1);
-    const endDate = new Date(y, m, 0);
+    const endDate = new Date(y, m, 0, 23, 59, 59, 999);
 
     return this.prisma.employeeAttendance.findMany({
       where: { userId, date: { gte: startDate, lte: endDate } },
@@ -117,7 +195,7 @@ export class AttendanceService {
     const mo = month ?? now.getMonth() + 1;
     const yr = year ?? now.getFullYear();
     const startDate = new Date(yr, mo - 1, 1);
-    const endDate = new Date(yr, mo, 0);
+    const endDate = new Date(yr, mo, 0, 23, 59, 59, 999);
 
     const attendance = await this.prisma.employeeAttendance.findMany({
       where: {
@@ -144,7 +222,7 @@ export class AttendanceService {
     const mo = month ?? now.getMonth() + 1;
     const yr = year ?? now.getFullYear();
     const startDate = new Date(yr, mo - 1, 1);
-    const endDate = new Date(yr, mo, 0);
+    const endDate = new Date(yr, mo, 0, 23, 59, 59, 999);
 
     return this.prisma.employeeAttendance.findMany({
       where: {
@@ -171,21 +249,35 @@ export class AttendanceService {
     markedById: string,
     dto: {
       userId: string;
-      date: Date;
+      date: Date | string;
       status: string;
-      checkIn?: Date;
-      checkOut?: Date;
+      checkIn?: Date | string;
+      checkOut?: Date | string;
       notes?: string;
     },
   ) {
     const date = new Date(dto.date);
     date.setHours(0, 0, 0, 0);
 
+    let status = (dto.status || 'PRESENT').toUpperCase();
+    if (status === 'LEAVE') status = 'ON_LEAVE';
+    if (status === 'WEEK_OFF') status = 'HOLIDAY';
+
+    const validStatuses = ['PRESENT', 'ABSENT', 'HALF_DAY', 'ON_LEAVE', 'HOLIDAY', 'WORK_FROM_HOME', 'LATE'];
+    if (!validStatuses.includes(status)) {
+      status = 'PRESENT';
+    }
+
+    const cIn = dto.checkIn ? new Date(dto.checkIn) : null;
+    const cOut = dto.checkOut ? new Date(dto.checkOut) : null;
+
     let workingHours = 0;
-    if (dto.checkIn && dto.checkOut) {
-      workingHours =
-        (new Date(dto.checkOut).getTime() - new Date(dto.checkIn).getTime()) /
-        3600000;
+    if (cIn && cOut) {
+      workingHours = Math.round(((cOut.getTime() - cIn.getTime()) / 3600000) * 100) / 100;
+    } else if (status === 'PRESENT') {
+      workingHours = 8.5;
+    } else if (status === 'HALF_DAY') {
+      workingHours = 4.25;
     }
 
     return this.prisma.employeeAttendance.upsert({
@@ -200,18 +292,18 @@ export class AttendanceService {
         organizationId,
         userId: dto.userId,
         date,
-        status: dto.status as any,
-        checkIn: dto.checkIn ?? null,
-        checkOut: dto.checkOut ?? null,
+        status: status as any,
+        checkIn: cIn,
+        checkOut: cOut,
         workingHours,
         isManualEntry: true,
         markedById,
         notes: dto.notes,
       },
       update: {
-        status: dto.status as any,
-        checkIn: dto.checkIn ?? null,
-        checkOut: dto.checkOut ?? null,
+        status: status as any,
+        checkIn: cIn,
+        checkOut: cOut,
         workingHours,
         isManualEntry: true,
         markedById,
@@ -227,7 +319,7 @@ export class AttendanceService {
     year: number,
   ) {
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
     const records = await this.prisma.employeeAttendance.findMany({
       where: { organizationId, userId, date: { gte: startDate, lte: endDate } },

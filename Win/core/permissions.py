@@ -204,6 +204,8 @@ NAV_MENU = [
     MenuItem("📊", "Dashboard",       "dashboard",        UserRole.SALES_EXEC),
     MenuItem("👥", "Leads",           "leads",            UserRole.SALES_EXEC),
     MenuItem("🤝", "Deals & Pipeline","deals",            UserRole.SALES_EXEC),
+    MenuItem("⏱️", "Tasks & Follow-ups","tasks",          UserRole.SALES_EXEC),
+    MenuItem("🎯", "Goals & Targets", "goals",            UserRole.SALES_EXEC),
     MenuItem("📋", "Quotations",      "quotations",      UserRole.SALES_EXEC),
     MenuItem("📦", "Products",        "products",         UserRole.SALES_EXEC),
     MenuItem("📞", "Contacts",        "contacts",         UserRole.SALES_EXEC),

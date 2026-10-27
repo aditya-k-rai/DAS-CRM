@@ -88,6 +88,8 @@ class MainWindow(QMainWindow):
         "dashboard":     "DashboardView",
         "leads":         "LeadsView",
         "deals":         "DealsView",
+        "tasks":         "TasksView",
+        "goals":         "GoalsView",
         "quotations":    "QuotationsView",
         "products":      "ProductsView",
         "contacts":      "ContactsView",

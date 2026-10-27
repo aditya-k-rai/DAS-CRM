@@ -9,9 +9,11 @@ from PyQt6.QtWidgets import (
     QScrollArea, QFrame, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QMessageBox, QDialog, QComboBox, QDateEdit, QCheckBox
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QBrush, QColor
 from dataclasses import dataclass
+import asyncio
+import threading
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # DATA MODELS
@@ -282,9 +284,12 @@ class CreateTaskModal(QDialog):
 
 class TasksView(QWidget):
     """Task Management with Priority & Due Date Tracking"""
+    refreshed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, api_client=None, sync_engine=None, parent=None, **kwargs):
         super().__init__(parent)
+        self.api_client = api_client
+        self.sync_engine = sync_engine
         self.setStyleSheet("""
             QWidget { background-color: #090d16; }
             QLabel { color: #f8fafc; }
@@ -298,6 +303,7 @@ class TasksView(QWidget):
         self.selectedStatus = "ALL"
 
         self._build_ui()
+        self.refresh()
 
     def _build_ui(self):
         """Build tasks UI"""
@@ -337,6 +343,11 @@ class TasksView(QWidget):
         btnAdd.setStyleSheet("background-color: #10b981; padding: 6px 12px;")
         btnAdd.clicked.connect(self._open_create_task)
         actionLayout.addWidget(btnAdd)
+
+        btnRefresh = QPushButton("🔄 Refresh")
+        btnRefresh.setStyleSheet("background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; padding: 6px 12px;")
+        btnRefresh.clicked.connect(self.refresh)
+        actionLayout.addWidget(btnRefresh)
 
         actionLayout.addStretch()
         searchLayout.addLayout(actionLayout)
@@ -490,3 +501,47 @@ class TasksView(QWidget):
         """Open task details modal for specific task"""
         dialog = TaskDetailsModal(task, self)
         dialog.exec()
+
+    def refresh(self):
+        """Load tasks from backend API asynchronously if available"""
+        self.refreshed.emit()
+        if not self.api_client:
+            return
+
+        def _fetch_tasks_worker():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                resp = loop.run_until_complete(self.api_client.get_tasks())
+                loop.close()
+
+                if resp and resp.success and isinstance(resp.data, list) and len(resp.data) > 0:
+                    backend_tasks = []
+                    for item in resp.data:
+                        t_id = str(item.get("id", f"t-{len(backend_tasks)}"))
+                        title = item.get("purpose") or item.get("title") or "Follow-up Touchpoint"
+                        desc = item.get("notes") or item.get("outcomeNote") or ""
+                        assigned = item.get("assignedToName") or (item.get("assignedTo", {}) or {}).get("name") or "Sales Rep"
+                        due = (item.get("dueAt") or item.get("scheduledDate") or "")[:10] or "2026-10-30"
+                        prio = str(item.get("priority", "MEDIUM")).upper()
+                        if prio not in PRIORITY_OPTIONS:
+                            prio = "MEDIUM"
+                        is_done = bool(item.get("isCompleted") or item.get("status") in ("COMPLETED", "DONE"))
+                        status = "COMPLETED" if is_done else "TODO"
+                        category = str(item.get("channel") or item.get("taskType") or "FOLLOW_UP").upper()
+                        if category not in CATEGORY_OPTIONS:
+                            category = "FOLLOW_UP"
+
+                        backend_tasks.append(TaskItem(
+                            id=t_id, title=title, description=desc, assignedTo=assigned,
+                            dueDate=due, priority=prio, status=status, category=category
+                        ))
+
+                    if backend_tasks:
+                        self.tasksList = backend_tasks
+                        QTimer.singleShot(0, self._refresh_tasks_table)
+            except Exception:
+                pass
+
+        threading.Thread(target=_fetch_tasks_worker, daemon=True).start()
+

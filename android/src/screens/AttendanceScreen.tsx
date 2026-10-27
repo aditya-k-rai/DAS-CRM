@@ -34,6 +34,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/apiService';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Interface for daily attendance record
 interface DailyRecord {
@@ -82,7 +83,8 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const { currentUser } = useAuthStore();
-  const isAdmin = currentUser.role === 'ADMIN';
+  const isPrivileged = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'HR', 'TEAM_LEADER'].includes(currentUser.role);
+  const isAdmin = isPrivileged;
 
   // Android hardware back press listener if opened as a modal with onClose
   useEffect(() => {
@@ -100,17 +102,42 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
     isAdmin ? 'MY_ATTENDANCE' : 'MARK'
   );
 
-  const employeesList = useMemo(() => {
-    return [
-      {
-        id: currentUser.id || 'curr_user',
-        name: currentUser.name || 'User',
-        role: currentUser.role || 'ADMIN',
-        dept: (currentUser as any).department || 'Operations',
-        avatar: currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME',
-      }
-    ];
-  }, [currentUser]);
+  const [employeesList, setEmployeesList] = useState<any[]>([
+    {
+      id: currentUser.id || 'curr_user',
+      name: currentUser.name || 'User',
+      role: currentUser.role || 'ADMIN',
+      dept: (currentUser as any).department || 'Operations',
+      avatar: currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME',
+    }
+  ]);
+
+  useEffect(() => {
+    if (isPrivileged) {
+      const token = useAuthStore.getState().token;
+      apiService.getEmployees(token).then((res) => {
+        if (res?.success && Array.isArray(res.employees) && res.employees.length > 0) {
+          const mapped = res.employees.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            role: e.role || 'STAFF',
+            dept: (e as any).dept || (e as any).department || 'Sales',
+            avatar: e.name ? e.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'EM',
+          }));
+          if (!mapped.some((m: any) => m.id === currentUser.id)) {
+            mapped.unshift({
+              id: currentUser.id || 'curr_user',
+              name: currentUser.name || 'User',
+              role: currentUser.role || 'ADMIN',
+              dept: (currentUser as any).department || 'Operations',
+              avatar: currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME',
+            });
+          }
+          setEmployeesList(mapped);
+        }
+      }).catch(() => {});
+    }
+  }, [isPrivileged, currentUser.id]);
 
   // Admin Employee Selection State
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(currentUser.id || 'curr_user');
@@ -151,17 +178,27 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
   const [isInsideGeoFence, setIsInsideGeoFence] = useState(true);
 
   // ── PUNCH STATE & LOCATION PRIVACY TIMER ─────────────────────────────────────
-  const [punchedIn, setPunchedIn] = useState(true);
+  const [punchedIn, setPunchedIn] = useState(false);
+
+  useEffect(() => {
+    const token = useAuthStore.getState().token;
+    apiService.getAttendanceTodayStatus(token, currentUser.id).then((st) => {
+      if (st) {
+        setPunchedIn(st.punchedIn);
+      }
+    }).catch(() => {});
+  }, [currentUser.id]);
+
   const [locationPromptOpen, setLocationPromptOpen] = useState(false);
 
-  // Dynamic Month & Year State (Default August 2026)
+  // Dynamic Month & Year State (Defaults to Current Month and Year)
   const MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
-  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(7); // 7 = August
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(now.getMonth());
+  const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
+  const [selectedDay, setSelectedDay] = useState<number>(now.getDate());
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   const handlePrevMonth = () => {
@@ -264,63 +301,35 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
     };
   }, [isAdmin]);
 
-  // ── RECORD GENERATION ──────────────────────────────────────────────────────
-  const [recordsMap, setRecordsMap] = useState<Record<number, DailyRecord>>(() => {
-    return generateRecordsForEmployee(selectedEmployeeId, currentMonthIndex, currentYear);
-  });
-
-  useEffect(() => {
-    setRecordsMap(generateRecordsForEmployee(selectedEmployeeId, currentMonthIndex, currentYear));
-  }, [selectedEmployeeId, currentMonthIndex, currentYear]);
-
-  function generateRecordsForEmployee(empId: string, monthIdx: number, yr: number) {
+  // ── RECORD GENERATION & BACKEND DATABASE SYNC ──────────────────────────────
+  function buildBaseMonthMap(monthIdx: number, yr: number): Record<number, DailyRecord> {
     const map: Record<number, DailyRecord> = {};
-    const seed = (empId.charCodeAt(empId.length - 1) || 4) + monthIdx + yr;
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentFullYear = today.getFullYear();
+    const daysInMonth = new Date(yr, monthIdx + 1, 0).getDate();
 
-    for (let d = 1; d <= 28; d++) {
-      const isSunday = d % 7 === 1;
-      const isAbsent = d === ((seed % 5) + 3) || d === ((seed % 7) + 15);
-      const isHalfDay = d === ((seed % 4) + 8);
-      const isLeave = d === 12;
-      const isWeekOff = isSunday || d === 21;
-      const isFuture = yr > 2026 || (yr === 2026 && monthIdx > 7) || (yr === 2026 && monthIdx === 7 && d > 21);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(yr, monthIdx, d);
+      const isSunday = dateObj.getDay() === 0;
+      const isFuture =
+        yr > currentFullYear ||
+        (yr === currentFullYear && monthIdx > currentMonth) ||
+        (yr === currentFullYear && monthIdx === currentMonth && d > currentDay);
 
-      let status: DailyRecord['status'] = 'PRESENT';
-      let statusLabel = 'Full Day (8h 30m)';
-      let inTime = '09:15 AM';
-      let outTime: string | null = '05:45 PM';
-      let workingHours = '8h 30m';
+      let status: DailyRecord['status'] = 'ABSENT';
+      let statusLabel = 'Not Marked';
+      let inTime = '—';
+      let outTime: string | null = null;
+      let workingHours = '0h';
 
       if (isFuture) {
         status = 'FUTURE';
         statusLabel = 'Upcoming Date';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isWeekOff) {
+      } else if (isSunday) {
         status = 'WEEK_OFF';
         statusLabel = 'Week Off';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isLeave) {
-        status = 'LEAVE';
-        statusLabel = 'Approved Leave';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isAbsent) {
-        status = 'ABSENT';
-        statusLabel = 'Absent Record';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isHalfDay) {
-        status = 'HALF_DAY';
-        statusLabel = 'Half Day (<5 hrs)';
-        inTime = '09:15 AM';
-        outTime = '01:30 PM';
-        workingHours = '4h 15m';
       }
 
       map[d] = {
@@ -328,15 +337,105 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
         status,
         statusLabel,
         inTime,
-        inGeo: status === 'PRESENT' || status === 'HALF_DAY' ? '28.440743, 77.531117' : 'Location not available',
+        inGeo: 'Office HQ (28.440743, 77.531117)',
         outTime,
-        outGeo: outTime ? '28.440743, 77.531117' : null,
+        outGeo: null,
         workingHours,
         selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
       };
     }
     return map;
   }
+
+  const [recordsMap, setRecordsMap] = useState<Record<number, DailyRecord>>(() => {
+    return buildBaseMonthMap(currentMonthIndex, currentYear);
+  });
+
+  const fetchEmployeeAttendance = async (empId: string, monthIdx: number, yr: number) => {
+    const baseMap = buildBaseMonthMap(monthIdx, yr);
+    try {
+      const token = useAuthStore.getState().token;
+      const apiRecords = await apiService.getUserAttendance(token, empId, monthIdx + 1, yr);
+      const daysInMonth = new Date(yr, monthIdx + 1, 0).getDate();
+
+      if (Array.isArray(apiRecords) && apiRecords.length > 0) {
+        for (const rec of apiRecords) {
+          const d = new Date(rec.date).getDate();
+          if (d >= 1 && d <= daysInMonth) {
+            let status: DailyRecord['status'] = 'PRESENT';
+            let statusLabel = 'Full Day';
+            if (rec.status === 'ON_LEAVE' || rec.status === 'LEAVE') {
+              status = 'LEAVE';
+              statusLabel = 'Approved Leave';
+            } else if (rec.status === 'HOLIDAY' || rec.status === 'WEEK_OFF') {
+              status = 'WEEK_OFF';
+              statusLabel = 'Holiday / Week Off';
+            } else if (rec.status === 'HALF_DAY') {
+              status = 'HALF_DAY';
+              statusLabel = 'Half Day (<5 hrs)';
+            } else if (rec.status === 'ABSENT') {
+              status = 'ABSENT';
+              statusLabel = 'Absent Record';
+            } else if (rec.status === 'PRESENT' || rec.status === 'WORK_FROM_HOME') {
+              status = 'PRESENT';
+              statusLabel = rec.checkOut ? `Full Day (${rec.workingHours || 8.5}h)` : 'Punched In (Active)';
+            }
+
+            let inTime = '—';
+            let outTime: string | null = null;
+            if (rec.checkIn) {
+              const dt = new Date(rec.checkIn);
+              inTime = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            if (rec.checkOut) {
+              const dt = new Date(rec.checkOut);
+              outTime = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            let inGeo = 'Office HQ (28.440743, 77.531117)';
+            let outGeo: string | null = null;
+            let selfieUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+
+            if (rec.notes) {
+              try {
+                const meta = JSON.parse(rec.notes);
+                if (meta.inLocation) inGeo = meta.inLocation;
+                if (meta.outLocation) outGeo = meta.outLocation;
+                if (meta.selfieUrl) selfieUrl = meta.selfieUrl;
+              } catch {}
+            }
+
+            baseMap[d] = {
+              day: d,
+              status,
+              statusLabel,
+              inTime,
+              inGeo,
+              outTime,
+              outGeo,
+              workingHours: `${rec.workingHours || 0}h`,
+              selfieUrl,
+            };
+          }
+        }
+      }
+      setRecordsMap(baseMap);
+      AsyncStorage.setItem(`@das_crm_att_${empId}_${yr}_${monthIdx}`, JSON.stringify(baseMap)).catch(() => {});
+    } catch (_) {
+      try {
+        const cached = await AsyncStorage.getItem(`@das_crm_att_${empId}_${yr}_${monthIdx}`);
+        if (cached) {
+          setRecordsMap(JSON.parse(cached));
+          return;
+        }
+      } catch {}
+      setRecordsMap(baseMap);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmployeeAttendance(selectedEmployeeId, currentMonthIndex, currentYear);
+  }, [selectedEmployeeId, currentMonthIndex, currentYear]);
 
   const dynamicCounts = useMemo(() => {
     let present = 0, absent = 0, halfDay = 0, leave = 0, weekOff = 0;
@@ -587,6 +686,19 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
       },
     }));
 
+    const targetDateStr = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    const token = useAuthStore.getState().token;
+    apiService.manualMarkAttendance(token, {
+      userId: selectedEmployee.id,
+      date: targetDateStr,
+      status: newStatus,
+      checkIn: inTime !== '—' ? `${targetDateStr}T09:15:00.000Z` : undefined,
+      checkOut: outTime ? `${targetDateStr}T17:45:00.000Z` : undefined,
+      notes: JSON.stringify({ inLocation: 'Admin Override', outLocation: outTime ? 'Admin Override' : null }),
+    }).then(() => {
+      fetchEmployeeAttendance(selectedEmployee.id, currentMonthIndex, currentYear);
+    }).catch(() => {});
+
     Alert.alert(
       '👑 Admin Override Saved',
       `Attendance for ${selectedEmployee.name} on ${selectedDay} ${MONTH_NAMES[currentMonthIndex]} ${currentYear} set to ${newStatus}.`
@@ -625,37 +737,35 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
-      {/* ── NON-ADMIN TAB TOGGLE (MARK vs CALENDAR OVERVIEW) ──────────────── */}
-      {!isAdmin && (
-        <View style={{ paddingHorizontal: 16, marginBottom: 8, width: '100%', maxWidth: 500, alignSelf: 'center' }}>
-          <View style={[styles.tabToggleBox, { backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }]}>
-            <TouchableOpacity
-              style={[styles.tabToggleBtn, activeTab === 'MARK' && styles.tabToggleBtnActive]}
-              onPress={() => setActiveTab('MARK')}
-            >
-              <Text style={[styles.tabToggleText, activeTab === 'MARK' && styles.tabToggleTextActive]}>
-                📸 {t.attTabMark}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tabToggleBtn, activeTab === 'MY_ATTENDANCE' && styles.tabToggleBtnActive]}
-              onPress={() => setActiveTab('MY_ATTENDANCE')}
-            >
-              <Text style={[styles.tabToggleText, activeTab === 'MY_ATTENDANCE' && styles.tabToggleTextActive]}>
-                📅 {t.attTabOverview}
-              </Text>
-            </TouchableOpacity>
-          </View>
+      {/* ── TAB TOGGLE (MARK vs CALENDAR OVERVIEW) ─────────────────────────── */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 8, width: '100%', maxWidth: 500, alignSelf: 'center' }}>
+        <View style={[styles.tabToggleBox, { backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }]}>
+          <TouchableOpacity
+            style={[styles.tabToggleBtn, activeTab === 'MARK' && styles.tabToggleBtnActive]}
+            onPress={() => setActiveTab('MARK')}
+          >
+            <Text style={[styles.tabToggleText, activeTab === 'MARK' && styles.tabToggleTextActive]}>
+              📸 {t.attTabMark}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabToggleBtn, activeTab === 'MY_ATTENDANCE' && styles.tabToggleBtnActive]}
+            onPress={() => setActiveTab('MY_ATTENDANCE')}
+          >
+            <Text style={[styles.tabToggleText, activeTab === 'MY_ATTENDANCE' && styles.tabToggleTextActive]}>
+              📅 {t.attTabOverview}
+            </Text>
+          </TouchableOpacity>
         </View>
-      )}
+      </View>
 
       {/* ── CONTENT SCROLL ───────────────────────────────────────────────── */}
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* ─────────────────────────────────────────────────────────────────────────── */}
-        {/* 📸 TAB 1: MARK ATTENDANCE (STAFF / NON-ADMIN EXCLUSIVE)                   */}
+        {/* 📸 TAB 1: MARK ATTENDANCE                                                  */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
-        {activeTab === 'MARK' && !isAdmin && (
+        {activeTab === 'MARK' && (
           <View style={styles.markCardBox}>
             <View style={[styles.liveClockBanner, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               <Text style={styles.liveClockTitle}>🕒 {t.attServerTime}: {serverFormattedTime}</Text>

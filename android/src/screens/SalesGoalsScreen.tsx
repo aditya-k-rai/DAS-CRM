@@ -453,7 +453,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       repAttempts.forEach((att) => {
         const attDate = (att.timestamp || '').slice(0, 10);
         const isSelectedDate = attDate === selectedDate;
-        const isCurrentMonth = attDate.startsWith(currentMonthStr);
+        const isCurrentMonth = attDate.startsWith(selectedMonth);
 
         const aType = (att.type || '').toUpperCase();
         const aOutcome = (att.outcome || '').toUpperCase();
@@ -496,7 +496,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         const dueDate = new Date(fu.dueAt);
         const isOverdue = !fu.isCompleted && !isNaN(dueDate.getTime()) && Date.now() > dueDate.getTime();
         const isSelectedDate = fuDate === selectedDate || isOverdue;
-        const isCurrentMonth = fuDate.startsWith(currentMonthStr) || isOverdue;
+        const isCurrentMonth = fuDate.startsWith(selectedMonth) || isOverdue;
 
         if (fu.isCompleted) {
           if (isSelectedDate) {
@@ -527,7 +527,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           dateQuotesCount++;
           dateQuotesAmount += amount;
         }
-        if (qDate.startsWith(currentMonthStr)) {
+        if (qDate.startsWith(selectedMonth)) {
           monthlyQuotesCount++;
           monthlyQuotesAmount += amount;
         }
@@ -567,6 +567,25 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         });
       });
 
+      // Also add real follow-up tasks to activities list
+      repFollowUps.forEach((fu, fIdx) => {
+        const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : '');
+        activitiesList.push({
+          id: fu.id || `fu-${rep.id}-${fIdx}`,
+          leadId: fu.leadId || '',
+          leadName: fu.leadName || 'Lead Contact',
+          leadPhone: fu.leadPhone || '9876543210',
+          leadCompany: fu.leadCompany || 'Enterprise Account',
+          category: fu.channel === 'WHATSAPP' ? 'WHATSAPP' : 'CALL',
+          callSubtype: 'FOLLOWUP',
+          title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
+          notes: fu.outcomeNote || undefined,
+          outcome: fu.isCompleted ? 'COMPLETED' : 'SCHEDULED',
+          timestamp: fu.dueAt || fuDate || 'Scheduled',
+          dateKey: fuDate || selectedDate,
+        });
+      });
+
       // Also add quotes to activities list
       repQuotes.forEach((q: any, qIdx: number) => {
         const amount = typeof q.totalAmount === 'number' ? q.totalAmount : parseFloat(String(q.totalAmount || q.amount || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -589,6 +608,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       if (activitiesList.length < 5 && repLeads.length > 0) {
         repLeads.slice(0, 8).forEach((l, lIdx) => {
           const isFresh = lIdx % 2 === 0;
+          const leadDate = (l.rawCreatedAt || '').slice(0, 10) || selectedDate;
           activitiesList.push({
             id: `lead-act-${rep.id}-${l.id || lIdx}`,
             leadId: String(l.id || lIdx),
@@ -598,8 +618,8 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             category: isFresh ? 'CALL' : 'WHATSAPP',
             callSubtype: isFresh ? 'FRESH' : 'FOLLOWUP',
             title: isFresh ? '🌱 Fresh Ingestion Discovery Call' : '💬 Product Brochure Sent via WhatsApp',
-            timestamp: 'Recent',
-            dateKey: selectedDate,
+            timestamp: l.rawCreatedAt || 'Recent',
+            dateKey: leadDate,
           });
         });
       }
@@ -666,7 +686,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         activitiesList,
       };
     });
-  }, [repList, leads, followUps, quotations, contactHistoriesMap, isMonthView, selectedDate, currentMonthStr, dailyCallsTargetInput, dailyWaTargetInput, monthlyRevTargetInput, monthlyMeetingsTargetInput]);
+  }, [repList, leads, followUps, quotations, contactHistoriesMap, isMonthView, selectedDate, selectedMonth, currentMonthStr, dailyCallsTargetInput, dailyWaTargetInput, monthlyRevTargetInput, monthlyMeetingsTargetInput]);
 
   // Aggregated Team Stats
   const activeStats = useMemo(() => {
@@ -1217,7 +1237,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           onClose={() => setDrilldownRep(null)}
           rep={drilldownRep}
           selectedDate={selectedDate}
-          selectedMonth={currentMonthStr}
+          selectedMonth={selectedMonth}
           isMonthView={isMonthView}
           onToggleTimeframe={(isM: boolean) => setIsMonthView(isM)}
         />

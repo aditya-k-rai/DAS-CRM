@@ -16,6 +16,8 @@ from .views_integrations import IntegrationsView
 from .views_admin import AdminView
 from .views_settings import SettingsView
 from .views_help import HelpView
+from .views_goals import GoalsView
+from .views.tasks_view import TasksView
 from .views_add_company import AddCompanyDialog
 from .views_add_party import AddPartyDialog
 from .views_create_quotation import CreateQuotationDialog
@@ -35,6 +37,8 @@ __all__ = [
     'AdminView',
     'SettingsView',
     'HelpView',
+    'GoalsView',
+    'TasksView',
     'AddCompanyDialog',
     'AddPartyDialog',
     'CreateQuotationDialog',

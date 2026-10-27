@@ -856,6 +856,62 @@ class ApiService {
     return localResult;
   }
 
+  /** Fetch Today's Attendance Status from Backend (/attendance/today) */
+  async getAttendanceTodayStatus(token: string | null, userId?: string) {
+    if (!token) return null;
+    try {
+      const q = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+      const res = await fetchWithFailover(`/attendance/today${q}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /** Fetch Monthly Attendance History from Database (/attendance/all or /attendance/my) */
+  async getUserAttendance(token: string | null, userId: string, month?: number, year?: number) {
+    if (!token) return [];
+    try {
+      const params = new URLSearchParams();
+      if (userId) params.append('userId', userId);
+      if (month) params.append('month', String(month));
+      if (year) params.append('year', String(year));
+
+      const res = await fetchWithFailover(`/attendance/all?${params.toString()}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.records || data.attendance || []);
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /** Manually Mark Attendance (Admin, HR, Manager & TL) (/attendance/manual) */
+  async manualMarkAttendance(token: string | null, payload: { userId: string; date: string; status: string; checkIn?: string; checkOut?: string; notes?: string }) {
+    if (!token) return { success: false, message: 'Not authenticated' };
+    try {
+      const res = await fetchWithFailover('/attendance/manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
+    return { success: false, message: 'Server communication failed' };
+  }
+
   /** Fetch Products Catalog (/products) */
   async getProducts(token: string | null) {
     if (!token) return null;
