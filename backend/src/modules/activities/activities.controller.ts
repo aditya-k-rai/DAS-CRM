@@ -65,5 +65,20 @@ export class ActivitiesController {
       limit: limit ? parseInt(limit, 10) : 50,
     });
   }
+
+  @Get()
+  @ApiOperation({ summary: 'Get all contact activities and timeline across the workspace' })
+  getAllActivities(
+    @CurrentUser() user: any,
+    @Query('leadId') leadId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.activitiesService.getTimeline(user.organizationId, {
+      leadId,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 1000,
+    });
+  }
 }
 

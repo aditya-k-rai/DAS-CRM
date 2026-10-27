@@ -139,12 +139,21 @@ export function RepDrilldownModal({
   const allActivities = useMemo(() => rep?.activitiesList || [], [rep]);
 
   const timeframeActivities = useMemo(() => {
-    return allActivities.filter((item) => {
+    const raw = allActivities.filter((item) => {
       if (isMonth) {
         return item.dateKey.startsWith(selectedMonth);
       } else {
         return item.dateKey === selectedDate;
       }
+    });
+
+    const seen = new Set<string>();
+    return raw.filter((item) => {
+      const timeMinute = item.timestamp ? item.timestamp.slice(0, 16) : item.dateKey;
+      const key = `${item.category}_${item.leadId}_${item.leadPhone}_${timeMinute}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }, [allActivities, isMonth, selectedMonth, selectedDate]);
 

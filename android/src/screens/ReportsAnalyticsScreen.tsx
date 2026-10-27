@@ -192,13 +192,21 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
 
   // Call Logs (Scoped: Sales Reps ONLY see their own call logs)
   const callLogs: TelemetryCallLog[] = useMemo(() => {
-    const scopedLeads = isSalesRep
+    const rawScopedLeads = isSalesRep
       ? leads.filter((l) => {
           const myName = (currentUser?.name || '').trim().toLowerCase();
           const rep = (l.owner || l.assignedRep || '').trim().toLowerCase();
           return myName ? rep.includes(myName) : true;
         })
       : leads;
+
+    const seenLeads = new Set<string>();
+    const scopedLeads = rawScopedLeads.filter(l => {
+      const k = l.id ? String(l.id) : (l.phone ? String(l.phone).replace(/\D/g, '') : l.name || '');
+      if (seenLeads.has(k)) return false;
+      seenLeads.add(k);
+      return true;
+    });
 
     return scopedLeads.slice(0, 5).map((l, idx) => ({
       id: `call-log-${l.id || idx}`,

@@ -57,7 +57,7 @@ import CustomAlertModal, { CustomAlertState } from '../components/CustomAlertMod
 import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { isBatchAssignableRole } from '../components/LeadAllocationEngineModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import FullContactHistory, { ContactAttempt, ContactType, ContactOutcome } from '../components/FullContactHistory';
+import FullContactHistory, { ContactAttempt, ContactType, ContactOutcome, deduplicateContactAttempts } from '../components/FullContactHistory';
 import { followUpSyncEngine } from '../services/followUpSyncEngine';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
@@ -338,8 +338,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           });
         }
 
-        setContactHistory(mappedAttempts);
-        AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(mappedAttempts)).catch(() => {});
+        const dedupedMapped = deduplicateContactAttempts(mappedAttempts);
+        setContactHistory(dedupedMapped);
+        AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(dedupedMapped)).catch(() => {});
       }
     } catch (e) {
       console.warn('Sync warning:', e);
@@ -745,7 +746,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     }
 
     setContactHistory(prev => {
-      const updated = [...attemptsToPrepend, ...prev];
+      const updated = deduplicateContactAttempts([...attemptsToPrepend, ...prev]);
       AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(updated)).catch(() => {});
       return updated;
     });

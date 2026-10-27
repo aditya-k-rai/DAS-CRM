@@ -11,7 +11,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent, buildAllocationTrailForLead, getUserRoleFromName } from './LeadAllocationTrail';
-import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType } from './CallContactHistory';
+import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType, deduplicateContactAttempts } from './CallContactHistory';
 import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowService';
 import { DEFAULT_REAL_LEADS } from './LeadsTable';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource, safeRequirement } from '@/lib/leadNormalizer';
@@ -1014,21 +1014,34 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               setContactHistory(prev => {
                 const cleanPrev = prev.filter(p => p && !String(p.id || '').startsWith('task-call-'));
                 const combined = [...serverAttempts];
-                const seen = new Set(serverAttempts.map(a => a.id));
+                const seenIds = new Set(serverAttempts.map(a => a.id));
+
                 for (const p of cleanPrev) {
-                  // Only preserve recent pending optimistic attempts not yet in server list
-                  if (!seen.has(p.id) && (String(p.id || '').startsWith('attempt_') || String(p.id || '').startsWith('wa_') || String(p.id || '').startsWith('doc_'))) {
+                  if (seenIds.has(p.id)) continue;
+                  // Check if this optimistic attempt has already been ingested into serverAttempts
+                  const isAlreadyInServer = serverAttempts.some(s => {
+                    const sameType = (String(s.type || '').includes('CALL') && String(p.type || '').includes('CALL')) ||
+                                     (String(s.type || '').includes('WHATSAPP') && String(p.type || '').includes('WHATSAPP')) ||
+                                     (String(s.type || '').includes('EMAIL') && String(p.type || '').includes('EMAIL')) ||
+                                     (Boolean(s.docNo) && s.docNo === p.docNo);
+                    const timeDiff = Math.abs(new Date(s.timestamp || 0).getTime() - new Date(p.timestamp || 0).getTime());
+                    return sameType && timeDiff <= 3 * 60 * 1000;
+                  });
+
+                  if (!isAlreadyInServer && (String(p.id || '').startsWith('attempt_') || String(p.id || '').startsWith('wa_') || String(p.id || '').startsWith('doc_'))) {
                     combined.push(p);
                   }
                 }
-                return combined;
+
+                const dedupedHistory = deduplicateContactAttempts(combined);
+                if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(dedupedHistory));
+                    localStorage.setItem(`das_crm_contact_history_${serverLead.id}`, JSON.stringify(dedupedHistory));
+                  } catch (_) {}
+                }
+                return dedupedHistory;
               });
-              if (typeof window !== 'undefined') {
-                try {
-                  localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(serverAttempts));
-                  localStorage.setItem(`das_crm_contact_history_${serverLead.id}`, JSON.stringify(serverAttempts));
-                } catch (_) {}
-              }
             }
 
             // Reconcile and update session and local caches with fresh server data

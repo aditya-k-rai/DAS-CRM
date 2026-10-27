@@ -317,10 +317,18 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
   // Trigger Drilldown for Member
   const handleOpenMemberDrilldown = (member: SquadMember) => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const memberLeads = rawLeads.filter((l) => {
+    const matchedLeads = rawLeads.filter((l) => {
       const owner = (l.owner || '').toLowerCase();
       const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase();
       return owner.includes(member.name.toLowerCase()) || customRep.includes(member.name.toLowerCase()) || l.ownerId === member.id;
+    });
+
+    const seenLeads = new Set<string>();
+    const memberLeads = matchedLeads.filter(l => {
+      const k = l.id ? String(l.id) : (l.phone ? String(l.phone).replace(/\D/g, '') : l.name || '');
+      if (seenLeads.has(k)) return false;
+      seenLeads.add(k);
+      return true;
     });
 
     const activitiesList: DrilldownActivityItem[] = [];

@@ -154,10 +154,18 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
     const monthlyMtg = parseInt(monthlyMeetingsTargetInput, 10) || 10;
 
     return repList.map((rep, idx) => {
-      const repLeads = leads.filter((l) => {
+      const matchedLeads = leads.filter((l) => {
         const owner = (l.owner || '').toLowerCase();
         const rName = (rep.name || '').toLowerCase();
         return owner.includes(rName) || (idx === 0 && !owner);
+      });
+
+      const seenLeads = new Set<string>();
+      const repLeads = matchedLeads.filter(l => {
+        const k = l.id ? String(l.id) : (l.phone ? String(l.phone).replace(/\D/g, '') : l.name || '');
+        if (seenLeads.has(k)) return false;
+        seenLeads.add(k);
+        return true;
       });
 
       const repWonLeads = repLeads.filter((l) => (l.status || '').toLowerCase().includes('won') || (l.status || '').toLowerCase().includes('convert'));

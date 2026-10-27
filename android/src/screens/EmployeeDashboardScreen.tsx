@@ -246,7 +246,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       sadhana: 'cmukykfoe000nht2d0ylnsd3t',
     };
 
-    return rawLeads.filter((l) => {
+    const matched = rawLeads.filter((l) => {
       const owner = (l.owner || '').toLowerCase().trim();
       const assignedRep = (l.assignedRep || '').toLowerCase().trim();
       const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase().trim();
@@ -272,6 +272,14 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       }
 
       return false;
+    });
+
+    const seenLeads = new Set<string>();
+    return matched.filter((l) => {
+      const k = l.id ? String(l.id) : (l.phone ? String(l.phone).replace(/\D/g, '') : l.name || '');
+      if (seenLeads.has(k)) return false;
+      seenLeads.add(k);
+      return true;
     });
   }, [rawLeads, selectedRep, currentUser, isSupervisor, isSalesRep]);
 

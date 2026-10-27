@@ -196,6 +196,8 @@ export function toDateKey(dateInput?: string | Date | null): string {
 export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[] {
   if (typeof window === 'undefined') return [];
   const list: { leadId: string; attempts: any[] }[] = [];
+  const globalSeenAttemptSignatures = new Set<string>();
+
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -206,7 +208,27 @@ export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[]
           try {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              list.push({ leadId, attempts: parsed });
+              const uniqueAttempts: any[] = [];
+              for (const att of parsed) {
+                if (!att) continue;
+                const cleanId = att.id ? String(att.id).replace(/^(att_|act_)/, '') : '';
+                const timeStr = String(att.timestamp || att.time || att.createdAt || '').slice(0, 16);
+                const attType = String(att.type || att.sharingMedium || '').toUpperCase();
+                const notesSnippet = String(att.notes || att.sentMessage || '').slice(0, 30).toLowerCase();
+
+                // Build cross-key deduplication signature
+                const sig = cleanId && !cleanId.startsWith('attempt_') && !cleanId.startsWith('rand_')
+                  ? `id_${cleanId}`
+                  : `${leadId}_${attType}_${timeStr}_${notesSnippet}`;
+
+                if (globalSeenAttemptSignatures.has(sig)) continue;
+                globalSeenAttemptSignatures.add(sig);
+                uniqueAttempts.push(att);
+              }
+
+              if (uniqueAttempts.length > 0) {
+                list.push({ leadId, attempts: uniqueAttempts });
+              }
             }
           } catch (_) {}
         }
@@ -361,6 +383,9 @@ export function calculatePerformanceRecords({
     id: string;
     userId?: string;
     leadId: string;
+    leadPhone?: string;
+    leadName?: string;
+    leadCompany?: string;
     type: 'CALL' | 'WHATSAPP' | 'WHATSAPP_CLOUD' | 'MEETING' | 'EMAIL' | 'DOCUMENT' | 'NOTE';
     isFreshCall: boolean;
     isFollowupCall: boolean;
@@ -368,123 +393,205 @@ export function calculatePerformanceRecords({
     isWaCloud: boolean;
     isMeeting: boolean;
     productsCount: number;
+    productNames?: string[];
     docNo?: string;
     docAmount?: number;
     byName: string;
     byRole: string;
     timestamp: string;
     dateKey: string;
+    notes?: string;
+    outcome?: string;
   }
 
-  const normalizedInteractions: NormalizedInteraction[] = [];
-  const seenInteractions = new Set<string>();
+  const rawCandidates: NormalizedInteraction[] = [];
 
-  // Track per-lead call sequence to accurately classify First Call vs Follow-up
-  localLeadHistories.forEach(({ leadId, attempts }) => {
-    const sorted = [...attempts].sort((a, b) => {
-      const tA = new Date(a.timestamp || a.time || a.createdAt || 0).getTime();
-      const tB = new Date(b.timestamp || b.time || b.createdAt || 0).getTime();
-      return tA - tB;
-    });
+  const addCandidate = (cand: NormalizedInteraction) => {
+    // Look up canonical lead metadata if available
+    const matchedLead = leads.find((l: any) =>
+      String(l.id) === String(cand.leadId) ||
+      (cand.leadPhone && l.phone && l.phone.replace(/\D/g, '') === cand.leadPhone.replace(/\D/g, '')) ||
+      (cand.leadName && l.name && l.name.toLowerCase() === cand.leadName.toLowerCase())
+    );
+    const canonicalLeadId = matchedLead ? String(matchedLead.id) : String(cand.leadId || '');
+    const canonicalPhone = matchedLead?.phone || cand.leadPhone || '';
+    const canonicalName = matchedLead?.name || cand.leadName || '';
+    const canonicalCompany = matchedLead?.company || matchedLead?.companyName || cand.leadCompany || '';
 
-    let callCountForLead = 0;
+    cand.leadId = canonicalLeadId;
+    cand.leadPhone = canonicalPhone;
+    cand.leadName = canonicalName;
+    cand.leadCompany = canonicalCompany;
 
-    sorted.forEach(att => {
-      const rawType = String(att.type || att.sharingMedium || '').toUpperCase();
-      const rawNotes = String(att.notes || att.sentMessage || '').toLowerCase();
-      const rawOutcome = String(att.outcome || '').toUpperCase();
+    const candTime = new Date(cand.timestamp || 0).getTime();
+    const cleanCandId = cand.id.replace(/^(att_|act_)/, '');
 
-      const isCall = rawType.includes('CALL') || rawType.includes('PHONE') || rawOutcome.includes('CALL') || rawNotes.includes('call');
-      const isWA = rawType.includes('WHATSAPP') || rawType.includes('WA_') || rawNotes.includes('whatsapp') || att.channel === 'WA_CLOUD';
-      const isMeeting = rawOutcome === 'MEETING_SCHEDULED' || att.scheduledType === 'MEETING' || /meeting|visit|in-person/i.test(rawNotes) || rawType === 'MEETING';
-      const isDoc = rawType.includes('DOCUMENT') || rawOutcome.includes('QUOTATION') || !!att.docNo;
+    // Check against already collected candidates for duplication
+    const matchIdx = rawCandidates.findIndex(ex => {
+      const cleanExId = ex.id.replace(/^(att_|act_)/, '');
+      if (cleanCandId && cleanExId && cleanCandId === cleanExId && !cleanCandId.startsWith('attempt_') && !cleanCandId.startsWith('rand_')) {
+        return true;
+      }
 
-      let isFreshCall = false;
-      let isFollowupCall = false;
+      // Check lead equality
+      const sameLead = (canonicalLeadId && ex.leadId && canonicalLeadId === ex.leadId) ||
+                       (canonicalPhone && ex.leadPhone && canonicalPhone.replace(/\D/g, '') === ex.leadPhone.replace(/\D/g, '')) ||
+                       (canonicalName && ex.leadName && canonicalName.toLowerCase() === ex.leadName.toLowerCase());
 
-      if (isCall) {
-        callCountForLead++;
-        if (callCountForLead === 1 || att.isNewLead || rawOutcome === 'NEW_INQUIRY') {
-          isFreshCall = true;
-        } else {
-          isFollowupCall = true;
+      if (!sameLead) return false;
+
+      // Check action type match
+      const bothCall = cand.type === 'CALL' && ex.type === 'CALL';
+      const bothWA = (cand.type === 'WHATSAPP' || cand.type === 'WHATSAPP_CLOUD') && (ex.type === 'WHATSAPP' || ex.type === 'WHATSAPP_CLOUD');
+      const bothMeeting = cand.type === 'MEETING' && ex.type === 'MEETING';
+      const bothDoc = (cand.type === 'DOCUMENT' && ex.type === 'DOCUMENT') || (Boolean(cand.docNo) && cand.docNo === ex.docNo);
+
+      if (bothCall || bothWA || bothMeeting || bothDoc) {
+        const exTime = new Date(ex.timestamp || 0).getTime();
+        const timeDiff = Math.abs(candTime - exTime);
+        // If within 3 minutes of each other on the same calendar date
+        if (timeDiff <= 3 * 60 * 1000 && cand.dateKey === ex.dateKey) {
+          return true;
         }
       }
 
-      const isWaCloud = isWA && (rawType.includes('CLOUD') || rawNotes.includes('cloud') || att.channel === 'WA_CLOUD');
+      return false;
+    });
+
+    if (matchIdx >= 0) {
+      const ex = rawCandidates[matchIdx];
+      // Merge richer info into ex
+      if (cand.productsCount > ex.productsCount) ex.productsCount = cand.productsCount;
+      if (cand.productNames && cand.productNames.length > (ex.productNames?.length || 0)) ex.productNames = cand.productNames;
+      if (cand.notes && (!ex.notes || ex.notes.length < cand.notes.length)) ex.notes = cand.notes;
+      if (cand.outcome && !ex.outcome) ex.outcome = cand.outcome;
+      if (cand.byName && cand.byName !== 'Sales Rep' && (!ex.byName || ex.byName === 'Sales Rep')) {
+        ex.byName = cand.byName;
+        ex.byRole = cand.byRole;
+      }
+      if (cand.userId && !ex.userId) ex.userId = cand.userId;
+      if (!ex.id.startsWith('act_') && cand.id.startsWith('act_')) ex.id = cand.id;
+      return;
+    }
+
+    rawCandidates.push(cand);
+  };
+
+  // 1a. Ingest local contact attempts
+  localLeadHistories.forEach(({ leadId, attempts }) => {
+    attempts.forEach(att => {
+      const rawType = String(att.type || att.sharingMedium || '').toUpperCase();
+      const rawNotes = String(att.notes || att.sentMessage || '').trim();
+      const rawOutcome = String(att.outcome || '').toUpperCase();
+
+      const isCall = rawType.includes('CALL') || rawType.includes('PHONE') || rawOutcome.includes('CALL') || rawNotes.toLowerCase().includes('call');
+      const isWA = rawType.includes('WHATSAPP') || rawType.includes('WA_') || rawNotes.toLowerCase().includes('whatsapp') || att.channel === 'WA_CLOUD';
+      const isMeeting = rawOutcome === 'MEETING_SCHEDULED' || att.scheduledType === 'MEETING' || /meeting|visit|in-person/i.test(rawNotes) || rawType === 'MEETING';
+      const isDoc = rawType.includes('DOCUMENT') || rawOutcome.includes('QUOTATION') || !!att.docNo;
+
+      const isWaCloud = isWA && (rawType.includes('CLOUD') || rawNotes.toLowerCase().includes('cloud') || att.channel === 'WA_CLOUD');
       const isWaDirect = isWA && !isWaCloud;
 
       const dateStr = toDateKey(att.timestamp || att.time || att.createdAt);
-      const uniqueKey = att.id ? `att_${att.id}` : `${leadId}_${isCall ? 'CALL' : isWA ? 'WA' : isMeeting ? 'MEET' : 'NOTE'}_${att.timestamp || att.time || att.createdAt}_${(att.by || '').trim()}`;
+      const resolvedProductNames = att.productInterest ? att.productInterest.split(';').map((s: string) => s.trim()).filter(Boolean) : (att.metadata?.products || []);
+      const prodCount = resolvedProductNames.length > 0 ? resolvedProductNames.length : (att.productInterest ? 1 : (att.metadata?.products?.length || 0));
 
-      if (seenInteractions.has(uniqueKey)) return;
-      seenInteractions.add(uniqueKey);
-
-      normalizedInteractions.push({
-        id: att.id || `att_${Math.random()}`,
+      addCandidate({
+        id: att.id ? `att_${att.id}` : `att_rand_${Math.random()}`,
         userId: att.userId || att.byUserId ? String(att.userId || att.byUserId) : undefined,
         leadId,
         type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isMeeting ? 'MEETING' : isDoc ? 'DOCUMENT' : 'NOTE',
-        isFreshCall,
-        isFollowupCall,
+        isFreshCall: false,
+        isFollowupCall: false,
         isWaDirect,
         isWaCloud,
         isMeeting,
-        productsCount: att.productInterest ? 1 : (att.metadata?.products?.length || 0),
+        productsCount: prodCount,
+        productNames: resolvedProductNames,
         docNo: att.docNo,
         docAmount: att.docAmount ? Number(att.docAmount) : undefined,
         byName: (att.by || 'Sales Rep').trim(),
         byRole: (att.byRole || 'SALES_EXEC').toUpperCase(),
         timestamp: att.timestamp || att.createdAt || new Date().toISOString(),
         dateKey: dateStr,
+        notes: rawNotes,
+        outcome: rawOutcome || undefined,
       });
     });
   });
 
-  // Also include raw backend activities
+  // 1b. Ingest backend PostgreSQL activities
   activities.forEach(act => {
     const rawType = String(act.type || '').toUpperCase();
-    const rawDesc = String(act.description || '').toLowerCase();
+    const rawDesc = String(act.description || act.notes || '').trim();
     const rawChannel = String(act.metadata?.channel || '').toUpperCase();
-    const rawOutcome = String(act.metadata?.outcome || '').toUpperCase();
+    const rawOutcome = String(act.metadata?.outcome || act.outcome || '').toUpperCase();
 
-    const isCall = rawType === 'CALL' || rawDesc.includes('call') || rawChannel.includes('CALL');
-    const isWA = rawChannel.includes('WA') || rawChannel.includes('WHATSAPP') || rawDesc.includes('whatsapp');
+    const isCall = rawType === 'CALL' || rawDesc.toLowerCase().includes('call') || rawChannel.includes('CALL') || rawType.includes('CALL');
+    const isWA = rawChannel.includes('WA') || rawChannel.includes('WHATSAPP') || rawDesc.toLowerCase().includes('whatsapp') || rawType.includes('WHATSAPP');
     const isMeeting = rawType === 'MEETING' || rawOutcome === 'MEETING_SCHEDULED' || /meeting|visit/i.test(rawDesc);
-    const isDoc = rawType === 'DOCUMENT' || rawDesc.includes('quote') || act.metadata?.docNo;
+    const isDoc = rawType === 'DOCUMENT' || rawDesc.toLowerCase().includes('quote') || act.metadata?.docNo;
 
-    const isNew = act.metadata?.isNewTouch || rawDesc.includes('new lead') || rawDesc.includes('first touch');
-    const isFreshCall = isCall && isNew;
-    const isFollowupCall = isCall && !isNew;
-
-    const isWaCloud = isWA && (rawChannel.includes('CLOUD') || rawDesc.includes('cloud'));
+    const isWaCloud = isWA && (rawChannel.includes('CLOUD') || rawDesc.toLowerCase().includes('cloud'));
     const isWaDirect = isWA && !isWaCloud;
 
     const byName = (act.user ? `${act.user.firstName || ''} ${act.user.lastName || ''}`.trim() : (act.userName || act.metadata?.by || '')).trim();
     const actUserId = act.userId || act.user?.id || act.createdBy || '';
     const dateStr = toDateKey(act.createdAt);
-    const uniqueKey = act.id ? `act_${act.id}` : `${act.leadId}_${act.type}_${act.createdAt}_${byName}`;
+    const actProdNames = act.metadata?.products || (act.metadata?.productInterest ? act.metadata.productInterest.split(';').map((s: string) => s.trim()) : []);
+    const actProdCount = actProdNames.length > 0 ? actProdNames.length : (act.metadata?.products?.length || (rawDesc.toLowerCase().includes('product') ? 1 : 0));
 
-    if (seenInteractions.has(uniqueKey)) return;
-    seenInteractions.add(uniqueKey);
-
-    normalizedInteractions.push({
-      id: act.id || `act_${Math.random()}`,
+    addCandidate({
+      id: act.id ? `act_${act.id}` : `act_rand_${Math.random()}`,
       userId: actUserId ? String(actUserId) : undefined,
       leadId: act.leadId || '',
       type: isCall ? 'CALL' : isWA ? (isWaCloud ? 'WHATSAPP_CLOUD' : 'WHATSAPP') : isMeeting ? 'MEETING' : isDoc ? 'DOCUMENT' : 'NOTE',
-      isFreshCall,
-      isFollowupCall,
+      isFreshCall: false,
+      isFollowupCall: false,
       isWaDirect,
       isWaCloud,
       isMeeting,
-      productsCount: act.metadata?.products?.length || (rawDesc.includes('product') ? 1 : 0),
+      productsCount: actProdCount,
+      productNames: actProdNames,
       docNo: act.metadata?.docNo,
       docAmount: act.metadata?.docAmount,
       byName: byName || 'Sales Rep',
       byRole: (act.user?.role || act.metadata?.byRole || 'SALES_EXEC').toUpperCase(),
       timestamp: act.createdAt || new Date().toISOString(),
       dateKey: dateStr,
+      notes: rawDesc,
+      outcome: rawOutcome || undefined,
+    });
+  });
+
+  // 1c. Group deduplicated candidates by lead to accurately classify First Call vs Follow-up Call
+  const normalizedInteractions: NormalizedInteraction[] = [];
+  const candidatesByLead = new Map<string, NormalizedInteraction[]>();
+
+  rawCandidates.forEach(cand => {
+    const k = cand.leadId || 'general';
+    const arr = candidatesByLead.get(k) || [];
+    arr.push(cand);
+    candidatesByLead.set(k, arr);
+  });
+
+  candidatesByLead.forEach((items) => {
+    // Sort chronologically ascending
+    items.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    let callCountForLead = 0;
+    items.forEach(item => {
+      if (item.type === 'CALL') {
+        callCountForLead++;
+        if (callCountForLead === 1) {
+          item.isFreshCall = true;
+          item.isFollowupCall = false;
+        } else {
+          item.isFreshCall = false;
+          item.isFollowupCall = true;
+        }
+      }
+      normalizedInteractions.push(item);
     });
   });
 
@@ -673,81 +780,103 @@ export function calculatePerformanceRecords({
 
     // ── Granular Activities List for Drilldown ──
     const activitiesList: DrilldownActivityItem[] = [];
+    const seenActKeys = new Set<string>();
 
     userInteractions.forEach(item => {
       const l = leads.find((lead: any) => String(lead.id) === String(item.leadId)) || {};
-      const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Rahul Kapoor';
-      const leadPhone = l.phone || l.mobile || '+91 98000 10008';
-      const leadCompany = l.company || l.companyName || l.customFields?.Party || 'Kapoor Electronics';
+      const leadName = item.leadName || l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Rahul Kapoor';
+      const leadPhone = item.leadPhone || l.phone || l.mobile || '+91 98000 10008';
+      const leadCompany = item.leadCompany || l.company || l.companyName || l.customFields?.Party || 'Kapoor Electronics';
       const leadStatus = l.status?.name || l.status || 'Qualified';
       const leadId = item.leadId || l.id || '1';
+      const minuteStr = item.timestamp ? item.timestamp.slice(0, 16) : item.dateKey;
 
       if (item.type === 'CALL') {
-        activitiesList.push({
-          id: item.id,
-          leadId: String(leadId),
-          leadName,
-          leadPhone,
-          leadCompany,
-          leadStatus,
-          category: 'CALL',
-          callSubtype: item.isFreshCall ? 'FRESH' : 'FOLLOWUP',
-          title: item.isFreshCall ? 'Fresh Call (Lead 1st Contact)' : 'Follow-up Call',
-          notes: (item as any).notes || (item.isFreshCall ? 'Initial introduction call & discovery of requirements' : 'Followed up on proposal and discussed commercial terms'),
-          outcome: (item as any).outcome || (item.isFreshCall ? 'Connected - Requirement Gathered' : 'Follow-up Scheduled'),
-          timestamp: item.timestamp,
-          dateKey: item.dateKey,
-        });
+        const callKey = `CALL_${leadId}_${minuteStr}`;
+        if (!seenActKeys.has(callKey)) {
+          seenActKeys.add(callKey);
+          activitiesList.push({
+            id: item.id,
+            leadId: String(leadId),
+            leadName,
+            leadPhone,
+            leadCompany,
+            leadStatus,
+            category: 'CALL',
+            callSubtype: item.isFreshCall ? 'FRESH' : 'FOLLOWUP',
+            title: item.isFreshCall ? 'Fresh Call (Lead 1st Contact)' : 'Follow-up Call',
+            notes: item.notes || (item.isFreshCall ? 'Initial introduction call & discovery of requirements' : 'Followed up on proposal and discussed commercial terms'),
+            outcome: item.outcome || (item.isFreshCall ? 'Connected - Requirement Gathered' : 'Follow-up Scheduled'),
+            timestamp: item.timestamp,
+            dateKey: item.dateKey,
+          });
+        }
       }
 
       if (item.isWaDirect || (item.type === 'WHATSAPP' && !item.isWaCloud)) {
-        activitiesList.push({
-          id: item.id,
-          leadId: String(leadId),
-          leadName,
-          leadPhone,
-          leadCompany,
-          leadStatus,
-          category: 'WHATSAPP',
-          title: 'Direct WhatsApp Outreach',
-          notes: (item as any).notes || 'Sent direct WhatsApp brochure and technical specifications',
-          timestamp: item.timestamp,
-          dateKey: item.dateKey,
-        });
+        const waKey = `WHATSAPP_${leadId}_${minuteStr}`;
+        if (!seenActKeys.has(waKey)) {
+          seenActKeys.add(waKey);
+          activitiesList.push({
+            id: `${item.id}_wa`,
+            leadId: String(leadId),
+            leadName,
+            leadPhone,
+            leadCompany,
+            leadStatus,
+            category: 'WHATSAPP',
+            title: 'Direct WhatsApp Outreach',
+            notes: item.notes || 'Sent direct WhatsApp brochure and technical specifications',
+            timestamp: item.timestamp,
+            dateKey: item.dateKey,
+          });
+        }
       }
 
       if (item.productsCount > 0) {
-        activitiesList.push({
-          id: `${item.id}_prod`,
-          leadId: String(leadId),
-          leadName,
-          leadPhone,
-          leadCompany,
-          leadStatus,
-          category: 'PRODUCT',
-          title: 'Products Shared / Pitched',
-          products: ['Commercial 4K Dome Camera', '16-Channel POE NVR'],
-          productCount: item.productsCount,
-          notes: (item as any).notes || 'Shared detailed product catalogue and warranty details',
-          timestamp: item.timestamp,
-          dateKey: item.dateKey,
-        });
+        const prodKey = `PRODUCT_${leadId}_${minuteStr}`;
+        if (!seenActKeys.has(prodKey)) {
+          seenActKeys.add(prodKey);
+          const resolvedProducts = (item.productNames && item.productNames.length > 0)
+            ? item.productNames
+            : (item.notes && item.notes.includes('Product details') ? [item.notes.replace(/^Product details shared via WhatsApp:\s*/i, '').trim()] : ['Commercial Product Portfolio']);
+
+          activitiesList.push({
+            id: `${item.id}_prod`,
+            leadId: String(leadId),
+            leadName,
+            leadPhone,
+            leadCompany,
+            leadStatus,
+            category: 'PRODUCT',
+            title: 'Products Shared / Pitched',
+            products: resolvedProducts,
+            productCount: item.productsCount,
+            notes: item.notes || 'Shared detailed product catalogue and warranty details',
+            timestamp: item.timestamp,
+            dateKey: item.dateKey,
+          });
+        }
       }
 
       if (item.isMeeting || item.type === 'MEETING') {
-        activitiesList.push({
-          id: `${item.id}_meet`,
-          leadId: String(leadId),
-          leadName,
-          leadPhone,
-          leadCompany,
-          leadStatus,
-          category: 'MEETING',
-          title: 'Client Meeting / Discussion',
-          notes: (item as any).notes || 'Scheduled in-person / virtual discussion with client',
-          timestamp: item.timestamp,
-          dateKey: item.dateKey,
-        });
+        const meetKey = `MEETING_${leadId}_${minuteStr}`;
+        if (!seenActKeys.has(meetKey)) {
+          seenActKeys.add(meetKey);
+          activitiesList.push({
+            id: `${item.id}_meet`,
+            leadId: String(leadId),
+            leadName,
+            leadPhone,
+            leadCompany,
+            leadStatus,
+            category: 'MEETING',
+            title: 'Client Meeting / Discussion',
+            notes: item.notes || 'Scheduled in-person / virtual discussion with client',
+            timestamp: item.timestamp,
+            dateKey: item.dateKey,
+          });
+        }
       }
     });
 
