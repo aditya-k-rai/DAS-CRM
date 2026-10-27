@@ -670,10 +670,14 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       : (data.customProduct ? `${data.customProduct}${data.productQuantity ? ` (Qty: ${data.productQuantity})` : ''}` : undefined);
 
     const isCallFunnel = data.outcome !== 'WHATSAPP_CHAT';
-    const isWaSharedDuringCall = Boolean(data.isWaShared || data.sentMessage || (data.selectedProduct && data.subOption === 'INTERESTED'));
+    const isWaSharedDuringCall = Boolean(data.isWaShared || data.sentMessage);
 
     const nowMs = Date.now();
     const attemptsToPrepend: ContactAttempt[] = [];
+
+    // If product details were shared via WhatsApp, do not double-tag product on the Call attempt
+    const callProductInterest = isWaSharedDuringCall ? undefined : prodInterestString;
+    const callNotes = data.notes || (callProductInterest ? `Talked with client: Discussed ${callProductInterest}` : (isWaSharedDuringCall ? 'Call completed (Product shared via WhatsApp Direct)' : 'Call completed'));
 
     // 1. Call attempt (he talked) — Timestamp set to nowMs so it appears FIRST in Timeline
     if (isCallFunnel) {
@@ -707,8 +711,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         byRole: enrichedData.callerRole || userRole,
         timestamp: new Date(nowMs).toISOString(),
         durationSeconds: callDurationSecs,
-        notes: data.notes || (prodInterestString ? `Talked with client: Discussed ${prodInterestString}` : 'Call completed'),
-        productInterest: prodInterestString,
+        notes: callNotes,
+        productInterest: callProductInterest,
         followUpDate: data.scheduledDate,
         followUpTime: data.scheduledTime,
         scheduledType: data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL',
@@ -871,7 +875,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       apiService.logLeadActivity(token, {
         activityType: 'CALL',
         leadId,
-        notes: data.notes || (prodInterestString ? `Talked with client: Discussed ${prodInterestString}` : `Call completed: ${data.outcome}`),
+        notes: data.notes || (callProductInterest ? `Talked with client: Discussed ${callProductInterest}` : `Call completed: ${data.outcome}`),
         subject: data.subOption || 'Call Outreach',
         outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
         durationSeconds: callDurationSecs,
@@ -880,9 +884,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           type: 'CALL_OUT',
           outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
           durationSeconds: callDurationSecs,
-          productInterest: prodInterestString,
-          productQuantity: data.productQuantity,
-          productTotalPrice: data.productTotalPrice,
+          // When shared via WhatsApp during call, only WhatsApp activity records productInterest so 1 WhatsApp share is counted
+          productInterest: undefined,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
           by: enrichedData.callerName,

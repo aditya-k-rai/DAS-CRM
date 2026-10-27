@@ -2421,6 +2421,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       ? 'TEAM_LEADER'
       : 'SALES_EXEC';
 
+    // If product was shared via WhatsApp during this call session, do not double-attribute the commercial to the Call attempt
+    const callProductInterest = isProductWaShared ? undefined : (productInterestLogged || undefined);
+
     const newContactAttempt: ContactAttempt = {
       id: `attempt_${Date.now()}`,
       type: contactType,
@@ -2431,7 +2434,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       timestamp: new Date().toISOString(),
       durationSeconds: callDuration,
       notes: callResponseNotes || dispositionSummaryTitle,
-      productInterest: productInterestLogged || undefined,
+      productInterest: callProductInterest,
       followUpDate: autoQueueFollowUp ? funnelScheduledDate : undefined,
       followUpTime: autoQueueFollowUp ? funnelScheduledTime : undefined,
       audioRecordingAvailable: callDuration > 10,
@@ -2466,7 +2469,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           outcome: contactOutcome,
           scheduledType: scheduledType,
           durationSeconds: callDuration,
-          productInterest: productInterestLogged,
+          productInterest: callProductInterest,
           notes: callResponseNotes || dispositionSummaryTitle,
           by: currentUser?.name || lead.owner || 'Sales Rep',
           byRole: cleanRole,
@@ -2495,6 +2498,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     // Close Modal & Reset
     setShowCallCutModal(false);
+    setIsProductWaShared(false);
     setCallResponseNotes('');
     setCustomProductInput('');
     setCustomWantElseRequirement('');

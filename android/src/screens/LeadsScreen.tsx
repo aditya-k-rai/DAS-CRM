@@ -611,7 +611,7 @@ export default function LeadsScreen() {
 
     if (targetLeadId) {
       const isCall = outcome.outcome !== 'WHATSAPP_CHAT';
-      const hasWa = Boolean(outcome.isWaShared || outcome.sentMessage || outcome.selectedProduct);
+      const hasWa = Boolean(outcome.isWaShared || outcome.sentMessage);
       const prodStr = outcome.selectedProduct?.name
         ? `${outcome.selectedProduct.name}${outcome.productQuantity ? ` (Qty: ${outcome.productQuantity} · ${outcome.productTotalPrice ? `₹${outcome.productTotalPrice.toLocaleString('en-IN')}` : ''})` : ''}`
         : undefined;
@@ -649,7 +649,7 @@ export default function LeadsScreen() {
         apiService.logLeadActivity(token, {
           activityType: 'CALL',
           leadId: targetLeadId,
-          notes: outcome.notes || (prodStr ? `Talked with client: Discussed ${prodStr}` : 'Call completed'),
+          notes: outcome.notes || 'Call completed',
           subject: outcome.subOption || 'Call Outreach',
           outcome: outcome.outcome === 'PICKED_UP' ? 'TALKED' : outcome.outcome,
           durationSeconds: callSecs,
@@ -658,7 +658,8 @@ export default function LeadsScreen() {
             type: 'CALL_OUT',
             outcome: outcome.outcome === 'PICKED_UP' ? 'TALKED' : outcome.outcome,
             durationSeconds: callSecs,
-            productInterest: prodStr,
+            // When shared via WhatsApp during call, only WhatsApp activity records productInterest so 1 WhatsApp share is counted
+            productInterest: undefined,
             followUpDate: outcome.scheduledDate,
             followUpTime: outcome.scheduledTime,
             by: currentUser?.name || 'Sales Rep',

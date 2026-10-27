@@ -695,13 +695,12 @@ export function extractInterestedCommercials(
       }
     }
 
-    // 2. Extract from notes or sentMessage (e.g. WhatsApp Product Share / Proposals)
+    // 2. Extract from notes or sentMessage (e.g. WhatsApp Product Share / Multi-item Proposals)
     const fullText = `${h.notes || ''} ${h.sentMessage || ''}`;
-    if (
-      fullText.includes('Product details shared via WhatsApp:') ||
-      fullText.includes('Selected Products & Specifications:') ||
-      fullText.includes('Interested in')
-    ) {
+    const hasSingleProdShare = fullText.includes('Product details shared via WhatsApp:');
+    const hasMultiProposal = fullText.includes('Selected Products & Specifications:');
+
+    if (hasSingleProdShare) {
       const shareMatch = fullText.match(/Product details shared via WhatsApp:\s*([^;\n]+)/i);
       if (shareMatch && shareMatch[1]) {
         const clean = shareMatch[1].trim();
@@ -729,11 +728,22 @@ export function extractInterestedCommercials(
           });
         }
       }
+    }
 
-      const proposalMatches = Array.from(fullText.matchAll(/•\s*([^(\n]+)(?:\(Qty:\s*([^)]+)\))?(?:\s*@\s*([^=\n]+)\s*=\s*([^\n]+))?/gi));
+    // Only parse multi-item proposals if explicitly present in the proposal section (never from single-product category specs)
+    if (hasMultiProposal) {
+      const proposalSection = fullText.split(/Selected Products & Specifications:/i)[1] || '';
+      // Require either (Qty: ...) or @ pricing to avoid matching random category/stock bullets
+      const proposalMatches = Array.from(proposalSection.matchAll(/•\s*([^(\n@]+)(?:\(Qty:\s*([^)]+)\))\s*(?:@\s*([^=\n]+)\s*=\s*([^\n]+))?/gi));
       for (const m of proposalMatches) {
-        const pName = m[1]?.trim();
-        if (pName && pName.length > 2 && !pName.toLowerCase().includes('http') && !pName.toLowerCase().includes('selected products')) {
+        const pName = m[1]?.replace(/^[•\s*-]+/, '').trim();
+        if (
+          pName &&
+          pName.length > 2 &&
+          !pName.toLowerCase().includes('http') &&
+          !pName.toLowerCase().includes('selected products') &&
+          !pName.toLowerCase().includes('in stock')
+        ) {
           const key = `prod_${pName.toLowerCase().replace(/\s+/g, ' ')}`;
           if (!attemptsKeysInThisContact.has(key)) {
             attemptsKeysInThisContact.add(key);

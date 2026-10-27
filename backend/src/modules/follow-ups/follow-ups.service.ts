@@ -76,11 +76,48 @@ export class FollowUpsService {
    */
   private parseScheduledDueAt(dateStr: string, timeStr?: string): Date {
     const rawTime = (timeStr || '09:00:00').trim();
-    const formattedTime = rawTime.length === 5 ? `${rawTime}:00` : rawTime;
-    const hasTz = formattedTime.includes('+') || formattedTime.includes('Z') || (formattedTime.includes('-') && formattedTime.length > 8);
-    const fullIso = hasTz ? `${dateStr}T${formattedTime}` : `${dateStr}T${formattedTime}+05:30`;
+
+    // If already a full ISO string
+    if (rawTime.includes('T')) {
+      const parsed = new Date(rawTime);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+
+    // Match 12-hour or 24-hour time format:
+    // Examples: "10:30 AM", "10:30 am", "09:30 PM", "9:30", "14:00", "10:30:00", "09:30:00 AM"
+    const match = rawTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    let hours = 9;
+    let minutes = 0;
+    let seconds = 0;
+
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+      seconds = match[3] ? parseInt(match[3], 10) : 0;
+      const meridiem = match[4]?.toUpperCase();
+
+      if (meridiem === 'PM' && hours < 12) {
+        hours += 12;
+      } else if (meridiem === 'AM' && hours === 12) {
+        hours = 0;
+      }
+    } else {
+      const parts = rawTime.replace(/[^0-9:]/g, '').split(':');
+      if (parts.length >= 2) {
+        hours = parseInt(parts[0], 10) || 9;
+        minutes = parseInt(parts[1], 10) || 0;
+      }
+    }
+
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+
+    // Interpret in IST (+05:30)
+    const fullIso = `${dateStr}T${hh}:${mm}:${ss}+05:30`;
     const d = new Date(fullIso);
-    return isNaN(d.getTime()) ? new Date(`${dateStr}T${formattedTime}`) : d;
+    if (!isNaN(d.getTime())) return d;
+    return new Date(`${dateStr}T${hh}:${mm}:${ss}`);
   }
 
   private computeStatus(task: any): string {
@@ -328,6 +365,7 @@ export class FollowUpsService {
       followUpType: string;
       scheduledDate: string;
       scheduledTime?: string;
+      dueAt?: string | Date;
       priority?: string;
       purpose?: string;
       notes?: string;
@@ -345,12 +383,21 @@ export class FollowUpsService {
       throw new BadRequestException('Please select a valid follow-up date.');
     }
 
-    // Parse scheduled date + time
-    let dueAt: Date;
-    if (dto.scheduledTime) {
-      dueAt = this.parseScheduledDueAt(dto.scheduledDate, dto.scheduledTime);
-    } else {
-      dueAt = this.parseScheduledDueAt(dto.scheduledDate, '09:00:00');
+    // Parse scheduled date + time (respecting explicit dueAt if provided)
+    let dueAt: Date | undefined;
+    if (dto.dueAt) {
+      const explicitDue = new Date(dto.dueAt);
+      if (!isNaN(explicitDue.getTime())) {
+        dueAt = explicitDue;
+      }
+    }
+
+    if (!dueAt) {
+      if (dto.scheduledTime) {
+        dueAt = this.parseScheduledDueAt(dto.scheduledDate, dto.scheduledTime);
+      } else {
+        dueAt = this.parseScheduledDueAt(dto.scheduledDate, '09:00:00');
+      }
     }
 
     if (isNaN(dueAt.getTime())) {
@@ -440,6 +487,7 @@ export class FollowUpsService {
       followUpType?: string;
       scheduledDate?: string;
       scheduledTime?: string;
+      dueAt?: string | Date;
       priority?: string;
       purpose?: string;
       notes?: string;
@@ -481,7 +529,12 @@ export class FollowUpsService {
     if (dto.contactId !== undefined) data.contactId = dto.contactId || null;
     if (dto.dealId !== undefined) data.dealId = dto.dealId || null;
 
-    if (dto.scheduledDate) {
+    if (dto.dueAt) {
+      const explicitDue = new Date(dto.dueAt);
+      if (!isNaN(explicitDue.getTime())) {
+        data.dueAt = explicitDue;
+      }
+    } else if (dto.scheduledDate) {
       const dueAt = this.parseScheduledDueAt(dto.scheduledDate, dto.scheduledTime);
       if (!isNaN(dueAt.getTime())) {
         data.dueAt = dueAt;
