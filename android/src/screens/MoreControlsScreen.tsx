@@ -61,6 +61,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   route,
   onOpenProductsCatalog,
   onOpenProfile,
+  onNavigateTab,
 }) => {
   const [activeModal, setActiveModal] = useState<ModuleKey | null>(null);
   const insets = useSafeAreaInsets();
@@ -70,6 +71,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const { currentUser } = useAuthStore();
   const role = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const isSupervisor = isAdmin || role === 'MANAGER' || role === 'TEAM_LEADER' || role.includes('ADMIN') || role.includes('MGR') || role.includes('LEADER') || role.includes('TL');
+  const isSalesRole = !isSupervisor || role === 'SALES_EXEC' || role === 'SALES_REP' || role === 'EMPLOYEE';
   const { getPermission } = useModuleAccessStore();
   const userId = currentUser?.id || '';
   // Normalize SUPER_ADMIN → ADMIN for module access lookup (both have identical full access)
@@ -106,7 +109,14 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'REPORTS') setActiveModal('REPORTS');
       else if (initMod === 'GOALS') setActiveModal('GOALS');
       else if (initMod === 'LEAD_ASSIGNMENT' || initMod === 'DISTRIBUTION') setActiveModal('LEAD_ASSIGNMENT');
-      else if (initMod === 'FOLLOW_UPS' || initMod === 'TASKS') setActiveModal('FOLLOW_UPS');
+      else if (initMod === 'FOLLOW_UPS' || initMod === 'TASKS') {
+        if (isSalesRole) {
+          if (onNavigateTab) onNavigateTab('Leads');
+          else if (navigation) navigation.navigate('Leads');
+        } else {
+          setActiveModal('FOLLOW_UPS');
+        }
+      }
       else if (initMod === 'ATTENDANCE') setActiveModal('ATTENDANCE');
       else if (initMod === 'PROFILE' || initMod === 'SALARY') {
         if (isAdmin) setActiveModal('PROFILE');
@@ -117,10 +127,15 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'AUTOMATIONS' || initMod === 'WORKFLOW') setActiveModal('AUTOMATIONS');
       else if (initMod === 'ABOUT' || initMod === 'DEVELOPER') setActiveModal('ABOUT');
     }
-  }, [route?.params?.initialModule]);
+  }, [route?.params?.initialModule, isSalesRole]);
 
   const handleOpenModule = (key: ModuleKey) => {
     if ((key === 'PROFILE' || key === 'SETTINGS') && !isAdmin) {
+      return;
+    }
+    if (key === 'FOLLOW_UPS' && isSalesRole) {
+      if (onNavigateTab) onNavigateTab('Leads');
+      else if (navigation) navigation.navigate('Leads');
       return;
     }
     // Only open if permitted/active
@@ -139,11 +154,11 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     }
   };
 
-  // 22 Navigation Items in Exact Specified Order
+  // Navigation Items in Exact Specified Order (Follow-ups omitted for Sales Exec as already integrated in Leads Workspace)
   const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string; upcoming?: boolean }[] = [
     ...(isAdmin ? [{ key: 'ADMIN_CONTROL' as ModuleKey, icon: '🛡️', label: 'Admin Control Center' }] : []),
     ...(role === 'TEAM_LEADER' || isAdmin ? [{ key: 'LEAD_ASSIGNMENT' as ModuleKey, icon: '🎯', label: 'Lead Distribution Hub' }] : []),
-    { key: 'FOLLOW_UPS', icon: '⏱️', label: 'Tasks & Follow-ups' },
+    ...(!isSalesRole ? [{ key: 'FOLLOW_UPS' as ModuleKey, icon: '⏱️', label: 'Tasks & Follow-ups' }] : []),
     { key: 'PRODUCTS', icon: '📦', label: 'Product Catalogue' },
     { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
     { key: 'COMMUNICATIONS', icon: '☁️', label: 'WhatsApp Cloud' },
@@ -308,6 +323,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
           {GRID_BUTTONS.filter(item => {
             if (item.key === 'PROFILE' || item.key === 'SETTINGS') {
               return isAdmin;
+            }
+            if (item.key === 'FOLLOW_UPS' && isSalesRole) {
+              return false;
             }
             if (isAdmin) return true;
             const perm = getPermission(userId, userRole, item.key);

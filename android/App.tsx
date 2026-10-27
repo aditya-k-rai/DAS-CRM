@@ -867,7 +867,7 @@ function RootAppContent() {
                         title: t.drawerQuickLaunch || '🎯 MY SALES WORKSPACE',
                         items: [
                           { icon: '📞', label: 'Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                          { icon: '⏱️', label: 'Tasks & Follow-ups', badge: 'TODAY', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'FOLLOW_UPS' })) },
+                          { icon: '⏱️', label: 'Tasks & Follow-ups', badge: 'TODAY', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                           { icon: '💼', label: 'Deals & Opportunities', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
                           { icon: '📈', label: 'Goals & Targets', badge: 'MINE', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'GOALS' })) },
                           { icon: '⏱️', label: 'Attendance', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
