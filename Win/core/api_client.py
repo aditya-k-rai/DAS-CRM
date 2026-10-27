@@ -3,6 +3,7 @@ api_client.py — DAS CRM Windows
 Enhanced API Client with Backend Sync, Error Handling, and Real-time Updates
 """
 
+import os
 import asyncio
 import json
 from typing import Optional, Dict, Any, List
@@ -46,11 +47,15 @@ class ValidationError:
 class DASCRMApiClient:
     """Enhanced API client with sync, validation, and error handling"""
 
-    def __init__(self, base_url: str = "http://localhost:4000/api", timeout: int = 30):
+    def __init__(self, base_url: str = None, timeout: int = 30):
+        if not base_url:
+            base_url = os.environ.get("DASCRM_API_BASE_URL", "http://localhost:4000/api")
+        if not base_url.endswith("/api") and "/api" not in base_url:
+            base_url = f"{base_url.rstrip('/')}/api"
         self.base_url = base_url
         self.timeout = timeout
         self.client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
-        self.auth_token: Optional[str] = None
+        self.auth_token: Optional[str] = os.environ.get("DASCRM_API_TOKEN")
         self.sync_status = SyncStatus()
         self.validation_errors: Dict[str, ValidationError] = {}
 
@@ -63,7 +68,7 @@ class DASCRMApiClient:
             )
             data = response.json()
             if response.status_code == 200:
-                self.auth_token = data.get("token")
+                self.auth_token = data.get("token") or data.get("accessToken") or data.get("access_token")
                 return ApiResponse(
                     success=True,
                     data=data.get("user"),
@@ -105,10 +110,11 @@ class DASCRMApiClient:
 
             if response.status_code == 200:
                 data = response.json()
+                leads_list = data if isinstance(data, list) else data.get("data", data.get("leads", []))
                 return ApiResponse(
                     success=True,
-                    data=data.get("leads", []),
-                    message=f"Fetched {len(data.get('leads', []))} leads"
+                    data=leads_list,
+                    message=f"Fetched {len(leads_list)} leads"
                 )
             else:
                 return ApiResponse(
@@ -282,6 +288,64 @@ class DASCRMApiClient:
                 message="Network error",
                 errors=[str(e)]
             )
+
+    async def get_deals(self) -> ApiResponse:
+        """Fetch deals pipeline data from backend"""
+        try:
+            response = await self.client.get(
+                "/deals",
+                headers={"Authorization": f"Bearer {self.auth_token}"}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                items = data if isinstance(data, list) else data.get("data", data.get("deals", []))
+                return ApiResponse(success=True, data=items, message=f"Fetched {len(items)} deals")
+            return ApiResponse(success=False, message="Failed to fetch deals", data=[])
+        except Exception as e:
+            return ApiResponse(success=False, message=str(e), errors=[str(e)], data=[])
+
+    async def get_quotations(self) -> ApiResponse:
+        """Fetch quotations list from backend"""
+        try:
+            response = await self.client.get(
+                "/quotations",
+                headers={"Authorization": f"Bearer {self.auth_token}"}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                items = data if isinstance(data, list) else data.get("data", data.get("quotations", []))
+                return ApiResponse(success=True, data=items, message=f"Fetched {len(items)} quotations")
+            return ApiResponse(success=False, message="Failed to fetch quotations", data=[])
+        except Exception as e:
+            return ApiResponse(success=False, message=str(e), errors=[str(e)], data=[])
+
+    async def get_tasks(self) -> ApiResponse:
+        """Fetch tasks and follow-ups from backend"""
+        try:
+            response = await self.client.get(
+                "/follow-ups",
+                headers={"Authorization": f"Bearer {self.auth_token}"}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                items = data if isinstance(data, list) else data.get("data", data.get("followUps", []))
+                return ApiResponse(success=True, data=items, message=f"Fetched {len(items)} tasks")
+            return ApiResponse(success=False, message="Failed to fetch tasks", data=[])
+        except Exception as e:
+            return ApiResponse(success=False, message=str(e), errors=[str(e)], data=[])
+
+    async def get_dashboard_summary(self) -> ApiResponse:
+        """Fetch top-level KPI telemetry summary"""
+        try:
+            response = await self.client.get(
+                "/leads/summary",
+                headers={"Authorization": f"Bearer {self.auth_token}"}
+            )
+            if response.status_code == 200:
+                return ApiResponse(success=True, data=response.json(), message="Dashboard summary retrieved")
+            return ApiResponse(success=False, message="Failed to fetch summary")
+        except Exception as e:
+            return ApiResponse(success=False, message=str(e), errors=[str(e)])
 
     # ── VALIDATION METHODS ──────────────────────────────────────────────────────────
 
