@@ -121,7 +121,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [hasAutofilled, setHasAutofilled] = useState(false);
 
   // Verification Pending Banner / Modal
@@ -209,17 +209,30 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   useEffect(() => {
-    // 1. Autofill from previous login storage
+    // 0. Ensure fresh install cleanliness: purge legacy stored credentials so old tests never autofill
+    AsyncStorage.getItem('@das_crm_login_cleaned_v2').then((cleaned) => {
+      if (!cleaned) {
+        Promise.all([
+          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN),
+          AsyncStorage.removeItem(`${STORAGE_KEY_PREV_LOGIN}_ADMIN`),
+          AsyncStorage.removeItem(`${STORAGE_KEY_PREV_LOGIN}_HR`),
+          AsyncStorage.removeItem(`${STORAGE_KEY_PREV_LOGIN}_MANAGER`),
+          AsyncStorage.removeItem(`${STORAGE_KEY_PREV_LOGIN}_TEAM_LEADER`),
+          AsyncStorage.removeItem(`${STORAGE_KEY_PREV_LOGIN}_SALES_EXEC`),
+        ]).catch(() => {});
+        AsyncStorage.setItem('@das_crm_login_cleaned_v2', 'true').catch(() => {});
+      }
+    });
+
+    // 1. Restore workspace / organization preferences only — NEVER autofill email or password on launch
     AsyncStorage.getItem(STORAGE_KEY_PREV_LOGIN).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.email) setEmail(parsed.email);
-          if (parsed.password) setPassword(parsed.password);
+          // Only restore company workspace info; email and password remain strictly empty
           if (parsed.companyKey) setCompanyKeyInput(formatCompanyKey(parsed.companyKey));
           if (parsed.companyId) setSelectedCompanyId(parsed.companyId);
           if (parsed.role) setSelectedRole(parsed.role);
-          setHasAutofilled(true);
         } catch (_) {}
       }
     });
@@ -283,19 +296,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setError(null);
-    // Autofill saved credentials for role if available
-    AsyncStorage.getItem(`${STORAGE_KEY_PREV_LOGIN}_${role}`).then((raw) => {
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.email) setEmail(parsed.email);
-          if (parsed.password) setPassword(parsed.password);
-          if (parsed.companyKey && !companyKeyInput) setCompanyKeyInput(formatCompanyKey(parsed.companyKey));
-          if (parsed.companyId) setSelectedCompanyId(parsed.companyId);
-          setHasAutofilled(true);
-        } catch (_) {}
-      }
-    });
+    // Note: Do NOT autofill email or password when selecting roles; keep inputs clean for user entry
   };
 
   const handleCompanyKeyChange = (rawText: string) => {
@@ -454,8 +455,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
           if (rememberMe) {
             const credsStr = JSON.stringify({
-              email: email.trim(),
-              password,
               companyKey: companyKeyInput.trim(),
               companyId: compId,
               companyName: compName,
@@ -463,10 +462,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               savedAt: new Date().toISOString(),
             });
             AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-            AsyncStorage.setItem(
-              `${STORAGE_KEY_PREV_LOGIN}_${normalizedRole}`,
-              credsStr,
-            );
           }
 
           await setAuthSession(
@@ -572,8 +567,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         ) {
           if (rememberMe) {
             const credsStr = JSON.stringify({
-              email: email.trim(),
-              password,
               companyKey: companyKeyInput.trim(),
               companyId: compId,
               companyName: compName,
@@ -619,8 +612,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         if (rememberMe) {
           const credsStr = JSON.stringify({
-            email: email.trim(),
-            password,
             companyKey: companyKeyInput.trim(),
             companyId: compId,
             companyName: compName,
@@ -628,10 +619,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             savedAt: new Date().toISOString(),
           });
           AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-          AsyncStorage.setItem(
-            `${STORAGE_KEY_PREV_LOGIN}_${finalRole}`,
-            credsStr,
-          );
         } else {
           AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
         }

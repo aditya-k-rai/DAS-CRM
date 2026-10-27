@@ -102,14 +102,16 @@ function removeCookie(name: string) {
 }
 
 function saveLoginCredentials(creds: SavedLoginCredentials) {
-  const jsonStr = JSON.stringify(creds);
+  // Never save raw password into cookies or localStorage
+  const safeCreds = { ...creds, password: '' };
+  const jsonStr = JSON.stringify(safeCreds);
   setCookie(LOGIN_COOKIE_KEY, jsonStr, 30);
-  if (creds.role) {
-    setCookie(`${LOGIN_COOKIE_KEY}_${creds.role}`, jsonStr, 30);
+  if (safeCreds.role) {
+    setCookie(`${LOGIN_COOKIE_KEY}_${safeCreds.role}`, jsonStr, 30);
   }
   try {
     localStorage.setItem(LOGIN_COOKIE_KEY, jsonStr);
-    if (creds.role) localStorage.setItem(`${LOGIN_COOKIE_KEY}_${creds.role}`, jsonStr);
+    if (safeCreds.role) localStorage.setItem(`${LOGIN_COOKIE_KEY}_${safeCreds.role}`, jsonStr);
   } catch (_) {}
 }
 
@@ -173,7 +175,7 @@ export function LoginGateway() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [hasAutofilled, setHasAutofilled] = useState(false);
 
   // Staff Key State
@@ -251,8 +253,6 @@ export function LoginGateway() {
 
     const saved = loadLoginCredentials();
     if (saved) {
-      if (saved.email) setEmail(saved.email);
-      if (saved.password) setPassword(saved.password);
       // Validate key format strictly: 4 letters - 2 letters - 4 digits
       const savedKey = saved.companyKey || '';
       const isInvalidKey = savedKey.toUpperCase().startsWith('DAS-') ||
@@ -267,7 +267,6 @@ export function LoginGateway() {
       }
       if (saved.companyId && !urlCompanyId) setSelectedCompanyId(saved.companyId);
       if (saved.role) setSelectedRole(saved.role);
-      setHasAutofilled(true);
     }
   }, []);
 
@@ -500,7 +499,7 @@ export function LoginGateway() {
           if (rememberMe) {
             saveLoginCredentials({
               email: email.trim(),
-              password,
+              password: '',
               companyKey: companyKeyInput.trim(),
               companyId: effectiveCompanyId,
               companyName: compName,
@@ -538,7 +537,7 @@ export function LoginGateway() {
         if (rememberMe) {
           saveLoginCredentials({
             email: email.trim(),
-            password,
+            password: '',
             companyKey: companyKeyInput.trim(),
             companyId: effectiveCompanyId,
             companyName: compName,
