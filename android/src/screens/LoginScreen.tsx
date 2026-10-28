@@ -385,40 +385,31 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     };
 
     try {
+      const activeBase = getApiBase();
       const candidateBases = Array.from(
-        new Set([getApiBase(), ...getCandidateApiUrls()]),
+        new Set([activeBase, ...getCandidateApiUrls()]),
       ).filter(
         (url) =>
           url &&
           typeof url === 'string' &&
-          url.startsWith('http') &&
-          !url.includes('onrender.com') &&
-          !url.includes('nexcrm'),
+          url.startsWith('http'),
       );
 
       let networkResponse: Response | null = null;
       let data: any = null;
 
-      // 1. Check active API base health first; if failing, discover fastest candidate in parallel
-      const activeBase = getApiBase();
-      let workingBase = activeBase;
-      const activePing = await testApiEndpoint(activeBase, 1200);
-      if (!activePing.success) {
-        const fastest = await findFastestReachableEndpoint(2000);
-        if (fastest) {
-          workingBase = fastest;
-          setApiBase(fastest);
-        }
-      }
-
+      // Prioritize activeBase first, then fall back to candidates
       const priorityBases = Array.from(
-        new Set([workingBase, ...candidateBases]),
+        new Set([activeBase, ...candidateBases]),
       );
 
       for (const baseUrl of priorityBases) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
+          // Active base gets a generous 7s timeout (sufficient for TLS handshake / cloud wake-up)
+          // Secondary candidates get 3.5s
+          const timeoutMs = baseUrl === activeBase ? 7000 : 3500;
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
           const res = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

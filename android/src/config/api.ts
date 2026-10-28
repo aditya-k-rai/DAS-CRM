@@ -51,12 +51,12 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const CURRENT_LAN_API_URL = 'http://192.168.1.34:3001/api/v1';
-export const PREV_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
-export const DEFAULT_CLOUD_API_URL = CURRENT_LAN_API_URL;
+export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
+export const PREV_LAN_API_URL = 'http://192.168.1.34:3001/api/v1';
+export const DEFAULT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
-export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : CURRENT_LAN_API_URL;
+export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : 'https://dascrm-backend.onrender.com/api/v1';
 
 /**
  * Returns prioritized list of backend URLs to probe
@@ -69,40 +69,43 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 2. Web & Desktop prioritization (direct localhost connection)
+  // 2. Production Cloud URL
+  candidates.push(PROD_CLOUD_API_URL);
+
+  // 3. Web & Desktop prioritization (direct localhost connection)
   if (Platform.OS === 'web') {
     candidates.push(LOCALHOST_API_URL);
     candidates.push('http://127.0.0.1:3001/api/v1');
   }
 
-  // 3. Dynamic host IP from Expo Metro bundler
+  // 4. Dynamic host IP from Expo Metro bundler
   const expoIp = getExpoHostIp();
   if (expoIp) {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Active Host Machine Wi-Fi LAN IP (Primary for real physical devices on local network)
+  // 5. Active Host Machine Wi-Fi LAN IP (Primary for real physical devices on local network)
   candidates.push(CURRENT_LAN_API_URL);
-  candidates.push('http://192.168.1.34:3001/api/v1');
-  candidates.push(PREV_LAN_API_URL);
   candidates.push('http://192.168.29.26:3001/api/v1');
+  candidates.push(PREV_LAN_API_URL);
+  candidates.push('http://192.168.1.34:3001/api/v1');
 
   // Common local subnet fallback candidates (192.168.1.x / 192.168.29.x / 192.168.0.x)
   candidates.push('http://192.168.1.2:3001/api/v1');
   candidates.push('http://192.168.1.100:3001/api/v1');
   candidates.push('http://192.168.0.100:3001/api/v1');
 
-  // 5. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  // 6. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
   if (Platform.OS === 'android') {
     candidates.push(EMULATOR_API_URL);
   }
 
-  // 6. Previously saved active API base from AsyncStorage if valid and not dead host
-  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('onrender.com') && !API_BASE.includes('nexcrm')) {
+  // 7. Previously saved active API base from AsyncStorage if valid
+  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http')) {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
-  // 7. Localhost & 127.0.0.1 fallback
+  // 8. Localhost & 127.0.0.1 fallback
   candidates.push(LOCALHOST_API_URL);
   candidates.push('http://127.0.0.1:3001/api/v1');
 
@@ -130,7 +133,7 @@ export const getApiBaseUrl = (): string => {
 export let API_BASE: string = getApiBaseUrl();
 
 export function setApiBase(url: string) {
-  if (!url || typeof url !== 'string' || url.includes('onrender.com') || url.includes('nexcrm')) return;
+  if (!url || typeof url !== 'string' || !url.startsWith('http')) return;
   const normalized = normalizeApiUrl(url);
   API_BASE = normalized;
   try {
@@ -147,10 +150,10 @@ export function getApiBase(): string {
  */
 export async function testApiEndpoint(
   url: string,
-  timeoutMs = 2500
+  timeoutMs = 4000
 ): Promise<{ success: boolean; latencyMs: number; error?: string }> {
-  if (!url || !url.startsWith('http') || url.includes('onrender.com') || url.includes('nexcrm')) {
-    return { success: false, latencyMs: 0, error: 'Invalid or deprecated server address' };
+  if (!url || !url.startsWith('http')) {
+    return { success: false, latencyMs: 0, error: 'Invalid server address' };
   }
   const normalized = normalizeApiUrl(url);
   const start = Date.now();
@@ -194,13 +197,13 @@ export async function testApiEndpoint(
  * Fast-race concurrent probe across all candidate endpoints.
  * Resolves as soon as the FIRST active backend responds in parallel (< 200ms).
  */
-export async function findFastestReachableEndpoint(timeoutMs = 2500): Promise<string | null> {
+export async function findFastestReachableEndpoint(timeoutMs = 3000): Promise<string | null> {
   const candidates = getCandidateApiUrls();
   if (!candidates || candidates.length === 0) return null;
 
-  // 1. First test currently active API_BASE with very short timeout
-  if (API_BASE && !API_BASE.includes('onrender.com')) {
-    const currentActiveTest = await testApiEndpoint(API_BASE, 1200);
+  // 1. First test currently active API_BASE
+  if (API_BASE) {
+    const currentActiveTest = await testApiEndpoint(API_BASE, 2000);
     if (currentActiveTest.success) {
       return API_BASE;
     }
@@ -337,22 +340,16 @@ export async function fetchWithFailover(
   throw new Error(`All backend candidates failed for path: ${path}`);
 }
 
-// Hydrate and sanitize saved working API_BASE on app startup
+// Hydrate saved working API_BASE on app startup
 try {
   AsyncStorage.getItem(STORAGE_KEY_API_BASE).then(async (saved) => {
     if (saved && typeof saved === 'string' && saved.startsWith('http')) {
-      if (saved.includes('nexcrm') || saved.includes('onrender.com') || saved.includes('192.168.29.26')) {
-        // Purge dead/invalid host and reset to clean active LAN endpoint
-        AsyncStorage.removeItem(STORAGE_KEY_API_BASE).catch(() => {});
-        API_BASE = getApiBaseUrl();
-      } else {
-        API_BASE = normalizeApiUrl(saved);
-      }
+      API_BASE = normalizeApiUrl(saved);
     }
     // Proactively verify reachability of API_BASE; if failing, discover fastest reachable candidate
-    const ping = await testApiEndpoint(API_BASE, 1500);
+    const ping = await testApiEndpoint(API_BASE, 2000);
     if (!ping.success) {
-      const working = await findFastestReachableEndpoint(2000);
+      const working = await findFastestReachableEndpoint(2500);
       if (working) {
         setApiBase(working);
       }
