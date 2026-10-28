@@ -26,7 +26,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useAuthStore,
   UserRole,
-  DEMO_USERS,
   normalizeRoleStr,
   inferRoleFromEmail,
   getPostLoginDefaultTab,
@@ -438,78 +437,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
       // ── Handle Backend Responses ──────────────────────────────────────────
 
-      // Case A: Unreachable server (Network down or local server not started)
+      // Case A: Unreachable server (Network down or server not responding)
       if (!networkResponse || !data) {
-        // ── STRICT Offline Demo Fallback ─────────────────────────────────────
-        // Offline access is ONLY permitted when the email EXACTLY matches the
-        // registered demo user for the explicitly selected role.
-        // We do NOT allow role elevation by selecting a different role chip.
-        // Generic keywords like 'admin', 'adorable' in the email are NOT
-        // sufficient — the email must be the exact demo credential for that role.
-        const normalizedRole: UserRole = normalizeRoleStr(selectedRole);
-        const demoUser = DEMO_USERS[normalizedRole];
-        const emailLowerTrimmed = email.trim().toLowerCase();
-
-        const isExactDemoMatch =
-          demoUser &&
-          password.length >= 4 &&
-          emailLowerTrimmed === demoUser.email.toLowerCase();
-
-        if (isExactDemoMatch) {
-          const compName = selectedCompanyName || 'Adorable Trading';
-          const compId = selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
-          const subData: CompanySubscription = {
-            id: compId,
-            companyName: compName,
-            planType: 'BUSINESS',
-            trialDaysLeft: 30,
-            isExpired: false,
-            userSeatsAllocated: 18,
-            userSeatsUsed: 3,
-            hasTeamLeaders: true,
-            features: {
-              whatsApp: true,
-              emailAutomation: true,
-              aiLeadScoring: true,
-              customSalaryBuilder: true,
-              exportCSV: true,
-            },
-          };
-
-          if (rememberMe) {
-            const credsStr = JSON.stringify({
-              companyKey: companyKeyInput.trim(),
-              companyId: compId,
-              companyName: compName,
-              role: normalizedRole,
-              savedAt: new Date().toISOString(),
-            });
-            AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-          }
-
-          await setAuthSession(
-            {
-              id: demoUser.id || 'usr_local_admin',
-              name: demoUser.name || (normalizedRole === 'ADMIN' ? 'Admin' : 'Staff Member'),
-              email: email.trim(),
-              role: normalizedRole,
-              avatar: demoUser.avatar || (normalizedRole === 'ADMIN' ? 'AD' : 'SM'),
-              companyId: compId,
-              companyName: compName,
-              hasAssignedRole: true,
-              roleNotAssigned: false,
-            },
-            'offline_jwt_token_' + Date.now(),
-            subData,
-          );
-
-          setLoading(false);
-          onLoginSuccess(getPostLoginDefaultTab(normalizedRole));
-          return;
-        }
-
         setError(
-          'Cannot connect to DAS CRM server. Please verify your network connection and server settings.',
+          'Cannot connect to DAS CRM server. Please verify your internet connection and server settings.',
         );
         setLoading(false);
         return;

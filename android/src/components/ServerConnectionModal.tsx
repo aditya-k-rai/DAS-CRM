@@ -253,6 +253,61 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
             <View style={{ marginTop: 18 }}>
               <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 8 }]}>QUICK PRESETS</Text>
               
+              {/* Preset: Production Cloud */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL) ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(PROD_CLOUD_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                      {PROD_CLOUD_API_URL}
+                    </Text>
+                    <View style={[styles.activePill, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
+                      <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>CLOUD</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    ☁️ Production Cloud Backend (HTTPS Cluster)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset: Wi-Fi LAN */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(CURRENT_LAN_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    {CURRENT_LAN_API_URL}
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    📶 Host Computer Wi-Fi LAN IP
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
               {/* Preset: Dynamic Expo Metro Bundler (if detected) */}
               {expoMetroUrl && (
                 <TouchableOpacity
@@ -305,31 +360,6 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                 <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
               </TouchableOpacity>
 
-              {/* Preset: Wi-Fi LAN */}
-              <TouchableOpacity
-                style={[
-                  styles.candidateRow,
-                  {
-                    backgroundColor: cardBg,
-                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? '#6366f1' : borderColor,
-                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? 2 : 1,
-                    marginBottom: 8,
-                  },
-                ]}
-                onPress={() => handleSelectPreset(CURRENT_LAN_API_URL)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
-                    {CURRENT_LAN_API_URL}
-                  </Text>
-                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                    📶 Host Computer Wi-Fi LAN IP
-                  </Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
-              </TouchableOpacity>
-
               {/* Preset: Localhost */}
               <TouchableOpacity
                 style={[
@@ -350,38 +380,6 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                   </Text>
                   <Text style={[styles.candidateHint, { color: subTextColor }]}>
                     💻 Localhost (iOS Simulator / Desktop / Web)
-                  </Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
-              </TouchableOpacity>
-
-              {/* Preset: Production Cloud */}
-              <TouchableOpacity
-                style={[
-                  styles.candidateRow,
-                  {
-                    backgroundColor: cardBg,
-                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL) ? '#6366f1' : borderColor,
-                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL) ? 2 : 1,
-                    marginBottom: 8,
-                  },
-                ]}
-                onPress={() => handleSelectPreset(PROD_CLOUD_API_URL)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
-                      {PROD_CLOUD_API_URL}
-                    </Text>
-                    {isDefaultCloud && (
-                      <View style={[styles.activePill, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
-                        <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>CLOUD</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                    ☁️ Production Cloud Backend (HTTPS Cluster)
                   </Text>
                 </View>
                 <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
