@@ -530,9 +530,35 @@ export function LoginGateway() {
         }
 
         // Full authenticated assigned role
-        const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole: UserRole = normalizeRoleStr(backendRoleName || selectedRole);
-        const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
+        // ── SECURITY: finalRole MUST come from the backend-assigned role ONLY.
+        // We NEVER fall back to the user-selected UI role (selectedRole) because
+        // that would allow an Admin-credential holder to log in as Sales by
+        // simply selecting a different role chip on the login screen.
+        const backendRoleName: string | null = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
+
+        if (!backendRoleName) {
+          setError('Authentication failed: Server did not return your assigned role. Please contact your Admin.');
+          setLoading(false);
+          return;
+        }
+
+        const finalRole: UserRole = normalizeRoleStr(backendRoleName);
+
+        // ── SECURITY: Enforce that the selected login perspective matches the
+        // actual DB-assigned role. If the user selected "Admin" but their
+        // account is a Sales Executive, deny access with a clear message.
+        const selectedRoleNorm: UserRole = normalizeRoleStr(selectedRole);
+        if (selectedRoleNorm !== finalRole) {
+          setError(
+            `Role mismatch: Your account is assigned as "${finalRole.replace('_', ' ')}" but you selected "${selectedRoleNorm.replace('_', ' ')}". Please select the correct role.`,
+          );
+          setLoading(false);
+          return;
+        }
+
+        const resolvedUserId = data.user?.id || '';
+        const resolvedName = `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || data.user?.name || email.trim();
+        const resolvedAvatar = data.user?.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : finalRole.slice(0, 2).toUpperCase();
 
         if (rememberMe) {
           saveLoginCredentials({
@@ -554,11 +580,11 @@ export function LoginGateway() {
 
         setAuthSession(
           {
-            id: data.user?.id || demoProfile.id,
-            name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || demoProfile.name,
+            id: resolvedUserId,
+            name: resolvedName,
             email: data.user?.email || email.trim(),
             role: finalRole,
-            avatar: data.user?.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : demoProfile.avatar,
+            avatar: resolvedAvatar,
             companyId: compId,
             companyName: compName,
             phone: userPhone,

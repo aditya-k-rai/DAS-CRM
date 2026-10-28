@@ -347,7 +347,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 12 }}>📞 Calls</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>📞 Calls</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'CALLS' ? 'rgba(16,185,129,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'CALLS' ? '#34d399' : colors.textMuted }}>
                     {callsList.length} Done
@@ -383,7 +383,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 11, fontWeight: '800' }} numberOfLines={1}>💬 WhatsApp Cloud</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>💬 WhatsApp</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'WHATSAPP' ? 'rgba(99,102,241,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'WHATSAPP' ? '#818cf8' : colors.textMuted }}>
                     {waList.length} Sent
@@ -416,7 +416,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 11, fontWeight: '800' }} numberOfLines={1}>📦 Product Catalogue</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>📦 Catalogue</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'PRODUCTS' ? 'rgba(245,158,11,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'PRODUCTS' ? '#fbbf24' : colors.textMuted }}>
                     {prodsList.length} Shared
@@ -447,7 +447,7 @@ export function RepDrilldownModal({
               activeOpacity={0.8}
             >
               <View style={styles.categoryTopRow}>
-                <Text style={{ fontSize: 11, fontWeight: '800' }} numberOfLines={1}>📝 Quotations & Invoices</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>📝 Quotes & Inv</Text>
                 <View style={[styles.countBadge, { backgroundColor: activeCategory === 'QUOTES' ? 'rgba(168,85,247,0.25)' : colors.border }]}>
                   <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'QUOTES' ? '#c084fc' : colors.textMuted }}>
                     {quotesList.length} Quotes

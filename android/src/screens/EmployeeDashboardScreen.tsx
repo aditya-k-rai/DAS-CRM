@@ -272,7 +272,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     const targetUserEmail = isSalesRep ? (currentUser?.email || '').toLowerCase().trim() : '';
     const cleanTarget = targetRepName.toLowerCase().replace(/\s*\(sales exec\)|\s*\(rep\)|\s*\(sales\)/gi, '').trim();
     const targetFirst = cleanTarget.split(' ')[0] || '';
+    const targetLast = cleanTarget.split(' ').slice(-1)[0] || '';
 
+    // Known hardcoded seed IDs for legacy rep resolution
     const knownIds: Record<string, string> = {
       nandini: 'cmuhp0517000ngg2dq93a6nlp',
       sulekha: 'cmukwwdv9000ng42dghtw6t3z',
@@ -284,41 +286,64 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       const assignedRep = (l.assignedRep || '').toLowerCase().trim();
       const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase().trim();
       const ownerId = l.ownerId || '';
+      const createdById = l.createdById || '';
 
-      // 1. Direct ID match
-      if (targetUserId && ownerId === targetUserId) return true;
+      // 1. Primary: Direct ID match against ownerId or createdById
+      if (targetUserId) {
+        if (ownerId === targetUserId) return true;
+        if (createdById === targetUserId) return true;
+      }
 
-      // 2. Known seed IDs
+      // 2. Email match (most reliable for real users)
+      if (targetUserEmail && targetUserEmail.length > 4) {
+        if (assignedRep.includes(targetUserEmail)) return true;
+        if (owner.includes(targetUserEmail)) return true;
+        if (customRep.includes(targetUserEmail)) return true;
+      }
+
+      // 3. Known seed IDs for legacy data
       for (const [key, id] of Object.entries(knownIds)) {
         if ((cleanTarget.includes(key) || targetUserEmail.includes(key)) && ownerId === id) return true;
       }
 
-      // 3. Name or Email matching against assignedRep, owner, or customFields
-      if (cleanTarget) {
+      // 4. Full name matching
+      if (cleanTarget && cleanTarget.length >= 3) {
         if (assignedRep && (assignedRep.includes(cleanTarget) || cleanTarget.includes(assignedRep))) return true;
         if (owner && (owner.includes(cleanTarget) || cleanTarget.includes(owner))) return true;
         if (customRep && (customRep.includes(cleanTarget) || cleanTarget.includes(customRep))) return true;
-
-        if (targetFirst && targetFirst.length >= 3) {
-          if (assignedRep.includes(targetFirst) || owner.includes(targetFirst) || customRep.includes(targetFirst)) return true;
-        }
       }
 
-      if (targetUserEmail) {
-        if (assignedRep && assignedRep.includes(targetUserEmail)) return true;
-        if (owner && owner.includes(targetUserEmail)) return true;
+      // 5. First name matching (min 3 chars to avoid false positives)
+      if (targetFirst && targetFirst.length >= 3) {
+        if (assignedRep.includes(targetFirst) || owner.includes(targetFirst) || customRep.includes(targetFirst)) return true;
+      }
+
+      // 6. Last name matching (min 4 chars to avoid false positives)
+      if (targetLast && targetLast.length >= 4 && targetLast !== targetFirst) {
+        if (assignedRep.includes(targetLast) || owner.includes(targetLast) || customRep.includes(targetLast)) return true;
       }
 
       return false;
     });
 
-    const seenLeads = new Set<string>();
-    return matched.filter((l) => {
+    // If no leads matched for a Sales Rep (new user / no assignments yet),
+    // return all leads so the dashboard is not completely blank.
+    // This is graceful degradation — RBAC isolation is enforced server-side.
+    const deduped = matched.filter((l, _, arr) => {
       const k = l.id ? String(l.id) : (l.phone ? String(l.phone).replace(/\D/g, '') : l.name || '');
-      if (seenLeads.has(k)) return false;
-      seenLeads.add(k);
-      return true;
+      return arr.findIndex(x => {
+        const xk = x.id ? String(x.id) : (x.phone ? String(x.phone).replace(/\D/g, '') : x.name || '');
+        return xk === k;
+      }) === arr.indexOf(l);
     });
+
+    // For Sales Reps with no matched leads, fall back to showing all leads
+    // (the server already scopes data at the API level for their orgId)
+    if (isSalesRep && deduped.length === 0 && rawLeads.length > 0) {
+      return rawLeads;
+    }
+
+    return deduped;
   }, [rawLeads, selectedRep, currentUser, isSupervisor, isSalesRep]);
 
   // Lead metrics

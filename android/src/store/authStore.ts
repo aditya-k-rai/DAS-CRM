@@ -268,7 +268,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
 // ─── Helper Functions (identical to web AuthContext) ─────────────────────────
 
 export function normalizeRoleStr(r?: any): UserRole {
-  if (!r) return 'ADMIN';
+  if (!r) return 'UNASSIGNED';
   let str = '';
   if (typeof r === 'string') {
     str = r;
@@ -320,7 +320,10 @@ export function normalizeRoleStr(r?: any): UserRole {
   )
     return 'SALES_EXEC';
 
-  return 'ADMIN';
+  // ── SECURITY: Default to UNASSIGNED (not ADMIN) for any unrecognized role.
+  // This ensures unrecognized/garbage role strings don't silently elevate
+  // to Admin — they get routed to the UnassignedRoleScreen instead.
+  return 'UNASSIGNED';
 }
 
 export function inferRoleFromEmail(email?: string | null): UserRole | null {

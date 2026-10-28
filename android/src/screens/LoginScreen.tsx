@@ -449,19 +449,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
       // Case A: Unreachable server (Network down or local server not started)
       if (!networkResponse || !data) {
-        // Offline demo fallback check for local evaluation / offline access
+        // ── STRICT Offline Demo Fallback ─────────────────────────────────────
+        // Offline access is ONLY permitted when the email EXACTLY matches the
+        // registered demo user for the explicitly selected role.
+        // We do NOT allow role elevation by selecting a different role chip.
+        // Generic keywords like 'admin', 'adorable' in the email are NOT
+        // sufficient — the email must be the exact demo credential for that role.
         const normalizedRole: UserRole = normalizeRoleStr(selectedRole);
         const demoUser = DEMO_USERS[normalizedRole];
-        const isDemoMatch =
-          demoUser &&
-          (email.trim().toLowerCase() === demoUser.email.toLowerCase() ||
-            email.trim().toLowerCase().includes('demo') ||
-            email.trim().toLowerCase().includes('adorable') ||
-            email.trim().toLowerCase().includes('admin') ||
-            email.trim().toLowerCase() === 'adorabletrading08@gmail.com' ||
-            (email.trim().includes('@') && password.length >= 4 && (trimmedKey.startsWith('ADOR') || trimmedKey.startsWith('DAS'))));
+        const emailLowerTrimmed = email.trim().toLowerCase();
 
-        if (isDemoMatch && password.length >= 4) {
+        const isExactDemoMatch =
+          demoUser &&
+          password.length >= 4 &&
+          emailLowerTrimmed === demoUser.email.toLowerCase();
+
+        if (isExactDemoMatch) {
           const compName = selectedCompanyName || 'Adorable Trading';
           const compId = selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
           const subData: CompanySubscription = {
@@ -631,13 +634,46 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         }
 
         // Full authenticated role
-        const backendRoleName =
+        // ── SECURITY: finalRole MUST come from the backend-assigned role only.
+        // We NEVER fall back to the user-selected UI role (selectedRole) because
+        // that would allow an Admin-credential holder to log in as Sales by
+        // simply selecting a different role chip on the login screen.
+        const backendRoleName: string | null =
           data.user?.role?.name ||
           (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole: UserRole = normalizeRoleStr(
-          backendRoleName || selectedRole,
-        );
-        const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
+
+        if (!backendRoleName) {
+          // Backend confirmed login but did not return a role — this is an
+          // unexpected server state. Reject and show a recoverable error.
+          setError(
+            'Authentication failed: Server did not return your assigned role. Please contact your Admin.',
+          );
+          setLoading(false);
+          return;
+        }
+
+        const finalRole: UserRole = normalizeRoleStr(backendRoleName);
+
+        // ── SECURITY: Enforce that the selected login perspective matches the
+        // actual DB-assigned role. If the user selected "Admin" but their
+        // account is a Sales Executive, deny access with a clear message.
+        const selectedRoleNorm: UserRole = normalizeRoleStr(selectedRole);
+        if (selectedRoleNorm !== finalRole) {
+          setError(
+            `Role mismatch: Your account is assigned as "${finalRole.replace('_', ' ')}" but you selected "${selectedRoleNorm.replace('_', ' ')}". Please select the correct role.`,
+          );
+          setLoading(false);
+          return;
+        }
+
+        const resolvedUserId = data.user?.id || '';
+        const resolvedName =
+          `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() ||
+          data.user?.name ||
+          email.trim();
+        const resolvedAvatar = data.user?.firstName
+          ? data.user.firstName.slice(0, 2).toUpperCase()
+          : finalRole.slice(0, 2).toUpperCase();
 
         if (rememberMe) {
           const credsStr = JSON.stringify({
@@ -654,15 +690,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         await setAuthSession(
           {
-            id: data.user?.id || demoProfile.id,
-            name:
-              `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() ||
-              demoProfile.name,
+            id: resolvedUserId,
+            name: resolvedName,
             email: data.user?.email || email.trim(),
             role: finalRole,
-            avatar: data.user?.firstName
-              ? data.user.firstName.slice(0, 2).toUpperCase()
-              : demoProfile.avatar,
+            avatar: resolvedAvatar,
             companyId: compId,
             companyName: compName,
             hasAssignedRole: true,

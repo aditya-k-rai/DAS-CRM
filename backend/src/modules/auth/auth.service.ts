@@ -1227,26 +1227,34 @@ export class AuthService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // STEP 2 & 4: Role Matching Logic
-    // If user exists in company but assigned role is different:
-    // Show: "User exists with a different role."
+    // STEP 2 & 4: Role Matching Logic — MANDATORY ENFORCEMENT
+    // If the user has an assigned role AND a selectedRole was sent
+    // from the client, both MUST match or login is rejected.
+    // Even if selectedRole is omitted from the request, we still
+    // validate it when the field is present to prevent a client
+    // from skipping role selection to bypass this gate.
+    //
+    // Error: "User exists with a different role."
     // ──────────────────────────────────────────────────────────
-    if (dto.selectedRole) {
-      const normalizeRolePerspective = (roleName?: string | null): string => {
-        if (!roleName) return '';
-        const r = roleName.trim().toUpperCase().replace(/[\s_\-]+/g, '');
-        if (r === 'ADMIN' || r.includes('ADMIN') || r === 'OWNER') return 'Admin';
-        if (r === 'HR') return 'HR';
-        if (r === 'MANAGER' || r.includes('MANAGER')) return 'Manager';
-        if (r.includes('TEAMLEAD') || r === 'TL') return 'Team Leader';
-        if (r.includes('SALES') || r.includes('EXEC') || r === 'EMPLOYEE') return 'Sales Executive';
-        return roleName;
-      };
+    const normalizeRolePerspective = (roleName?: string | null): string => {
+      if (!roleName) return '';
+      const r = roleName.trim().toUpperCase().replace(/[\s_\-]+/g, '');
+      if (r === 'ADMIN' || r.includes('ADMIN') || r === 'OWNER' || r === 'TENANTADMIN' || r === 'COMPANYADMIN') return 'Admin';
+      if (r === 'HR' || r === 'HRMANAGER' || r === 'HUMANRESOURCES') return 'HR';
+      if (r === 'MANAGER' || r.includes('MANAGER') || r === 'DEPTMANAGER' || r === 'SALESMANAGER') return 'Manager';
+      if (r.includes('TEAMLEAD') || r === 'TL' || r === 'LEAD' || r.includes('LEADER')) return 'Team Leader';
+      if (r.includes('SALES') || r.includes('EXEC') || r === 'EMPLOYEE' || r === 'STAFF' || r === 'REP' || r === 'VIEWER' || r === 'USER') return 'Sales Executive';
+      return roleName;
+    };
 
+    if (dto.selectedRole) {
       const normAssigned = normalizeRolePerspective(user.role?.name);
       const normSelected = normalizeRolePerspective(dto.selectedRole);
 
-      if (normAssigned !== normSelected) {
+      if (normAssigned && normSelected && normAssigned !== normSelected) {
+        this.logger.warn(
+          `[Auth] Role mismatch for ${emailLower}: DB role="${user.role?.name}" selected="${dto.selectedRole}"`,
+        );
         throw new UnauthorizedException('User exists with a different role.');
       }
     }
