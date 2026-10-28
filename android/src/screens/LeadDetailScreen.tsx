@@ -1393,29 +1393,29 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         {/* Lead Header Card */}
         <View style={[styles.headerCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={styles.headerRow}>
-            <View style={[styles.avatarCircle, { backgroundColor: statusColor + '25' }]}>
+            <View style={[styles.avatarCircle, { backgroundColor: statusColor + '25', flexShrink: 0 }]}>
               <Text style={[styles.avatarText, { color: statusColor }]}>
                 {leadName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </Text>
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginRight: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{leadName}</Text>
-                <TouchableOpacity onPress={() => setEditLeadModalOpen(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.title, { color: colors.text, flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">{leadName}</Text>
+                <TouchableOpacity onPress={() => setEditLeadModalOpen(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ flexShrink: 0 }}>
                   <Text style={{ fontSize: 13 }}>✏️</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.company, { color: colors.textSecondary }]}>
+              <Text style={[styles.company, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                 {leadCompany} • {leadValue}
               </Text>
             </View>
             {/* 🔥 AI SCORE BADGE */}
             <TouchableOpacity
-              style={styles.aiScoreBadgeHeader}
+              style={[styles.aiScoreBadgeHeader, { flexShrink: 0 }]}
               onPress={() => setAiScoreModalOpen(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.aiScoreTextHeader}>🔥 {aiScoreDisplay} AI Score</Text>
+              <Text style={styles.aiScoreTextHeader} numberOfLines={1}>🔥 {aiScoreDisplay} AI Score</Text>
             </TouchableOpacity>
           </View>
 

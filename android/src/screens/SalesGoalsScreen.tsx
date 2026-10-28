@@ -822,12 +822,12 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
     <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: insets.top + 6 }]}>
       {/* Header Bar */}
       <View style={[styles.header, { backgroundColor: colors.cardBg, borderBottomColor: colors.border }]}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={{ fontSize: 18 }}>{isSalesRep ? '🏅' : isTL ? '🛡️' : '🎯'}</Text>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>{pageTitle}</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>{pageTitle}</Text>
           </View>
-          <Text style={[styles.headerSub, { color: colors.textMuted }]}>
+          <Text style={[styles.headerSub, { color: colors.textMuted }]} numberOfLines={1}>
             {isSalesRep
               ? 'Your Personal Performance • Calls, Revenue & Goals'
               : isTL
@@ -836,7 +836,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {/* Refresh Button */}
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
@@ -853,7 +853,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
               onPress={() => setIsSetGoalOpen(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.setGoalsBtnText}>⚙️ Set Quotas</Text>
+              <Text style={styles.setGoalsBtnText}>⚙️ Quotas</Text>
             </TouchableOpacity>
           )}
 
@@ -877,8 +877,12 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             onPress={() => setIsMonthView(false)}
             activeOpacity={0.8}
           >
-            <Text style={[styles.tfPillText, !isMonthView ? { color: '#fff', fontWeight: '800' } : { color: colors.textMuted }]}>
-              📅 Daily View ({selectedDate})
+            <Text
+              style={[styles.tfPillText, !isMonthView ? { color: '#fff', fontWeight: '800' } : { color: colors.textMuted }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              📅 Daily ({selectedDate})
             </Text>
           </TouchableOpacity>
 
@@ -887,8 +891,12 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             onPress={() => setIsMonthView(true)}
             activeOpacity={0.8}
           >
-            <Text style={[styles.tfPillText, isMonthView ? { color: '#fff', fontWeight: '800' } : { color: colors.textMuted }]}>
-              📆 Monthly Quotas ({activeMonthName})
+            <Text
+              style={[styles.tfPillText, isMonthView ? { color: '#fff', fontWeight: '800' } : { color: colors.textMuted }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              📆 Monthly ({activeMonthName})
             </Text>
           </TouchableOpacity>
         </View>
@@ -897,17 +905,17 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         <View style={[styles.calendarContainer, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {/* Calendar Header with Month Navigation */}
           <View style={styles.calendarHeaderRow}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginRight: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ fontSize: 14 }}>📅</Text>
-                <Text style={[styles.calendarTitle, { color: colors.text }]}>Goals Calendar Heatmap</Text>
+                <Text style={[styles.calendarTitle, { color: colors.text }]} numberOfLines={1}>Goals Calendar Heatmap</Text>
               </View>
-              <Text style={[styles.calendarSub, { color: colors.textMuted }]}>
-                {activeMonthName} • Tap any day to inspect historical telemetry
+              <Text style={[styles.calendarSub, { color: colors.textMuted }]} numberOfLines={1}>
+                {activeMonthName} • Tap day to inspect telemetry
               </Text>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <TouchableOpacity
                 style={[styles.calNavBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
                 onPress={handlePrevMonth}
@@ -993,10 +1001,10 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
                   </View>
 
                   <View style={styles.dayMicroStats}>
-                    <Text style={{ fontSize: 7, color: colors.textMuted }} numberOfLines={1}>
+                    <Text style={{ fontSize: 7, lineHeight: 9, color: colors.textMuted }} numberOfLines={1}>
                       📞{d.callsCount}
                     </Text>
-                    <Text style={{ fontSize: 7, color: '#38bdf8' }} numberOfLines={1}>
+                    <Text style={{ fontSize: 7, lineHeight: 9, color: '#38bdf8' }} numberOfLines={1}>
                       💬{d.whatsappCount}
                     </Text>
                   </View>
@@ -1008,44 +1016,44 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           {/* Selected Date Inspector Summary Card */}
           <View style={[styles.inspectorCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
             <View style={styles.inspectorHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 6 }}>
                 <Text style={{ fontSize: 13 }}>🔍</Text>
-                <Text style={[styles.inspectorTitle, { color: colors.text }]}>
+                <Text style={[styles.inspectorTitle, { color: colors.text }]} numberOfLines={1}>
                   {isMonthView ? `${activeMonthName} Rollup` : `Selected Date: ${selectedDate}`}
                 </Text>
               </View>
-              <View style={[styles.badgePill, (isMonthView ? activeStats.callsPct : selectedDayData.completionScore) >= 80 ? styles.badgeSuccess : styles.badgeWarn]}>
+              <View style={[styles.badgePill, (isMonthView ? activeStats.callsPct : selectedDayData.completionScore) >= 80 ? styles.badgeSuccess : styles.badgeWarn, { flexShrink: 0 }]}>
                 <Text style={[styles.badgeText, (isMonthView ? activeStats.callsPct : selectedDayData.completionScore) >= 80 ? { color: '#34d399' } : { color: '#fbbf24' }]}>
-                  {(isMonthView ? activeStats.callsPct : selectedDayData.completionScore)}% TARGET SCORE
+                  {(isMonthView ? activeStats.callsPct : selectedDayData.completionScore)}% SCORE
                 </Text>
               </View>
             </View>
 
             <View style={styles.inspectorGrid}>
               <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
-                <Text style={{ fontSize: 9, color: colors.textMuted }}>📞 Logged Calls</Text>
-                <Text style={[styles.inspectorVal, { color: '#34d399' }]}>
+                <Text style={{ fontSize: 8.5, color: colors.textMuted }} numberOfLines={1}>📞 Calls</Text>
+                <Text style={[styles.inspectorVal, { color: '#34d399' }]} numberOfLines={1}>
                   {isMonthView ? heatmapData.days.reduce((s, d) => s + d.callsCount, 0) : selectedDayData.callsCount}
                 </Text>
               </View>
 
               <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
-                <Text style={{ fontSize: 9, color: colors.textMuted }}>💬 WhatsApp</Text>
-                <Text style={[styles.inspectorVal, { color: '#38bdf8' }]}>
+                <Text style={{ fontSize: 8.5, color: colors.textMuted }} numberOfLines={1}>💬 WhatsApp</Text>
+                <Text style={[styles.inspectorVal, { color: '#38bdf8' }]} numberOfLines={1}>
                   {isMonthView ? heatmapData.days.reduce((s, d) => s + d.whatsappCount, 0) : selectedDayData.whatsappCount}
                 </Text>
               </View>
 
               <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
-                <Text style={{ fontSize: 9, color: colors.textMuted }}>📦 Products Pitch</Text>
-                <Text style={[styles.inspectorVal, { color: '#c084fc' }]}>
+                <Text style={{ fontSize: 8.5, color: colors.textMuted }} numberOfLines={1}>📦 Products</Text>
+                <Text style={[styles.inspectorVal, { color: '#c084fc' }]} numberOfLines={1}>
                   {isMonthView ? heatmapData.days.reduce((s, d) => s + d.productsCount, 0) : selectedDayData.productsCount}
                 </Text>
               </View>
 
               <View style={[styles.inspectorPill, { borderColor: colors.border }]}>
-                <Text style={{ fontSize: 9, color: colors.textMuted }}>📝 Quotes Value</Text>
-                <Text style={[styles.inspectorVal, { color: '#f59e0b' }]}>
+                <Text style={{ fontSize: 8.5, color: colors.textMuted }} numberOfLines={1}>📝 Quotes</Text>
+                <Text style={[styles.inspectorVal, { color: '#f59e0b' }]} numberOfLines={1}>
                   ₹{(
                     (isMonthView
                       ? heatmapData.days.reduce((s, d) => s + d.quotesAmount, 0)
@@ -1062,10 +1070,10 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           {/* Card 1: Daily Calls */}
           <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <View style={styles.cardTopRow}>
-              <Text style={[styles.cardTitle, { color: colors.textMuted }]}>
+              <Text style={[styles.cardTitle, { color: colors.textMuted, flex: 1, marginRight: 6 }]} numberOfLines={1}>
                 📞 {isMonthView ? 'MONTHLY CALLS' : 'DAILY CALLS'}
               </Text>
-              <View style={[styles.badgePill, activeStats.callsPct >= 100 ? styles.badgeSuccess : styles.badgeWarn]}>
+              <View style={[styles.badgePill, activeStats.callsPct >= 100 ? styles.badgeSuccess : styles.badgeWarn, { flexShrink: 0 }]}>
                 <Text style={[styles.badgeText, activeStats.callsPct >= 100 ? { color: '#34d399' } : { color: '#fbbf24' }]}>
                   {activeStats.callsPct}% DONE
                 </Text>
@@ -1080,18 +1088,18 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
               <View style={[styles.progressFill, { width: `${Math.min(100, activeStats.callsPct)}%`, backgroundColor: activeStats.callsPct >= 100 ? '#10b981' : '#6366f1' }]} />
             </View>
             <View style={styles.cardBreakdownRow}>
-              <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '700' }}>🌱 Fresh: {activeStats.newCalls}</Text>
-              <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '700' }}>🔄 Follow-ups: {activeStats.followupCalls}</Text>
+              <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>🌱 Fresh: {activeStats.newCalls}</Text>
+              <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>🔄 Follow-ups: {activeStats.followupCalls}</Text>
             </View>
           </View>
 
           {/* Card 2: Daily WhatsApp */}
           <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <View style={styles.cardTopRow}>
-              <Text style={[styles.cardTitle, { color: colors.textMuted }]}>
+              <Text style={[styles.cardTitle, { color: colors.textMuted, flex: 1, marginRight: 6 }]} numberOfLines={1}>
                 💬 {isMonthView ? 'MONTHLY WHATSAPP' : 'DAILY WHATSAPP'}
               </Text>
-              <View style={[styles.badgePill, activeStats.waPct >= 100 ? styles.badgeSuccess : styles.badgeInfo]}>
+              <View style={[styles.badgePill, activeStats.waPct >= 100 ? styles.badgeSuccess : styles.badgeInfo, { flexShrink: 0 }]}>
                 <Text style={[styles.badgeText, activeStats.waPct >= 100 ? { color: '#34d399' } : { color: '#38bdf8' }]}>
                   {activeStats.waPct}% DONE
                 </Text>
@@ -1106,16 +1114,16 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
               <View style={[styles.progressFill, { width: `${Math.min(100, activeStats.waPct)}%`, backgroundColor: '#38bdf8' }]} />
             </View>
             <View style={styles.cardBreakdownRow}>
-              <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '700' }}>💬 Direct WA Sent: {activeStats.waAchieved}</Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Manual Outreach</Text>
+              <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>💬 Direct WA: {activeStats.waAchieved}</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted, flexShrink: 1 }} numberOfLines={1}>Manual Outreach</Text>
             </View>
           </View>
 
           {/* Card 3: Monthly Revenue */}
           <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <View style={styles.cardTopRow}>
-              <Text style={[styles.cardTitle, { color: colors.textMuted }]}>💰 MONTHLY REVENUE</Text>
-              <View style={[styles.badgePill, styles.badgeSuccess]}>
+              <Text style={[styles.cardTitle, { color: colors.textMuted, flex: 1, marginRight: 6 }]} numberOfLines={1}>💰 MONTHLY REVENUE</Text>
+              <View style={[styles.badgePill, styles.badgeSuccess, { flexShrink: 0 }]}>
                 <Text style={[styles.badgeText, { color: '#34d399' }]}>{activeStats.dealsWon} DEALS WON</Text>
               </View>
             </View>
@@ -1128,16 +1136,16 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
               <View style={[styles.progressFill, { width: `${Math.min(100, activeStats.revPct)}%`, backgroundColor: '#10b981' }]} />
             </View>
             <View style={styles.cardBreakdownRow}>
-              <Text style={{ fontSize: 10, color: '#c084fc', fontWeight: '700' }}>Pipeline: ₹{(activeStats.pipelineValue / 100000).toFixed(1)}L</Text>
-              <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '700' }}>{activeStats.revPct}% of Quota</Text>
+              <Text style={{ fontSize: 10, color: '#c084fc', fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>Pipeline: ₹{(activeStats.pipelineValue / 100000).toFixed(1)}L</Text>
+              <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>{activeStats.revPct}% of Quota</Text>
             </View>
           </View>
 
           {/* Card 4: Meetings & Proposals */}
           <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <View style={styles.cardTopRow}>
-              <Text style={[styles.cardTitle, { color: colors.textMuted }]}>🤝 MEETINGS & PROPOSALS</Text>
-              <View style={[styles.badgePill, styles.badgeInfo]}>
+              <Text style={[styles.cardTitle, { color: colors.textMuted, flex: 1, marginRight: 6 }]} numberOfLines={1}>🤝 MEETINGS & PROPOSALS</Text>
+              <View style={[styles.badgePill, styles.badgeInfo, { flexShrink: 0 }]}>
                 <Text style={[styles.badgeText, { color: '#c084fc' }]}>{activeStats.meetingsPct}% DONE</Text>
               </View>
             </View>
@@ -1150,8 +1158,8 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
               <View style={[styles.progressFill, { width: `${Math.min(100, activeStats.meetingsPct)}%`, backgroundColor: '#a855f7' }]} />
             </View>
             <View style={styles.cardBreakdownRow}>
-              <Text style={{ fontSize: 10, color: '#a855f7', fontWeight: '700' }}>Client Demo Scheduled</Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Target: {activeStats.meetingsTarget}</Text>
+              <Text style={{ fontSize: 10, color: '#a855f7', fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>Demo Scheduled</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted, flexShrink: 1 }} numberOfLines={1}>Target: {activeStats.meetingsTarget}</Text>
             </View>
           </View>
         </View>
@@ -1159,9 +1167,9 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         {/* ── LEADERBOARD & BREAKDOWN SECTION ── */}
         <View style={[styles.tableContainer, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={styles.tableHeaderRow}>
-            <View>
-              <Text style={[styles.tableSectionTitle, { color: colors.text }]}>🏆 Sales Leaderboard & Rep Quotas</Text>
-              <Text style={[styles.tableSectionSub, { color: colors.textMuted }]}>Tap Drilldown to audit real-time phone calls, WhatsApp & quotes</Text>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={[styles.tableSectionTitle, { color: colors.text }]} numberOfLines={1}>🏆 Sales Leaderboard</Text>
+              <Text style={[styles.tableSectionSub, { color: colors.textMuted }]} numberOfLines={1}>Audit real-time calls, WhatsApp & quotes</Text>
             </View>
             <TextInput
               style={[styles.searchInput, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, color: colors.text }]}
@@ -1186,12 +1194,12 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
                   <View style={[styles.avatarCircle, { backgroundColor: `${rep.avatarColor}25` }]}>
                     <Text style={[styles.avatarText, { color: rep.avatarColor }]}>{rep.initials}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.repName, { color: colors.text }]}>{rep.userName}</Text>
-                    <Text style={[styles.repRole, { color: colors.textMuted }]}>{rep.userRole} {rep.teamLeaderName ? `• Squad: ${rep.teamLeaderName}` : ''}</Text>
+                  <View style={{ flex: 1, marginRight: 6 }}>
+                    <Text style={[styles.repName, { color: colors.text }]} numberOfLines={1}>{rep.userName}</Text>
+                    <Text style={[styles.repRole, { color: colors.textMuted }]} numberOfLines={1}>{rep.userRole} {rep.teamLeaderName ? `• Squad: ${rep.teamLeaderName}` : ''}</Text>
                   </View>
                   {/* Score Pill */}
-                  <View style={[styles.scorePill, score >= 100 ? { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: '#10b981' } : { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: '#6366f1' }]}>
+                  <View style={[styles.scorePill, score >= 100 ? { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: '#10b981' } : { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: '#6366f1' }, { flexShrink: 0 }]}>
                     <Text style={[styles.scoreText, score >= 100 ? { color: '#34d399' } : { color: '#818cf8' }]}>{score}%</Text>
                   </View>
                 </View>
@@ -1199,20 +1207,20 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
                 {/* Metrics Row */}
                 <View style={styles.repMetricsGrid}>
                   <View style={styles.miniMetricBox}>
-                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]}>Calls</Text>
-                    <Text style={[styles.miniMetricVal, { color: colors.text }]}>{callsAch}/{callsTgt}</Text>
+                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]} numberOfLines={1}>Calls</Text>
+                    <Text style={[styles.miniMetricVal, { color: colors.text }]} numberOfLines={1}>{callsAch}/{callsTgt}</Text>
                   </View>
                   <View style={styles.miniMetricBox}>
-                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]}>WhatsApp</Text>
-                    <Text style={[styles.miniMetricVal, { color: '#38bdf8' }]}>{waAch} msg</Text>
+                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]} numberOfLines={1}>WhatsApp</Text>
+                    <Text style={[styles.miniMetricVal, { color: '#38bdf8' }]} numberOfLines={1}>{waAch} msg</Text>
                   </View>
                   <View style={styles.miniMetricBox}>
-                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]}>Revenue Won</Text>
-                    <Text style={[styles.miniMetricVal, { color: '#10b981' }]}>₹{((rep.monthlyRevenueWon || 0) / 100000).toFixed(1)}L</Text>
+                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]} numberOfLines={1}>Revenue</Text>
+                    <Text style={[styles.miniMetricVal, { color: '#10b981' }]} numberOfLines={1}>₹{((rep.monthlyRevenueWon || 0) / 100000).toFixed(1)}L</Text>
                   </View>
                   <View style={styles.miniMetricBox}>
-                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]}>Meetings</Text>
-                    <Text style={[styles.miniMetricVal, { color: '#a855f7' }]}>{rep.monthlyMeetingsCount || 0}</Text>
+                    <Text style={[styles.miniMetricLabel, { color: colors.textMuted }]} numberOfLines={1}>Meetings</Text>
+                    <Text style={[styles.miniMetricVal, { color: '#a855f7' }]} numberOfLines={1}>{rep.monthlyMeetingsCount || 0}</Text>
                   </View>
                 </View>
 
@@ -1326,11 +1334,11 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '900' },
   headerSub: { fontSize: 10, marginTop: 1 },
   iconBtn: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  setGoalsBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  setGoalsBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10 },
   setGoalsBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
 
   timeframeBar: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 4, marginBottom: 12 },
-  tfPill: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+  tfPill: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, paddingHorizontal: 4 },
   tfPillText: { fontSize: 11, fontWeight: '700' },
 
   // Performance Calendar & Inspector
@@ -1343,17 +1351,17 @@ const styles = StyleSheet.create({
   weekdaysRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2, marginBottom: 6 },
   weekdayLabel: { flex: 1, textAlign: 'center', fontSize: 10, fontWeight: '800' },
   daysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  emptyDaySlot: { width: '13.4%', aspectRatio: 1 },
-  dayTile: { width: '13.4%', aspectRatio: 1, borderRadius: 8, padding: 3, justifyContent: 'space-between', alignItems: 'center' },
-  dayNumberText: { fontSize: 10, fontWeight: '700' },
-  dayStatusDot: { width: 5, height: 5, borderRadius: 2.5 },
-  dayMicroStats: { width: '100%', flexDirection: 'column', alignItems: 'flex-start' },
+  emptyDaySlot: { width: '13.3%', minHeight: 48 },
+  dayTile: { width: '13.3%', minHeight: 48, borderRadius: 8, padding: 2.5, justifyContent: 'space-between', alignItems: 'center' },
+  dayNumberText: { fontSize: 9.5, fontWeight: '700' },
+  dayStatusDot: { width: 4.5, height: 4.5, borderRadius: 2.25 },
+  dayMicroStats: { width: '100%', flexDirection: 'column', alignItems: 'flex-start', gap: 1 },
   inspectorCard: { marginTop: 10, borderRadius: 12, borderWidth: 1, padding: 10 },
   inspectorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   inspectorTitle: { fontSize: 11, fontWeight: '800' },
-  inspectorGrid: { flexDirection: 'row', gap: 6 },
-  inspectorPill: { flex: 1, borderRadius: 8, borderWidth: 1, padding: 6, alignItems: 'center' },
-  inspectorVal: { fontSize: 12, fontWeight: '900', marginTop: 2 },
+  inspectorGrid: { flexDirection: 'row', gap: 4 },
+  inspectorPill: { flex: 1, borderRadius: 8, borderWidth: 1, padding: 5, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+  inspectorVal: { fontSize: 11, fontWeight: '900', marginTop: 2 },
 
   metricsGrid: { gap: 10, marginBottom: 14 },
   metricCard: { borderRadius: 16, borderWidth: 1, padding: 14 },
@@ -1363,7 +1371,7 @@ const styles = StyleSheet.create({
   cardTargetSub: { fontSize: 12, fontWeight: '700' },
   progressTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, marginVertical: 8, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 3 },
-  cardBreakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
+  cardBreakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2, gap: 4 },
 
   badgePill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   badgeSuccess: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)' },
@@ -1375,7 +1383,7 @@ const styles = StyleSheet.create({
   tableHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   tableSectionTitle: { fontSize: 14, fontWeight: '900' },
   tableSectionSub: { fontSize: 10, marginTop: 2 },
-  searchInput: { height: 32, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, fontSize: 11, width: 110 },
+  searchInput: { height: 32, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, fontSize: 11, width: 100 },
 
   repRowCard: { paddingVertical: 12 },
   rankEmoji: { fontSize: 16, width: 24, textAlign: 'center' },
@@ -1387,9 +1395,9 @@ const styles = StyleSheet.create({
   scoreText: { fontSize: 11, fontWeight: '900' },
 
   repMetricsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, gap: 6 },
-  miniMetricBox: { flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', padding: 6, borderRadius: 8, alignItems: 'center' },
-  miniMetricLabel: { fontSize: 9, fontWeight: '700' },
-  miniMetricVal: { fontSize: 11, fontWeight: '800', marginTop: 2 },
+  miniMetricBox: { flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', padding: 5, borderRadius: 8, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+  miniMetricLabel: { fontSize: 8.5, fontWeight: '700' },
+  miniMetricVal: { fontSize: 10.5, fontWeight: '800', marginTop: 2 },
 
   drilldownBtn: { marginTop: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   drilldownBtnText: { color: '#818cf8', fontSize: 11, fontWeight: '800' },

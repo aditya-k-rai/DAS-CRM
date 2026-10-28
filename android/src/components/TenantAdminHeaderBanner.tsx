@@ -144,9 +144,11 @@ export function TenantAdminHeaderBanner({
         {/* Text Details & Badge */}
         <View style={styles.textContainer}>
           <View style={styles.titleBadgeRow}>
-            <Text style={[styles.titleText, { color: colors.text }]}>{title}</Text>
-            <View style={[styles.trialBadge, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
-              <Text style={[styles.trialBadgeText, { color: badgeTextColor }]}>
+            <Text style={[styles.titleText, { color: colors.text, flexShrink: 1 }]} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={[styles.trialBadge, { backgroundColor: badgeBg, borderColor: badgeBorder, flexShrink: 0 }]}>
+              <Text style={[styles.trialBadgeText, { color: badgeTextColor }]} numberOfLines={1}>
                 {badgeText}
               </Text>
             </View>

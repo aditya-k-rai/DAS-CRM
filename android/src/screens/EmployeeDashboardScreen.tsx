@@ -849,8 +849,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         {hasTasksAccess && (
           <>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text, flex: 1, marginRight: 6 }]} numberOfLines={1}>
+                ⏰ Follow-ups
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <TouchableOpacity
                   style={{ backgroundColor: colors.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
                   onPress={() => navigation?.navigate('Menu', { initialModule: 'FOLLOW_UPS' })}
@@ -1058,30 +1060,34 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         {hasGoalsAccess && (
           <>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>🌟 Performance & Goals</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <TouchableOpacity
-                  style={[styles.drilldownButton, { backgroundColor: colors.primary }]}
-                  onPress={() => setGoalsHubOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.drilldownButtonText}>📈 Goals & Targets Hub</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1 }]}
-                  onPress={() => setDrilldownModalOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.drilldownButtonText, { color: colors.text }]}>🔍 Drill-Down</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ paddingHorizontal: 4 }}
-                  onPress={() => navigation?.navigate('Menu', { initialModule: 'REPORTS' })}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Full Report →</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={[styles.sectionTitle, { color: colors.text, flex: 1, marginRight: 8 }]} numberOfLines={1}>
+                🌟 Performance & Goals
+              </Text>
+              <TouchableOpacity
+                style={{ paddingHorizontal: 4, flexShrink: 0 }}
+                onPress={() => navigation?.navigate('Menu', { initialModule: 'REPORTS' })}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Full Report →</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Action Hub Buttons Row */}
+            <View style={{ flexDirection: 'row', gap: 8, width: '100%', maxWidth: 600, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={[styles.drilldownButton, { backgroundColor: colors.primary, flex: 1, paddingVertical: 7, alignItems: 'center' }]}
+                onPress={() => setGoalsHubOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.drilldownButtonText, { fontSize: 11 }]} numberOfLines={1}>📈 Goals & Targets Hub</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.drilldownButton, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1, flex: 1, paddingVertical: 7, alignItems: 'center' }]}
+                onPress={() => setDrilldownModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.drilldownButtonText, { color: colors.text, fontSize: 11 }]} numberOfLines={1}>🔍 Drill-Down</Text>
+              </TouchableOpacity>
             </View>
 
             {/* 4 Top KPI Stat Cards (Matching Web EmployeeRoleDashboard — Tap to Drilldown) */}
@@ -1094,10 +1100,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>🎯</Text>
-                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>LEADS ASSIGNED</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]} numberOfLines={1}>LEADS ASSIGNED</Text>
                 </View>
                 <Text style={[styles.goalsKpiValue, { color: '#38bdf8' }]}>{scopedLeads.length}</Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active roster ↗</Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]} numberOfLines={1}>active roster ↗</Text>
               </TouchableOpacity>
 
               {/* Card 2: Follow-ups / Calls */}
@@ -1108,10 +1114,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>📞</Text>
-                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>FOLLOW-UPS / CALLS</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]} numberOfLines={1}>FOLLOW-UPS / CALLS</Text>
                 </View>
                 <Text style={[styles.goalsKpiValue, { color: '#fbbf24' }]}>{followUps.length}</Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>active touchpoints ↗</Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]} numberOfLines={1}>active touchpoints ↗</Text>
               </TouchableOpacity>
 
               {/* Card 3: Revenue Generated */}
@@ -1122,12 +1128,12 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>🏆</Text>
-                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>REVENUE GENERATED</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]} numberOfLines={1}>REVENUE GENERATED</Text>
                 </View>
                 <Text style={[styles.goalsKpiValue, { color: '#c084fc' }]}>
                   {wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : (wonRevenue > 0 ? `₹${wonRevenue.toLocaleString('en-IN')}` : '₹0')}
                 </Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>{wonLeads.length} deal(s) won ↗</Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]} numberOfLines={1}>{wonLeads.length} deal(s) won ↗</Text>
               </TouchableOpacity>
 
               {/* Card 4: Target Achieved */}
@@ -1138,12 +1144,12 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               >
                 <View style={styles.goalsKpiTop}>
                   <Text style={{ fontSize: 13 }}>⭐</Text>
-                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]}>TARGET ACHIEVED</Text>
+                  <Text style={[styles.goalsKpiLabel, { color: colors.textMuted }]} numberOfLines={1}>TARGET ACHIEVED</Text>
                 </View>
                 <Text style={[styles.goalsKpiValue, { color: '#34d399' }]}>
                   {Math.min(200, Math.round((wonRevenue / monthlyRevTarget) * 100))}%
                 </Text>
-                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]}>of ₹{(monthlyRevTarget / 100000).toFixed(1)}L quota ↗</Text>
+                <Text style={[styles.goalsKpiSuffix, { color: colors.textMuted }]} numberOfLines={1}>of ₹{(monthlyRevTarget / 100000).toFixed(1)}L quota ↗</Text>
               </TouchableOpacity>
             </View>
 
@@ -1151,11 +1157,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               {/* Daily Calls Target */}
               <View style={{ marginBottom: 14 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
-                    📞 Daily Calls Target (Fresh + Follow-ups)
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text, flex: 1, marginRight: 8 }} numberOfLines={1} ellipsizeMode="tail">
+                    📞 Daily Calls Target
                   </Text>
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>
-                    {todayCallsCount} / {dailyCallsTarget} Calls ({Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%)
+                  <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#34d399', flexShrink: 0 }}>
+                    {todayCallsCount}/{dailyCallsTarget} ({Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%)
                   </Text>
                 </View>
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border, height: 8, borderRadius: 4 }]}>
@@ -1171,10 +1177,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     ]}
                   />
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-                  <Text style={{ fontSize: 10, color: colors.textMuted }}>Logged calls & connect history today</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#10b981' }}>
-                    {dailyCallsTarget - todayCallsCount > 0 ? `${dailyCallsTarget - todayCallsCount} calls remaining` : 'Daily target achieved! 🎯'}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5, gap: 6 }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted, flexShrink: 1 }} numberOfLines={1}>Logged calls today</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#10b981', flexShrink: 1 }} numberOfLines={1}>
+                    {dailyCallsTarget - todayCallsCount > 0 ? `${dailyCallsTarget - todayCallsCount} remaining` : 'Target achieved! 🎯'}
                   </Text>
                 </View>
               </View>
@@ -1182,11 +1188,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               {/* Monthly Revenue Target */}
               <View style={{ marginBottom: 14 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text, flex: 1, marginRight: 8 }} numberOfLines={1} ellipsizeMode="tail">
                     💰 Monthly Revenue Target
                   </Text>
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#c084fc' }}>
-                    ₹{(wonRevenue / 100000).toFixed(1)}L / ₹{(monthlyRevTarget / 100000).toFixed(1)}L ({Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%)
+                  <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#c084fc', flexShrink: 0 }}>
+                    ₹{(wonRevenue / 100000).toFixed(1)}L/₹{(monthlyRevTarget / 100000).toFixed(1)}L ({Math.min(100, Math.round((wonRevenue / monthlyRevTarget) * 100))}%)
                   </Text>
                 </View>
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border, height: 8, borderRadius: 4 }]}>
@@ -1202,10 +1208,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     ]}
                   />
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-                  <Text style={{ fontSize: 10, color: colors.textMuted }}>Cycle: Current Month</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#c084fc' }}>
-                    {Math.min(200, Math.round((wonRevenue / monthlyRevTarget) * 100))}% of monthly quota
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5, gap: 6 }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted, flexShrink: 1 }} numberOfLines={1}>Cycle: Current Month</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#c084fc', flexShrink: 1 }} numberOfLines={1}>
+                    {Math.min(200, Math.round((wonRevenue / monthlyRevTarget) * 100))}% of quota
                   </Text>
                 </View>
               </View>

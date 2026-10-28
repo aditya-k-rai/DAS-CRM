@@ -1685,13 +1685,13 @@ export default function LeadsScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={styles.cardHeader}>
-                    <View style={styles.cardHeaderLeft}>
-                      <Text style={[styles.leadName, { color: colors.text }]}>{item.name}</Text>
+                    <View style={[styles.cardHeaderLeft, { flex: 1, marginRight: 6 }]}>
+                      <Text style={[styles.leadName, { color: colors.text, flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
                       {item.aiScore && (
                         <AIScoreBadge score={item.aiScore} compact />
                       )}
                     </View>
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                       <TouchableOpacity style={[styles.editRowBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={() => setEditingLead(item)}>
                         <Text style={[styles.editRowBtnText, { color: colors.primary }]}>✏️ Edit</Text>
                       </TouchableOpacity>
@@ -1704,7 +1704,7 @@ export default function LeadsScreen() {
                     </View>
                   </View>
 
-                  <Text style={[styles.leadCompany, { color: colors.textMuted }]}>{item.company} • {item.email}</Text>
+                  <Text style={[styles.leadCompany, { color: colors.textMuted }]} numberOfLines={1} ellipsizeMode="tail">{item.company} • {item.email}</Text>
 
                   <View style={{ marginVertical: 4 }}>
                     <Text style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#34d399' : '#059669', letterSpacing: 0.3 }}>
@@ -1720,12 +1720,12 @@ export default function LeadsScreen() {
                       if (isLocked) {
                         return (
                           <TouchableOpacity
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border, flex: 1, marginRight: 8 }}
                             onPress={() => Alert.alert('🔒 Assignment Locked', 'This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.')}
                           >
-                            <Text style={{ fontSize: 10 }}>🔒</Text>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>{item.assignedRep}</Text>
-                            <View style={{ backgroundColor: isDark ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, flexShrink: 0 }}>🔒</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, flex: 1 }} numberOfLines={1} ellipsizeMode="tail">{item.assignedRep}</Text>
+                            <View style={{ backgroundColor: isDark ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 }}>
                               <Text style={{ color: isDark ? '#fbbf24' : '#b45309', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
                             </View>
                           </TouchableOpacity>
@@ -1735,7 +1735,7 @@ export default function LeadsScreen() {
                       return (
                         <TouchableOpacity
                           style={[
-                            { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+                            { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border, flex: 1, marginRight: 8 },
                             isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
                           ]}
                           onPress={() => {
@@ -1758,15 +1758,15 @@ export default function LeadsScreen() {
                             );
                           }}
                         >
-                          <Text style={[{ fontSize: 11, fontWeight: '800', color: '#818cf8' }, isUnassigned && { color: '#fbbf24' }]}>
+                          <Text style={[{ fontSize: 11, fontWeight: '800', color: '#818cf8', flex: 1 }, isUnassigned && { color: '#fbbf24' }]} numberOfLines={1} ellipsizeMode="tail">
                             👤 {isUnassigned ? '⚠️ Unassigned' : item.assignedRep}
                           </Text>
-                          <Text style={{ color: '#64748b', fontSize: 9 }}>▼</Text>
+                          <Text style={{ color: '#64748b', fontSize: 9, flexShrink: 0 }}>▼</Text>
                         </TouchableOpacity>
                       );
                     })()}
 
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0 }}>
                       <TouchableOpacity
                         style={{ backgroundColor: '#10b981', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
                         onPress={() => handleInitiateCallLead(item.id, item.name, item.phone)}

@@ -313,7 +313,11 @@ export function RepDrilldownModal({
               ]}
               onPress={() => setIsMonth(false)}
             >
-              <Text style={[styles.timeframeText, !isMonth ? { color: '#ffffff', fontWeight: '900' } : { color: colors.textMuted }]}>
+              <Text
+                style={[styles.timeframeText, !isMonth ? { color: '#ffffff', fontWeight: '900' } : { color: colors.textMuted }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 📅 Today ({selectedDate})
               </Text>
             </TouchableOpacity>
@@ -324,7 +328,11 @@ export function RepDrilldownModal({
               ]}
               onPress={() => setIsMonth(true)}
             >
-              <Text style={[styles.timeframeText, isMonth ? { color: '#ffffff', fontWeight: '900' } : { color: colors.textMuted }]}>
+              <Text
+                style={[styles.timeframeText, isMonth ? { color: '#ffffff', fontWeight: '900' } : { color: colors.textMuted }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 📆 Month ({selectedMonth})
               </Text>
             </TouchableOpacity>
@@ -348,22 +356,22 @@ export function RepDrilldownModal({
             >
               <View style={styles.categoryTopRow}>
                 <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>📞 Calls</Text>
-                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'CALLS' ? 'rgba(16,185,129,0.25)' : colors.border }]}>
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'CALLS' ? '#34d399' : colors.textMuted }}>
+                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'CALLS' ? 'rgba(16,185,129,0.25)' : colors.border, flexShrink: 0 }]}>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'CALLS' ? '#34d399' : colors.textMuted }} numberOfLines={1}>
                     {callsList.length} Done
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.categoryBigVal, { color: colors.text }]}>
+              <Text style={[styles.categoryBigVal, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
                 {callsList.length}
                 <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '600' }}> / {callsTargetDisplay}</Text>
               </Text>
               <View style={styles.subTypePillsRow}>
                 <View style={[styles.miniPill, { backgroundColor: 'rgba(16,185,129,0.2)' }]}>
-                  <Text style={{ fontSize: 8, color: '#34d399', fontWeight: '800' }}>Fresh: {freshCallsList.length}</Text>
+                  <Text style={{ fontSize: 8, color: '#34d399', fontWeight: '800' }} numberOfLines={1}>Fresh: {freshCallsList.length}</Text>
                 </View>
                 <View style={[styles.miniPill, { backgroundColor: 'rgba(99,102,241,0.2)' }]}>
-                  <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '800' }}>FO: {followupCallsList.length}</Text>
+                  <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '800' }} numberOfLines={1}>FO: {followupCallsList.length}</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -384,19 +392,19 @@ export function RepDrilldownModal({
             >
               <View style={styles.categoryTopRow}>
                 <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>💬 WhatsApp</Text>
-                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'WHATSAPP' ? 'rgba(99,102,241,0.25)' : colors.border }]}>
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'WHATSAPP' ? '#818cf8' : colors.textMuted }}>
+                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'WHATSAPP' ? 'rgba(99,102,241,0.25)' : colors.border, flexShrink: 0 }]}>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'WHATSAPP' ? '#818cf8' : colors.textMuted }} numberOfLines={1}>
                     {waList.length} Sent
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.categoryBigVal, { color: colors.text }]}>
+              <Text style={[styles.categoryBigVal, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
                 {waList.length}
                 <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '600' }}>
                   {rep.dailyWhatsappTarget > 0 ? ` / ${isMonth ? rep.dailyWhatsappTarget * 22 : rep.dailyWhatsappTarget}` : ' (Direct)'}
                 </Text>
               </Text>
-              <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '700', marginTop: 4 }}>
+              <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '700', marginTop: 4 }} numberOfLines={1}>
                 Direct Outreach Sent
               </Text>
             </TouchableOpacity>
@@ -417,17 +425,17 @@ export function RepDrilldownModal({
             >
               <View style={styles.categoryTopRow}>
                 <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>📦 Catalogue</Text>
-                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'PRODUCTS' ? 'rgba(245,158,11,0.25)' : colors.border }]}>
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'PRODUCTS' ? '#fbbf24' : colors.textMuted }}>
+                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'PRODUCTS' ? 'rgba(245,158,11,0.25)' : colors.border, flexShrink: 0 }]}>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'PRODUCTS' ? '#fbbf24' : colors.textMuted }} numberOfLines={1}>
                     {prodsList.length} Shared
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.categoryBigVal, { color: colors.text }]}>
+              <Text style={[styles.categoryBigVal, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
                 {prodsList.length}
                 <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '600' }}> Pitches</Text>
               </Text>
-              <Text style={{ fontSize: 8, color: '#fbbf24', fontWeight: '700', marginTop: 4 }}>
+              <Text style={{ fontSize: 8, color: '#fbbf24', fontWeight: '700', marginTop: 4 }} numberOfLines={1}>
                 Catalogues Pitched
               </Text>
             </TouchableOpacity>
@@ -448,17 +456,17 @@ export function RepDrilldownModal({
             >
               <View style={styles.categoryTopRow}>
                 <Text style={{ fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 }} numberOfLines={1}>📝 Quotes & Inv</Text>
-                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'QUOTES' ? 'rgba(168,85,247,0.25)' : colors.border }]}>
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'QUOTES' ? '#c084fc' : colors.textMuted }}>
+                <View style={[styles.countBadge, { backgroundColor: activeCategory === 'QUOTES' ? 'rgba(168,85,247,0.25)' : colors.border, flexShrink: 0 }]}>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: activeCategory === 'QUOTES' ? '#c084fc' : colors.textMuted }} numberOfLines={1}>
                     {quotesList.length} Quotes
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.categoryBigVal, { color: colors.text }]}>
+              <Text style={[styles.categoryBigVal, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
                 {quotesList.length}
                 <Text style={{ fontSize: 10, color: '#c084fc', fontWeight: '800' }}> (₹{(totalQuotesAmount / 1000).toFixed(0)}k)</Text>
               </Text>
-              <Text style={{ fontSize: 8, color: '#c084fc', fontWeight: '700', marginTop: 4 }}>
+              <Text style={{ fontSize: 8, color: '#c084fc', fontWeight: '700', marginTop: 4 }} numberOfLines={1}>
                 Commercial Invoices
               </Text>
             </TouchableOpacity>
