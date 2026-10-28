@@ -81,12 +81,11 @@ def build_x64(debug=False):
     """Build x86_64 (AMD64) executable."""
     print("\n>>> [1/3] Building x86_64 (AMD64)...")
     args = _base_args('DASCRM-x64')
-    args.insert(1, '--target-architecture=x86_64')
     if debug:
         args.extend(['--debug=imports', '--log-level=DEBUG'])
     else:
         args.append('--optimize=2')
-    _run(args, f'DASCRM-x64.exe', 'x86_64')
+    return _run(args, 'DASCRM-x64.exe', 'x86_64')
 
 
 def build_x86(debug=False):
@@ -119,7 +118,6 @@ def build_x86(debug=False):
             pass
 
     args = _base_args('DASCRM-x86')
-    args.insert(1, '--target-architecture=x86')
     if debug:
         args.extend(['--debug=imports', '--log-level=DEBUG'])
     else:

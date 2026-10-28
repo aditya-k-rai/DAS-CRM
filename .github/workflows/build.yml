@@ -21,6 +21,7 @@ on:
 permissions:
   contents: write
 
+jobs:
 # ─────────────────────────────────────────────────────────────────────────────
 # WINDOWS BUILD JOBS — run in parallel
 # ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ permissions:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          architecture: "x86"
           cache: "pip"
       - name: Install dependencies
         run: |
