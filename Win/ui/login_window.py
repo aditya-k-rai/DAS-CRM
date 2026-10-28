@@ -5,90 +5,58 @@ Supports: Workspace Entry (role + company key + email/pass) and Staff Invite Key
 """
 import re
 import os
+import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QCheckBox, QFrame, QWidget, QScrollArea,
     QComboBox, QMessageBox
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF
+from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QPainter, QLinearGradient, QRadialGradient, QColor, QPainterPath, QPen, QBrush
+
+# Production API helpers (real HTTP calls, no mocks)
+from core.auth_api import (
+    fetch_public_companies,
+    workspace_login,
+    validate_company_key,
+    staff_register,
+    forgot_password_request,
+    forgot_password_reset,
+)
+
+
+class _ApiSignals(QObject):
+    """Bridge Qt signals from background threads to the main GUI thread."""
+    companies_loaded = pyqtSignal(list)
+    login_result     = pyqtSignal(dict)
+    key_result       = pyqtSignal(dict)
+    register_result  = pyqtSignal(dict)
+    forgot_result    = pyqtSignal(dict)
+    reset_result     = pyqtSignal(dict)
 
 
 # ─── Constants ──────────────────────────────────────────────────────────────────
 
-DEMO_USERS = {
-    "ADMIN":        {"name": "Vikram Patel",   "role": "Admin",        "email": "vikram.admin@acme.com"},
-    "HR":           {"name": "Sunita Devi",     "role": "HR",           "email": "sunita.hr@acme.com"},
-    "MANAGER":      {"name": "Rajesh Kumar",   "role": "Manager",      "email": "rajesh.mgr@acme.com"},
-    "TEAM_LEADER":  {"name": "Amit Shah",     "role": "Team Leader",  "email": "amit.tl@acme.com"},
-    "SALES_EXEC":   {"name": "Rakesh Verma",   "role": "Sales Exec",   "email": "rajesh.rep@acme.com"},
-    "SUPER_ADMIN":  {"name": "Aditya Singh",  "role": "Super Admin",  "email": "adtyamighty@gmail.com"},
-}
+# Role display labels (UI only — actual role comes from the server response)
+ALL_ROLES = ["ADMIN", "HR", "MANAGER", "TEAM_LEADER", "SALES_EXEC"]
 
-ROLE_EMAILS = {
-    "ADMIN":        "vikram.admin@acme.com",
-    "HR":           "sunita.hr@acme.com",
-    "MANAGER":      "rajesh.mgr@acme.com",
-    "TEAM_LEADER":  "amit.tl@acme.com",
-    "SALES_EXEC":   "rajesh.rep@acme.com",
-}
-
-ALL_ROLES = list(ROLE_EMAILS.keys())
-
-PUBLIC_COMPANIES = []
-
-
-def infer_role_from_email(email: str):
-    """Infer role from email pattern (mirrors authStore inferRoleFromEmail)."""
-    e = email.lower()
-    if ".admin" in e or ".super" in e or e.startswith("admin") or "superadmin" in e:
-        return "ADMIN"
-    if ".hr" in e or ".hr@" in e or e.startswith("hr") or "-hr" in e:
-        return "HR"
-    if ".mgr" in e or ".manager" in e or "-mgr" in e or "manager" in e:
-        return "MANAGER"
-    if ".tl" in e or ".team" in e or "-tl" in e or "lead" in e:
-        return "TEAM_LEADER"
-    if ".rep" in e or ".exec" in e or "-rep" in e or ".sales" in e:
-        return "SALES_EXEC"
-    return "ADMIN"
+# Runtime-populated from /auth/public-companies; starts empty and is fetched on launch
+PUBLIC_COMPANIES: list[dict] = []
 
 
 def format_company_key(raw: str) -> str:
-    """Format company key as DAS-KX-7421."""
+    """Format company key as ACME-KX-7421 for display only."""
     raw_str = raw.strip().upper()
-    if '-' in raw_str and not raw_str.startswith('DAS'):
+    if '-' in raw_str:
         return raw_str
     clean = re.sub(r'[^a-zA-Z0-9]', '', raw).upper()
-    part1 = ''
-    part2 = ''
-    part3 = ''
+    parts = []
     for ch in clean:
-        if len(part1) < 3 and ch.isalpha():
-            part1 += ch
-        elif len(part1) == 3 and len(part2) < 2 and ch.isalpha():
-            part2 += ch
-        elif ch.isdigit():
-            if len(part3) < 4:
-                part3 += ch
-    result = part1
-    if len(part1) == 3:
-        result += '-'
-        if part2:
-            result += part2
-            if len(part2) == 2:
-                result += '-'
-                if part3:
-                    result += part3
-    return result
-
-
-def validate_email_role_match(email: str, selected_role: str):
-    """Check if email matches selected role (mirrors authStore validateEmailRoleMatch)."""
-    inferred = infer_role_from_email(email)
-    if inferred == selected_role:
-        return {"valid": True}
-    return {"valid": False, "expectedRole": inferred}
+        if len(parts) == 0 and len(''.join(parts)) < 4:
+            parts.append(ch)
+        else:
+            parts.append(ch)
+    return raw_str  # return as-is; server validates the real format
 
 
 # ─── Styles ────────────────────────────────────────────────────────────────────
@@ -472,13 +440,23 @@ class LoginWindow(QDialog):
         self._drag_pos = None
         self._shake_offset = 0
 
+        # Qt signals bridge (allows background threads to update UI safely)
+        self._signals = _ApiSignals()
+        self._signals.companies_loaded.connect(self._on_companies_loaded)
+        self._signals.login_result.connect(self._on_login_result)
+        self._signals.key_result.connect(self._on_key_result)
+        self._signals.register_result.connect(self._on_register_result)
+        self._signals.forgot_result.connect(self._on_forgot_result)
+        self._signals.reset_result.connect(self._on_reset_result)
+
         # State
         self._entry_point = "workspace"   # "workspace" | "staff_key"
         self._selected_role = "ADMIN"
         self._selected_company_idx = 0
-        self._company_key = "DAS-KX-7421"
-        self._email = "vikram.admin@acme.com"
-        self._password = "password123"
+        self._selected_org_id = ""
+        self._company_key = ""
+        self._email = ""
+        self._password = ""
         self._loading = False
         self._error_msg = None
         self._success_msg = None
@@ -490,6 +468,8 @@ class LoginWindow(QDialog):
         self._staff_password = ""
         self._key_valid = False
         self._key_validating = False
+        self._validated_org_id = ""
+        self._validated_org_name = ""
 
         # Forgot password state
         self._forgot_open = False
@@ -499,6 +479,9 @@ class LoginWindow(QDialog):
         self._forgot_step = "email"
 
         self._build_ui()
+
+        # Load public companies from backend in background (non-blocking)
+        self._load_companies_async()
 
     # ── UI Construction ──────────────────────────────────────────────────────
 
@@ -557,6 +540,36 @@ class LoginWindow(QDialog):
 
         # Initial form render
         self._render_form()
+
+    # ── Background: fetch companies ───────────────────────────────────────────
+
+    def _load_companies_async(self):
+        """Fetch public companies from the backend in a daemon thread."""
+        def _run():
+            companies = fetch_public_companies()
+            self._signals.companies_loaded.emit(companies)
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+    def _on_companies_loaded(self, companies: list):
+        """Called on the Qt main thread after companies are fetched."""
+        global PUBLIC_COMPANIES
+        if companies:
+            PUBLIC_COMPANIES = companies
+        # Refresh the company dropdown if it exists
+        if hasattr(self, "_ws_company_combo") and self._ws_company_combo is not None:
+            self._ws_company_combo.blockSignals(True)
+            self._ws_company_combo.clear()
+            if PUBLIC_COMPANIES:
+                self._ws_company_combo.addItems([c.get("name", "") for c in PUBLIC_COMPANIES])
+                self._ws_company_combo.setCurrentIndex(0)
+                self._ws_company_combo.setEnabled(True)
+                self._ws_company_combo.setToolTip("")
+            else:
+                self._ws_company_combo.addItem("(No workspaces found — type company name below)")
+                self._ws_company_combo.setEnabled(False)
+            self._ws_company_combo.blockSignals(False)
 
     def _build_title_bar(self):
         bar = QFrame()
@@ -764,8 +777,12 @@ class LoginWindow(QDialog):
         fl.addWidget(comp_lbl)
 
         self._ws_company_combo = QComboBox()
-        self._ws_company_combo.addItems([c["name"] for c in PUBLIC_COMPANIES])
-        self._ws_company_combo.setCurrentIndex(self._selected_company_idx)
+        if PUBLIC_COMPANIES:
+            self._ws_company_combo.addItems([c.get("name", "") for c in PUBLIC_COMPANIES])
+            self._ws_company_combo.setCurrentIndex(min(self._selected_company_idx, len(PUBLIC_COMPANIES) - 1))
+        else:
+            self._ws_company_combo.addItem("Loading workspaces…")
+            self._ws_company_combo.setEnabled(False)
         self._ws_company_combo.setStyleSheet(COMBO_CSS)
         self._ws_company_combo.setFixedHeight(42)
         self._ws_company_combo.currentIndexChanged.connect(
@@ -1080,8 +1097,8 @@ class LoginWindow(QDialog):
 
     def _do_workspace_login(self):
         # Validate
-        if not self._company_key.strip() or len(self._company_key) < 11:
-            self._error_msg = "Please enter a valid Company Key (format: DAS-KX-7421)."
+        if not self._company_key.strip():
+            self._error_msg = "Please enter your Company / User Key (format: ACME-KX-7421)."
             self._render_workspace_errors()
             self._shake()
             return
@@ -1091,102 +1108,195 @@ class LoginWindow(QDialog):
             self._shake()
             return
 
-        # Role mismatch check
-        match = validate_email_role_match(self._email, self._selected_role)
-        if not match["valid"]:
-            self._error_msg = (
-                f'Wrong credential or role mismatch: "{self._email}" is assigned to '
-                f'role "{match["expectedRole"].replace("_", " ")}", not '
-                f'"{self._selected_role.replace("_", " ")}". Check your email and selected role.'
+        self._error_msg = None
+        self._loading = True
+        self._ws_signin_btn.setEnabled(False)
+        self._ws_signin_btn.setText("Authenticating…")
+
+        # Resolve selected organization identity
+        org_id = ""
+        org_name = ""
+        if PUBLIC_COMPANIES and 0 <= self._selected_company_idx < len(PUBLIC_COMPANIES):
+            selected = PUBLIC_COMPANIES[self._selected_company_idx]
+            org_id = selected.get("id", "")
+            org_name = selected.get("name", "")
+
+        # Run real API call in background thread
+        key = self._company_key.strip().upper()
+        email = self._email.strip().lower()
+        password = self._password
+        role = self._selected_role
+        signals = self._signals
+
+        def _run():
+            result = workspace_login(
+                email=email,
+                password=password,
+                key=key,
+                organization_id=org_id,
+                company_name=org_name,
+                selected_role=role,
             )
+            signals.login_result.emit(result)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_login_result(self, result: dict):
+        """Called on Qt main thread with workspace login API result."""
+        self._loading = False
+        if hasattr(self, "_ws_signin_btn") and self._ws_signin_btn is not None:
+            self._ws_signin_btn.setEnabled(True)
+            self._ws_signin_btn.setText(f"Sign In as {self._selected_role.replace('_', ' ')} →")
+
+        if not result.get("success"):
+            self._error_msg = result.get("message", "Login failed. Please check your credentials.")
             self._render_workspace_errors()
             self._shake()
             return
 
-        self._error_msg = None
-        self._loading = True
-        self._ws_signin_btn.setEnabled(False)
-        self._ws_signin_btn.setText("Authenticating Key...")
-
-        QTimer.singleShot(1000, self._on_workspace_logged_in)
-
-    def _on_workspace_logged_in(self):
-        self._loading = False
-        self._ws_signin_btn.setEnabled(True)
-        self._ws_signin_btn.setText(f"Sign In as {self._selected_role.replace('_', ' ')} →")
-
-        # Resolve final role
-        inferred = infer_role_from_email(self._email)
-        final_role = inferred or self._selected_role
-        demo = DEMO_USERS.get(final_role, DEMO_USERS["ADMIN"])
+        user = result.get("user") or {}
+        role_from_server = (
+            user.get("role") or user.get("roleKey") or user.get("role_key") or self._selected_role
+        ).upper().replace(" ", "_")
 
         LoginWindow.LOGGED_IN = {
-            "id": f"user_{final_role.lower()}",
-            "name": demo["name"],
-            "role": demo["role"],
-            "role_key": final_role,
-            "email": self._email,
-            "tenant_url": "https://nexcrm-backend.onrender.com",
-            "company_id": PUBLIC_COMPANIES[self._selected_company_idx]["id"],
-            "company_name": PUBLIC_COMPANIES[self._selected_company_idx]["name"],
+            "id": user.get("id", ""),
+            "name": user.get("name", user.get("email", self._email)),
+            "role": role_from_server.replace("_", " ").title(),
+            "role_key": role_from_server,
+            "email": user.get("email", self._email),
+            "access_token": result.get("accessToken", ""),
+            "tenant_url": "https://dascrm-backend.onrender.com/api/v1",
+            "company_id": result.get("organizationId", user.get("organizationId", "")),
+            "company_name": result.get("companyName", ""),
         }
         self.accept()
 
     def _do_google_login(self):
-        if not self._company_key.strip():
-            self._error_msg = "Company workspace selection and Registration Key are required before signing in with Google."
-            self._render_workspace_errors()
+        self._error_msg = "Google Sign-In is not available in the desktop app. Please use email + password login."
+        self._render_workspace_errors()
+
+    def _do_validate_key(self):
+        key = self._user_key.strip().upper()
+        if len(key) < 8:
+            self._error_msg = "Please enter a valid Company Key (format: ABCD-EF-1234)."
+            self._render_staff_errors()
             self._shake()
             return
-        self._loading = True
-        self._error_msg = None
-        QTimer.singleShot(1200, self._on_google_logged_in)
 
-    def _on_google_logged_in(self):
-        self._loading = False
-        demo = DEMO_USERS.get(self._selected_role, DEMO_USERS["ADMIN"])
-        LoginWindow.LOGGED_IN = {
-            "id": f"user_{self._selected_role.lower()}",
-            "name": demo["name"],
-            "role": demo["role"],
-            "role_key": self._selected_role,
-            "email": f"user@gmail.com",
-            "tenant_url": "https://nexcrm-backend.onrender.com",
-            "company_id": PUBLIC_COMPANIES[self._selected_company_idx]["id"],
-            "company_name": PUBLIC_COMPANIES[self._selected_company_idx]["name"],
-        }
-        self.accept()
+        self._key_validating = True
+        if hasattr(self, "_validate_btn") and self._validate_btn is not None:
+            self._validate_btn.setEnabled(False)
+            self._validate_btn.setText("Validating…")
+
+        signals = self._signals
+
+        def _run():
+            result = validate_company_key(key)
+            signals.key_result.emit(result)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_key_result(self, result: dict):
+        """Called on Qt main thread with key validation result."""
+        self._key_validating = False
+        if hasattr(self, "_validate_btn") and self._validate_btn is not None:
+            self._validate_btn.setEnabled(True)
+            self._validate_btn.setText("Validate Key")
+
+        if result.get("valid"):
+            self._key_valid = True
+            self._validated_org_id = result.get("organizationId", "")
+            self._validated_org_name = result.get("organizationName", "")
+            if hasattr(self, "_key_valid_lbl") and self._key_valid_lbl is not None:
+                self._key_valid_lbl.setText(
+                    f"✓ Key valid — Workspace: {self._validated_org_name or 'Found'}"
+                )
+        else:
+            self._key_valid = False
+            self._error_msg = result.get("message", "Invalid key.")
+            self._render_staff_errors()
+            self._shake()
 
     def _do_staff_register(self):
-        if not self._user_key or not self._staff_name or not self._staff_email or not self._staff_password:
-            self._error_msg = "Please fill all required fields including a valid User Key."
+        if not self._key_valid:
+            self._error_msg = "Please validate your Company Key first."
+            self._render_staff_errors()
+            self._shake()
+            return
+        if not self._staff_name or not self._staff_email or not self._staff_password:
+            self._error_msg = "Please fill all required fields (Name, Email, Password)."
             self._render_staff_errors()
             self._shake()
             return
 
         self._loading = True
-        self._staff_register_btn.setEnabled(False)
-        self._staff_register_btn.setText("Creating Account...")
+        if hasattr(self, "_staff_register_btn") and self._staff_register_btn is not None:
+            self._staff_register_btn.setEnabled(False)
+            self._staff_register_btn.setText("Creating Account…")
 
-        QTimer.singleShot(1000, self._on_staff_registered)
+        key = self._user_key.strip().upper()
+        name = self._staff_name.strip()
+        email = self._staff_email.strip().lower()
+        password = self._staff_password
+        signals = self._signals
 
-    def _on_staff_registered(self):
+        def _run():
+            result = staff_register(key=key, name=name, email=email, password=password)
+            signals.register_result.emit(result)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_register_result(self, result: dict):
+        """Called on Qt main thread with staff registration API result."""
         self._loading = False
-        self._staff_register_btn.setEnabled(True)
-        self._staff_register_btn.setText("Redeem Key & Register Account →")
+        if hasattr(self, "_staff_register_btn") and self._staff_register_btn is not None:
+            self._staff_register_btn.setEnabled(True)
+            self._staff_register_btn.setText("Redeem Key & Register Account →")
 
-        demo = DEMO_USERS["SALES_EXEC"]
+        if not result.get("success"):
+            self._error_msg = result.get("message", "Registration failed.")
+            self._render_staff_errors()
+            self._shake()
+            return
+
+        user = result.get("user") or {}
+        role_from_server = (
+            user.get("role") or user.get("roleKey") or "SALES_EXEC"
+        ).upper().replace(" ", "_")
+
         LoginWindow.LOGGED_IN = {
-            "id": f"user_staff",
-            "name": self._staff_name,
-            "role": "Sales Exec",
-            "role_key": "SALES_EXEC",
-            "email": self._staff_email,
-            "tenant_url": "https://nexcrm-backend.onrender.com",
-            "company_id": "comp_acme",
-            "company_name": "Acme Sales Solutions",
+            "id": user.get("id", ""),
+            "name": user.get("name", self._staff_name),
+            "role": role_from_server.replace("_", " ").title(),
+            "role_key": role_from_server,
+            "email": user.get("email", self._staff_email),
+            "access_token": result.get("accessToken", ""),
+            "tenant_url": "https://dascrm-backend.onrender.com/api/v1",
+            "company_id": result.get("organizationId", ""),
+            "company_name": result.get("companyName", self._validated_org_name),
         }
         self.accept()
+
+    def _on_forgot_result(self, result: dict):
+        """Called on Qt main thread with forgot-password OTP send result."""
+        if hasattr(self, "_send_btn") and self._send_btn is not None:
+            self._send_btn.setEnabled(True)
+            self._send_btn.setText("Send 6-Digit Reset Code →")
+        if result.get("success"):
+            self._forgot_step = "otp"
+            self._forgot_msg = f"✓ Reset OTP sent to {self._forgot_email}"
+            self._forgot_error = None
+        else:
+            self._forgot_error = result.get("message", "Could not send OTP.")
+            self._forgot_msg = None
+        if hasattr(self, "_forgot_dialog") and self._forgot_dialog:
+            self._forgot_dialog._on_otp_sent_result(result)
+
+    def _on_reset_result(self, result: dict):
+        """Called on Qt main thread with password reset result."""
+        if hasattr(self, "_forgot_dialog") and self._forgot_dialog:
+            self._forgot_dialog._on_password_reset_result(result)
 
     # ── Window drag ──────────────────────────────────────────────────────────
 

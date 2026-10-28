@@ -1,10 +1,12 @@
 """
 build_exe.py — DAS CRM Windows PyInstaller Build
+Produces a single standalone executable: DASCRM-Windows.exe
 """
 import os
 import sys
+import shutil
+import subprocess
 from pathlib import Path
-import PyInstaller.__main__
 
 PROJECT_ROOT = Path(__file__).parent
 MAIN_SCRIPT = PROJECT_ROOT / "main.py"
@@ -17,6 +19,7 @@ SPEC_DIR.mkdir(exist_ok=True)
 HIDDEN_IMPORTS = [
     # Core
     'core.api_client',
+    'core.auth_api',
     'core.sync_engine',
     'core.permissions',
 
@@ -56,8 +59,25 @@ HIDDEN_IMPORTS = [
 ]
 
 
-def build_exe(debug=False):
-    """Build Windows .exe using PyInstaller."""
+def clean():
+    for d in [BUILD_DIR, DIST_DIR]:
+        if d.exists():
+            print(f"Removing {d}...")
+            shutil.rmtree(d, ignore_errors=True)
+    print("Clean complete.")
+
+
+def build_exe(debug=False) -> bool:
+    """Build Windows standalone .exe using PyInstaller via subprocess."""
+    exe_name = "DASCRM-Windows"
+    dist_exe = DIST_DIR / f"{exe_name}.exe"
+
+    if dist_exe.exists():
+        try:
+            dist_exe.unlink()
+        except Exception:
+            pass
+
     args = [
         str(MAIN_SCRIPT),
         '--onefile',
@@ -65,14 +85,14 @@ def build_exe(debug=False):
         f'--distpath={DIST_DIR}',
         f'--workpath={BUILD_DIR}',
         f'--specpath={SPEC_DIR}',
-        '--name=DASCRM',
+        f'--name={exe_name}',
     ]
 
-    # Collect all for heavy deps
+    # Collect heavy packages
     for pkg in ['PyQt6', 'httpx', 'pydantic']:
         args.append(f'--collect-all={pkg}')
 
-    # Icon
+    # Application icon
     ico_path = PROJECT_ROOT / 'resources' / 'icon.ico'
     if ico_path.exists():
         args.append(f'--icon={ico_path}')
@@ -81,60 +101,62 @@ def build_exe(debug=False):
     for imp in HIDDEN_IMPORTS:
         args.append(f'--hidden-import={imp}')
 
-    # Debug / Release
+    # Optimization
     if debug:
         args.extend(['--debug=imports', '--log-level=DEBUG'])
     else:
         args.append('--optimize=2')
 
     print("=" * 60)
-    print("DAS CRM — Windows Build")
+    print("DAS CRM — Single Windows Build")
     print("=" * 60)
-    print(f"Output : {DIST_DIR / 'DASCRM.exe'}")
+    print(f"Target : {dist_exe}")
     print(f"Imports: {len(HIDDEN_IMPORTS)} modules")
     print()
 
+    cmd = [sys.executable, "-m", "PyInstaller"] + args
     try:
-        PyInstaller.__main__.run(args)
-        print()
-        print("=" * 60)
-        print("BUILD SUCCESSFUL")
-        print("=" * 60)
-        _verify_build()
-        return True
+        res = subprocess.run(cmd, check=True)
+        if res.returncode != 0:
+            print(f"\n[ERROR] PyInstaller exited with code {res.returncode}")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"\n[ERROR] PyInstaller build failed: {e}")
+        return False
     except Exception as e:
-        print(f"\nBUILD FAILED: {e}")
+        print(f"\n[ERROR] Unexpected error running PyInstaller: {e}")
         return False
 
+    if not dist_exe.exists():
+        # Look for any .exe produced in dist
+        candidates = list(DIST_DIR.glob("*.exe"))
+        if candidates:
+            shutil.move(str(candidates[0]), str(dist_exe))
+        else:
+            print(f"\n[ERROR] Output not found at {dist_exe}")
+            return False
 
-def _verify_build():
-    """Verify build artifact."""
-    exe_path = DIST_DIR / 'DASCRM.exe'
-    if not exe_path.exists():
-        print(f"ERROR: {exe_path} not found")
-        return
-    size_mb = exe_path.stat().st_size / (1024 * 1024)
-    print(f"File  : {exe_path}")
-    print(f"Size  : {size_mb:.1f} MB")
-    if size_mb < 80:
-        print("WARNING: File is unusually small — some imports may be missing")
+    size_mb = dist_exe.stat().st_size / (1024 * 1024)
+    print()
+    print("=" * 60)
+    print("BUILD SUCCESSFUL")
+    print(f"File : {dist_exe.name}")
+    print(f"Size : {size_mb:.1f} MB")
+    print("=" * 60)
+    return True
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--clean', action='store_true')
+    parser.add_argument('--debug', action='store_true', help="Enable debug imports")
+    parser.add_argument('--clean', action='store_true', help="Clean build directories")
     args = parser.parse_args()
 
     if args.clean:
-        import shutil
-        for d in [BUILD_DIR, DIST_DIR]:
-            if d.exists():
-                print(f"Removing {d}...")
-                shutil.rmtree(d)
-        print("Clean complete.")
+        clean()
         sys.exit(0)
 
+    clean()
     ok = build_exe(debug=args.debug)
     sys.exit(0 if ok else 1)
