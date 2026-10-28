@@ -33,7 +33,7 @@ export function TenantAdminHeaderBanner({
   const { colors, isDark } = useTheme();
   const activeRole: UserRole = normalizeRoleStr(role || currentUser?.role);
 
-  const companyName = currentUser?.companyName || subscription?.companyName || 'DAS Organization';
+  const companyName = currentUser?.companyName || subscription?.companyName || 'Company Workspace';
   const avatarInitials = currentUser?.avatar || (currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U');
   const trialDays = subscription?.trialDaysLeft ?? 14;
 

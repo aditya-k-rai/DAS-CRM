@@ -30,7 +30,7 @@ const THREADS: Thread[] = [];
 const MESSAGES: Record<string, Message[]> = {};
 
 const DEFAULT_TEMPLATES = [
-  { id: '1', title: '🌱 Initial Outreach', text: "Hi {name}, I got to know that you inquired about our DAS CRM solution for {company}. Let's connect for a quick 5-min call!" },
+  { id: '1', title: '🌱 Initial Outreach', text: "Hi {name}, I got to know that you inquired about our products & services. Let's connect for a quick 5-min call!" },
   { id: '2', title: '💼 Proposal & Pricing', text: "Hi {name}, I have prepared the customized CRM quotation for {company}. Please let me know when you'd like to review it!" },
   { id: '3', title: '📞 Quick Follow-Up', text: "Hi {name}, following up regarding our recent discussion for {company}. Do you have 5 minutes today?" },
   { id: '4', title: '⚡ Exclusive Update', text: "Hi {name}, we launched new automation updates for {company}! Reply to claim your priority demo slot." },
@@ -275,7 +275,7 @@ export function WhatsAppThread() {
             {/* Direct Launch WhatsApp App Button */}
             <div className="pt-2 flex justify-end">
               <a
-                href={`https://wa.me/91${activeThread.phone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(input || `Hi ${activeThread.leadName}, following up from DAS CRM.`)}`}
+                href={`https://wa.me/91${activeThread.phone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(input || `Hi ${activeThread.leadName}, following up regarding your inquiry.`)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20"

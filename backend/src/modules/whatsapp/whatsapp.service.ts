@@ -99,7 +99,7 @@ export class WhatsappService {
       };
     } else {
       data.type = 'text';
-      data.text = { body: payload.text || 'Hello from DAS CRM!' };
+      data.text = { body: payload.text || 'Hello from our team!' };
     }
 
     try {
@@ -191,7 +191,7 @@ export class WhatsappService {
    */
   async generateAiReply(prompt: string, context?: string): Promise<{ reply: string; confidence: number }> {
     return {
-      reply: `Hi! Thank you for reaching out to DAS CRM. Based on your inquiry, our Enterprise Suite is priced at ₹2,999 - ₹4,999/mo (+18% GST). Would you like me to schedule a 5-minute live demo call today?`,
+      reply: `Hi! Thank you for reaching out. Based on your inquiry, would you like me to share product catalog details or schedule a quick 5-minute call today?`,
       confidence: 0.96,
     };
   }

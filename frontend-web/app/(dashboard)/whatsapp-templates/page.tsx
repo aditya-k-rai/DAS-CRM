@@ -41,7 +41,7 @@ function interpolate(text: string, vars: Record<string, string>): string {
     .replace(/\{value\}/gi, vars.value || '{value}')
     .replace(/\{price\}/gi, vars.value || '{price}')
     .replace(/\{product\}/gi, vars.product || '{product}')
-    .replace(/\{catalog_link\}/gi, 'https://dascrm.com/catalog');
+    .replace(/\{catalog_link\}/gi, typeof window !== 'undefined' ? `${window.location.origin}/products` : '/products');
 }
 
 // ── Template Form Modal ───────────────────────────────────

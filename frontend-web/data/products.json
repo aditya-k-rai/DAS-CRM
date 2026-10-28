@@ -8,7 +8,7 @@
     "brand": "Generic / Unbranded",
     "color": "Black",
     "unit": "Pieces (Pcs)",
-    "description": "Old Jacket in DAS CRM Catalog.",
+    "description": "Old Jacket in Product Catalog.",
     "price": 9999,
     "minPrice": 9999,
     "maxPrice": 9999,
@@ -46,7 +46,7 @@
     "coverImage": "/products/product-gallery_1792978373703.png",
     "rating": 5,
     "sold": 0,
-    "overview": "Old Jacket in DAS CRM Catalog.",
+    "overview": "Old Jacket in Product Catalog.",
     "specs": [
       "water proof"
     ]

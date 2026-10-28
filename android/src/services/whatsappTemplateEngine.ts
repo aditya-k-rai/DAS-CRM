@@ -30,7 +30,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     title: '🌱 Initial Lead Outreach',
     category: 'OUTREACH',
     targetStatus: 'Contacted',
-    text: "Hi {name}! I got to know that you inquired about our DAS CRM solution for {company}. Let's connect for a quick 5-minute call today!",
+    text: "Hi {name}! I got to know that you inquired about {product} for {company}. Let's connect for a quick 5-minute call today!",
     isDefault: true,
     usageCount: 0,
   },
@@ -39,7 +39,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     title: '💼 Customized Proposal & Pricing Deck',
     category: 'PROPOSAL',
     targetStatus: 'Proposal',
-    text: "Hi {name}, I have prepared the customized CRM proposal of {value} for {company}. Please let me know when you'd like to review the commercial breakdown!",
+    text: "Hi {name}, I have prepared the customized proposal of {value} for {company}. Please let me know when you'd like to review the commercial breakdown!",
     isDefault: true,
     usageCount: 0,
   },
@@ -57,7 +57,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     title: '📅 Meeting Details & Demo Confirmation',
     category: 'MEETING',
     targetStatus: 'Meeting Scheduled',
-    text: "Hi {name}, looking forward to our scheduled live walkthrough for {company}! Let me know if you would like me to share a Google Meet / Zoom link or adjust the timing.",
+    text: "Hi {name}, looking forward to our scheduled walkthrough & discussion for {company}! Let me know if you would like me to share a Google Meet / Zoom link or adjust the timing.",
     isDefault: true,
     usageCount: 0,
   },
@@ -84,7 +84,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     title: '🚀 Live Walkthrough Invitation',
     category: 'OUTREACH',
     targetStatus: 'Meeting Scheduled',
-    text: "Hi {name}, we would love to give you a customized live walkthrough of our platform for {company}. Reply to confirm your preferred timing!",
+    text: "Hi {name}, we would love to give you a customized presentation of our offerings for {company}. Reply to confirm your preferred timing!",
     isDefault: true,
     usageCount: 0,
   },
@@ -93,7 +93,7 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     title: '🎉 Seasonal Discount & Priority Demo Offer',
     category: 'PROMOTION',
     targetStatus: 'In Negotiation',
-    text: "Exciting news {name}! Get a special discount on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!",
+    text: "Exciting news {name}! Get a special discount on {product} for {company} when you confirm this week. Reply to claim your exclusive offer!",
     isDefault: true,
     usageCount: 0,
   },
@@ -273,19 +273,44 @@ class WhatsAppTemplateEngine {
   /** Interpolate dynamic lead placeholders ({name}, {company}, {value}, {product}) with Quantity & Price Banding */
   interpolateTemplate(
     templateText: string,
-    lead: { name: string; company?: string; value?: string },
+    lead: { name: string; company?: string; value?: string; requirement?: string; senderCompany?: string },
     product?: ProductItem | null,
     quantity: number = 1
   ): string {
     const leadName = lead.name || 'Valued Customer';
-    const company = lead.company || 'your organization';
+    const rawCompany = (lead.company || '').trim();
+    const isIndividual =
+      !rawCompany ||
+      /^(individual|individual lead|individual client|retail|self|personal|independent business|n\/a|na|none|—|-)$/i.test(rawCompany);
+    const company = isIndividual ? '' : rawCompany;
     const value = lead.value || 'your package';
+    const senderCompany = lead.senderCompany || '';
 
-    let text = (templateText || '')
+    let text = templateText || '';
+
+    if (isIndividual) {
+      text = text
+        .replace(/\s+for\s+\{company\}/gi, '')
+        .replace(/\s+for\s+\{companyName\}/gi, '')
+        .replace(/\s+at\s+\{company\}/gi, '')
+        .replace(/\s+at\s+\{companyName\}/gi, '')
+        .replace(/\s+regarding\s+\{company\}/gi, ' regarding your inquiry');
+    }
+
+    text = text
       .replace(/\{name\}/gi, leadName)
       .replace(/\{LeadName\}/gi, leadName)
-      .replace(/\{company\}/gi, company)
-      .replace(/\{value\}/gi, value);
+      .replace(/\{company\}/gi, company || 'your organization')
+      .replace(/\{value\}/gi, value)
+      .replace(/\{senderCompany\}/gi, senderCompany);
+
+    // Auto-heal legacy templates with hardcoded platform branding
+    text = text
+      .replace(/our DAS CRM solution/gi, product?.name || lead.requirement || 'our products & services')
+      .replace(/DAS CRM solution/gi, product?.name || lead.requirement || 'our products & services')
+      .replace(/customized CRM proposal/gi, 'customized proposal')
+      .replace(/DAS CRM Suite/gi, product?.name || lead.requirement || 'our products & services')
+      .replace(/DAS CRM/gi, senderCompany || 'our team');
 
     if (product) {
       const { unitPrice, totalPrice, tierLabel } = this.getTieredPrice(product, quantity);
@@ -332,8 +357,29 @@ class WhatsAppTemplateEngine {
     try {
       const saved = await AsyncStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
+        let parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          let migrated = false;
+          parsed = parsed.map((tpl: WhatsAppTemplate) => {
+            if (tpl.text && /DAS CRM/i.test(tpl.text)) {
+              migrated = true;
+              return {
+                ...tpl,
+                text: tpl.text
+                  .replace(/our DAS CRM solution/gi, '{product}')
+                  .replace(/DAS CRM solution/gi, '{product}')
+                  .replace(/customized CRM proposal/gi, 'customized proposal')
+                  .replace(/DAS CRM Suite/gi, '{product}')
+                  .replace(/DAS CRM/gi, 'our team'),
+              };
+            }
+            return tpl;
+          });
+          if (migrated) {
+            try {
+              await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            } catch (_) {}
+          }
           return parsed;
         }
       }

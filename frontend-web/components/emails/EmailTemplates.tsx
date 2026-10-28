@@ -12,7 +12,7 @@ const TEMPLATES = [
 
 I noticed {{company_name}} is growing rapidly in the {{industry}} space — congratulations on your progress!
 
-We help companies like yours streamline their sales process with our CRM platform, DAS CRM. Teams using DAS CRM typically see a 30% improvement in lead conversion within the first 90 days.
+We help companies like yours streamline their operations and drive revenue growth. Teams working with us typically see significant improvements in operational conversion within the first 90 days.
 
 Would you be open to a 15-minute call this week to explore how we can help {{company_name}}?
 
@@ -22,11 +22,11 @@ Best regards,
   },
   {
     id: '2', name: 'Follow-Up After Demo',
-    subject: 'Next Steps: {{company_name}} × DAS CRM Partnership',
+    subject: 'Next Steps: {{company_name}} × {{org_name}} Partnership',
     category: 'Follow-Up', usedCount: 0,
     body: `Hi {{contact_first_name}},
 
-Thank you for taking the time to join our demo yesterday! I hope it gave you a clear picture of how DAS CRM can transform your sales operations.
+Thank you for taking the time to connect with us yesterday! I hope it gave you a clear picture of how {{org_name}} solutions can empower your operations.
 
 As discussed, here are the next steps:
 1. Review the attached proposal (₹{{deal_value}})
@@ -42,11 +42,11 @@ Warm regards,
   },
   {
     id: '3', name: 'Deal Won — Welcome Onboard',
-    subject: '🎉 Welcome to DAS CRM, {{company_name}}!',
+    subject: '🎉 Welcome Onboard, {{company_name}}!',
     category: 'Post-Sale', usedCount: 0,
     body: `Hi {{contact_first_name}},
 
-We're thrilled to welcome {{company_name}} to the DAS CRM family! 🎉
+We're thrilled to welcome {{company_name}} as our valued partner! 🎉
 
 Your account has been set up and is ready to go. Here's what happens next:
 
@@ -59,7 +59,7 @@ Your dedicated account manager is {{account_manager_name}} — feel free to reac
 
 Let's build something great together!
 
-Team DAS CRM`,
+{{org_name}} Team`,
   },
 ];
 

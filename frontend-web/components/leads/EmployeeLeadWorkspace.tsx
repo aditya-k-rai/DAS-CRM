@@ -1396,9 +1396,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       : '';
 
     const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://dascrm.com';
+    const effectiveSenderCompany = currentUser?.companyName || (currentUser as any)?.company?.name || 'our company';
     const message = encodeURIComponent(
       `Hello *${clientName}*,\n\n` +
-      `Here is your official *${docTypeLabel} #${docNo}* from *DAS CRM*.\n\n` +
+      `Here is your official *${docTypeLabel} #${docNo}* from *${effectiveSenderCompany}*.\n\n` +
       `📋 *Document Summary:*\n` +
       `• Document Type: ${docTypeLabel}\n` +
       `• Reference #: *${docNo}*\n` +
@@ -1408,7 +1409,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       `${noteText}\n\n` +
       `📎 *PDF Attachment & Verification Link:*\n` +
       `${originUrl}/quotes?doc=${encodeURIComponent(docNo)}&type=${encodeURIComponent(doc?.docType || 'QUOTATION')}\n\n` +
-      `Generated & Verified securely via *DAS CRM* (www.dascrm.com)`
+      `Verified securely by *${effectiveSenderCompany}*`
     );
 
     window.open(`https://wa.me/${targetPhone ? targetPhone : ''}?text=${message}`, '_blank');
@@ -1426,18 +1427,20 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       : (contactInfo.email || (lead.email !== '—' ? lead.email : ''));
     const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://dascrm.com';
 
-    const subject = encodeURIComponent(`${docTypeLabel} #${docNo} — ${lead.company || 'Enterprise Suite'} [DAS CRM]`);
+    const effectiveSenderCompany = currentUser?.companyName || (currentUser as any)?.company?.name || 'our company';
+    const clientCompanyClause = (lead.company && lead.company !== 'Individual Lead' && lead.company !== '—') ? ` — ${lead.company}` : '';
+    const subject = encodeURIComponent(`${docTypeLabel} #${docNo}${clientCompanyClause} [${effectiveSenderCompany}]`);
     const body = encodeURIComponent(
       `Dear ${clientName},\n\n` +
       `Please find attached the official ${docTypeLabel} #${docNo} for total amount ${amountFormatted}.\n\n` +
       `Document Details:\n` +
       `- Document #: ${docNo}\n` +
       `- Total Amount: ${amountFormatted}\n` +
-      `- Issued to: ${clientName} (${lead.company || 'Enterprise'})\n` +
+      `- Issued to: ${clientName}${clientCompanyClause ? ` (${lead.company})` : ''}\n` +
       `- Date: ${new Date().toLocaleDateString('en-IN')}\n\n` +
       (shareNowCustomNote.trim() ? `Note: ${shareNowCustomNote.trim()}\n\n` : '') +
       `View Document Online:\n${originUrl}/quotes?doc=${encodeURIComponent(docNo)}\n\n` +
-      `Best regards,\n${currentUser?.name || lead.owner || 'Sales Team'}\nDAS CRM`
+      `Best regards,\n${currentUser?.name || lead.owner || 'Sales Team'}\n${effectiveSenderCompany}`
     );
 
     window.open(`mailto:${targetEmail}?subject=${subject}&body=${body}`, '_blank');
@@ -1928,7 +1931,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       }
     }
     if (!rawCompany || rawCompany.toUpperCase().includes('DAS CRM') || rawCompany.toUpperCase().includes('DAS ORGANIZATION') || rawCompany === 'Addroable') {
-      rawCompany = 'Adorable Trading';
+      rawCompany = currentUser?.companyName || 'our company';
     }
     const companyTeamLabel = rawCompany.toLowerCase().endsWith('team') ? `*${rawCompany}*` : `*${rawCompany} Team*`;
 
@@ -2740,11 +2743,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         setSelectedTargetStatus(tpl.targetStatus);
       }
       const leadVal = (lead as any).value || lead.budget;
+      const effectiveSenderCompany = currentUser?.companyName || (currentUser as any)?.company?.name || '';
       const interpolated = whatsappTemplateEngine.interpolateTemplate(tpl.text, {
         name: lead.name,
         company: lead.company,
         value: leadVal,
         requirement: lead.requirement,
+        product: lead.requirement || (lead as any).product,
+        senderCompany: effectiveSenderCompany,
       });
       setWaDirectMessage(interpolated);
     }
@@ -2752,18 +2758,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
   const generateMeetingMessage = (dateStr: string, timeStr: string) => {
     const formattedDate = formatMeetingDateDisplay(dateStr);
-    return `Hi ${lead.name || 'Client'}, looking forward to our scheduled live walkthrough for ${lead.company || 'DAS CRM'} on ${formattedDate} at ${timeStr}!\n\nLet me know if you would like me to share a Google Meet / Zoom link or adjust the timing.`;
+    const targetComp = (lead.company && lead.company !== 'Individual Lead' && lead.company !== '—') ? ` for ${lead.company}` : '';
+    return `Hi ${lead.name || 'Client'}, looking forward to our scheduled live walkthrough${targetComp} on ${formattedDate} at ${timeStr}!\n\nLet me know if you would like me to share a Google Meet / Zoom link or adjust the timing.`;
   };
 
   const generateFollowUpMessage = (dateStr: string, timeStr: string) => {
     const formattedDate = formatMeetingDateDisplay(dateStr);
-    return `Hi ${lead.name || 'Client'}, following up regarding our discussion for ${lead.company || 'your requirement'}. I have scheduled our next follow-up touchpoint for ${formattedDate} at ${timeStr}.\n\nPlease let me know if you would like to connect earlier or need any additional details!`;
+    const targetComp = (lead.company && lead.company !== 'Individual Lead' && lead.company !== '—') ? ` regarding ${lead.company}` : ' regarding our discussion';
+    return `Hi ${lead.name || 'Client'}, following up${targetComp}. I have scheduled our next follow-up touchpoint for ${formattedDate} at ${timeStr}.\n\nPlease let me know if you would like to connect earlier or need any additional details!`;
   };
 
   const generateProposalMessage = (quantities: Record<string, number>) => {
     const selectedEntries = Object.entries(quantities).filter(([_, q]) => q > 0);
+    const targetComp = (lead.company && lead.company !== 'Individual Lead' && lead.company !== '—') ? ` for ${lead.company}` : '';
     if (selectedEntries.length === 0) {
-      return `Hi ${lead.name || 'Client'}, sharing details regarding our discussion for ${lead.company || 'your requirement'}. Please let me know what products you would like to explore!`;
+      return `Hi ${lead.name || 'Client'}, sharing details regarding our discussion${targetComp}. Please let me know what products you would like to explore!`;
     }
 
     let grandTotal = 0;
@@ -3197,11 +3206,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         setWaDirectTemplateTitle(tpl.title);
         if (tpl.targetStatus) setSelectedTargetStatus(tpl.targetStatus);
         const leadVal = (lead as any).value || lead.budget;
+        const effectiveSenderCompany = currentUser?.companyName || (currentUser as any)?.company?.name || '';
         setWaDirectMessage(whatsappTemplateEngine.interpolateTemplate(tpl.text, {
           name: lead.name,
           company: lead.company,
           value: leadVal,
           requirement: lead.requirement,
+          product: lead.requirement || (lead as any).product,
+          senderCompany: effectiveSenderCompany,
         }));
       }
     }
@@ -3209,11 +3221,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
   const handleInsertPlaceholder = (ph: string) => {
     const leadVal = (lead as any).value || lead.budget;
+    const cleanComp = (lead.company && lead.company !== 'Individual Lead' && lead.company !== '—') ? lead.company : '';
     setWaDirectMessage(prev => {
       const toInsert = ph === '{name}' ? (lead.name || '{name}') :
-                       ph === '{company}' ? (lead.company || '{company}') :
+                       ph === '{company}' ? (cleanComp || '{company}') :
                        ph === '{value}' ? (leadVal || '{value}') :
-                       ph === '{product}' ? (lead.requirement || 'DAS CRM Suite') : ph;
+                       ph === '{product}' ? (lead.requirement || 'our products & services') : ph;
       return prev ? `${prev} ${toInsert}` : toInsert;
     });
   };
@@ -3233,7 +3246,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       : waDirectTemplateTitle;
 
     // 1. Launch Direct WhatsApp (wa.me / whatsapp://)
-    const finalMsg = waDirectMessage.trim() || `Hi ${lead.name}, following up regarding ${lead.company || 'DAS CRM'}.`;
+    const effectiveSenderCompany = currentUser?.companyName || (currentUser as any)?.company?.name || 'our company';
+    const targetComp = (lead.company && lead.company !== 'Individual Lead' && lead.company !== '—') ? ` regarding ${lead.company}` : '';
+    const finalMsg = waDirectMessage.trim() || `Hi ${lead.name || 'there'}, following up${targetComp} from ${effectiveSenderCompany}.`;
     const launchRes = whatsappTemplateEngine.openDirectWhatsApp(lead.phone, finalMsg, lead.name);
 
     if (!launchRes.success) {

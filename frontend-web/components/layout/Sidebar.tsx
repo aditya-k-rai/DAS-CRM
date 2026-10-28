@@ -366,14 +366,30 @@ export function Sidebar() {
           {!collapsed ? (
             <>
               <div className="flex items-center gap-3 min-w-0">
-                <img
-                  src="/das-logo.png"
-                  alt="DAS CRM Logo"
-                  className="h-9 w-9 flex-shrink-0 object-contain rounded-lg shadow-md"
-                />
+                {currentUser?.companyName || subscription?.companyName ? (
+                  <div className="h-9 w-9 flex-shrink-0 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-md">
+                    {(currentUser?.companyName || subscription?.companyName || 'CO')
+                      .split(' ')
+                      .map((w: string) => w[0])
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()}
+                  </div>
+                ) : (
+                  <img
+                    src="/das-logo.png"
+                    alt="Logo"
+                    className="h-9 w-9 flex-shrink-0 object-contain rounded-lg shadow-md"
+                  />
+                )}
                 <div className="sidebar-logo-text min-w-0">
-                  <span className="text-foreground font-bold text-base tracking-tight block truncate">DAS CRM</span>
-                  <p className="text-xs text-muted-foreground font-medium truncate">{currentUser?.companyName || subscription?.companyName || 'Organization Workspace'}</p>
+                  <span className="text-foreground font-bold text-base tracking-tight block truncate">
+                    {currentUser?.companyName || subscription?.companyName || 'DAS CRM'}
+                  </span>
+                  <p className="text-xs text-muted-foreground font-medium truncate">
+                    {currentUser?.companyName || subscription?.companyName ? 'Company Workspace' : 'Organization Workspace'}
+                  </p>
                 </div>
               </div>
 

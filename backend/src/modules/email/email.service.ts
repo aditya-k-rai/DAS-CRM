@@ -62,7 +62,7 @@ export class EmailService {
         },
       } as nodemailer.TransportOptions);
 
-      const fromAddress = `"${smtp.fromName || 'DAS CRM Marketing'}" <${smtp.user}>`;
+      const fromAddress = `"${smtp.fromName || 'Sales & Support'}" <${smtp.user}>`;
       const recipientList = Array.isArray(to) ? to.join(', ') : to;
 
       const info = await transporter.sendMail({

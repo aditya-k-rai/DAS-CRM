@@ -261,7 +261,7 @@ function MainTabNavigator({
 
   const isUnassigned = currentUser?.hasAssignedRole === false || currentUser?.role === 'UNASSIGNED';
   const roleStr = isUnassigned ? 'UNASSIGNED' : currentUser?.role ? currentUser.role.replace('_', ' ') : 'SALES EXEC';
-  const companyStr = currentUser?.companyName || 'Acme Sales Solutions';
+  const companyStr = currentUser?.companyName || 'Company Workspace';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -659,7 +659,7 @@ function RootAppContent() {
   const confirmAndHandleLogout = () => {
     ModernAlert.show({
       title: 'Sign Out of DAS CRM?',
-      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: ${currentUser?.companyName || 'DAS Organization'}\n• Role: ${currentUser?.role || 'ADMIN'}\n• Offline changes and leads remain safe.`,
+      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: ${currentUser?.companyName || 'Company Workspace'}\n• Role: ${currentUser?.role || 'ADMIN'}\n• Offline changes and leads remain safe.`,
       type: 'warning',
       icon: '🚪',
       badgeText: 'SECURITY & SESSION',
@@ -738,9 +738,13 @@ function RootAppContent() {
               <View style={styles.drawerTopBar}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={styles.drawerLogoBadge}>
-                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>DAS</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>
+                      {currentUser?.companyName ? currentUser.companyName.substring(0, 3).toUpperCase() : 'DAS'}
+                    </Text>
                   </View>
-                  <Text style={[styles.drawerAppTitle, { color: colors.text }]}>{t.drawerAppTitle}</Text>
+                  <Text style={[styles.drawerAppTitle, { color: colors.text }]} numberOfLines={1}>
+                    {currentUser?.companyName || t.drawerAppTitle}
+                  </Text>
                 </View>
                 <TouchableOpacity style={[styles.closeDrawerBtn, { backgroundColor: colors.cardBgElevated }]} onPress={() => closeDrawer()} activeOpacity={0.7}>
                   <Text style={{ color: colors.textMuted, fontSize: 16, fontWeight: '800' }}>✕</Text>

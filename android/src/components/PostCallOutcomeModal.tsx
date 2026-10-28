@@ -387,9 +387,9 @@ export default function PostCallOutcomeModal({
     }
 
     const repName = (currentUser?.name || 'Sales Executive').trim();
-    let rawCompany = (currentUser?.companyName || 'Adorable Trading').trim();
+    let rawCompany = (currentUser?.companyName || 'our company').trim();
     if (!rawCompany || rawCompany === '—' || rawCompany.toUpperCase().includes('DAS CRM')) {
-      rawCompany = 'Adorable Trading';
+      rawCompany = currentUser?.companyName || 'our company';
     }
 
     const desc = selectedProduct?.description ? `\n\n📝 *Specifications:* ${selectedProduct.description}` : '';

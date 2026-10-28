@@ -471,7 +471,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
                   Welcome, {firstName}! 🛡️
                 </Text>
                 <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-                  {currentUser?.companyName || 'DAS CRM Organization'} · Team Unit Workspace
+                  {currentUser?.companyName || 'Company Workspace'} · Team Unit Workspace
                 </Text>
               </View>
             </View>

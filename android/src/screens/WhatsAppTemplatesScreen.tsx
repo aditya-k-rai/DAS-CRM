@@ -39,7 +39,7 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
       id: 'tpl_1',
       title: '🌱 Initial Lead Outreach',
       category: 'OUTREACH',
-      text: 'Hi {name}! Thank you for reaching out to DAS CRM. We help companies like {company} scale sales calls by 3x.',
+      text: 'Hi {name}! Thank you for reaching out to our team. We help organizations like {company} scale operations and drive results.',
     },
     {
       id: 'tpl_2',
