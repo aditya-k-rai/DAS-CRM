@@ -56,37 +56,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  build-windows-x86:
-    name: "Windows x86 (32-bit)"
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          architecture: "x86"
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip wheel
-          pip install -r Win/requirements.txt
-      - name: Ensure resources directory
-        shell: pwsh
-        run: New-Item -ItemType Directory -Force -Path "Win/resources" | Out-Null
-      - name: Build x86 exe
-        working-directory: Win
-        shell: pwsh
-        env:
-          PYTHONIOENCODING: "utf-8"
-        run: python build_all.py x86 || echo "x86 build skipped (32-bit Python not available)"
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: DASCRM-x86
-          path: Win/dist/DASCRM-x86.exe
-          if-no-files-found: ignore
-          retention-days: 30
-
   build-windows-universal:
     name: "Windows Universal"
     runs-on: windows-latest
@@ -165,7 +134,7 @@ jobs:
           </plist>
           PLIST
       - name: Install create-dmg
-        run: brew install create-dmg
+        run: env HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install create-dmg
       - name: Create DASCRM.dmg
         run: |
           DMG="$RUNNER_TEMP/DASCRM.dmg"
@@ -194,7 +163,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   release:
     name: "Publish GitHub Release"
-    needs: [ build-windows-x64, build-windows-x86, build-windows-universal, build-macos ]
+    needs: [ build-windows-x64, build-windows-universal, build-macos ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
