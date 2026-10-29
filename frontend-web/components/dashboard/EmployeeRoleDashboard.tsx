@@ -31,6 +31,7 @@ interface SyncedLead {
   value: string;
   rawEstimatedValue?: number;
   assignedTime: string;
+  rawCreatedAt?: string | number | Date;
   source: string;
   requirement?: string;
   assignedRep?: string;
@@ -357,6 +358,13 @@ export function EmployeeRoleDashboard() {
 
     const effectiveLeads = allLeads.filter(l => filterLeadForRep(l, selectedRep));
 
+    // Sort by recent dates first
+    const sortedLeads = [...effectiveLeads].sort((a: any, b: any) => {
+      const timeA = new Date(a.createdAt || a.created_at || a.created || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.created_at || b.created || b.updatedAt || 0).getTime();
+      return timeB - timeA;
+    });
+
     const colors = [
       'from-emerald-500 to-teal-600',
       'from-teal-500 to-cyan-600',
@@ -366,7 +374,7 @@ export function EmployeeRoleDashboard() {
     ];
 
     // Map leads to SyncedLead format
-    const mappedNewLeads: SyncedLead[] = effectiveLeads.map((l: any, idx: number) => {
+    const mappedNewLeads: SyncedLead[] = sortedLeads.map((l: any, idx: number) => {
       const norm = normalizeLead(l, idx);
       return {
         id: String(norm.id),
@@ -379,6 +387,7 @@ export function EmployeeRoleDashboard() {
         value: norm.value,
         rawEstimatedValue: norm.numericValue,
         assignedTime: norm.created,
+        rawCreatedAt: norm.rawCreatedAt || l.createdAt || l.created_at || l.created || l.updatedAt,
         source: norm.source,
         requirement: norm.requirement,
         assignedRep: norm.owner || norm.assignedRep,
@@ -721,6 +730,20 @@ export function EmployeeRoleDashboard() {
     return newLeads.reduce((sum, l) => sum + (l.rawEstimatedValue || 0), 0);
   }, [newLeads]);
 
+  // 12 Most Recent Leads for Web Dashboard Action Hub
+  const recentNewLeads = useMemo(() => {
+    const freshOnly = newLeads.filter(l => {
+      const s = (l.status || '').toLowerCase();
+      return s === 'new' || s.includes('new') || s.includes('prospect');
+    });
+    const pool = freshOnly.length > 0 ? freshOnly : newLeads;
+    return [...pool].sort((a: any, b: any) => {
+      const timeA = new Date(a.rawCreatedAt || a.assignedTime || a.created || 0).getTime();
+      const timeB = new Date(b.rawCreatedAt || b.assignedTime || b.created || 0).getTime();
+      return timeB - timeA;
+    }).slice(0, 12);
+  }, [newLeads]);
+
   return (
     <div className="space-y-7 text-foreground">
 
@@ -870,7 +893,7 @@ export function EmployeeRoleDashboard() {
               <p className="text-[11px] text-muted-foreground mt-0.5">Newly ingested or assigned inbound leads will appear here.</p>
             </div>
           ) : (
-            newLeads.map((lead) => (
+            recentNewLeads.map((lead) => (
               <div
                 key={lead.id}
                 className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-3 group relative overflow-hidden"
@@ -956,6 +979,15 @@ export function EmployeeRoleDashboard() {
             ))
           )}
         </div>
+
+        {newLeads.length > 12 && (
+          <div className="flex items-center justify-between pt-2 border-t border-emerald-500/10 text-xs text-muted-foreground flex-wrap gap-2">
+            <span>Showing top 12 most recent leads of {newLeads.length} total</span>
+            <Link href="/leads?status=New" className="text-emerald-400 font-bold hover:underline flex items-center gap-1">
+              View all {newLeads.length} leads in workspace →
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* ── Section 3: FOLLOW-UPS (Synced Leads · Focused on Lead Name) ── */}

@@ -348,6 +348,21 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
   // Lead metrics
   const newLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'new'), [scopedLeads]);
+
+  // 4 Most Recent New Leads for mobile dashboard action cards
+  const recentNewLeads = useMemo(() => {
+    const freshOnly = scopedLeads.filter((l) => {
+      const s = (l.status || '').toLowerCase();
+      return s === 'new' || s.includes('new') || s.includes('prospect');
+    });
+    const pool = freshOnly.length > 0 ? freshOnly : scopedLeads;
+    return [...pool].sort((a: any, b: any) => {
+      const timeA = new Date(a.createdAt || a.created_at || a.created || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.created_at || b.created || b.updatedAt || 0).getTime();
+      return timeB - timeA;
+    }).slice(0, 4);
+  }, [scopedLeads]);
+
   const contactedLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'contacted'), [scopedLeads]);
   const qualifiedLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'qualified'), [scopedLeads]);
   const wonLeads = useMemo(
@@ -773,7 +788,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               </TouchableOpacity>
             </View>
 
-            {newLeads.length === 0 ? (
+            {recentNewLeads.length === 0 ? (
               <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 18 }]}>
                 <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic' }}>
                   No pending new leads. Great job on clearing outreach!
@@ -781,7 +796,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               </View>
             ) : (
               <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
-                {newLeads.slice(0, 3).map((lead, idx) => {
+                {recentNewLeads.map((lead, idx) => {
                   const name = lead.name || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || `Lead #${idx + 1}`;
                   const phone = lead.phone || '9876543210';
                   const company = lead.company || lead.organization || 'Direct Buyer';
