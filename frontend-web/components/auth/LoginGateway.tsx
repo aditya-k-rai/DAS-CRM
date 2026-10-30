@@ -227,7 +227,7 @@ export function LoginGateway() {
   // SECURITY: After a forced redirect to /login, return user to their intended destination
   const returnTo = searchParams?.get('returnTo') || '';
 
-  const [fetchingCompanies, setFetchingCompanies] = useState(false);
+  const [fetchingCompanies, setFetchingCompanies] = useState(true);
   const { switchRole, setAuthSession } = useAuth();
 
   // Load previous login credentials ONLY from cookie on initial mount.
@@ -271,10 +271,23 @@ export function LoginGateway() {
   }, []);
 
   useEffect(() => {
-    fetchPublicCompanies();
+    // Pass the initial hydrated companies so fetchPublicCompanies can fall back
+    // to them without capturing stale closure state.
+    const initialCompanies = publicCompanies;
+    fetchPublicCompanies(initialCompanies);
   }, [urlCompanyId, urlKey, urlEmail]);
 
-  const fetchPublicCompanies = async () => {
+  // Auto-retry: if after the first fetch companies are still empty (backend may be cold-starting),
+  // silently retry once after 3 s without showing any error to the user.
+  useEffect(() => {
+    if (fetchingCompanies || publicCompanies.length > 0) return;
+    const timer = setTimeout(() => {
+      fetchPublicCompanies(publicCompanies);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [fetchingCompanies, publicCompanies.length]);
+
+  const fetchPublicCompanies = async (currentCompanies?: PublicCompany[]) => {
     setFetchingCompanies(true);
     try {
       let data: any = null;
@@ -288,28 +301,44 @@ export function LoginGateway() {
       const primaryUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/public-companies`;
       const fallbackUrl = '/api/v1/auth/public-companies';
 
+      // Race all candidate URLs simultaneously — whichever responds first with valid data wins.
+      // This eliminates the serial 2.5s + 2.5s worst-case wait.
       const candidateUrls = isLocalHost
         ? [primaryUrl, fallbackUrl]
         : [fallbackUrl, primaryUrl];
 
-      for (const url of candidateUrls) {
+      const fetchWithTimeout = async (url: string, ms: number) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ms);
         try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 2500);
           const res = await fetch(url, {
             signal: controller.signal,
             headers: { Accept: 'application/json' },
+            cache: 'no-store',
           });
           clearTimeout(timer);
-          if (res.ok) {
-            const json = await res.json();
-            if (Array.isArray(json) && json.length > 0) {
-              data = json;
-              break;
-            }
-          }
+          if (!res.ok) return null;
+          const json = await res.json();
+          return Array.isArray(json) && json.length > 0 ? json : null;
         } catch (_) {
-          // Timeout or connection error: proceed to fallback candidate
+          clearTimeout(timer);
+          return null;
+        }
+      };
+
+      // Race all URLs with a 4 s overall deadline — first non-null result wins
+      const raceResult: any[] | null = await Promise.race<any[] | null>([
+        ...candidateUrls.map(url => fetchWithTimeout(url, 4000)),
+        new Promise<null>(res => setTimeout(() => res(null), 4500)),
+      ]);
+
+      if (raceResult && Array.isArray(raceResult) && raceResult.length > 0) {
+        data = raceResult;
+      } else {
+        // Fallback: try each URL sequentially for resilience
+        for (const url of candidateUrls) {
+          const result = await fetchWithTimeout(url, 3000);
+          if (result) { data = result; break; }
         }
       }
 
@@ -317,6 +346,9 @@ export function LoginGateway() {
       const storedCompanyRaw = typeof window !== 'undefined' ? localStorage.getItem('last_registered_company') : null;
       let storedCompany: any = null;
       try { if (storedCompanyRaw) storedCompany = JSON.parse(storedCompanyRaw); } catch (_) {}
+
+      // Use passed-in snapshot to avoid stale closure capturing empty initial state
+      const existingCompanies = currentCompanies ?? publicCompanies;
 
       let companies: PublicCompany[] = Array.isArray(data) && data.length > 0 ? [...data] : [];
 
@@ -327,8 +359,8 @@ export function LoginGateway() {
         } catch (_) {}
       } else {
         // Fallback: If network returned nothing or timed out, retain existing cached companies
-        if (publicCompanies.length > 0) {
-          companies = [...publicCompanies];
+        if (existingCompanies.length > 0) {
+          companies = [...existingCompanies];
         } else if (storedCompany?.name) {
           companies = [{
             id: storedCompany.id || 'cmuev7n3o000mikew7je1tdiw',
@@ -339,6 +371,18 @@ export function LoginGateway() {
             companyKey: storedCompany.key,
           }];
           setPublicCompanies(companies);
+        } else {
+          // Last-resort: try reading fresh from localStorage cache (set on previous visit)
+          try {
+            const lsCached = localStorage.getItem(PUBLIC_COMPANIES_CACHE_KEY);
+            if (lsCached) {
+              const parsed = JSON.parse(lsCached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                companies = parsed;
+                setPublicCompanies(companies);
+              }
+            }
+          } catch (_) {}
         }
       }
 
@@ -1051,7 +1095,7 @@ export function LoginGateway() {
                   </label>
                   <button
                     type="button"
-                    onClick={fetchPublicCompanies}
+                    onClick={() => fetchPublicCompanies(publicCompanies)}
                     disabled={fetchingCompanies || loading}
                     className="text-[11px] font-bold text-indigo-500 dark:text-indigo-400 hover:underline flex items-center gap-1 transition-all"
                     title="Refresh registered companies list"
@@ -1101,10 +1145,10 @@ export function LoginGateway() {
                   <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
                     <p className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
                       <AlertCircle size={14} className="text-amber-400 flex-shrink-0" />
-                      No registered companies found yet
+                      No registered companies found
                     </p>
                     <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                      Register your company workspace first to generate your Company Key &amp; Admin credentials.
+                      Could not load company list. Your backend may be starting up — click &quot;Retry&quot; or register a new workspace below.
                     </p>
                     <div className="flex items-center gap-2 pt-1">
                       <Link
@@ -1115,10 +1159,10 @@ export function LoginGateway() {
                       </Link>
                       <button
                         type="button"
-                        onClick={fetchPublicCompanies}
+                        onClick={() => fetchPublicCompanies(publicCompanies)}
                         className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-1"
                       >
-                        <RefreshCw size={11} className={fetchingCompanies ? 'animate-spin' : ''} /> Check Again
+                        <RefreshCw size={11} className={fetchingCompanies ? 'animate-spin' : ''} /> Retry
                       </button>
                     </div>
                   </div>
