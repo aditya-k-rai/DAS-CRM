@@ -27,7 +27,7 @@ export async function GET(
     // 1. Direct file match
     for (const dir of candidateDirs) {
       try {
-        const fullPath = path.join(dir, fileName);
+        const fullPath = path.join(/*turbopackIgnore: true*/ dir, fileName);
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
           const buffer = fs.readFileSync(fullPath);
           const ext = path.extname(fullPath).toLowerCase();
@@ -54,7 +54,7 @@ export async function GET(
     if (fileName.includes('jacket') || fileName.includes('product-gallery')) {
       for (const dir of candidateDirs) {
         try {
-          const puffPath = path.join(dir, 'puff-jackets.jpg');
+          const puffPath = path.join(/*turbopackIgnore: true*/ dir, 'puff-jackets.jpg');
           if (fs.existsSync(puffPath) && fs.statSync(puffPath).isFile()) {
             const buffer = fs.readFileSync(puffPath);
             return new NextResponse(buffer, {

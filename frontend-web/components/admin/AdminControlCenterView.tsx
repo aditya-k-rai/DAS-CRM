@@ -41,7 +41,7 @@ export interface ModuleDefinition {
   icon: any;
   label: string;
   description: string;
-  category: 'SALES' | 'COMMUNICATION' | 'AI' | 'OPERATIONS' | 'ADMIN';
+  category: 'SALES' | 'COMMUNICATION' | 'AI' | 'OPERATIONS' | 'ADMIN' | 'CALCULATORS';
   href: string;
   hasEditControl?: boolean; // Only Quotations & Products have an additional Edit toggle
 }
@@ -1020,7 +1020,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
               <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 flex-wrap">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Module Category:</span>
                 <div className="flex gap-1.5 flex-wrap">
-                  {['ALL', 'SALES', 'COMMUNICATION', 'AI', 'OPERATIONS', 'ADMIN'].map(cat => (
+                  {['ALL', 'SALES', 'COMMUNICATION', 'AI', 'OPERATIONS', 'CALCULATORS', 'ADMIN'].map(cat => (
                     <button key={cat} type="button" onClick={() => setCategoryFilter(cat)}
                       className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border transition-all cursor-pointer ${categoryFilter === cat ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'}`}>
                       {cat === 'ALL' ? 'All Modules' : CATEGORY_STYLES[cat]?.label || cat}
