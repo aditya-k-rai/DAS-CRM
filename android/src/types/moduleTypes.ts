@@ -32,6 +32,11 @@ export type ModuleKey =
   | 'ABOUT'
   | 'ADMIN_CONTROL'
   | 'LEAD_ASSIGNMENT'
-  | 'FOLLOW_UPS';
+  | 'FOLLOW_UPS'
+  // Configurable Modules — Admin Controlled (Calculators)
+  | 'CONSTRUCTION_CALC'
+  | 'INTERIOR_DESIGN_CALC'
+  | 'MODULAR_KITCHEN_CALC'
+  | 'WOODWORK_CUTLIST_CALC';
 
 

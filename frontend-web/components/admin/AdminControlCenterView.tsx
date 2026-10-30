@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -8,19 +8,20 @@ import {
   MessageSquare, MessageCircle, Mail, FileText, BarChart3, Database,
   Calendar, Briefcase, TrendingUp, Radio, Building2, HelpCircle, Info,
   ArrowRight, RefreshCw, Copy, Send, ToggleLeft, ToggleRight, Edit3,
-  Eye, EyeOff, Share2, Clock, Trash2
+  Eye, EyeOff, Share2, Clock, Trash2,
+  HardHat, Sofa, ChefHat, Scissors
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import Link from 'next/link';
 import { subscribeUserDirectory, invalidateUserDirectoryCache } from '@/lib/userDirectoryCache';
 import { apiFetch } from '@/lib/apiClient';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ModulePermission {
   active: boolean;   // On = Visible in sidebar/dashboard | Off = Hidden entirely
-  canView: boolean;  // Legacy — kept for backward compat; always synced with active
-  canShare: boolean; // Legacy — kept for backward compat
+  canView: boolean;  // Legacy â€” kept for backward compat; always synced with active
+  canShare: boolean; // Legacy â€” kept for backward compat
   canEdit: boolean;  // Can create / edit / delete (only for QUOTES & PRODUCTS)
 }
 
@@ -45,7 +46,7 @@ export interface ModuleDefinition {
   hasEditControl?: boolean; // Only Quotations & Products have an additional Edit toggle
 }
 
-// ─── Module Registry ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Module Registry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const ALL_WEB_MODULES: ModuleDefinition[] = [
   // Sales & Revenue
@@ -71,16 +72,21 @@ export const ALL_WEB_MODULES: ModuleDefinition[] = [
   { key: 'INTERVIEWS',   icon: Users,         label: 'Interview & Hiring',         description: 'Candidate screening, interview scheduling, hiring pipeline',             category: 'OPERATIONS',    href: '/hr/interviews' },
   { key: 'REPORTS',      icon: BarChart3,     label: 'Reports & Analytics',        description: 'Executive revenue charts, conversion analytics, telemetry',             category: 'OPERATIONS',    href: '/reports' },
   { key: 'DATABASE',     icon: Database,      label: 'Database & Storage',         description: 'Cloud data backups, raw database export, logs',                         category: 'OPERATIONS',    href: '/database' },
+  // Configurable Calculators — Admin Controlled
+  { key: 'CONSTRUCTION_CALC',     icon: HardHat,  label: 'Construction Calculator',      description: 'Full construction cost estimator — civil, MEP, labour, and finishes',   category: 'CALCULATORS',  href: '/calculators/construction' },
+  { key: 'INTERIOR_DESIGN_CALC',  icon: Sofa,     label: 'Interior Designer Calculator', description: 'Room-wise interior budgeting — finishes, furniture, lighting & more',   category: 'CALCULATORS',  href: '/calculators/interior-designer' },
+  { key: 'MODULAR_KITCHEN_CALC',  icon: ChefHat,  label: 'Modular Kitchen Calculator',   description: 'Cabinet modules, shutter, hardware, counter-top & appliance costing',   category: 'CALCULATORS',  href: '/calculators/modular-kitchen' },
+  { key: 'WOODWORK_CUTLIST_CALC', icon: Scissors, label: 'Woodwork Cutlist Calculator',  description: 'Panel nesting optimizer — parts list, sheet utilization & wastage %',   category: 'CALCULATORS',  href: '/calculators/woodwork-cutlist' },
   // Administration
   { key: 'PROFILE',      icon: Building2,     label: 'Company Profile Settings',  description: 'Branding, company legal info, GSTIN, workspace configuration',           category: 'ADMIN',         href: '/profile' },
   { key: 'SETTINGS',     icon: Settings,      label: 'System Settings',           description: 'Global app security, themes, and notification preferences',              category: 'ADMIN',         href: '/settings' },
   { key: 'SUPPORT',      icon: HelpCircle,    label: 'Support & Help Desk',       description: 'Technical documentation, developer tickets, user guides',                category: 'ADMIN',         href: '/help' },
 ];
 
-// ─── Default Modules per Role (cannot be toggled Off by admin) ────────────────
+// â”€â”€â”€ Default Modules per Role (cannot be toggled Off by admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Dashboard is always a default for every role (rendered separately via route)
 export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
-  ADMIN:       [], // Admin has full access always — no defaults needed here
+  ADMIN:       [], // Admin has full access always â€” no defaults needed here
   MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS'],
   TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS'],
   SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS'],
@@ -94,16 +100,17 @@ export const CATEGORY_STYLES: Record<string, { label: string; badgeBg: string; b
   AI:            { label: 'AI Intelligence',          badgeBg: 'bg-purple-500/15',  badgeText: 'text-purple-400',  borderColor: 'border-purple-500/30' },
   OPERATIONS:    { label: 'Operations & HR',          badgeBg: 'bg-amber-500/15',   badgeText: 'text-amber-400',   borderColor: 'border-amber-500/30' },
   ADMIN:         { label: 'Administration & System',  badgeBg: 'bg-rose-500/15',    badgeText: 'text-rose-400',    borderColor: 'border-rose-500/30' },
+  CALCULATORS:   { label: 'Configurable Calculators',   badgeBg: 'bg-sky-500/15',     badgeText: 'text-sky-400',     borderColor: 'border-sky-500/30' },
 };
 
 // Role-based modules that are OFF by default (restricted unless admin explicitly turns On)
 const RESTRICTED_BY_DEFAULT_ROLE: Record<string, string[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
-  MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE'],
-  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'AI_CONTROL'],
-  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'PRODUCTS', 'PDF_CATALOG'],
-  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'DEALS', 'WA_TEMPLATES', 'AI_CONTROL', 'EMPLOYEES', 'INTERVIEWS'],
+  MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
+  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'AI_CONTROL', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
+  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'PRODUCTS', 'PDF_CATALOG', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
+  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'DEALS', 'WA_TEMPLATES', 'AI_CONTROL', 'EMPLOYEES', 'INTERVIEWS', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
   UNASSIGNED:  ALL_WEB_MODULES.map(m => m.key),
 };
 
@@ -125,7 +132,7 @@ export interface AdminControlCenterViewProps {
   isModal?: boolean;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function AdminControlCenterView({ onClose, isModal = false }: AdminControlCenterViewProps) {
   const { currentUser } = useAuth();
@@ -227,7 +234,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       .catch(() => null);
   }, [currentUser?.id, currentUser?.companyId]);
 
-  // ── Load Workspace Users ──────────────────────────────────────────────────
+  // â”€â”€ Load Workspace Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const loadWorkspaceUsers = useCallback(async () => {
     setManagedUsers(prev => {
@@ -381,7 +388,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     return () => { unsub(); clearInterval(interval); };
   }, [loadWorkspaceUsers]);
 
-  // ── Role Change Handler ───────────────────────────────────────────────────
+  // â”€â”€ Role Change Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const handleVerifyOrChangeRole = async (targetUser: ManagedWorkspaceUser, newRole: string) => {
     try {
@@ -416,7 +423,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
         window.dispatchEvent(new CustomEvent('das_crm_users_updated'));
       }
       await loadWorkspaceUsers();
-      showToast(`✓ Role updated to ${newRole.replace('_', ' ')} for ${targetUser.name}`);
+      showToast(`âœ“ Role updated to ${newRole.replace('_', ' ')} for ${targetUser.name}`);
     } catch (err) { console.error('Role update error:', err); }
   };
 
@@ -424,12 +431,12 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     if (typeof navigator !== 'undefined') {
       navigator.clipboard.writeText(companyKey);
       setCopiedKey(true);
-      showToast('✓ Company Registration Key copied!');
+      showToast('âœ“ Company Registration Key copied!');
       setTimeout(() => setCopiedKey(false), 2500);
     }
   };
 
-  // ── Computed Values ───────────────────────────────────────────────────────
+  // â”€â”€ Computed Values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const filteredUsers = useMemo(() => {
     return managedUsers.filter(u => {
@@ -528,11 +535,11 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     if (!selectedUser) return;
     const normalizedRole = (selectedUser.role || '').toUpperCase();
     if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && userId === currentUser.id)) {
-      showToast('⚠️ Admin has permanent full access — cannot restrict.');
+      showToast('âš ï¸ Admin has permanent full access â€” cannot restrict.');
       return;
     }
     if (isDefaultModule(selectedUser.role, moduleKey)) {
-      showToast(`⚠️ "${moduleLabel}" is a default module for ${selectedUser.role.replace('_', ' ')} and cannot be hidden.`);
+      showToast(`âš ï¸ "${moduleLabel}" is a default module for ${selectedUser.role.replace('_', ' ')} and cannot be hidden.`);
       return;
     }
 
@@ -559,12 +566,12 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       targetName: selectedUser.name,
       targetRole: selectedUser.role,
       moduleLabel,
-      action: `Visibility → ${nextOn ? 'ON (Visible)' : 'OFF (Hidden)'}`,
+      action: `Visibility â†’ ${nextOn ? 'ON (Visible)' : 'OFF (Hidden)'}`,
     };
     const nextAudit = [auditEntry, ...auditLogs.slice(0, 49)];
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
-    showToast(`✓ ${moduleLabel} is now ${nextOn ? '🟢 Visible' : '🔴 Hidden'} for ${selectedUser.name}`);
+    showToast(`âœ“ ${moduleLabel} is now ${nextOn ? 'ðŸŸ¢ Visible' : 'ðŸ”´ Hidden'} for ${selectedUser.name}`);
 
     syncPolicyToBackend(userId, selectedUser.email, moduleKey, updatedPerm, auditEntry, nextPolicies);
   };
@@ -587,12 +594,12 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     const auditEntry: AuditLogEntry = {
       id: `audit-${Date.now()}`, ts: new Date().toLocaleString(),
       adminName: currentUser?.name || 'Admin', targetName: selectedUser.name, targetRole: selectedUser.role,
-      moduleLabel, action: `Edit permission → ${!currentEdit ? 'ALLOWED' : 'REMOVED'}`,
+      moduleLabel, action: `Edit permission â†’ ${!currentEdit ? 'ALLOWED' : 'REMOVED'}`,
     };
     const nextAudit = [auditEntry, ...auditLogs.slice(0, 49)];
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
-    showToast(`✓ Edit for ${moduleLabel} ${!currentEdit ? 'enabled' : 'disabled'} for ${selectedUser.name}`);
+    showToast(`âœ“ Edit for ${moduleLabel} ${!currentEdit ? 'enabled' : 'disabled'} for ${selectedUser.name}`);
 
     syncPolicyToBackend(userId, selectedUser.email, moduleKey, updatedPerm, auditEntry, nextPolicies);
   };
@@ -602,7 +609,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     if (!selectedUser) return;
     const normalizedRole = (selectedUser.role || '').toUpperCase();
     if (normalizedRole === 'ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && selectedUser.id === currentUser.id)) {
-      showToast('⚠️ Admin has permanent root authority — cannot be modified.');
+      showToast('âš ï¸ Admin has permanent root authority â€” cannot be modified.');
       return;
     }
 
@@ -640,7 +647,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     const nextAudit = [auditEntry, ...auditLogs.slice(0, 49)];
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
-    showToast(`✓ Applied "${preset.replace('_', ' ')}" to ${selectedUser.name}`);
+    showToast(`âœ“ Applied "${preset.replace('_', ' ')}" to ${selectedUser.name}`);
 
     syncPolicyToBackend(selectedUser.id, selectedUser.email, 'ALL', { active: true, canView: true, canShare: true, canEdit: false }, auditEntry, nextPolicies);
   };
@@ -684,15 +691,15 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
         showToast(
           nextVal
-            ? '✓ Manager Delete Permission ENABLED: Managers can now delete leads with Company Key confirmation.'
-            : '✓ Manager Delete Permission DISABLED: Managers can no longer delete leads.'
+            ? 'âœ“ Manager Delete Permission ENABLED: Managers can now delete leads with Company Key confirmation.'
+            : 'âœ“ Manager Delete Permission DISABLED: Managers can no longer delete leads.'
         );
       } else {
         const err = await res.json().catch(() => ({}));
-        showToast(`⚠️ Failed to update permission: ${err.message || 'Error'}`);
+        showToast(`âš ï¸ Failed to update permission: ${err.message || 'Error'}`);
       }
     } catch (err: any) {
-      showToast(`⚠️ Error: ${err.message || 'Network error'}`);
+      showToast(`âš ï¸ Error: ${err.message || 'Network error'}`);
     } finally {
       setTogglingManagerDelete(false);
     }
@@ -714,7 +721,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     return Object.keys(policies).filter(k => !(currentUser?.id && k.startsWith(`${currentUser.id}:`))).length;
   }, [policies, currentUser?.id]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className={`space-y-6 ${isModal ? 'p-2' : ''}`}>
@@ -726,7 +733,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
         </div>
       )}
 
-      {/* ── Header Banner ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Header Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="crm-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl relative overflow-hidden shadow-2xl space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3.5">
@@ -735,7 +742,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-black text-white tracking-tight">🛡️ Admin Control Center</h1>
+                <h1 className="text-xl font-black text-white tracking-tight">ðŸ›¡ï¸ Admin Control Center</h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
                   Module Visibility Command
                 </span>
@@ -763,7 +770,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
         {/* Admin Protection Notice */}
         <div className="flex items-center gap-3 p-3 bg-indigo-950/60 border border-indigo-500/30 rounded-xl text-xs text-indigo-200">
-          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-sm flex-shrink-0">👑</div>
+          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-sm flex-shrink-0">ðŸ‘‘</div>
           <div className="flex-1 min-w-0">
             <span className="font-extrabold text-white">Organization Head Protected: </span>
             <span className="text-slate-300">
@@ -778,7 +785,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
             { label: 'Managed Employees', value: `${managedUsers.length} Staff`, color: 'text-white' },
             { label: 'Configurable Modules', value: `${ALL_WEB_MODULES.length} Modules`, color: 'text-indigo-400' },
             { label: 'Active Overrides', value: `${activeOverridesCount} Rules`, color: 'text-emerald-400' },
-            { label: 'Admin Authority', value: '🛡️ Full Root Access', color: 'text-amber-400 text-xs' },
+            { label: 'Admin Authority', value: 'ðŸ›¡ï¸ Full Root Access', color: 'text-amber-400 text-xs' },
           ].map(item => (
             <div key={item.label} className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{item.label}</span>
@@ -788,10 +795,10 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
         </div>
       </div>
 
-      {/* ── Main 2-Column Layout ─────────────────────────────────────── */}
+      {/* â”€â”€ Main 2-Column Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {/* ── Left: User Selector ────────────────────────────────────── */}
+        {/* â”€â”€ Left: User Selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="lg:col-span-4 space-y-3">
           <div className="crm-card p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
@@ -878,7 +885,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           </div>
         </div>
 
-        {/* ── Right: Module Visibility Matrix ──────────────────────── */}
+        {/* â”€â”€ Right: Module Visibility Matrix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="lg:col-span-8 space-y-4">
           {selectedUser ? (
             <div className="crm-card p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4 shadow-xl">
@@ -905,7 +912,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{selectedUser.email} • {selectedUser.department}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{selectedUser.email} â€¢ {selectedUser.department}</p>
                   </div>
                 </div>
 
@@ -929,7 +936,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                 </div>
               </div>
 
-              {/* 🛡️ Manager Lead Permanent Deletion Authority (Manager Roles Only) */}
+              {/* ðŸ›¡ï¸ Manager Lead Permanent Deletion Authority (Manager Roles Only) */}
               {(selectedUser.role === 'MANAGER' || roleFilter === 'MANAGER') && (
                 <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-amber-950/30 border border-purple-500/40 space-y-3 shadow-xl animate-in fade-in duration-200">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -994,7 +1001,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0"><AlertTriangle size={16} /></div>
                     <div>
-                      <h4 className="text-xs font-black text-amber-300">⚡ Unassigned Staff Member</h4>
+                      <h4 className="text-xs font-black text-amber-300">âš¡ Unassigned Staff Member</h4>
                       <p className="text-[11px] text-slate-400">Select role below to approve and grant workspace access</p>
                     </div>
                   </div>
@@ -1002,7 +1009,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                     {[['SALES_EXEC', 'bg-emerald-600 hover:bg-emerald-500', 'Verify Sales Exec'], ['TEAM_LEADER', 'bg-amber-600 hover:bg-amber-500', 'Verify TL'], ['MANAGER', 'bg-purple-600 hover:bg-purple-500', 'Verify Manager'], ['HR', 'bg-sky-600 hover:bg-sky-500', 'Verify HR']].map(([role, cls, label]) => (
                       <button key={role} type="button" onClick={() => handleVerifyOrChangeRole(selectedUser, role)}
                         className={`px-3 py-1.5 rounded-lg ${cls} text-white text-[11px] font-black cursor-pointer shadow-sm transition-all`}>
-                        ✓ {label}
+                        âœ“ {label}
                       </button>
                     ))}
                   </div>
@@ -1022,7 +1029,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                 </div>
               </div>
 
-              {/* ── Module Sections ─────────────────────────────────────── */}
+              {/* â”€â”€ Module Sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
               <div className="space-y-5 max-h-[600px] overflow-y-auto pr-1">
 
                 {/* Default Modules (Protected / Cannot be hidden) */}
@@ -1030,7 +1037,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Lock size={12} className="text-amber-400 flex-shrink-0" />
-                      <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider">Default Modules — Protected (Always Visible)</span>
+                      <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider">Default Modules â€” Protected (Always Visible)</span>
                       <div className="flex-1 h-px bg-amber-500/20" />
                       <span className="text-[9px] text-slate-500 font-bold">Cannot be hidden</span>
                     </div>
@@ -1070,7 +1077,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                     {defaultModules.length > 0 && (
                       <div className="flex items-center gap-2">
                         <Layers size={12} className="text-indigo-400 flex-shrink-0" />
-                        <span className="text-[11px] font-black text-indigo-400 uppercase tracking-wider">Configurable Modules — Admin Controlled</span>
+                        <span className="text-[11px] font-black text-indigo-400 uppercase tracking-wider">Configurable Modules â€” Admin Controlled</span>
                         <div className="flex-1 h-px bg-indigo-500/20" />
                       </div>
                     )}
@@ -1117,7 +1124,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                                 )}
                               </button>
 
-                              {/* Edit toggle — only for QUOTES and PRODUCTS */}
+                              {/* Edit toggle â€” only for QUOTES and PRODUCTS */}
                               {mod.hasEditControl && isOn && (
                                 <button
                                   type="button"
@@ -1212,7 +1219,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
         </div>
       </div>
 
-      {/* ── Audit Trail Modal ─────────────────────────────────────────── */}
+      {/* â”€â”€ Audit Trail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {showAuditModal && (
         <div className="fixed inset-0 z-[150] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="crm-card max-w-2xl w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -1220,7 +1227,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"><History size={18} /></div>
                 <div>
-                  <h3 className="text-sm font-black text-white">📜 Admin Control Center Audit Trail</h3>
+                  <h3 className="text-sm font-black text-white">ðŸ“œ Admin Control Center Audit Trail</h3>
                   <p className="text-xs text-slate-400">Chronological history of all module visibility overrides.</p>
                 </div>
               </div>
@@ -1234,7 +1241,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                     <span className="font-mono text-slate-500">{log.ts}</span>
                   </div>
                   <div className="text-white font-bold">
-                    Target: <span className="text-indigo-300">{log.targetName}</span> ({log.targetRole}) • Module: <span className="text-cyan-300">{log.moduleLabel}</span>
+                    Target: <span className="text-indigo-300">{log.targetName}</span> ({log.targetRole}) â€¢ Module: <span className="text-cyan-300">{log.moduleLabel}</span>
                   </div>
                   <p className="text-emerald-400 font-mono text-[11px]">{log.action}</p>
                 </div>

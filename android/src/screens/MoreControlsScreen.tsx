@@ -26,6 +26,10 @@ import WorkflowBuilderScreen from './WorkflowBuilderScreen';
 import EmailMarketingScreen from './EmailMarketingScreen';
 import { BulkIngestionScreen } from './BulkIngestionScreen';
 import { DatabaseScreen } from './DatabaseScreen';
+import { ConstructionCalculatorScreen } from './ConstructionCalculatorScreen';
+import { InteriorDesignerCalculatorScreen } from './InteriorDesignerCalculatorScreen';
+import { ModularKitchenCalculatorScreen } from './ModularKitchenCalculatorScreen';
+import { WoodworkCutlistCalculatorScreen } from './WoodworkCutlistCalculatorScreen';
 import AttendanceScreen from './AttendanceScreen';
 import ProfileScreen from './ProfileScreen';
 import NoticeBoardScreen from './NoticeBoardScreen';
@@ -159,6 +163,11 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'REPORTS', icon: '📊', label: 'Reports & Analytics' },
     { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow Automations & Bot Rules' },
     { key: 'DATABASE', icon: '🗄️', label: 'Database' },
+    // Configurable Calculators — Admin Controlled
+    { key: 'CONSTRUCTION_CALC', icon: '🏗️', label: 'Construction Calculator' },
+    { key: 'INTERIOR_DESIGN_CALC', icon: '🛋️', label: 'Interior Designer Calculator' },
+    { key: 'MODULAR_KITCHEN_CALC', icon: '🍳', label: 'Modular Kitchen Calculator' },
+    { key: 'WOODWORK_CUTLIST_CALC', icon: '✂️', label: 'Woodwork Cutlist Calculator' },
     { key: 'ATTENDANCE', icon: '⏱️', label: 'Attendance' },
     { key: 'DEALS', icon: '💼', label: 'Deals & Opportunities' },
     { key: 'INTERVIEWS', icon: '👤', label: 'Interview for Hiring' },
@@ -186,6 +195,10 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       case 'REPORTS': return t.modReports || defaultLabel;
       case 'AUTOMATIONS': return t.modAutomations || defaultLabel;
       case 'DATABASE': return t.modDatabase || defaultLabel;
+      case 'CONSTRUCTION_CALC': return 'Construction Calculator';
+      case 'INTERIOR_DESIGN_CALC': return 'Interior Designer Calculator';
+      case 'MODULAR_KITCHEN_CALC': return 'Modular Kitchen Calculator';
+      case 'WOODWORK_CUTLIST_CALC': return 'Woodwork Cutlist Calculator';
       case 'IMPORT_EXPORT': return t.modImportExport || defaultLabel;
       case 'ATTENDANCE': return t.modAttendance || defaultLabel;
       case 'DEALS': return t.modDeals || defaultLabel;
@@ -231,6 +244,10 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         {activeModal === 'AUTOMATIONS' && <WorkflowAutomationsScreen onClose={closeModal} navigation={navigation} />}
         {activeModal === 'EXTRA_EMAIL' && <EmailMarketingScreen onClose={closeModal} />}
         {(activeModal === 'DATABASE' || activeModal === 'IMPORT_EXPORT') && <DatabaseScreen onClose={closeModal} />}
+        {activeModal === 'CONSTRUCTION_CALC' && <ConstructionCalculatorScreen onClose={closeModal} />}
+        {activeModal === 'INTERIOR_DESIGN_CALC' && <InteriorDesignerCalculatorScreen onClose={closeModal} />}
+        {activeModal === 'MODULAR_KITCHEN_CALC' && <ModularKitchenCalculatorScreen onClose={closeModal} />}
+        {activeModal === 'WOODWORK_CUTLIST_CALC' && <WoodworkCutlistCalculatorScreen onClose={closeModal} />}
         {activeModal === 'PROFILE' && <ProfileScreen onClose={closeModal} />}
         
         {activeModal === 'ATTENDANCE' && (

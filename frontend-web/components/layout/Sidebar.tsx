@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -8,7 +8,8 @@ import {
   BarChart3, Zap, Database, Briefcase, TrendingUp,
   UserCheck, Radio, Settings, Building2, HelpCircle, Info,
   Shield, LogOut, PanelLeftClose, PanelLeft, X, Calendar,
-  Share2, UserX, Clock, Phone, ChevronDown
+  Share2, UserX, Clock, Phone, ChevronDown,
+  HardHat, Sofa, ChefHat, Scissors
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, normalizeRoleStr, inferRoleFromEmail, UserRole } from '@/context/AuthContext';
@@ -32,7 +33,7 @@ export interface NavItem {
   subItems?: NavSubItem[];
 }
 
-// ─── Sales Representative Navigation (Exact Default Order) ─────────────────────
+// â”€â”€â”€ Sales Representative Navigation (Exact Default Order) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const salesRepNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard/sales', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
   { label: 'Leads', href: '/leads', icon: Target, moduleKey: 'LEADS' },
@@ -47,7 +48,7 @@ const salesRepNavigation: NavItem[] = [
   { label: 'About & Developer', href: '/about', icon: Info, moduleKey: 'SUPPORT' },
 ];
 
-// ─── Team Leader Navigation (Exact Default Order with Leads Tree) ──────────────
+// â”€â”€â”€ Team Leader Navigation (Exact Default Order with Leads Tree) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const teamLeaderNavigation: NavItem[] = [
   { label: 'Lead Distribution Hub', href: '/tl/lead-assignment', icon: Share2, moduleKey: 'LEAD_ASSIGNMENT' },
   { label: 'Dashboard Overview', href: '/dashboard/team-leader', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
@@ -78,7 +79,7 @@ const teamLeaderNavigation: NavItem[] = [
   { label: 'About & Developer', href: '/about', icon: Info, moduleKey: 'SUPPORT' },
 ];
 
-// ─── Admin / Manager / General Workspace Navigation ───────────────────────────
+// â”€â”€â”€ Admin / Manager / General Workspace Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const adminNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'SUPER_ADMIN' as any, 'MANAGER', 'HR', 'UNASSIGNED' as any] },
   { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER'] },
@@ -101,6 +102,11 @@ const adminNavigation: NavItem[] = [
   { label: 'Reports & Analytics', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Workflow Automations & Bot Rules', href: '/automations', icon: Zap, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Database', href: '/database', icon: Database, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  // Configurable Modules — Admin Controlled (Calculators)
+  { label: 'Construction Calculator',       href: '/calculators/construction',    icon: HardHat,  roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Interior Designer Calculator',   href: '/calculators/interior-designer', icon: Sofa,     roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Modular Kitchen Calculator',     href: '/calculators/modular-kitchen',  icon: ChefHat,  roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Woodwork Cutlist Calculator',    href: '/calculators/woodwork-cutlist', icon: Scissors, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN'] },
   { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR'] },
@@ -124,6 +130,10 @@ const HREF_TO_MODULE_KEY: Record<string, string> = {
   '/reports': 'REPORTS',
   '/automations': 'AUTOMATIONS',
   '/database': 'DATABASE',
+  '/calculators/construction':    'CONSTRUCTION_CALC',
+  '/calculators/interior-designer': 'INTERIOR_DESIGN_CALC',
+  '/calculators/modular-kitchen':  'MODULAR_KITCHEN_CALC',
+  '/calculators/woodwork-cutlist': 'WOODWORK_CUTLIST_CALC',
   '/attendance': 'ATTENDANCE',
   '/goals': 'GOALS',
   '/hr/interviews': 'INTERVIEWS',

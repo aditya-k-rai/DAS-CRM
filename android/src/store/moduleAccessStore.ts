@@ -1,10 +1,10 @@
-/**
- * moduleAccessStore.ts — DAS CRM Android
+﻿/**
+ * moduleAccessStore.ts â€” DAS CRM Android
  * Zustand store for the Admin Control Center.
  * Manages per-user module access (view / share / edit) and active/inactive state.
  *
  * Architecture:
- * - Admin defines a policy per (userId, moduleKey) → { active, canView, canShare, canEdit }
+ * - Admin defines a policy per (userId, moduleKey) â†’ { active, canView, canShare, canEdit }
  * - MoreControlsScreen and dashboard screens query this store before rendering a module
  * - Policies are persisted in AsyncStorage under '@das_crm_module_policies_v1'
  * - Default: ADMIN has full access; all other roles get conservative defaults
@@ -18,9 +18,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ModuleKey } from '../types/moduleTypes';
 import { getApiBase } from '../config/api';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// UserRole mirrors authStore.UserRole exactly — kept here to avoid circular imports
+// UserRole mirrors authStore.UserRole exactly â€” kept here to avoid circular imports
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED';
 
 export interface ModulePermission {
@@ -57,14 +57,14 @@ const ROLE_DEFAULTS: Record<UserRole, ModulePermission> = {
 const RESTRICTED_BY_DEFAULT: Record<UserRole, ModuleKey[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
-  MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE'],
-  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'AI_CONTROL', 'AI_HUB'],
-  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB', 'PRODUCTS', 'PDF_CATALOG'],
-  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB', 'INTERVIEWS'],
+  MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
+  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'AI_CONTROL', 'AI_HUB', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
+  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB', 'PRODUCTS', 'PDF_CATALOG', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
+  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB', 'INTERVIEWS', 'CONSTRUCTION_CALC', 'INTERIOR_DESIGN_CALC', 'MODULAR_KITCHEN_CALC', 'WOODWORK_CUTLIST_CALC'],
   UNASSIGNED:  [],
 };
 
-// Permanent Default Modules per role — cannot be turned OFF by Admin
+// Permanent Default Modules per role â€” cannot be turned OFF by Admin
 export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<UserRole, ModuleKey[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
@@ -89,10 +89,10 @@ const getNormalizedKeys = (key: string): string[] => {
   return [key];
 };
 
-// ─── Store ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Store â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ModuleAccessState {
-  // Core policy map: PolicyKey → ModulePermission
+  // Core policy map: PolicyKey â†’ ModulePermission
   policies: Record<PolicyKey, ModulePermission>;
   // Cached list of workspace users (populated from EmployeesScreen data)
   managedUsers: ManagedUser[];

@@ -47,7 +47,7 @@ export interface ModuleDef {
   icon: string;
   label: string;
   description: string;
-  category: 'SALES' | 'COMMUNICATION' | 'AI' | 'OPERATIONS' | 'ADMIN';
+  category: 'SALES' | 'COMMUNICATION' | 'AI' | 'OPERATIONS' | 'ADMIN' | 'CALCULATORS';
   hasEditControl?: boolean; // Quotations & Products have an additional Edit toggle
 }
 
@@ -75,6 +75,11 @@ export const ALL_MODULES: ModuleDef[] = [
   { key: 'INTERVIEWS',      icon: '👤', label: 'Interview & Hiring',             description: 'Candidate screening, interview scheduling, hiring pipeline',             category: 'OPERATIONS' },
   { key: 'REPORTS',         icon: '📊', label: 'Reports & Analytics',            description: 'Executive revenue charts, conversion analytics, telemetry',             category: 'OPERATIONS' },
   { key: 'DATABASE',        icon: '🗄️', label: 'Database & Storage',             description: 'Cloud data backups, raw database export, logs',                         category: 'OPERATIONS' },
+  // Configurable Calculators — Admin Controlled
+  { key: 'CONSTRUCTION_CALC',     icon: '🏗️', label: 'Construction Calculator',      description: 'Full construction cost estimator — civil, MEP, labour, and finishes',   category: 'CALCULATORS' },
+  { key: 'INTERIOR_DESIGN_CALC',  icon: '🛋️', label: 'Interior Designer Calculator', description: 'Room-wise interior budgeting — finishes, furniture, lighting & more',   category: 'CALCULATORS' },
+  { key: 'MODULAR_KITCHEN_CALC',  icon: '🍳', label: 'Modular Kitchen Calculator',   description: 'Cabinet modules, shutter, hardware, counter-top & appliance costing',   category: 'CALCULATORS' },
+  { key: 'WOODWORK_CUTLIST_CALC', icon: '✂️', label: 'Woodwork Cutlist Calculator',  description: 'Panel nesting optimizer — parts list, sheet utilization & wastage %',   category: 'CALCULATORS' },
   // Administration
   { key: 'PROFILE',         icon: '🏢', label: 'Company Profile Settings',      description: 'Branding, company legal info, GSTIN, workspace configuration',           category: 'ADMIN' },
   { key: 'SETTINGS',        icon: '⚙️', label: 'System Settings',               description: 'Global app security, themes, and notification preferences',              category: 'ADMIN' },
@@ -87,6 +92,7 @@ export const CATEGORY_STYLES: Record<string, { label: string; badgeBg: string; b
   AI:            { label: 'AI Intelligence',          badgeBg: 'rgba(168, 85, 247, 0.15)', badgeText: '#c084fc', borderColor: 'rgba(168, 85, 247, 0.35)' },
   OPERATIONS:    { label: 'Operations & HR',          badgeBg: 'rgba(245, 158, 11, 0.15)', badgeText: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.35)' },
   ADMIN:         { label: 'Administration & System',  badgeBg: 'rgba(244, 63, 94, 0.15)',  badgeText: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.35)' },
+  CALCULATORS:   { label: 'Configurable Calculators',   badgeBg: 'rgba(14, 165, 233, 0.15)',  badgeText: '#38bdf8', borderColor: 'rgba(14, 165, 233, 0.35)' },
 };
 
 export const ROLE_BADGES: Record<string, { label: string; bg: string; text: string; border: string }> = {
