@@ -389,3 +389,4 @@ export class InteriorCatalogStore {
     };
   }
 }
+

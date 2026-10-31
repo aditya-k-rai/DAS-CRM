@@ -871,3 +871,4 @@ export function AdminRateManagerView({ adminName }: AdminRateManagerProps) {
     </div>
   );
 }
+

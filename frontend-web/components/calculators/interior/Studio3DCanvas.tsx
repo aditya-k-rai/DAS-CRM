@@ -1674,3 +1674,4 @@ function createProcedural3DMesh(obj: StudioObject3D): THREE.Group {
 
   return group;
 }
+

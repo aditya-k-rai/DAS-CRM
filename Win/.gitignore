@@ -8,6 +8,8 @@
 dist/
 build/
 build_specs/
+installer/
+*.exe
 __pycache__/
 *.pyc
 *.pyo

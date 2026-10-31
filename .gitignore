@@ -8,6 +8,9 @@ node_modules/
 out/
 dist/
 build/
+installer/
+Win/installer/
+*.exe
 .expo/
 .gradle/
 *.tsbuildinfo
