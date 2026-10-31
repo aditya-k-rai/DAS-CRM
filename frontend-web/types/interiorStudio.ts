@@ -33,6 +33,15 @@ export interface RoomOpening {
   width: number; // in current units
   height: number;
   sillHeight?: number;
+  offsetPct?: number; // 0-100% position along wall
+}
+
+export interface SubElementCustomization {
+  id: string;
+  name: string;
+  color: string;
+  material?: string;
+  texture?: string;
 }
 
 export interface RoomDefinition {
@@ -81,6 +90,9 @@ export interface StudioObject3D {
   brand?: string;
   vendor?: string;
   smartCollision?: boolean;
+  locked?: boolean;
+  modelUrl?: string;
+  subElements?: SubElementCustomization[];
 }
 
 export type WorkCategoryKey =

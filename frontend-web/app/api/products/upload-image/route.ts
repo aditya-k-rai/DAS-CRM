@@ -32,22 +32,18 @@ export async function POST(req: Request) {
           const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : mimeType.includes('gif') ? 'gif' : mimeType.includes('svg') ? 'svg' : 'jpg';
           const cleanName = `${fileName.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.${ext}`;
 
-          // Target directories: public/products and backend storage
+          // Target directories: public/products statically scoped
           const targetDirs = [
-            path.resolve(process.cwd(), 'public', 'products'),
-            path.resolve(process.cwd(), 'frontend-web', 'public', 'products'),
-            path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
-            path.resolve(process.cwd(), '..', 'backend', 'public', 'products'),
-            path.resolve(process.cwd(), '..', 'backend', 'storage', 'drive_vault', 'products'),
-            path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
+            path.join(process.cwd(), 'public', 'products'),
+            path.join(process.cwd(), 'storage', 'drive_vault', 'products'),
           ];
 
           // Track if at least one disk write succeeded
           let diskWriteSucceeded = false;
           for (const dir of targetDirs) {
             try {
-              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-              fs.writeFileSync(path.join(dir, cleanName), buffer);
+              if (!fs.existsSync(/*turbopackIgnore: true*/ dir)) fs.mkdirSync(/*turbopackIgnore: true*/ dir, { recursive: true });
+              fs.writeFileSync(path.join(/*turbopackIgnore: true*/ dir, cleanName), buffer);
               diskWriteSucceeded = true;
             } catch (_) {}
           }

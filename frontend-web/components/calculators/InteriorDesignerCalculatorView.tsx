@@ -274,13 +274,21 @@ export function InteriorDesignerCalculatorView() {
     showToast(`${catKey.toUpperCase()} category ${!anyActive ? 'enabled' : 'disabled'}.`, 'info');
   };
 
-  // ── Step 5: 3D Studio Object Sync ─────────────────────────────────
+  // ── Step 5: 3D Studio Object & Room Sync ──────────────────────────
   const handleStudioObjectsChange = (newObjects: StudioObject3D[]) => {
     if (!currentProject || !activeRoom) return;
     // Retain objects from other rooms, replace objects for current room
     const otherRoomObjects = currentProject.objects3D.filter((o) => o.roomId !== activeRoom.id);
     const merged = [...otherRoomObjects, ...newObjects];
     const updatedProject = { ...currentProject, objects3D: merged };
+    InteriorProjectsStore.saveProject(updatedProject);
+    setCurrentProject(updatedProject);
+  };
+
+  const handleRoomUpdate = (updatedRoom: RoomDefinition) => {
+    if (!currentProject) return;
+    const updatedRooms = currentProject.rooms.map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
+    const updatedProject = { ...currentProject, rooms: updatedRooms };
     InteriorProjectsStore.saveProject(updatedProject);
     setCurrentProject(updatedProject);
   };
@@ -1100,7 +1108,8 @@ export function InteriorDesignerCalculatorView() {
                   currentRoom={activeRoom}
                   objects={currentProject.objects3D.filter((o) => o.roomId === activeRoom.id)}
                   onObjectsChange={handleStudioObjectsChange}
-                  onSaveDesign={() => showToast('3D Scene and object transforms saved.', 'success')}
+                  onRoomChange={handleRoomUpdate}
+                  onSaveDesign={() => showToast('3D Scene, measurements and object transforms saved.', 'success')}
                   onExportFloorPlan={() => showToast('Exporting 2D Floor Plan CAD image...', 'info')}
                   onExportRender={() => showToast('High-resolution 3D render generated!', 'success')}
                 />

@@ -15,13 +15,10 @@ export async function GET(
       return new NextResponse('Bad request', { status: 400 });
     }
 
-    // Candidate directories to search across frontend, backend, and vault storage
+    // Statically scoped directories inside frontend-web
     const candidateDirs = [
-      path.resolve(process.cwd(), 'public', 'products'),
-      path.resolve(process.cwd(), '..', 'frontend-web', 'public', 'products'),
-      path.resolve(process.cwd(), '..', 'backend', 'public', 'products'),
-      path.resolve(process.cwd(), '..', 'backend', 'storage', 'drive_vault', 'products'),
-      path.resolve(process.cwd(), 'storage', 'drive_vault', 'products'),
+      path.join(process.cwd(), 'public', 'products'),
+      path.join(process.cwd(), 'storage', 'drive_vault', 'products'),
     ];
 
     // 1. Direct file match

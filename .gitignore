@@ -48,5 +48,6 @@ backend/outbox/
 outbox/
 backend/storage/drive_vault/
 backend/storage/vault/
+frontend-web/public/models/*.glb
 storage/
 
