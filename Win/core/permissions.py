@@ -207,6 +207,7 @@ NAV_MENU = [
     MenuItem("⏱️", "Tasks & Follow-ups","tasks",          UserRole.SALES_EXEC),
     MenuItem("🎯", "Goals & Targets", "goals",            UserRole.SALES_EXEC),
     MenuItem("📋", "Quotations",      "quotations",      UserRole.SALES_EXEC),
+    MenuItem("🛋️", "Interior Studio", "interior_calculator", UserRole.SALES_EXEC),
     MenuItem("📦", "Products",        "products",         UserRole.SALES_EXEC),
     MenuItem("📞", "Contacts",        "contacts",         UserRole.SALES_EXEC),
     MenuItem("📈", "Reports",        "reports",          UserRole.MANAGER),

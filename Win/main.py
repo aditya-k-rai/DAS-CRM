@@ -91,6 +91,7 @@ class MainWindow(QMainWindow):
         "tasks":         "TasksView",
         "goals":         "GoalsView",
         "quotations":    "QuotationsView",
+        "interior_calculator": "InteriorCalculatorView",
         "products":      "ProductsView",
         "contacts":      "ContactsView",
         "reports":       "ReportsView",

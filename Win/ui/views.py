@@ -21,12 +21,14 @@ from .views.tasks_view import TasksView
 from .views_add_company import AddCompanyDialog
 from .views_add_party import AddPartyDialog
 from .views_create_quotation import CreateQuotationDialog
+from .views_interior_calculator import InteriorCalculatorView
 
 __all__ = [
     'DashboardView',
     'LeadsView',
     'DealsView',
     'QuotationsView',
+    'InteriorCalculatorView',
     'ProductsView',
     'ContactsView',
     'ReportsView',
