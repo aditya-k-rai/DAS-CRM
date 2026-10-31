@@ -46,6 +46,7 @@ HIDDEN_IMPORTS = [
     'ui.views_add_company',
     'ui.views_add_party',
     'ui.views_create_quotation',
+    'ui.views_interior_calculator',
 
     # PyQt6
     'PyQt6.QtCore',
@@ -69,7 +70,7 @@ def clean():
 
 def build_exe(debug=False) -> bool:
     """Build Windows standalone .exe using PyInstaller via subprocess."""
-    exe_name = "DASCRM-Windows"
+    exe_name = "DASCRM"
     dist_exe = DIST_DIR / f"{exe_name}.exe"
 
     if dist_exe.exists():
@@ -87,6 +88,11 @@ def build_exe(debug=False) -> bool:
         f'--specpath={SPEC_DIR}',
         f'--name={exe_name}',
     ]
+
+    # Package resources directory (icons, assets)
+    res_path = PROJECT_ROOT / 'resources'
+    if res_path.exists():
+        args.append(f'--add-data={res_path};resources')
 
     # Collect heavy packages
     for pkg in ['PyQt6', 'httpx', 'pydantic']:

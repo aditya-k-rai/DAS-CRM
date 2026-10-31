@@ -563,3 +563,4 @@ class InteriorCalculatorView(QFrame):
         )
         lay.addWidget(hist)
         return w
+

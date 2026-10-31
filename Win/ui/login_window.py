@@ -5,14 +5,19 @@ Supports: Workspace Entry (role + company key + email/pass) and Staff Invite Key
 """
 import re
 import os
+import sys
 import threading
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QCheckBox, QFrame, QWidget, QScrollArea,
     QComboBox, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal, QObject
-from PyQt6.QtGui import QFont, QPainter, QLinearGradient, QRadialGradient, QColor, QPainterPath, QPen, QBrush
+from PyQt6.QtGui import (
+    QFont, QPainter, QLinearGradient, QRadialGradient, QColor,
+    QPainterPath, QPen, QBrush, QIcon, QPixmap
+)
 
 # Production API helpers (real HTTP calls, no mocks)
 from core.auth_api import (
@@ -93,19 +98,21 @@ QPushButton#roleBtn {
     background: #020617;
     border: 1px solid #1E293B;
     border-radius: 10px;
-    padding: 6px 10px;
+    padding: 7px 12px;
     color: #94A3B8;
     font-size: 11px;
     font-weight: bold;
+    min-width: 65px;
 }
 QPushButton#roleBtn:hover {
     background: #0F172A;
     color: #E2E8F0;
+    border-color: #334155;
 }
 QPushButton#roleBtn:checked {
     background: rgba(99, 102, 241, 0.25);
     border: 1px solid #6366F1;
-    color: #818CF8;
+    color: #A5B4FC;
 }
 """
 
@@ -370,11 +377,22 @@ class GradientBanner(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(360)
+        self.setMinimumWidth(280)
+        self.setMaximumWidth(380)
         self._phase = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._animate)
         self._timer.start(50)
+
+        # Load brand icon if available
+        self._logo_pix = None
+        base_dir = Path(__file__).parent.parent / "resources"
+        png_p = base_dir / "icon.png"
+        ico_p = base_dir / "icon.ico"
+        if png_p.exists():
+            self._logo_pix = QPixmap(str(png_p)).scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        elif ico_p.exists():
+            self._logo_pix = QPixmap(str(ico_p)).scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
     def _animate(self):
         self._phase = (self._phase + 0.004) % 1.0
@@ -409,17 +427,25 @@ class GradientBanner(QWidget):
         orb2.setColorAt(1, QColor("#00000000"))
         painter.fillRect(self.rect(), orb2)
 
+        # Brand logo pixmap if available
+        if self._logo_pix and not self._logo_pix.isNull():
+            lx = (self.width() - self._logo_pix.width()) // 2
+            ly = self.height() // 2 - 110
+            painter.drawPixmap(lx, ly, self._logo_pix)
+
         # DAS CRM text
         p = QPainter(self)
         p.setPen(QColor("#FFFFFF"))
-        p.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
-        p.drawText(self.rect().adjusted(28, 0, -28, -24),
-                   Qt.AlignmentFlag.AlignCenter, "🏢 DAS CRM")
+        p.setFont(QFont("Segoe UI", 26, QFont.Weight.Bold))
+        text_y_offset = 20 if (self._logo_pix and not self._logo_pix.isNull()) else -24
+        p.drawText(self.rect().adjusted(24, text_y_offset, -24, text_y_offset),
+                   Qt.AlignmentFlag.AlignCenter, "DAS CRM")
 
         # Sub text
-        p.setPen(QColor("#64748B"))
-        p.setFont(QFont("Segoe UI", 11))
-        p.drawText(self.rect().adjusted(28, 60, -28, -20),
+        p.setPen(QColor("#818CF8"))
+        p.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        sub_y_offset = text_y_offset + 54
+        p.drawText(self.rect().adjusted(24, sub_y_offset, -24, sub_y_offset),
                    Qt.AlignmentFlag.AlignCenter, "Enterprise Sales Solutions")
 
 
@@ -434,11 +460,30 @@ class LoginWindow(QDialog):
         super().__init__(parent)
         self.setWindowTitle("DAS CRM — Sign In")
         self.setStyleSheet(BASE_CSS)
-        self.setFixedSize(960, 600)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setMinimumSize(1080, 680)
+        self.resize(1200, 750)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+
+        # Application & Window Icon
+        res_dir = Path(__file__).parent.parent / "resources"
+        ico_path = res_dir / "icon.ico"
+        png_path = res_dir / "icon.png"
+        if ico_path.exists():
+            self.setWindowIcon(QIcon(str(ico_path)))
+        elif png_path.exists():
+            self.setWindowIcon(QIcon(str(png_path)))
+
         self._dragging = False
         self._drag_pos = None
         self._shake_offset = 0
+
+        # Center on primary screen
+        if self.screen():
+            geo = self.screen().availableGeometry()
+            self.move(
+                max(geo.x(), (geo.width() - 1200) // 2 + geo.x()),
+                max(geo.y(), (geo.height() - 750) // 2 + geo.y())
+            )
 
         # Qt signals bridge (allows background threads to update UI safely)
         self._signals = _ApiSignals()
@@ -492,7 +537,7 @@ class LoginWindow(QDialog):
 
         # Left: Animated gradient panel
         self.banner = GradientBanner()
-        main_layout.addWidget(self.banner)
+        main_layout.addWidget(self.banner, 0)
 
         # Right: content
         right = QFrame()
@@ -509,27 +554,47 @@ class LoginWindow(QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { background: #0D1117; border: none; }")
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setStyleSheet("""
+            QScrollArea { background: #0D1117; border: none; }
+            QScrollBar:vertical {
+                background: #0D1117;
+                width: 8px;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #21262D;
+                min-height: 30px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #30363D;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
         scroll_container = QWidget()
         scroll_layout = QVBoxLayout(scroll_container)
-        scroll_layout.setContentsMargins(32, 8, 32, 24)
+        scroll_layout.setContentsMargins(28, 14, 28, 24)
         scroll_layout.setSpacing(0)
 
         # Gateway switcher + Form in a 2-column row
         content_row = QHBoxLayout()
-        content_row.setSpacing(16)
+        content_row.setSpacing(20)
         content_row.setContentsMargins(0, 0, 0, 0)
 
         # Left column: gateway panel
         gateway = self._build_gateway_panel()
-        content_row.addWidget(gateway, 1)
+        content_row.addWidget(gateway, 0)
 
         # Right column: form
         self._form_container = QWidget()
         self._form_layout = QVBoxLayout(self._form_container)
         self._form_layout.setContentsMargins(0, 0, 0, 0)
         self._form_layout.setSpacing(0)
-        content_row.addWidget(self._form_container, 2)
+        content_row.addWidget(self._form_container, 1)
 
         scroll_layout.addLayout(content_row)
         scroll_layout.addStretch()
@@ -573,36 +638,113 @@ class LoginWindow(QDialog):
 
     def _build_title_bar(self):
         bar = QFrame()
-        bar.setFixedHeight(36)
-        bar.setStyleSheet("background: #0D1117;")
+        bar.setFixedHeight(38)
+        bar.setStyleSheet("background: #0D1117; border-bottom: 1px solid #1E293B;")
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(8, 0, 8, 0)
+        lay.setContentsMargins(14, 0, 0, 0)
+        lay.setSpacing(8)
 
-        # Spacer to push controls right
-        spacer = QWidget()
-        spacer.setFixedWidth(8)
-        lay.addWidget(spacer)
+        # App Icon & Title
+        icon_lbl = QLabel()
+        res_png = Path(__file__).parent.parent / "resources" / "icon.png"
+        res_ico = Path(__file__).parent.parent / "resources" / "icon.ico"
+        pix = None
+        if res_png.exists():
+            pix = QPixmap(str(res_png)).scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        elif res_ico.exists():
+            pix = QPixmap(str(res_ico)).scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+
+        if pix and not pix.isNull():
+            icon_lbl.setPixmap(pix)
+            lay.addWidget(icon_lbl)
+
+        title_lbl = QLabel("DAS CRM — Sign In Gateway")
+        title_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        title_lbl.setStyleSheet("color: #E2E8F0; background: transparent;")
+        lay.addWidget(title_lbl)
+
+        ver_badge = QLabel("v2.4")
+        ver_badge.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        ver_badge.setStyleSheet("color: #818CF8; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 6px; padding: 2px 6px;")
+        lay.addWidget(ver_badge)
 
         lay.addStretch()
 
-        # Window controls
-        ctrl_lay = QHBoxLayout()
-        ctrl_lay.setSpacing(6)
-        for emoji, color in [("🗙", "#EF4444"), ("❐", "#F59E0B"), ("□", "#22C55E")]:
-            btn = QPushButton(emoji)
-            btn.setFixedSize(14, 14)
-            btn.setFont(QFont("Segoe UI", 6))
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet(f"background: {color}; border: none; border-radius: 7px;")
-            ctrl_lay.addWidget(btn)
-        ctrl_lay.addStretch()
-        lay.addLayout(ctrl_lay)
+        # Windows 11 Native-Style Window Control Buttons
+        btn_style_common = """
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #94A3B8;
+                font-family: 'Segoe UI', 'Segoe UI Symbol', sans-serif;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #1E293B;
+                color: #FFFFFF;
+            }
+        """
 
-        # Drag
+        # 1. Minimize Button
+        self._btn_min = QPushButton("―")
+        self._btn_min.setFixedSize(46, 38)
+        self._btn_min.setStyleSheet(btn_style_common)
+        self._btn_min.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_min.setToolTip("Minimize")
+        self._btn_min.clicked.connect(self.showMinimized)
+        lay.addWidget(self._btn_min)
+
+        # 2. Maximize / Restore Button
+        self._btn_max = QPushButton("🗖")
+        self._btn_max.setFixedSize(46, 38)
+        self._btn_max.setStyleSheet(btn_style_common)
+        self._btn_max.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_max.setToolTip("Maximize")
+        self._btn_max.clicked.connect(self._toggle_maximize)
+        lay.addWidget(self._btn_max)
+
+        # 3. Close Button (standard Windows red hover)
+        self._btn_close = QPushButton("✕")
+        self._btn_close.setFixedSize(46, 38)
+        self._btn_close.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #94A3B8;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background: #E81123;
+                color: #FFFFFF;
+            }
+        """)
+        self._btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_close.setToolTip("Close")
+        self._btn_close.clicked.connect(self.reject)
+        lay.addWidget(self._btn_close)
+
+        # Mouse Drag and Double-Click Maximize on Titlebar
         bar.mousePressEvent = self._titlebar_press
         bar.mouseMoveEvent = self._titlebar_move
         bar.mouseReleaseEvent = lambda _: setattr(self, "_dragging", False)
+        bar.mouseDoubleClickEvent = lambda _: self._toggle_maximize()
+
         return bar
+
+    def _toggle_maximize(self):
+        """Toggle maximize and normal window state."""
+        if self.isMaximized():
+            self.showNormal()
+            if hasattr(self, "_btn_max"):
+                self._btn_max.setText("🗖")
+                self._btn_max.setToolTip("Maximize")
+        else:
+            self.showMaximized()
+            if hasattr(self, "_btn_max"):
+                self._btn_max.setText("🗗")
+                self._btn_max.setToolTip("Restore")
 
     def _build_gateway_panel(self):
         panel = QFrame()
@@ -1298,17 +1440,23 @@ class LoginWindow(QDialog):
         if hasattr(self, "_forgot_dialog") and self._forgot_dialog:
             self._forgot_dialog._on_password_reset_result(result)
 
-    # ── Window drag ──────────────────────────────────────────────────────────
+    # ── Window drag & maximize ───────────────────────────────────────────────
 
     def _titlebar_press(self, event):
-        self._dragging = True
-        self._drag_pos = event.globalPosition().toPoint()
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._dragging = True
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
 
     def _titlebar_move(self, event):
-        if self._dragging and self._drag_pos:
-            delta = event.globalPosition().toPoint() - self._drag_pos
-            self.move(self.pos() + delta)
-            self._drag_pos = event.globalPosition().toPoint()
+        if self._dragging and event.buttons() == Qt.MouseButton.LeftButton:
+            if self.isMaximized():
+                self.showNormal()
+                if hasattr(self, "_btn_max"):
+                    self._btn_max.setText("🗖")
+                    self._btn_max.setToolTip("Maximize")
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
 
     def _shake(self):
         orig = self.pos()

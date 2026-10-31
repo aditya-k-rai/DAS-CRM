@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QMessageBox, QLabel, QVBoxLayout
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import QStyleFactory
 
 from core.api_client import get_api_client, DASCRMApiClient
@@ -63,6 +63,11 @@ class MainWindow(QMainWindow):
         self.setGeometry(80, 50, 1440, 900)
         self.setMinimumSize(1100, 700)
         self.setStyleSheet("background: #0D1117;")
+
+        # Set application and window icon
+        icon = get_app_icon()
+        if icon and not icon.isNull():
+            self.setWindowIcon(icon)
 
         # Core services
         self.api_client: DASCRMApiClient = get_api_client()
@@ -271,15 +276,59 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
+def get_app_icon() -> QIcon:
+    """Resolve and return the highest-resolution application icon."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        base_dir = Path(sys._MEIPASS)
+    else:
+        base_dir = Path(__file__).parent
+
+    candidates = [
+        base_dir / "resources" / "icon.ico",
+        base_dir / "resources" / "icon.png",
+        Path(__file__).parent / "resources" / "icon.ico",
+        Path(__file__).parent / "resources" / "icon.png",
+    ]
+    for c in candidates:
+        if c.exists():
+            icon = QIcon(str(c))
+            if not icon.isNull():
+                return icon
+    return QIcon()
+
+
 def main():
-    """Application entry point."""
+    """Application entry point with Windows Taskbar AppUserModelID & High-DPI support."""
+    # Ensure Windows taskbar groups and displays the custom logo rather than python.exe
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("das.crm.desktop.app.v2")
+    except Exception:
+        pass
+
+    # High-DPI scaling policy for Windows 10 & 11
+    try:
+        QApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        )
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 10))
     app.setApplicationName("DAS CRM")
     app.setOrganizationName("DAS CRM")
 
+    # Set application icon globally
+    app_icon = get_app_icon()
+    if not app_icon.isNull():
+        app.setWindowIcon(app_icon)
+
     # Show login screen first
     login = LoginWindow()
+    if not app_icon.isNull():
+        login.setWindowIcon(app_icon)
+
     if login.exec() != LoginWindow.Accepted:
         sys.exit(0)
 
@@ -300,6 +349,9 @@ def main():
     }
 
     window = MainWindow(final_info)
+    if not app_icon.isNull():
+        window.setWindowIcon(app_icon)
+
     sys.exit(app.exec())
 
 
