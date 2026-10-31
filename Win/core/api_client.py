@@ -49,15 +49,25 @@ class DASCRMApiClient:
 
     def __init__(self, base_url: str = None, timeout: int = 30):
         if not base_url:
-            base_url = os.environ.get("DASCRM_API_BASE_URL", "http://localhost:4000/api")
+            base_url = os.environ.get("DASCRM_API_BASE_URL", "https://dascrm-backend.onrender.com/api/v1")
         if not base_url.endswith("/api") and "/api" not in base_url:
-            base_url = f"{base_url.rstrip('/')}/api"
+            base_url = f"{base_url.rstrip('/')}/api/v1"
         self.base_url = base_url
         self.timeout = timeout
         self.client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
         self.auth_token: Optional[str] = os.environ.get("DASCRM_API_TOKEN")
         self.sync_status = SyncStatus()
         self.validation_errors: Dict[str, ValidationError] = {}
+
+    def set_auth(self, token: str, tenant_url: str = None):
+        """Set active JWT auth token and optionally update backend base URL."""
+        self.auth_token = token
+        if tenant_url:
+            base = tenant_url.strip()
+            if not base.endswith("/api") and "/api" not in base:
+                base = f"{base.rstrip('/')}/api/v1"
+            self.base_url = base
+            self.client = httpx.AsyncClient(base_url=base, timeout=self.timeout)
 
     async def login(self, email: str, password: str) -> ApiResponse:
         """Authenticate user and get auth token"""

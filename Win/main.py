@@ -72,6 +72,11 @@ class MainWindow(QMainWindow):
 
         # Core services
         self.api_client: DASCRMApiClient = get_api_client()
+        if user_info.get("access_token"):
+            self.api_client.set_auth(
+                user_info.get("access_token"),
+                user_info.get("tenant_url")
+            )
         self.sync_engine: DASCRMSyncEngine = get_sync_engine()
 
         # Views
@@ -330,7 +335,8 @@ def main():
     if not app_icon.isNull():
         login.setWindowIcon(app_icon)
 
-    if login.exec() != QDialog.DialogCode.Accepted:
+    res = login.exec()
+    if res not in (QDialog.DialogCode.Accepted, 1) or not LoginWindow.LOGGED_IN:
         sys.exit(0)
 
     user_info = LoginWindow.LOGGED_IN

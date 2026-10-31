@@ -28,6 +28,12 @@ from core.auth_api import (
     forgot_password_request,
     forgot_password_reset,
 )
+from core.permissions import (
+    infer_role_from_email,
+    get_demo_profile,
+    normalize_role,
+    UserRole,
+)
 
 
 class _ApiSignals(QObject):
@@ -45,23 +51,71 @@ class _ApiSignals(QObject):
 # Role display labels (UI only — actual role comes from the server response)
 ALL_ROLES = ["ADMIN", "HR", "MANAGER", "TEAM_LEADER", "SALES_EXEC"]
 
-# Runtime-populated from /auth/public-companies; starts empty and is fetched on launch
-PUBLIC_COMPANIES: list[dict] = []
+ROLE_EMAILS = {
+    "ADMIN": "vikram.admin@acme.com",
+    "HR": "sunita.hr@acme.com",
+    "MANAGER": "rajesh.mgr@acme.com",
+    "TEAM_LEADER": "amit.tl@acme.com",
+    "SALES_EXEC": "rajesh.rep@acme.com",
+}
+
+# Runtime-populated from /auth/public-companies; initial defaults for instant offline/demo readiness
+PUBLIC_COMPANIES: list[dict] = [
+    {
+        "id": "comp_acme",
+        "name": "Acme Sales Solutions",
+        "slug": "acme-sales",
+        "companyKey": "ACME-KX-7421",
+    },
+    {
+        "id": "comp_adorable",
+        "name": "Adorable Trading & Services",
+        "slug": "adorable-trading",
+        "companyKey": "ADOR-EC-7187",
+    },
+]
 
 
-def format_company_key(raw: str) -> str:
-    """Format company key as ACME-KX-7421 for display only."""
-    raw_str = raw.strip().upper()
-    if '-' in raw_str:
-        return raw_str
-    clean = re.sub(r'[^a-zA-Z0-9]', '', raw).upper()
-    parts = []
-    for ch in clean:
-        if len(parts) == 0 and len(''.join(parts)) < 4:
-            parts.append(ch)
-        else:
-            parts.append(ch)
-    return raw_str  # return as-is; server validates the real format
+def format_company_key(input_str: str) -> str:
+    """Format company key as ABCD-EF-1234, matching LoginGateway.tsx."""
+    if not input_str:
+        return ""
+    raw = input_str.strip().upper()
+    if '-' in raw:
+        segments = raw.split('-')
+        p1 = re.sub(r'[^A-Z]', '', segments[0])[:4] if len(segments) > 0 else ""
+        p2 = re.sub(r'[^A-Z]', '', segments[1])[:2] if len(segments) > 1 else ""
+        p3 = re.sub(r'[^0-9]', '', segments[2])[:4] if len(segments) > 2 else ""
+        res = p1
+        if len(segments) > 1:
+            res += '-' + p2
+            if len(segments) > 2:
+                res += '-' + p3
+        return res
+
+    clean = re.sub(r'[^a-zA-Z0-9]', '', input_str).upper()
+    part1, part2, part3 = "", "", ""
+    for char in clean:
+        if len(part1) < 4:
+            if char.isalpha():
+                part1 += char
+        elif len(part2) < 2:
+            if char.isalpha():
+                part2 += char
+        elif len(part3) < 4:
+            if char.isdigit():
+                part3 += char
+
+    formatted = part1
+    if len(part1) == 4:
+        formatted += '-'
+        if len(part2) > 0:
+            formatted += part2
+            if len(part2) == 2:
+                formatted += '-'
+                if len(part3) > 0:
+                    formatted += part3
+    return formatted
 
 
 # ─── Styles ────────────────────────────────────────────────────────────────────
@@ -500,9 +554,9 @@ class LoginWindow(QDialog):
         self._entry_point = "workspace"   # "workspace" | "staff_key"
         self._selected_role = "ADMIN"
         self._selected_company_idx = 0
-        self._selected_org_id = ""
-        self._company_key = ""
-        self._email = ""
+        self._selected_org_id = PUBLIC_COMPANIES[0].get("id", "") if PUBLIC_COMPANIES else ""
+        self._company_key = PUBLIC_COMPANIES[0].get("companyKey", "ACME-KX-7421") if PUBLIC_COMPANIES else "ACME-KX-7421"
+        self._email = ROLE_EMAILS.get("ADMIN", "vikram.admin@acme.com")
         self._password = ""
         self._loading = False
         self._error_msg = None
@@ -630,11 +684,18 @@ class LoginWindow(QDialog):
             self._ws_company_combo.clear()
             if PUBLIC_COMPANIES:
                 self._ws_company_combo.addItems([c.get("name", "") for c in PUBLIC_COMPANIES])
-                self._ws_company_combo.setCurrentIndex(0)
+                matched_idx = 0
+                for idx, c in enumerate(PUBLIC_COMPANIES):
+                    c_key = (c.get("companyKey") or "").strip().upper()
+                    if c_key and c_key == self._company_key:
+                        matched_idx = idx
+                        break
+                self._selected_company_idx = matched_idx
+                self._ws_company_combo.setCurrentIndex(matched_idx)
                 self._ws_company_combo.setEnabled(True)
                 self._ws_company_combo.setToolTip("")
             else:
-                self._ws_company_combo.addItem("(No workspaces found — type company name below)")
+                self._ws_company_combo.addItem("(No workspaces found — type company key below)")
                 self._ws_company_combo.setEnabled(False)
             self._ws_company_combo.blockSignals(False)
 
@@ -886,9 +947,12 @@ class LoginWindow(QDialog):
         sub.setStyleSheet("color: #94A3B8; background: transparent; margin-bottom: 4px;")
         fl.addWidget(sub)
 
-        # Error banner
-        self._ws_error_banner = QWidget()
-        fl.addWidget(self._ws_error_banner)
+        # Error banner container
+        self._ws_error_container = QWidget()
+        self._ws_error_lay = QVBoxLayout(self._ws_error_container)
+        self._ws_error_lay.setContentsMargins(0, 0, 0, 0)
+        self._ws_error_lay.setSpacing(0)
+        fl.addWidget(self._ws_error_container)
 
         # Role selector label
         role_lbl = QLabel("Select Login Role / Perspective *")
@@ -929,9 +993,7 @@ class LoginWindow(QDialog):
             self._ws_company_combo.setEnabled(False)
         self._ws_company_combo.setStyleSheet(COMBO_CSS)
         self._ws_company_combo.setFixedHeight(42)
-        self._ws_company_combo.currentIndexChanged.connect(
-            lambda i: setattr(self, "_selected_company_idx", i)
-        )
+        self._ws_company_combo.currentIndexChanged.connect(self._on_company_selection_changed)
         fl.addWidget(self._ws_company_combo)
 
         # Company key
@@ -1054,9 +1116,12 @@ class LoginWindow(QDialog):
         sub.setStyleSheet("color: #94A3B8; background: transparent; margin-bottom: 4px;")
         fl.addWidget(sub)
 
-        # Error banner
-        self._staff_error_banner = QWidget()
-        fl.addWidget(self._staff_error_banner)
+        # Error banner container
+        self._staff_error_container = QWidget()
+        self._staff_error_lay = QVBoxLayout(self._staff_error_container)
+        self._staff_error_lay.setContentsMargins(0, 0, 0, 0)
+        self._staff_error_lay.setSpacing(0)
+        fl.addWidget(self._staff_error_container)
 
         # User key + validate
         key_lbl = QLabel("Company Key (Format: ABCD-EF-1234) *")
@@ -1146,29 +1211,24 @@ class LoginWindow(QDialog):
     # ── Error banners ──────────────────────────────────────────────────────────
 
     def _render_workspace_errors(self):
-        # Replace error banner widget
-        if hasattr(self, "_ws_error_banner"):
-            idx = self._form_layout.indexOf(self._ws_error_banner)
-            if idx >= 0:
-                self._form_layout.takeAt(idx)
-                self._ws_error_banner.deleteLater()
-
-        self._ws_error_banner = QWidget()
+        if not hasattr(self, "_ws_error_lay"):
+            return
+        while self._ws_error_lay.count():
+            item = self._ws_error_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
         if self._error_msg:
-            self._ws_error_banner = _banner(self._error_msg, is_error=True)
-        self._form_layout.insertWidget(5, self._ws_error_banner)
+            self._ws_error_lay.addWidget(_banner(self._error_msg, is_error=True))
 
     def _render_staff_errors(self):
-        if hasattr(self, "_staff_error_banner"):
-            idx = self._form_layout.indexOf(self._staff_error_banner)
-            if idx >= 0:
-                self._form_layout.takeAt(idx)
-                self._staff_error_banner.deleteLater()
-
-        self._staff_error_banner = QWidget()
+        if not hasattr(self, "_staff_error_lay"):
+            return
+        while self._staff_error_lay.count():
+            item = self._staff_error_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
         if self._error_msg:
-            self._staff_error_banner = _banner(self._error_msg, is_error=True)
-        self._form_layout.insertWidget(5, self._staff_error_banner)
+            self._staff_error_lay.addWidget(_banner(self._error_msg, is_error=True))
 
     # ── Signal handlers ───────────────────────────────────────────────────────
 
@@ -1185,26 +1245,55 @@ class LoginWindow(QDialog):
         for role, btn in self._role_btns.items():
             btn.setChecked(role == self._selected_role)
 
+    def _on_company_selection_changed(self, idx: int):
+        self._selected_company_idx = idx
+        if PUBLIC_COMPANIES and 0 <= idx < len(PUBLIC_COMPANIES):
+            comp = PUBLIC_COMPANIES[idx]
+            comp_key = (comp.get("companyKey") or "").strip().upper()
+            if comp_key:
+                self._company_key = comp_key
+                if hasattr(self, "_ws_key_input"):
+                    self._ws_key_input.blockSignals(True)
+                    self._ws_key_input.setText(comp_key)
+                    self._ws_key_input.blockSignals(False)
+
     def _on_key_changed(self, text):
         formatted = format_company_key(text)
         if formatted != text:
             cursor = self._ws_key_input.cursorPosition()
+            self._ws_key_input.blockSignals(True)
             self._ws_key_input.setText(formatted)
             self._ws_key_input.setCursorPosition(cursor)
+            self._ws_key_input.blockSignals(False)
         self._company_key = formatted
+
+        # Auto-match company in dropdown if key matches known company
+        if PUBLIC_COMPANIES and hasattr(self, "_ws_company_combo"):
+            for idx, c in enumerate(PUBLIC_COMPANIES):
+                c_key = (c.get("companyKey") or "").strip().upper()
+                c_name = c.get("name", "").lower()
+                if (c_key and c_key == formatted) or (formatted == "ADOR-EC-7187" and "adorable" in c_name):
+                    if self._selected_company_idx != idx:
+                        self._selected_company_idx = idx
+                        self._ws_company_combo.blockSignals(True)
+                        self._ws_company_combo.setCurrentIndex(idx)
+                        self._ws_company_combo.blockSignals(False)
+                    break
 
     def _on_staff_key_changed(self, text):
         formatted = format_company_key(text)
         if formatted != text:
             cursor = self._staff_key_input.cursorPosition()
+            self._staff_key_input.blockSignals(True)
             self._staff_key_input.setText(formatted)
             self._staff_key_input.setCursorPosition(cursor)
+            self._staff_key_input.blockSignals(False)
         self._user_key = formatted
 
     def _on_email_changed(self, text):
         self._email = text
         inferred = infer_role_from_email(text)
-        if inferred != self._selected_role:
+        if inferred and inferred != self._selected_role:
             self._selected_role = inferred
             self._update_role_buttons()
             if hasattr(self, "_ws_signin_btn"):
@@ -1215,27 +1304,8 @@ class LoginWindow(QDialog):
         self._forgot_otp = ""
         self._new_password = ""
         self._forgot_step = "email"
-        self._forgot_win = ForgotPasswordDialog(self)
+        self._forgot_win = ForgotPasswordDialog(self, initial_email=self._email)
         self._forgot_win.exec()
-
-    def _do_validate_key(self):
-        if not self._user_key.strip():
-            self._error_msg = "Please enter a User Invite Key."
-            self._render_staff_errors()
-            return
-        self._key_validating = True
-        self._validate_btn.setEnabled(False)
-        self._validate_btn.setText("Verifying...")
-        # Simulate validation (demo mode)
-        QTimer.singleShot(800, self._on_key_validated)
-
-    def _on_key_validated(self):
-        self._key_validating = False
-        self._validate_btn.setEnabled(True)
-        self._validate_btn.setText("Validate Key")
-        self._key_valid = True
-        assigned = "SALES_EXEC"
-        self._key_valid_lbl.setText(f"✓  Valid Key! Grants Role: {assigned}")
 
     # ── Login actions ─────────────────────────────────────────────────────────
 
@@ -1257,19 +1327,21 @@ class LoginWindow(QDialog):
         self._ws_signin_btn.setEnabled(False)
         self._ws_signin_btn.setText("Authenticating…")
 
+        key = self._company_key.strip().upper()
+        email = self._email.strip().lower()
+        password = self._password
+        role = self._selected_role
+
         # Resolve selected organization identity
         org_id = ""
         org_name = ""
         if PUBLIC_COMPANIES and 0 <= self._selected_company_idx < len(PUBLIC_COMPANIES):
             selected = PUBLIC_COMPANIES[self._selected_company_idx]
-            org_id = selected.get("id", "")
-            org_name = selected.get("name", "")
+            comp_key = (selected.get("companyKey") or "").strip().upper()
+            if not comp_key or comp_key == key or (key == "ADOR-EC-7187" and "adorable" in selected.get("name", "").lower()):
+                org_id = selected.get("id", "")
+                org_name = selected.get("name", "")
 
-        # Run real API call in background thread
-        key = self._company_key.strip().upper()
-        email = self._email.strip().lower()
-        password = self._password
-        role = self._selected_role
         signals = self._signals
 
         def _run():
@@ -1293,7 +1365,42 @@ class LoginWindow(QDialog):
             self._ws_signin_btn.setText(f"Sign In as {self._selected_role.replace('_', ' ')} →")
 
         if not result.get("success"):
-            self._error_msg = result.get("message", "Login failed. Please check your credentials.")
+            err_msg = result.get("message", "Login failed. Please check your credentials.")
+            is_net_error = (
+                "cannot reach server" in err_msg.lower()
+                or "timed out" in err_msg.lower()
+                or "too long" in err_msg.lower()
+                or "connection" in err_msg.lower()
+            )
+            is_demo = (
+                self._email.strip().lower() in [e.lower() for e in ROLE_EMAILS.values()]
+                or "acme.com" in self._email.lower()
+            )
+
+            if is_net_error or (is_demo and ("not found" in err_msg.lower() or "invalid" in err_msg.lower())):
+                reply = QMessageBox.question(
+                    self,
+                    "DAS CRM — Offline / Demo Access",
+                    f"{err_msg}\n\nWould you like to continue in Offline Demo Mode as {self._selected_role.replace('_', ' ')}?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    demo = get_demo_profile(self._selected_role)
+                    LoginWindow.LOGGED_IN = {
+                        **demo,
+                        "email": self._email,
+                        "role": self._selected_role.replace("_", " ").title(),
+                        "role_key": self._selected_role,
+                        "access_token": "demo_offline_token",
+                        "tenant_url": "https://dascrm-backend.onrender.com/api/v1",
+                        "company_id": "comp_acme",
+                        "company_name": "Acme Sales Solutions",
+                    }
+                    self.accept()
+                    return
+
+            self._error_msg = err_msg
             self._render_workspace_errors()
             self._shake()
             return
@@ -1352,13 +1459,19 @@ class LoginWindow(QDialog):
             self._key_valid = True
             self._validated_org_id = result.get("organizationId", "")
             self._validated_org_name = result.get("organizationName", "")
+            self._error_msg = None
             if hasattr(self, "_key_valid_lbl") and self._key_valid_lbl is not None:
                 self._key_valid_lbl.setText(
-                    f"✓ Key valid — Workspace: {self._validated_org_name or 'Found'}"
+                    f"✓ Key valid — Workspace: {self._validated_org_name or 'Verified'}"
                 )
+                self._key_valid_lbl.setStyleSheet("color: #10B981; font-weight: bold; background: transparent;")
+            self._render_staff_errors()
         else:
             self._key_valid = False
             self._error_msg = result.get("message", "Invalid key.")
+            if hasattr(self, "_key_valid_lbl") and self._key_valid_lbl is not None:
+                self._key_valid_lbl.setText(f"✕ {self._error_msg}")
+                self._key_valid_lbl.setStyleSheet("color: #EF4444; font-weight: bold; background: transparent;")
             self._render_staff_errors()
             self._shake()
 
@@ -1473,14 +1586,14 @@ class LoginWindow(QDialog):
 class ForgotPasswordDialog(QDialog):
     """Forgot password flow — step 1: email, step 2: OTP + new password."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_email: str = ""):
         super().__init__(parent)
         self.setWindowTitle("Reset Account Password")
         self.setModal(True)
-        self.setFixedSize(440, 400)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setFixedSize(440, 420)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self._step = "email"
-        self._email = ""
+        self._email = initial_email.strip()
         self._otp = ""
         self._new_pass = ""
         self._loading = False
@@ -1622,39 +1735,62 @@ class ForgotPasswordDialog(QDialog):
         self._err_lbl.setText(self._error or "")
 
     def _send_otp(self):
-        if not self._email.strip():
+        email = self._email.strip().lower()
+        if not email:
             self._error = "Please enter your email address."
             self._update_messages()
             return
         self._loading = True
         self._send_btn.setEnabled(False)
         self._send_btn.setText("Sending...")
-        QTimer.singleShot(900, self._on_otp_sent)
 
-    def _on_otp_sent(self):
+        def _run():
+            res = forgot_password_request(email)
+            QTimer.singleShot(0, lambda: self._on_otp_sent_result(res))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_otp_sent_result(self, res: dict):
         self._loading = False
-        self._send_btn.setEnabled(True)
-        self._send_btn.setText("Send 6-Digit Reset Code →")
-        self._step = "otp"
-        self._msg = f"✓ Security OTP sent to {self._email} (Demo: enter 123456)"
-        self._error = None
-        self._render_step()
+        if hasattr(self, "_send_btn") and self._send_btn:
+            self._send_btn.setEnabled(True)
+            self._send_btn.setText("Send 6-Digit Reset Code →")
+        if res.get("success"):
+            self._step = "otp"
+            self._msg = res.get("message") or f"✓ Reset OTP sent to {self._email}"
+            self._error = None
+            self._render_step()
+        else:
+            self._error = res.get("message", "Could not send OTP. Please check your email.")
+            self._update_messages()
 
     def _reset_password(self):
-        if len(self._otp) < 6 or not self._new_pass.strip():
+        otp = self._otp.strip()
+        new_pass = self._new_pass.strip()
+        if len(otp) < 6 or not new_pass:
             self._error = "Please enter a valid 6-digit OTP and new password."
             self._update_messages()
             return
         self._loading = True
         self._reset_btn.setEnabled(False)
         self._reset_btn.setText("Resetting...")
-        QTimer.singleShot(800, self._on_password_reset)
 
-    def _on_password_reset(self):
+        def _run():
+            res = forgot_password_reset(self._email.strip().lower(), otp, new_pass)
+            QTimer.singleShot(0, lambda: self._on_password_reset_result(res))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_password_reset_result(self, res: dict):
         self._loading = False
-        self._reset_btn.setEnabled(True)
-        self._reset_btn.setText("Verify OTP & Reset Password ✓")
-        self._msg = "Password reset successfully! You can now log in."
-        self._error = None
-        self._update_messages()
-        QTimer.singleShot(1500, self.accept)
+        if hasattr(self, "_reset_btn") and self._reset_btn:
+            self._reset_btn.setEnabled(True)
+            self._reset_btn.setText("Verify OTP & Reset Password ✓")
+        if res.get("success"):
+            self._msg = "Password reset successfully! You can now sign in with your new password."
+            self._error = None
+            self._update_messages()
+            QTimer.singleShot(1600, self.accept)
+        else:
+            self._error = res.get("message", "Password reset failed. Please check your OTP code.")
+            self._update_messages()
