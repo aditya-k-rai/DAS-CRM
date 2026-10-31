@@ -58,6 +58,8 @@ export interface RoomDefinition {
   perimeterFt: number;
   openings: RoomOpening[];
   floorMaterial: string;
+  floorTextureUrl?: string;
+  floorTextureScale?: number;
   wallFinish: string;
   ceilingFinish: string;
 }

@@ -37,8 +37,6 @@ import {
   StudioObject3D,
   RoomDefinition,
   RoomOpening,
-  SubElementCustomization,
-  MeasurementUnit,
 } from '@/types/interiorStudio';
 import { MARKETPLACE_OBJECTS_CATALOG } from '@/lib/interiorProjectsStore';
 import { MarketplaceModal, MarketplaceProduct } from './MarketplaceModal';
@@ -47,6 +45,8 @@ import {
   RotateCw,
   ArrowUp,
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   Copy,
   Trash2,
   Box,
@@ -62,24 +62,16 @@ import {
   Share2,
   Save,
   Plus,
-  Compass,
-  Check,
   X,
   Camera,
   Grid,
-  Sun,
   Ruler,
   Footprints,
   Smartphone,
-  ChevronRight,
-  Info,
   Lock,
   Unlock,
   Palette,
   DoorOpen,
-  AppWindow,
-  Maximize,
-  Minimize,
   Settings,
   HelpCircle,
   UploadCloud,
@@ -88,14 +80,13 @@ import {
   Moon,
   MessageSquare,
   ShoppingBag,
-  Coins,
-  ChevronDown,
   Move,
-  MoveUp,
   RefreshCw,
   ExternalLink,
   ChevronUp,
   Image as ImageIcon,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -116,6 +107,182 @@ type SelectedElementType =
   | null;
 
 const gltfCache = new Map<string, THREE.Group>();
+
+export type FloorPresetType = 'oak' | 'walnut' | 'marble' | 'tile' | 'herringbone' | 'concrete';
+
+interface BoundingBox3D {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  minY: number;
+  maxY: number;
+}
+
+function getObjectBounds(
+  obj: StudioObject3D,
+  posX = obj.position.x,
+  posZ = obj.position.z,
+  posY = obj.position.y
+): BoundingBox3D {
+  const rad = THREE.MathUtils.degToRad(obj.rotation.y || 0);
+  const rawHalfW = (obj.dimensions.width * 0.0254) / 2;
+  const rawHalfD = (obj.dimensions.depth * 0.0254) / 2;
+  const h = obj.dimensions.height * 0.0254;
+
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const halfW = rawHalfW * cos + rawHalfD * sin;
+  const halfD = rawHalfW * sin + rawHalfD * cos;
+
+  return {
+    minX: posX - halfW,
+    maxX: posX + halfW,
+    minZ: posZ - halfD,
+    maxZ: posZ + halfD,
+    minY: posY,
+    maxY: posY + h,
+  };
+}
+
+function checkObjectCollision(
+  objId: string,
+  candidateX: number,
+  candidateZ: number,
+  candidateY: number,
+  allObjects: StudioObject3D[],
+  margin = 0.02
+): { collides: boolean; obstacle: StudioObject3D | null } {
+  const currentObj = allObjects.find(o => o.id === objId);
+  if (!currentObj) return { collides: false, obstacle: null };
+
+  const currentBox = getObjectBounds(currentObj, candidateX, candidateZ, candidateY);
+
+  for (const other of allObjects) {
+    if (other.id === objId) continue;
+
+    const otherBox = getObjectBounds(other);
+
+    // Height clearance: objects on different vertical levels (e.g. lamp on table, ceiling fixture) do not collide
+    const verticalOverlap =
+      currentBox.minY < otherBox.maxY - 0.02 &&
+      currentBox.maxY > otherBox.minY + 0.02;
+    if (!verticalOverlap) continue;
+
+    // Horizontal 2D AABB overlap with contact margin
+    const xOverlap =
+      currentBox.minX - margin < otherBox.maxX &&
+      currentBox.maxX + margin > otherBox.minX;
+    const zOverlap =
+      currentBox.minZ - margin < otherBox.maxZ &&
+      currentBox.maxZ + margin > otherBox.minZ;
+
+    if (xOverlap && zOverlap) {
+      return { collides: true, obstacle: other };
+    }
+  }
+
+  return { collides: false, obstacle: null };
+}
+
+function generatePresetFloorCanvas(preset: FloorPresetType): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  if (preset === 'oak') {
+    // Warm Scandinavian oak hardwood floor planks
+    ctx.fillStyle = '#b6895b';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#9b7145';
+    for (let i = 0; i < 512; i += 32) {
+      ctx.fillRect(0, i, 512, 2);
+      for (let j = i % 64 === 0 ? 0 : 64; j < 512; j += 128) {
+        ctx.fillRect(j, i, 2, 32);
+      }
+    }
+  } else if (preset === 'walnut') {
+    // Rich dark walnut wood
+    ctx.fillStyle = '#5c4033';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#3d2817';
+    for (let i = 0; i < 512; i += 32) {
+      ctx.fillRect(0, i, 512, 2);
+      for (let j = i % 64 === 0 ? 0 : 64; j < 512; j += 128) {
+        ctx.fillRect(j, i, 2, 32);
+      }
+    }
+  } else if (preset === 'marble') {
+    // Carrara white marble with subtle grey veins
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(30, 0);
+    ctx.bezierCurveTo(120, 150, 220, 300, 310, 512);
+    ctx.moveTo(350, 0);
+    ctx.bezierCurveTo(390, 180, 280, 380, 480, 512);
+    ctx.stroke();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, 256, 256);
+    ctx.strokeRect(256, 0, 256, 256);
+    ctx.strokeRect(0, 256, 256, 256);
+    ctx.strokeRect(256, 256, 256, 256);
+  } else if (preset === 'tile') {
+    // Slate stone tile
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#475569';
+    for (let y = 0; y < 512; y += 64) {
+      for (let x = 0; x < 512; x += 64) {
+        ctx.fillRect(x + 2, y + 2, 60, 60);
+      }
+    }
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2;
+    for (let i = 0; i <= 512; i += 64) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, 512);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(512, i);
+      ctx.stroke();
+    }
+  } else if (preset === 'herringbone') {
+    // Herringbone parquet
+    ctx.fillStyle = '#c29b68';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.strokeStyle = '#8d683a';
+    ctx.lineWidth = 2;
+    for (let y = -256; y < 768; y += 48) {
+      for (let x = -256; x < 768; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 24, y + 24);
+        ctx.lineTo(x + 48, y);
+        ctx.stroke();
+      }
+    }
+  } else if (preset === 'concrete') {
+    // Polished architectural concrete
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#64748b';
+    for (let i = 0; i < 1500; i++) {
+      const rx = Math.random() * 512;
+      const ry = Math.random() * 512;
+      ctx.fillRect(rx, ry, 1, 1);
+    }
+  }
+
+  return canvas;
+}
 
 export function Studio3DCanvas({
   currentRoom,
@@ -178,8 +345,52 @@ export function Studio3DCanvas({
   const [newOpeningType, setNewOpeningType] = useState<'door' | 'window' | 'arch'>('window');
   const [newOpeningWidth, setNewOpeningWidth] = useState(4);
   const [newOpeningHeight, setNewOpeningHeight] = useState(4.5);
-  const [newOpeningSill, setNewOpeningSill] = useState(3);
-  const [newOpeningOffsetPct, setNewOpeningOffsetPct] = useState(50);
+  const [newOpeningSill] = useState(3);
+  const [newOpeningOffsetPct] = useState(50);
+
+  // Floor Texture & Materials Customization
+  const [floorTextureUrl, setFloorTextureUrl] = useState<string>(currentRoom.floorTextureUrl || '');
+  const [floorTextureScale, setFloorTextureScale] = useState<number>(currentRoom.floorTextureScale || 1.0);
+  const [floorPreset, setFloorPreset] = useState<FloorPresetType>('oak');
+  const floorFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (currentRoom.floorTextureUrl !== undefined) {
+      setFloorTextureUrl(currentRoom.floorTextureUrl);
+    }
+    if (currentRoom.floorTextureScale !== undefined) {
+      setFloorTextureScale(currentRoom.floorTextureScale);
+    }
+  }, [currentRoom.floorTextureUrl, currentRoom.floorTextureScale]);
+
+  // Floor Texture Upload Handler
+  const handleFloorImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = loadEvent => {
+      const dataUrl = loadEvent.target?.result as string;
+      if (dataUrl) {
+        setFloorTextureUrl(dataUrl);
+        if (onRoomChange) {
+          onRoomChange({
+            ...currentRoom,
+            floorTextureUrl: dataUrl,
+          });
+        }
+        addToast('Custom floor texture image applied!', 'green');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const viewModeRef = useRef(viewMode);
+  const viewHeightRefInches = useRef(viewHeightInches);
+
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+    viewHeightRefInches.current = viewHeightInches;
+  }, [viewMode, viewHeightInches]);
 
   // Canvas refs
   const canvasMountRef = useRef<HTMLDivElement>(null);
@@ -307,7 +518,7 @@ export function Studio3DCanvas({
       measureGroup,
       raycaster: new THREE.Raycaster(),
       mouse: new THREE.Vector2(),
-      walkCameraPos: new THREE.Vector3(0, (viewHeightInches * 0.0254), 2.2),
+      walkCameraPos: new THREE.Vector3(0, (viewHeightRefInches.current * 0.0254), 2.2),
       walkYaw: 0,
       walkPitch: 0,
       keysDown: new Set(),
@@ -333,7 +544,7 @@ export function Studio3DCanvas({
       const delta = clock.getDelta();
 
       // First-Person Walkthrough WASD locomotion
-      if (viewMode === 'Walk') {
+      if (viewModeRef.current === 'Walk') {
         const moveSpeed = 3.5 * delta;
         const forward = new THREE.Vector3(
           -Math.sin(state.walkYaw),
@@ -370,7 +581,7 @@ export function Studio3DCanvas({
         const boundZ = roomMeters.halfL - 0.35;
         state.walkCameraPos.x = Math.max(-boundX, Math.min(boundX, state.walkCameraPos.x));
         state.walkCameraPos.z = Math.max(-boundZ, Math.min(boundZ, state.walkCameraPos.z));
-        state.walkCameraPos.y = viewHeightInches * 0.0254;
+        state.walkCameraPos.y = viewHeightRefInches.current * 0.0254;
 
         state.camera.position.copy(state.walkCameraPos);
         const lookDir = new THREE.Vector3(
@@ -454,36 +665,45 @@ export function Studio3DCanvas({
     const wallH = viewMode === 'Walk' ? height : Math.min(height * 0.72, 2.5);
     const wallThick = 0.22;
 
-    // Floor Hardwood / Parquet Texture
+    // Floor Texture: Custom image or Procedural Canvas Pattern
     const floorGeo = new THREE.PlaneGeometry(width, length);
-    const floorCanvas = document.createElement('canvas');
-    floorCanvas.width = 512;
-    floorCanvas.height = 512;
-    const fctx = floorCanvas.getContext('2d');
-    if (fctx) {
-      // Warm Scandinavian hardwood floor planks as in screenshot 132727
-      fctx.fillStyle = '#b6895b';
-      fctx.fillRect(0, 0, 512, 512);
-      fctx.fillStyle = '#9b7145';
-      for (let i = 0; i < 512; i += 32) {
-        fctx.fillRect(0, i, 512, 2);
-        for (let j = (i % 64 === 0 ? 0 : 64); j < 512; j += 128) {
-          fctx.fillRect(j, i, 2, 32);
-        }
-      }
-    }
-    const floorTex = new THREE.CanvasTexture(floorCanvas);
-    floorTex.wrapS = THREE.RepeatWrapping;
-    floorTex.wrapT = THREE.RepeatWrapping;
-    floorTex.repeat.set(width / 1.1, length / 1.1);
-
     const isFloorSelected = selectedTarget?.type === 'floor';
     const floorMat = new THREE.MeshStandardMaterial({
-      map: floorTex,
       roughness: 0.45,
       metalness: 0.05,
       color: isFloorSelected ? 0xdbeafe : 0xffffff,
     });
+
+    if (floorTextureUrl) {
+      const texLoader = new THREE.TextureLoader();
+      texLoader.load(
+        floorTextureUrl,
+        tex => {
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          const repX = (width / 1.5) * floorTextureScale;
+          const repY = (length / 1.5) * floorTextureScale;
+          tex.repeat.set(Math.max(0.2, repX), Math.max(0.2, repY));
+          tex.needsUpdate = true;
+          floorMat.map = tex;
+          floorMat.needsUpdate = true;
+        },
+        undefined,
+        err => {
+          console.warn('Failed to load custom floor texture:', err);
+        }
+      );
+    } else {
+      const floorCanvas = generatePresetFloorCanvas(floorPreset);
+      const floorTex = new THREE.CanvasTexture(floorCanvas);
+      floorTex.wrapS = THREE.RepeatWrapping;
+      floorTex.wrapT = THREE.RepeatWrapping;
+      const repX = (width / 1.1) * floorTextureScale;
+      const repY = (length / 1.1) * floorTextureScale;
+      floorTex.repeat.set(Math.max(0.2, repX), Math.max(0.2, repY));
+      floorMat.map = floorTex;
+    }
+
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.receiveShadow = true;
@@ -592,7 +812,7 @@ export function Studio3DCanvas({
       grid.position.y = 0.005;
       group.add(grid);
     }
-  }, [roomMeters, viewMode, showGrid, showCeiling, activeTool, selectedTarget]);
+  }, [roomMeters, viewMode, showGrid, showCeiling, activeTool, selectedTarget, floorTextureUrl, floorTextureScale, floorPreset]);
 
   // ── 3. Render 3D Objects & Meshes (GLTF + Procedural fallback) ────
   useEffect(() => {
@@ -868,23 +1088,95 @@ export function Studio3DCanvas({
         }
 
         // Room bounds containment
-        const halfObjW = (selectedObject.dimensions.width * 0.0254) / 2;
-        const halfObjD = (selectedObject.dimensions.depth * 0.0254) / 2;
+        const objBounds = getObjectBounds(selectedObject, newX, newZ);
+        const halfObjW = (objBounds.maxX - objBounds.minX) / 2;
+        const halfObjD = (objBounds.maxZ - objBounds.minZ) / 2;
         const maxX = roomMeters.halfW - halfObjW;
         const maxZ = roomMeters.halfL - halfObjD;
 
         const clampedX = Math.max(-maxX, Math.min(maxX, newX));
         const clampedZ = Math.max(-maxZ, Math.min(maxZ, newZ));
 
-        state.selectedMesh.position.x = clampedX;
-        state.selectedMesh.position.z = clampedZ;
+        // Smart Collision Avoidance: prevent 3D objects from merging
+        let finalX = clampedX;
+        let finalZ = clampedZ;
+
+        if (smartCollisions) {
+          const currX = selectedObject.position.x;
+          const currZ = selectedObject.position.z;
+          const curY = selectedObject.position.y;
+
+          // Check if destination is clear
+          const fullHit = checkObjectCollision(selectedObject.id, clampedX, clampedZ, curY, objects);
+
+          if (fullHit.collides) {
+            // Check axis-aligned sliding
+            const xHit = checkObjectCollision(selectedObject.id, clampedX, currZ, curY, objects);
+            const zHit = checkObjectCollision(selectedObject.id, currX, clampedZ, curY, objects);
+
+            if (!xHit.collides && zHit.collides) {
+              finalX = clampedX;
+              // Line search along Z for contact edge
+              let low = 0;
+              let high = 1;
+              for (let i = 0; i < 5; i++) {
+                const mid = (low + high) / 2;
+                const testZ = currZ + (clampedZ - currZ) * mid;
+                if (!checkObjectCollision(selectedObject.id, clampedX, testZ, curY, objects).collides) {
+                  finalZ = testZ;
+                  low = mid;
+                } else {
+                  high = mid;
+                }
+              }
+            } else if (!zHit.collides && xHit.collides) {
+              finalZ = clampedZ;
+              // Line search along X for contact edge
+              let low = 0;
+              let high = 1;
+              for (let i = 0; i < 5; i++) {
+                const mid = (low + high) / 2;
+                const testX = currX + (clampedX - currX) * mid;
+                if (!checkObjectCollision(selectedObject.id, testX, clampedZ, curY, objects).collides) {
+                  finalX = testX;
+                  low = mid;
+                } else {
+                  high = mid;
+                }
+              }
+            } else {
+              // Diagonal collision: binary line search from current position toward target
+              let low = 0;
+              let high = 1;
+              let safeX = currX;
+              let safeZ = currZ;
+              for (let i = 0; i < 6; i++) {
+                const mid = (low + high) / 2;
+                const testX = currX + (clampedX - currX) * mid;
+                const testZ = currZ + (clampedZ - currZ) * mid;
+                if (!checkObjectCollision(selectedObject.id, testX, testZ, curY, objects).collides) {
+                  safeX = testX;
+                  safeZ = testZ;
+                  low = mid;
+                } else {
+                  high = mid;
+                }
+              }
+              finalX = safeX;
+              finalZ = safeZ;
+            }
+          }
+        }
+
+        state.selectedMesh.position.x = finalX;
+        state.selectedMesh.position.z = finalZ;
 
         setIsOnFloor(selectedObject.position.y <= 0.02);
 
         onObjectsChange(
           objects.map(o =>
             o.id === selectedObject.id
-              ? { ...o, position: { ...o.position, x: clampedX, z: clampedZ } }
+              ? { ...o, position: { ...o.position, x: finalX, z: finalZ } }
               : o
           )
         );
@@ -912,16 +1204,50 @@ export function Studio3DCanvas({
   };
 
   // ── 6. Object Transform Handlers ──────────────────────────────────
-  const handleMoveObject = useCallback((dx: number, dz: number) => {
-    if (!selectedObject) return;
-    onObjectsChange(
-      objects.map(o =>
-        o.id === selectedObject.id
-          ? { ...o, position: { ...o.position, x: o.position.x + dx, z: o.position.z + dz } }
-          : o
-      )
-    );
-  }, [selectedObject, objects, onObjectsChange]);
+  const handleMoveObject = useCallback(
+    (dx: number, dz: number) => {
+      if (!selectedObject) return;
+
+      const currX = selectedObject.position.x;
+      const currZ = selectedObject.position.z;
+      const curY = selectedObject.position.y;
+      let targetX = currX + dx;
+      let targetZ = currZ + dz;
+
+      // Room boundary clamping
+      const bounds = getObjectBounds(selectedObject, targetX, targetZ);
+      const halfObjW = (bounds.maxX - bounds.minX) / 2;
+      const halfObjD = (bounds.maxZ - bounds.minZ) / 2;
+      const maxX = roomMeters.halfW - halfObjW;
+      const maxZ = roomMeters.halfL - halfObjD;
+
+      targetX = Math.max(-maxX, Math.min(maxX, targetX));
+      targetZ = Math.max(-maxZ, Math.min(maxZ, targetZ));
+
+      if (smartCollisions) {
+        if (checkObjectCollision(selectedObject.id, targetX, targetZ, curY, objects).collides) {
+          // Try slide along single axis
+          if (dx !== 0 && !checkObjectCollision(selectedObject.id, targetX, currZ, curY, objects).collides) {
+            targetZ = currZ;
+          } else if (dz !== 0 && !checkObjectCollision(selectedObject.id, currX, targetZ, curY, objects).collides) {
+            targetX = currX;
+          } else {
+            addToast('Collision blocked: objects cannot merge', 'blue');
+            return;
+          }
+        }
+      }
+
+      onObjectsChange(
+        objects.map(o =>
+          o.id === selectedObject.id
+            ? { ...o, position: { ...o.position, x: targetX, z: targetZ } }
+            : o
+        )
+      );
+    },
+    [selectedObject, objects, onObjectsChange, smartCollisions, roomMeters]
+  );
 
   const handleRotate = useCallback((dir: 'left' | 'right') => {
     if (!selectedObject) return;
@@ -1010,16 +1336,67 @@ export function Studio3DCanvas({
     };
   }, [selectedObject, handleMoveObject, handleRotate, handleElevate, handleDeleteObject]);
 
+  // Find open, non-overlapping 3D placement coordinates
+  const findOpenPlacementPosition = useCallback(
+    (itemDims: { width: number; depth: number; height: number }, fallbackX = 0, fallbackZ = 0) => {
+      const tempProbe: StudioObject3D = {
+        id: 'probe-temp',
+        roomId: currentRoom.id,
+        name: 'probe',
+        category: 'decor',
+        thumbnailUrl: '',
+        dimensions: itemDims,
+        position: { x: fallbackX, y: 0, z: fallbackZ },
+        rotation: { x: 0, y: 0, z: 0 },
+        color: '#000',
+        material: 'wood',
+        priceINR: 0,
+      };
+
+      if (!checkObjectCollision('probe-temp', fallbackX, fallbackZ, 0, objects).collides) {
+        return { x: fallbackX, y: 0, z: fallbackZ };
+      }
+
+      // Spiral outward to locate nearest clear area
+      const step = 0.35;
+      const maxR = Math.max(roomMeters.halfW, roomMeters.halfL) * 0.85;
+      for (let r = step; r <= maxR; r += step) {
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+          const testX = Math.round(Math.cos(angle) * r * 100) / 100;
+          const testZ = Math.round(Math.sin(angle) * r * 100) / 100;
+          const bounds = getObjectBounds({ ...tempProbe, position: { x: testX, y: 0, z: testZ } });
+          const halfObjW = (bounds.maxX - bounds.minX) / 2;
+          const halfObjD = (bounds.maxZ - bounds.minZ) / 2;
+          if (
+            Math.abs(testX) + halfObjW < roomMeters.halfW &&
+            Math.abs(testZ) + halfObjD < roomMeters.halfL
+          ) {
+            if (!checkObjectCollision('probe-temp', testX, testZ, 0, objects).collides) {
+              return { x: testX, y: 0, z: testZ };
+            }
+          }
+        }
+      }
+      return { x: 0.25, y: 0, z: 0.25 };
+    },
+    [currentRoom.id, objects, roomMeters]
+  );
+
   const handleDuplicate = () => {
     if (!selectedObject) return;
+    const openPos = findOpenPlacementPosition(
+      selectedObject.dimensions,
+      selectedObject.position.x + 0.35,
+      selectedObject.position.z + 0.35
+    );
     const dup: StudioObject3D = {
       ...selectedObject,
       id: `obj-${Date.now()}`,
       name: `${selectedObject.name} (Copy)`,
       position: {
-        x: selectedObject.position.x + 0.35,
+        x: openPos.x,
         y: selectedObject.position.y,
-        z: selectedObject.position.z + 0.35,
+        z: openPos.z,
       },
     };
     onObjectsChange([...objects, dup]);
@@ -1058,8 +1435,9 @@ export function Studio3DCanvas({
     }
   };
 
-  // Add Item to Room
+  // Add Item to Room with Collision-Safe Placement
   const handleInsertItem = (item: (typeof MARKETPLACE_OBJECTS_CATALOG)[0]) => {
+    const openPos = findOpenPlacementPosition(item.dimensions);
     const newObj: StudioObject3D = {
       id: `obj-${Date.now()}`,
       roomId: currentRoom.id,
@@ -1068,7 +1446,7 @@ export function Studio3DCanvas({
       thumbnailUrl: item.thumbnailUrl,
       modelUrl: item.modelUrl,
       dimensions: { ...item.dimensions },
-      position: { x: 0, y: 0, z: 0 },
+      position: { x: openPos.x, y: 0, z: openPos.z },
       rotation: { x: 0, y: 0, z: 0 },
       color: item.color,
       material: item.material,
@@ -1121,6 +1499,7 @@ export function Studio3DCanvas({
         setGeneratingModelProgress(null);
 
         // 3. Place new model directly in the scene (Screenshot 133440)
+        const openPos = findOpenPlacementPosition(customDims, 0, 0.8);
         const generatedObj: StudioObject3D = {
           id: `obj-gen-${Date.now()}`,
           roomId: currentRoom.id,
@@ -1129,7 +1508,7 @@ export function Studio3DCanvas({
           thumbnailUrl: product.imageUrl,
           modelUrl: product.modelUrl || '/api/interior/models/Long%20Sofa.glb',
           dimensions: customDims,
-          position: { x: 0, y: 0, z: 0.8 },
+          position: { x: openPos.x, y: 0, z: openPos.z },
           rotation: { x: 0, y: 0, z: 0 },
           color: product.color,
           material: product.material,
@@ -1177,71 +1556,7 @@ export function Studio3DCanvas({
       }`}
     >
       {/* ═══════════════════════════════════════════════════════════════
-          1. TOP BRANDING & ACTION HEADER (Screenshot 132727)
-          ═══════════════════════════════════════════════════════════════ */}
-      <header className={`h-12 border-b px-4 flex items-center justify-between z-30 shrink-0 ${
-        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-      }`}>
-        {/* Left: Logo & Nav Links */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Box size={14} className="stroke-[2.5]" />
-            </div>
-            <span className="font-extrabold text-sm tracking-tight text-slate-900">roomform.ai</span>
-          </div>
-
-          <nav className="hidden lg:flex items-center gap-1 text-xs font-semibold text-slate-500">
-            <button type="button" className="px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-100 transition-colors">
-              Home
-            </button>
-            <button type="button" className="px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-100 transition-colors">
-              Explore
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-700 shadow-2xs font-bold"
-            >
-              Editor
-            </button>
-            <button type="button" className="px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-100 transition-colors">
-              For Retailers
-            </button>
-            <button type="button" className="px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-100 transition-colors">
-              Careers
-            </button>
-          </nav>
-        </div>
-
-        {/* Right: User, Credits, Cart */}
-        <div className="flex items-center gap-3">
-          {/* Account */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl hover:bg-slate-100 cursor-pointer text-xs font-semibold text-slate-700">
-            <div className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-bold flex items-center justify-center">
-              Z
-            </div>
-            <span>Account</span>
-            <ChevronDown size={13} className="text-slate-400" />
-          </div>
-
-          {/* Credits indicator */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800 shadow-2xs">
-            <Coins size={13} className="text-amber-500" />
-            <span>9,235</span>
-          </div>
-
-          {/* Cart Icon */}
-          <div className="relative p-1.5 rounded-xl hover:bg-slate-100 cursor-pointer text-slate-600">
-            <ShoppingBag size={18} />
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
-              12
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          2. ACTION TOOLBAR (Screenshot 132727: New, Save, Share, Undo...)
+          ACTION TOOLBAR (New, Save, Share, Undo, Redo, Render, Export...)
           ═══════════════════════════════════════════════════════════════ */}
       <div className={`h-11 border-b px-4 flex items-center justify-between z-20 shrink-0 text-xs font-semibold ${
         isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-200 text-slate-700'
@@ -1379,8 +1694,8 @@ export function Studio3DCanvas({
               <span>Controls</span>
             </div>
 
-            {/* ── STATE A: NO OBJECT SELECTED (Screenshot 132727) ─────── */}
-            {!selectedObject && viewMode !== 'Walk' && (
+            {/* ── STATE A: NO OBJECT / OVERVIEW (Screenshot 132727) ─────── */}
+            {!selectedObject && selectedTarget?.type !== 'floor' && selectedTarget?.type !== 'wall' && viewMode !== 'Walk' && (
               <div className="space-y-4">
                 {/* Empty State Box */}
                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
@@ -1388,6 +1703,7 @@ export function Studio3DCanvas({
                     <Box size={20} />
                   </div>
                   <span className="font-semibold text-xs text-slate-600">No object selected</span>
+                  <span className="text-[10px] text-slate-400">Click any object in the 3D room to inspect & transform</span>
                 </div>
 
                 {/* Room Materials (Screenshot 132727) */}
@@ -1397,37 +1713,46 @@ export function Studio3DCanvas({
                   {/* Floor */}
                   <div
                     onClick={() => setSelectedTarget({ type: 'floor' })}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white flex items-center justify-between cursor-pointer transition-all shadow-2xs"
+                    className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 bg-white flex items-center justify-between cursor-pointer transition-all shadow-2xs group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-6 h-6 rounded-lg bg-[#b6895b] border border-slate-300" />
-                      <span className="font-semibold text-slate-800">Floor</span>
+                      <div className="w-6 h-6 rounded-lg bg-[#b6895b] border border-slate-300 overflow-hidden flex items-center justify-center">
+                        {floorTextureUrl ? (
+                          <ImageIcon size={12} className="text-white drop-shadow" />
+                        ) : null}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800 block group-hover:text-blue-600 transition-colors">Floor</span>
+                        <span className="text-[9px] text-slate-400 block">
+                          {floorTextureUrl ? 'Custom Image Texture' : `${floorPreset.toUpperCase()} Wood`}
+                        </span>
+                      </div>
                     </div>
-                    <Grid size={14} className="text-slate-400" />
+                    <Grid size={14} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
                   </div>
 
                   {/* Walls */}
                   <div
                     onClick={() => setSelectedTarget({ type: 'wall', orientation: 'north' })}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white flex items-center justify-between cursor-pointer transition-all shadow-2xs"
+                    className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 bg-white flex items-center justify-between cursor-pointer transition-all shadow-2xs group"
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-6 h-6 rounded-lg bg-[#d8dcd6] border border-slate-300" />
-                      <span className="font-semibold text-slate-800">Walls</span>
+                      <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">Walls</span>
                     </div>
-                    <Sliders size={14} className="text-slate-400" />
+                    <Sliders size={14} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
                   </div>
 
-                  {/* Doors */}
+                  {/* Doors & Windows */}
                   <div
                     onClick={() => setOpeningConfigOpen(true)}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white flex items-center justify-between cursor-pointer transition-all shadow-2xs"
+                    className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-400 bg-white flex items-center justify-between cursor-pointer transition-all shadow-2xs group"
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-6 h-6 rounded-lg bg-[#fef3c7] border border-slate-300" />
-                      <span className="font-semibold text-slate-800">Doors</span>
+                      <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">Doors & Windows</span>
                     </div>
-                    <Palette size={14} className="text-slate-400" />
+                    <Palette size={14} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
                   </div>
                 </div>
 
@@ -1445,17 +1770,354 @@ export function Studio3DCanvas({
               </div>
             )}
 
+            {/* ── STATE D: FLOOR MATERIAL & TEXTURE INSPECTOR ─────────── */}
+            {selectedTarget?.type === 'floor' && viewMode !== 'Walk' && (
+              <div className="space-y-3.5">
+                {/* Header with Back button */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                    <Grid size={15} className="text-blue-600" />
+                    <span>Floor Texture</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTarget(null)}
+                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                    title="Close"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Custom Image Upload Card */}
+                <div className="p-3 rounded-2xl border border-slate-200 bg-white space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-800">Custom Texture Image</span>
+                    <span className="text-[10px] text-blue-600 font-semibold">Image Upload</span>
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={floorFileInputRef}
+                    accept="image/*"
+                    onChange={handleFloorImageUpload}
+                    className="hidden"
+                  />
+
+                  {floorTextureUrl ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 h-24 bg-slate-100 flex items-center justify-center group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={floorTextureUrl}
+                          alt="Floor Texture"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => floorFileInputRef.current?.click()}
+                            className="p-1.5 rounded-lg bg-white/90 hover:bg-white text-slate-700 shadow-xs"
+                            title="Change Image"
+                          >
+                            <RefreshCw size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFloorTextureUrl('');
+                              if (onRoomChange) {
+                                onRoomChange({ ...currentRoom, floorTextureUrl: undefined });
+                              }
+                              addToast('Reverted to procedural floor texture', 'blue');
+                            }}
+                            className="p-1.5 rounded-lg bg-white/90 hover:bg-white text-rose-600 shadow-xs"
+                            title="Remove Custom Image"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-semibold block text-center">
+                        ✓ Custom floor image active
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => floorFileInputRef.current?.click()}
+                      className="w-full py-4 px-3 rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/40 text-slate-600 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-blue-100 group-hover:text-blue-600 flex items-center justify-center text-slate-500 transition-colors">
+                        <UploadCloud size={16} />
+                      </div>
+                      <span className="font-bold text-xs text-slate-700 group-hover:text-blue-700">
+                        Upload Floor Image
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        JPG, PNG, WebP patterns
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Preset Floor Materials */}
+                <div className="p-3 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-2xs">
+                  <span className="font-bold text-xs text-slate-800 block">Preset Textures</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { key: 'oak', name: 'Oak Wood', color: '#b6895b' },
+                      { key: 'walnut', name: 'Dark Walnut', color: '#5c4033' },
+                      { key: 'marble', name: 'White Marble', color: '#e2e8f0' },
+                      { key: 'tile', name: 'Slate Tile', color: '#64748b' },
+                      { key: 'herringbone', name: 'Herringbone', color: '#c29b68' },
+                      { key: 'concrete', name: 'Concrete', color: '#94a3b8' },
+                    ].map(preset => (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        onClick={() => {
+                          setFloorPreset(preset.key as FloorPresetType);
+                          setFloorTextureUrl('');
+                          if (onRoomChange) {
+                            onRoomChange({
+                              ...currentRoom,
+                              floorMaterial: preset.name,
+                              floorTextureUrl: undefined,
+                            });
+                          }
+                          addToast(`Applied ${preset.name} floor texture`, 'green');
+                        }}
+                        className={`p-2 rounded-xl border flex items-center gap-2 text-left transition-all ${
+                          !floorTextureUrl && floorPreset === preset.key
+                            ? 'border-blue-600 bg-blue-50/50 shadow-2xs font-bold text-blue-700'
+                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        <div
+                          className="w-4 h-4 rounded-md border border-slate-300 shrink-0 shadow-2xs"
+                          style={{ backgroundColor: preset.color }}
+                        />
+                        <span className="text-[11px] truncate">
+                          {preset.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tile Repeat / Texture Scale */}
+                <div className="p-3 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-2xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-xs text-slate-800">Texture Repeat / Scale</span>
+                    <span className="font-mono font-bold text-xs text-blue-600">{floorTextureScale.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={4.0}
+                    step={0.25}
+                    value={floorTextureScale}
+                    onChange={e => {
+                      const val = Number(e.target.value);
+                      setFloorTextureScale(val);
+                      if (onRoomChange) {
+                        onRoomChange({ ...currentRoom, floorTextureScale: val });
+                      }
+                    }}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-[9px] text-slate-400">
+                    <span>Large Slabs (0.5x)</span>
+                    <span>Standard (1.0x)</span>
+                    <span>Fine Tiles (4.0x)</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STATE E: WALL FINISH INSPECTOR ──────────────────────── */}
+            {selectedTarget?.type === 'wall' && viewMode !== 'Walk' && (
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800 capitalize">
+                    <Sliders size={15} className="text-blue-600" />
+                    <span>{selectedTarget.orientation} Wall</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTarget(null)}
+                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                    title="Close"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div className="p-3 rounded-2xl border border-slate-200 bg-white space-y-2.5 shadow-2xs">
+                  <span className="font-bold text-xs text-slate-800 block">Wall Finishes</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { name: 'Eggshell White', color: '#f8fafc' },
+                      { name: 'Warm Greige', color: '#e5e5e0' },
+                      { name: 'Sage Green', color: '#c2cfb2' },
+                      { name: 'Nordic Navy', color: '#334155' },
+                    ].map(finish => (
+                      <button
+                        key={finish.name}
+                        type="button"
+                        onClick={() => {
+                          if (onRoomChange) {
+                            onRoomChange({ ...currentRoom, wallFinish: finish.name });
+                          }
+                          addToast(`Wall finish set to ${finish.name}`, 'blue');
+                        }}
+                        className="p-2 rounded-xl border border-slate-200 hover:border-slate-300 flex items-center gap-2 text-left"
+                      >
+                        <div className="w-4 h-4 rounded-md border border-slate-300" style={{ backgroundColor: finish.color }} />
+                        <span className="text-[11px] font-semibold text-slate-700 truncate">{finish.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setOpeningConfigOpen(true)}
+                  className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5"
+                >
+                  <DoorOpen size={14} />
+                  <span>Add Door or Window</span>
+                </button>
+              </div>
+            )}
+
             {/* ── STATE B: OBJECT SELECTED (Screenshot 133757) ────────── */}
             {selectedObject && viewMode !== 'Walk' && (
-              <div className="space-y-4">
-                {/* 6 Actions Grid (Screenshot 133757) */}
+              <div className="space-y-3.5">
+                {/* Selected Object Header Tag */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                      <Box size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs text-slate-900 block truncate">
+                        {selectedObject.name}
+                      </span>
+                      <span className="text-[10px] text-slate-400 capitalize block">
+                        {selectedObject.category} • ₹{selectedObject.priceINR.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTarget(null)}
+                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                    title="Deselect"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Smart Collisions Guard Status Card */}
+                <div
+                  className={`p-3 rounded-2xl border transition-all shadow-2xs ${
+                    smartCollisions
+                      ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                      : 'bg-amber-50/70 border-amber-200 text-amber-950'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {smartCollisions ? (
+                        <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <ShieldAlert size={16} className="text-amber-600 shrink-0" />
+                      )}
+                      <span className="font-bold text-xs">
+                        {smartCollisions ? 'Collision Guard: Active' : 'Collision Guard: Off'}
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={smartCollisions}
+                      onChange={e => {
+                        setSmartCollisions(e.target.checked);
+                        addToast(
+                          e.target.checked
+                            ? 'Collision Guard ON: objects cannot merge'
+                            : 'Collision Guard OFF: free movement',
+                          e.target.checked ? 'green' : 'blue'
+                        );
+                      }}
+                      className="accent-emerald-600 w-4 h-4 rounded cursor-pointer"
+                    />
+                  </div>
+                  <span className="text-[10px] mt-1 block opacity-85 leading-snug">
+                    {smartCollisions
+                      ? 'Objects stop at boundary and cannot merge into each other.'
+                      : 'Free movement enabled. Objects can overlap.'}
+                  </span>
+                </div>
+
+                {/* Directional Nudge D-Pad (Left items precision controls) */}
+                <div className="p-2.5 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                    <span>Nudge Position</span>
+                    <span className="text-[10px] text-slate-400">0.15m steps</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 w-36 mx-auto text-center py-1">
+                    <div />
+                    <button
+                      type="button"
+                      onClick={() => handleMoveObject(0, -0.15)}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 flex items-center justify-center transition-all"
+                      title="Move Forward / North"
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <div />
+                    <button
+                      type="button"
+                      onClick={() => handleMoveObject(-0.15, 0)}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 flex items-center justify-center transition-all"
+                      title="Move Left / West"
+                    >
+                      <ArrowLeft size={14} />
+                    </button>
+                    <div className="flex items-center justify-center text-[10px] font-bold text-slate-400">
+                      <Move size={12} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveObject(0.15, 0)}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 flex items-center justify-center transition-all"
+                      title="Move Right / East"
+                    >
+                      <ArrowRight size={14} />
+                    </button>
+                    <div />
+                    <button
+                      type="button"
+                      onClick={() => handleMoveObject(0, 0.15)}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 flex items-center justify-center transition-all"
+                      title="Move Backward / South"
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                    <div />
+                  </div>
+                </div>
+
+                {/* 6 Actions Grid (Rotate L/R, Up/Down, Duplicate, Delete) */}
                 <div className="grid grid-cols-2 gap-2 text-center text-xs font-semibold text-slate-700">
                   <button
                     type="button"
                     onClick={() => handleRotate('left')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-1"
                   >
-                    <RotateCcw size={16} className="text-slate-600" />
+                    <RotateCcw size={15} className="text-slate-600" />
                     <span>Rotate L</span>
                   </button>
 
@@ -1464,7 +2126,7 @@ export function Studio3DCanvas({
                     onClick={() => handleRotate('right')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-1"
                   >
-                    <RotateCw size={16} className="text-slate-600" />
+                    <RotateCw size={15} className="text-slate-600" />
                     <span>Rotate R</span>
                   </button>
 
@@ -1473,7 +2135,7 @@ export function Studio3DCanvas({
                     onClick={() => handleElevate('up')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-1"
                   >
-                    <ArrowUp size={16} className="text-slate-600" />
+                    <ArrowUp size={15} className="text-slate-600" />
                     <span>Up</span>
                   </button>
 
@@ -1482,7 +2144,7 @@ export function Studio3DCanvas({
                     onClick={() => handleElevate('down')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-1"
                   >
-                    <ArrowDown size={16} className="text-slate-600" />
+                    <ArrowDown size={15} className="text-slate-600" />
                     <span>Down</span>
                   </button>
 
@@ -1491,7 +2153,7 @@ export function Studio3DCanvas({
                     onClick={handleDuplicate}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-1"
                   >
-                    <Copy size={16} className="text-slate-600" />
+                    <Copy size={15} className="text-slate-600" />
                     <span>Duplicate</span>
                   </button>
 
@@ -1500,7 +2162,7 @@ export function Studio3DCanvas({
                     onClick={handleDeleteObject}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 flex flex-col items-center justify-center gap-1"
                   >
-                    <Trash2 size={16} className="text-slate-600 hover:text-rose-600" />
+                    <Trash2 size={15} className="text-slate-600 hover:text-rose-600" />
                     <span>Delete</span>
                   </button>
                 </div>
@@ -1532,20 +2194,6 @@ export function Studio3DCanvas({
                   </div>
                 </div>
 
-                {/* Smart Collisions Toggle (Screenshot 133757) */}
-                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800 text-xs">Smart Collisions</span>
-                    <input
-                      type="checkbox"
-                      checked={smartCollisions}
-                      onChange={e => setSmartCollisions(e.target.checked)}
-                      className="accent-blue-600 rounded"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 block">Objects can be placed anywhere freely</span>
-                </div>
-
                 {/* Rotation Axis (Screenshot 133757) */}
                 <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-2">
                   <div className="flex items-center justify-between">
@@ -1567,7 +2215,7 @@ export function Studio3DCanvas({
                       ))}
                     </div>
                   </div>
-                  <span className="text-[10px] text-slate-400 block">Rotates object left/right (turn)</span>
+                  <span className="text-[10px] text-slate-400 block">Rotates object around selected 3D axis</span>
                   <button
                     type="button"
                     onClick={handleResetRotation}
@@ -1581,7 +2229,7 @@ export function Studio3DCanvas({
                 <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-2.5">
                   <div>
                     <span className="font-semibold text-slate-800 text-xs block">Adjust Dimensions</span>
-                    <span className="text-[9px] text-slate-400 block">Scroll to adjust • Shift=fine • Cmd/Ctrl=coarse</span>
+                    <span className="text-[9px] text-slate-400 block">Fine-tune object scale in real time</span>
                   </div>
 
                   {/* Units & Uniform lock */}
@@ -1884,9 +2532,11 @@ export function Studio3DCanvas({
           {/* ── TOP BANNER 1: AXIS-ALIGNED DRAG HINT (Screenshot 133816) ── */}
           {isDraggingObj && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-3.5 py-1.5 rounded-xl shadow-xl text-xs font-medium z-30 pointer-events-none flex items-center gap-2 animate-in fade-in">
-              <span>Hold</span>
-              <span className="px-1.5 py-0.5 rounded bg-blue-600 font-bold text-[11px]">Shift</span>
-              <span>for axis-aligned movement</span>
+              <span>{isShiftPressed ? 'Axis Lock Active' : 'Hold'}</span>
+              <span className={`px-1.5 py-0.5 rounded font-bold text-[11px] ${isShiftPressed ? 'bg-emerald-600' : 'bg-blue-600'}`}>
+                Shift
+              </span>
+              <span>{isShiftPressed ? '(1-Axis Only)' : 'for axis-aligned movement'}</span>
             </div>
           )}
 
@@ -2172,7 +2822,9 @@ export function Studio3DCanvas({
                     <Box size={24} className="animate-pulse" />
                   </div>
                   <div>
-                    <span className="font-bold text-slate-900 text-xs block">Generating 3D Model</span>
+                    <span className="font-bold text-slate-900 text-xs block">
+                      {generatingProductName ? `Generating ${generatingProductName}` : 'Generating 3D Model'}
+                    </span>
                     <span className="text-[10px] text-sky-700 block font-mono mt-0.5">
                       {generatingModelProgress}%
                     </span>

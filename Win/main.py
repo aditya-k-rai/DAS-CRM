@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout,
-    QStackedWidget, QMessageBox, QLabel, QVBoxLayout
+    QStackedWidget, QMessageBox, QLabel, QVBoxLayout,
+    QDialog
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon
@@ -329,7 +330,7 @@ def main():
     if not app_icon.isNull():
         login.setWindowIcon(app_icon)
 
-    if login.exec() != LoginWindow.Accepted:
+    if login.exec() != QDialog.DialogCode.Accepted:
         sys.exit(0)
 
     user_info = LoginWindow.LOGGED_IN

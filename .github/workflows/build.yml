@@ -50,9 +50,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DASCRM-Windows
-          path: |
-            Win/dist/DASCRM-Windows.exe
-            Win/dist/DASCRM.exe
+          path: Win/dist/DASCRM.exe
           if-no-files-found: error
           retention-days: 30
 
