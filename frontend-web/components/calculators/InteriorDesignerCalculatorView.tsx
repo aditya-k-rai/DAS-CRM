@@ -1102,8 +1102,8 @@ export function InteriorDesignerCalculatorView() {
                 </div>
               </div>
 
-              {/* 3D Studio Canvas */}
-              <div className="h-[680px] w-full rounded-2xl overflow-hidden border border-border shadow-xl">
+              {/* 3D Studio Canvas (Full-Featured Studio matching roomform.ai reference) */}
+              <div className="h-[800px] w-full rounded-3xl overflow-hidden border border-border shadow-2xl">
                 <Studio3DCanvas
                   currentRoom={activeRoom}
                   objects={currentProject.objects3D.filter((o) => o.roomId === activeRoom.id)}
