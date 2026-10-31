@@ -50,7 +50,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DASCRM-Windows
-          path: Win/dist/DASCRM-Windows.exe
+          path: |
+            Win/dist/DASCRM-Windows.exe
+            Win/dist/DASCRM.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -82,10 +84,14 @@ jobs:
       - name: Assemble DASCRM.app bundle & DMG
         run: |
           APP="$RUNNER_TEMP/DASCRM.app"
-          BIN="macOs/.build/release/DASCRM"
+          BIN_PATH=$(find macOs/.build -type f -name "DASCRM" 2>/dev/null | grep -E "release/DASCRM" | head -n 1)
+          if [ -z "$BIN_PATH" ]; then
+            BIN_PATH=$(find macOs/.build -type f -name "DASCRM" 2>/dev/null | head -n 1)
+          fi
+          echo "Found macOS binary at: $BIN_PATH"
           mkdir -p "$APP/Contents/MacOS"
           mkdir -p "$APP/Contents/Resources"
-          cp "$BIN" "$APP/Contents/MacOS/DASCRM"
+          cp "$BIN_PATH" "$APP/Contents/MacOS/DASCRM"
           chmod +x "$APP/Contents/MacOS/DASCRM"
 
           cat > "$APP/Contents/Info.plist" << 'PLIST'

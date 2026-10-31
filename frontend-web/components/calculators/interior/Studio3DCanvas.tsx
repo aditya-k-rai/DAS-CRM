@@ -149,8 +149,9 @@ export function Studio3DCanvas({
   const [aiPrompt, setAiPrompt] = useState('');
   const [bannerNotice, setBannerNotice] = useState<string>('Select any object, wall, or floor to view measurements & customize');
 
-  // Canvas container ref
-  const mountRef = useRef<HTMLDivElement>(null);
+  // Canvas refs: dedicated Three.js canvas mount and interactive wrapper
+  const canvasMountRef = useRef<HTMLDivElement>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const threeStateRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
@@ -247,11 +248,11 @@ export function Studio3DCanvas({
 
   // ── Initialize Three.js WebGL Scene ────────────────────────────────
   useEffect(() => {
-    const container = mountRef.current;
+    const container = canvasMountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || canvasWrapperRef.current?.clientWidth || 800;
+    const height = container.clientHeight || canvasWrapperRef.current?.clientHeight || 600;
 
     // 1. Scene
     const scene = new THREE.Scene();
@@ -780,11 +781,11 @@ export function Studio3DCanvas({
   // ── Camera View Mode Switching ──────────────────────────────────────
   useEffect(() => {
     const state = threeStateRef.current;
-    const container = mountRef.current;
+    const container = canvasMountRef.current || canvasWrapperRef.current;
     if (!state || !container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
 
     if (viewMode === '2D') {
       // Top-Down Orthographic CAD View
@@ -820,7 +821,7 @@ export function Studio3DCanvas({
       walk.position.copy(state.walkCameraPos);
       state.camera = walk;
       setBannerNotice('First-Person Walkthrough: Use WASD / Arrows to walk • Click & drag mouse to look around');
-      container.focus();
+      canvasWrapperRef.current?.focus();
     }
   }, [viewMode]);
 
@@ -870,7 +871,7 @@ export function Studio3DCanvas({
   // ── Canvas Interaction Handlers ────────────────────────────────────
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const state = threeStateRef.current;
-    const container = mountRef.current;
+    const container = canvasWrapperRef.current;
     if (!state || !container) return;
 
     container.focus();
@@ -972,7 +973,7 @@ export function Studio3DCanvas({
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const state = threeStateRef.current;
-    const container = mountRef.current;
+    const container = canvasWrapperRef.current;
     if (!state || !container) return;
 
     // First-person mouse look in Walk mode
@@ -1027,14 +1028,14 @@ export function Studio3DCanvas({
         );
       }
     } else if (e.buttons === 1 && viewMode === '3D' && activeTool === 'Orbit') {
-      // Smooth Orbit Camera
+      // Smooth Orbit Camera: cursor moving right rotates the scene to the right
       const rotSpeed = 0.005;
       const curPos = state.camera.position;
       const radius = Math.sqrt(curPos.x * curPos.x + curPos.z * curPos.z);
       let angle = Math.atan2(curPos.z, curPos.x);
-      angle -= e.movementX * rotSpeed;
+      angle += e.movementX * rotSpeed;
 
-      const newHeight = Math.max(1.5, Math.min(20, curPos.y - e.movementY * rotSpeed * 3));
+      const newHeight = Math.max(1.2, Math.min(22, curPos.y - e.movementY * rotSpeed * 3));
       state.camera.position.set(Math.cos(angle) * radius, newHeight, Math.sin(angle) * radius);
       state.camera.lookAt(0, 0, 0);
     } else if (e.buttons === 1 && viewMode === '3D' && activeTool === 'Pan') {
@@ -1871,15 +1872,18 @@ export function Studio3DCanvas({
           </div>
         </div>
 
-        {/* ── CENTER 3D / 2D CANVAS ─────────────────────────────────── */}
+        {/* ── CENTER 3D / 2D CANVAS CONTAINER ─────────────────────── */}
         <div
-          ref={mountRef}
+          ref={canvasWrapperRef}
           tabIndex={0}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           className="flex-1 h-full bg-slate-950 outline-none relative cursor-grab active:cursor-grabbing overflow-hidden"
         >
+          {/* Isolated WebGL Canvas Mount — completely separate from React child nodes */}
+          <div ref={canvasMountRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+
           {/* Top Banner Notice */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-800/90 rounded-2xl px-3 py-1 flex items-center gap-2 shadow-xl z-10 pointer-events-none text-xs text-slate-300 font-medium">
             <Sparkles size={13} className="text-indigo-400" />

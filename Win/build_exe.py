@@ -142,11 +142,22 @@ def build_exe(debug=False) -> bool:
             print(f"\n[ERROR] Output not found at {dist_exe}")
             return False
 
+    # Guarantee both DASCRM-Windows.exe (for CI artifact upload) and DASCRM.exe (for Inno Setup) exist
+    target_win = DIST_DIR / "DASCRM-Windows.exe"
+    target_app = DIST_DIR / "DASCRM.exe"
+    try:
+        if dist_exe != target_win and not target_win.exists():
+            shutil.copy2(str(dist_exe), str(target_win))
+        if dist_exe != target_app and not target_app.exists():
+            shutil.copy2(str(dist_exe), str(target_app))
+    except Exception as copy_err:
+        print(f"Warning copying alias exe: {copy_err}")
+
     size_mb = dist_exe.stat().st_size / (1024 * 1024)
     print()
     print("=" * 60)
     print("BUILD SUCCESSFUL")
-    print(f"File : {dist_exe.name}")
+    print(f"Files: {target_win.name}, {target_app.name}")
     print(f"Size : {size_mb:.1f} MB")
     print("=" * 60)
     return True
