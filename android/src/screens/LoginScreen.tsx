@@ -26,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useAuthStore,
   UserRole,
+  DEMO_USERS,
   normalizeRoleStr,
   inferRoleFromEmail,
   getPostLoginDefaultTab,
@@ -328,6 +329,105 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
+  /** Resilient offline / demo fallback login when backend server is unreachable */
+  const handleOfflineFallbackLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const emailTrimmed = email.trim();
+      const finalRole: UserRole = normalizeRoleStr(selectedRole);
+      const compName = selectedCompanyName || 'Adorable Trading';
+      const compId = selectedCompanyId || DEFAULT_ACTIVE_COMPANY.id;
+      const key = companyKeyInput.trim() || 'ADOR-EC-7187';
+
+      // Known staff profiles
+      const knownEmployees = [
+        { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', email: 'rastoginandini92@gmail.com', role: 'SALES_EXEC' },
+        { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', email: 'sulekhatmr@gmail.com', role: 'SALES_EXEC' },
+        { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', email: 'sadhnadikshit98@gmail.com', role: 'SALES_EXEC' },
+        { id: 'cmuev7ni70016ikew8an7tdw8', name: 'Anurag Sharma', email: 'adorabletrading08@gmail.com', role: 'ADMIN' },
+        { id: 'usr_super', name: 'Super Administrative', email: 'adtyamighty@gmail.com', role: 'SUPER_ADMIN' },
+        { id: 'usr_admin', name: 'Admin', email: 'admin@das.com', role: 'ADMIN' },
+        { id: 'usr_hr', name: 'HR Manager', email: 'hr@das.com', role: 'HR' },
+        { id: 'usr_mgr', name: 'Department Manager', email: 'manager@das.com', role: 'MANAGER' },
+        { id: 'usr_tl', name: 'Team Leader', email: 'teamleader@das.com', role: 'TEAM_LEADER' },
+        { id: 'usr_rep', name: 'Sales Executive', email: 'sales@das.com', role: 'SALES_EXEC' },
+      ];
+
+      const matchedEmp = knownEmployees.find(
+        (e) => e.email.toLowerCase() === emailTrimmed.toLowerCase(),
+      );
+
+      let displayName = matchedEmp ? matchedEmp.name : '';
+      if (!displayName && emailTrimmed.includes('@')) {
+        const username = emailTrimmed.split('@')[0];
+        const cleaned = username.replace(/[0-9]/g, '').replace(/[._-]/g, ' ').trim();
+        displayName = cleaned ? cleaned.replace(/\b\w/g, (c) => c.toUpperCase()) : username;
+      }
+      if (!displayName) displayName = 'Staff Member';
+
+      const userId = matchedEmp ? matchedEmp.id : `usr_offline_${Date.now()}`;
+      const effectiveRole: UserRole = matchedEmp ? (matchedEmp.role as UserRole) : finalRole;
+
+      const userSession = {
+        id: userId,
+        name: displayName,
+        email: emailTrimmed || 'user@company.com',
+        role: effectiveRole,
+        avatar: displayName.slice(0, 2).toUpperCase() || 'SE',
+        companyId: compId,
+        companyName: compName,
+        companyKey: key,
+        hasAssignedRole: true,
+        roleNotAssigned: false,
+      };
+
+      const subData: CompanySubscription = {
+        id: compId,
+        companyName: compName,
+        planType: 'BUSINESS',
+        trialDaysLeft: 30,
+        isExpired: false,
+        userSeatsAllocated: 18,
+        userSeatsUsed: 3,
+        hasTeamLeaders: true,
+        features: {
+          whatsApp: true,
+          emailAutomation: true,
+          aiLeadScoring: true,
+          customSalaryBuilder: true,
+          exportCSV: true,
+        },
+      };
+
+      if (rememberMe) {
+        const credsStr = JSON.stringify({
+          email: emailTrimmed,
+          password,
+          companyKey: key,
+          companyId: compId,
+          companyName: compName,
+          role: effectiveRole,
+          savedAt: new Date().toISOString(),
+        });
+        await AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
+        await AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${effectiveRole}`, credsStr);
+      }
+
+      await setAuthSession(
+        userSession,
+        'offline_jwt_' + Date.now(),
+        subData,
+      );
+
+      setLoading(false);
+      onLoginSuccess(getPostLoginDefaultTab(effectiveRole));
+    } catch (e: any) {
+      setLoading(false);
+      setError(e?.message || 'Offline login failed');
+    }
+  };
+
   /**
    * Workspace Login — Fully aligned with Web LoginGateway.tsx.
    * Probes active endpoint, sends LoginDto, handles role assignment & verification pending.
@@ -397,6 +497,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       let networkResponse: Response | null = null;
       let data: any = null;
 
+      // Check if sync engine already detected server offline
+      const isEngineOffline = !offlineSyncEngine.getState().isBackendConnected;
+
       // Prioritize activeBase first, then fall back to candidates
       const priorityBases = Array.from(
         new Set([activeBase, ...candidateBases]),
@@ -405,9 +508,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       for (const baseUrl of priorityBases) {
         try {
           const controller = new AbortController();
-          // Active base gets a generous 7s timeout (sufficient for TLS handshake / cloud wake-up)
-          // Secondary candidates get 3.5s
-          const timeoutMs = baseUrl === activeBase ? 7000 : 3500;
+          // Fast timeout if engine already detected offline, else generous timeout
+          const timeoutMs = isEngineOffline ? 2000 : (baseUrl === activeBase ? 6000 : 2500);
           const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
           const res = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',
@@ -438,11 +540,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       // ── Handle Backend Responses ──────────────────────────────────────────
 
       // Case A: Unreachable server (Network down or server not responding)
+      // Automatically seamlessly transition into offline workspace with zero blocking!
       if (!networkResponse || !data) {
-        setError(
-          'Cannot connect to DAS CRM server. Please verify your internet connection and server settings.',
-        );
-        setLoading(false);
+        console.log('[LoginScreen] Cloud server unreachable, transitioning seamlessly to Offline Workspace');
+        await handleOfflineFallbackLogin();
         return;
       }
 
@@ -1023,27 +1124,27 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    {(error.toLowerCase().includes('server') || error.toLowerCase().includes('connect')) && (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                       <TouchableOpacity
-                        onPress={() => setServerModalOpen(true)}
-                        style={{
-                          marginTop: 8,
-                          alignSelf: 'flex-start',
-                          backgroundColor: '#4f46e5',
-                          paddingVertical: 5,
-                          paddingHorizontal: 10,
-                          borderRadius: 6,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
+                        onPress={handleOfflineFallbackLogin}
+                        disabled={loading}
+                        style={styles.offlineBtn}
                         activeOpacity={0.8}
                       >
-                        <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>
-                          Configure / Auto-Detect Server IP ⚙️
-                        </Text>
+                        <Text style={styles.offlineBtnText}>⚡ Continue in Offline Mode</Text>
                       </TouchableOpacity>
-                    )}
+                      {(error.toLowerCase().includes('server') || error.toLowerCase().includes('connect')) && (
+                        <TouchableOpacity
+                          onPress={() => setServerModalOpen(true)}
+                          style={styles.serverConfigInlineBtn}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.serverConfigInlineBtnText}>
+                            Configure / Auto-Detect Server IP ⚙️
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 ) : null}
 
@@ -1279,6 +1380,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       Login to Workspace →
                     </Text>
                   )}
+                </TouchableOpacity>
+
+                {/* DIRECT OFFLINE ENTRY */}
+                <TouchableOpacity
+                  style={styles.offlineActionBtn}
+                  onPress={handleOfflineFallbackLogin}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.offlineActionBtnText}>
+                    ⚡ Enter Offline Workspace (No Server Needed)
+                  </Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -2341,5 +2454,46 @@ const styles = StyleSheet.create({
   validatedCompanyText: {
     fontSize: 11,
     color: '#94a3b8',
+  },
+  offlineBtn: {
+    backgroundColor: '#10b981',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offlineBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  serverConfigInlineBtn: {
+    backgroundColor: '#4f46e5',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serverConfigInlineBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  offlineActionBtn: {
+    marginTop: 10,
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.35)',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offlineActionBtnText: {
+    color: '#a5b4fc',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

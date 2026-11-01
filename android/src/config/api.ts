@@ -51,8 +51,8 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
-export const PREV_LAN_API_URL = 'http://192.168.1.34:3001/api/v1';
+export const CURRENT_LAN_API_URL = 'http://192.168.1.45:3001/api/v1';
+export const PREV_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
 export const DEFAULT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
@@ -85,6 +85,7 @@ export function getCandidateApiUrls(): string[] {
   }
 
   // 5. Active Host Machine Wi-Fi LAN IP (Primary for real physical devices on local network)
+  candidates.push('http://192.168.1.45:3001/api/v1');
   candidates.push(CURRENT_LAN_API_URL);
   candidates.push('http://192.168.29.26:3001/api/v1');
   candidates.push(PREV_LAN_API_URL);
@@ -150,7 +151,7 @@ export function getApiBase(): string {
  */
 export async function testApiEndpoint(
   url: string,
-  timeoutMs = 4000
+  timeoutMs = 6000
 ): Promise<{ success: boolean; latencyMs: number; error?: string }> {
   if (!url || !url.startsWith('http')) {
     return { success: false, latencyMs: 0, error: 'Invalid server address' };
@@ -158,19 +159,20 @@ export async function testApiEndpoint(
   const normalized = normalizeApiUrl(url);
   const start = Date.now();
   try {
+    const effectiveTimeout = url.includes('.onrender.com') || url.startsWith('https://') ? Math.max(timeoutMs, 8000) : timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
-    // 1. Try /health
-    let res = await fetch(`${normalized}/health`, {
+    // 1. Try public auth endpoint /auth/public-companies
+    let res = await fetch(`${normalized}/auth/public-companies`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
     }).catch(() => null);
 
-    // 2. Fallback check: public auth endpoint /auth/public-companies
+    // 2. Fallback check: /health
     if (!res || !res.ok) {
-      res = await fetch(`${normalized}/auth/public-companies`, {
+      res = await fetch(`${normalized}/health`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,

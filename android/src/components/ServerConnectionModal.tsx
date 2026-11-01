@@ -302,7 +302,32 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                     {CURRENT_LAN_API_URL}
                   </Text>
                   <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                    📶 Host Computer Wi-Fi LAN IP
+                    📶 Host Computer Wi-Fi LAN IP (192.168.1.45)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset: Secondary Subnet LAN */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl('http://192.168.29.26:3001/api/v1') ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl('http://192.168.29.26:3001/api/v1') ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset('http://192.168.29.26:3001/api/v1')}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    http://192.168.29.26:3001/api/v1
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    📶 Secondary Wi-Fi LAN IP (192.168.29.26)
                   </Text>
                 </View>
                 <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>

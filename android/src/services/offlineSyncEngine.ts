@@ -180,6 +180,20 @@ class OfflineSyncEngine {
       if (res.ok) {
         isBackendLive = true;
         isNetLive = true;
+      } else {
+        // Fallback check on public companies endpoint
+        const ctrl2 = new AbortController();
+        const tid2 = setTimeout(() => ctrl2.abort(), 2000);
+        const res2 = await fetch(`${apiBase}/auth/public-companies`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: ctrl2.signal,
+        });
+        clearTimeout(tid2);
+        if (res2.ok) {
+          isBackendLive = true;
+          isNetLive = true;
+        }
       }
     } catch (_) {}
 
