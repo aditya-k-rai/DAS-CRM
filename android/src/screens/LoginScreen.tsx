@@ -171,6 +171,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   // General UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isWakingServer, setIsWakingServer] = useState(false);
+  const [coldStartSeconds, setColdStartSeconds] = useState(0);
 
   /** Live Fetch & Sync Companies from Backend */
   const fetchAndSyncCompanies = async (showIndicator = false) => {
@@ -213,6 +215,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   useEffect(() => {
+    // Immediately send background wake-up ping to cloud server (starts Render cold boot)
+    fetch('https://dascrm-backend.onrender.com/api/v1/health', { method: 'GET' }).catch(() => {});
+
     // 0. Ensure fresh install cleanliness: purge legacy stored credentials so old tests never autofill
     AsyncStorage.getItem('@das_crm_login_cleaned_v2').then((cleaned) => {
       if (!cleaned) {
@@ -330,107 +335,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   /** Resilient offline / demo fallback login when backend server is unreachable */
-  const handleOfflineFallbackLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const emailTrimmed = email.trim();
-      const finalRole: UserRole = normalizeRoleStr(selectedRole);
-      const compName = selectedCompanyName || 'Adorable Trading';
-      const compId = selectedCompanyId || DEFAULT_ACTIVE_COMPANY.id;
-      const key = companyKeyInput.trim() || 'ADOR-EC-7187';
-
-      // Known staff profiles
-      const knownEmployees = [
-        { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', email: 'rastoginandini92@gmail.com', role: 'SALES_EXEC' },
-        { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', email: 'sulekhatmr@gmail.com', role: 'SALES_EXEC' },
-        { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', email: 'sadhnadikshit98@gmail.com', role: 'SALES_EXEC' },
-        { id: 'cmuev7ni70016ikew8an7tdw8', name: 'Anurag Sharma', email: 'adorabletrading08@gmail.com', role: 'ADMIN' },
-        { id: 'usr_super', name: 'Super Administrative', email: 'adtyamighty@gmail.com', role: 'SUPER_ADMIN' },
-        { id: 'usr_admin', name: 'Admin', email: 'admin@das.com', role: 'ADMIN' },
-        { id: 'usr_hr', name: 'HR Manager', email: 'hr@das.com', role: 'HR' },
-        { id: 'usr_mgr', name: 'Department Manager', email: 'manager@das.com', role: 'MANAGER' },
-        { id: 'usr_tl', name: 'Team Leader', email: 'teamleader@das.com', role: 'TEAM_LEADER' },
-        { id: 'usr_rep', name: 'Sales Executive', email: 'sales@das.com', role: 'SALES_EXEC' },
-      ];
-
-      const matchedEmp = knownEmployees.find(
-        (e) => e.email.toLowerCase() === emailTrimmed.toLowerCase(),
-      );
-
-      let displayName = matchedEmp ? matchedEmp.name : '';
-      if (!displayName && emailTrimmed.includes('@')) {
-        const username = emailTrimmed.split('@')[0];
-        const cleaned = username.replace(/[0-9]/g, '').replace(/[._-]/g, ' ').trim();
-        displayName = cleaned ? cleaned.replace(/\b\w/g, (c) => c.toUpperCase()) : username;
-      }
-      if (!displayName) displayName = 'Staff Member';
-
-      const userId = matchedEmp ? matchedEmp.id : `usr_offline_${Date.now()}`;
-      const effectiveRole: UserRole = matchedEmp ? (matchedEmp.role as UserRole) : finalRole;
-
-      const userSession = {
-        id: userId,
-        name: displayName,
-        email: emailTrimmed || 'user@company.com',
-        role: effectiveRole,
-        avatar: displayName.slice(0, 2).toUpperCase() || 'SE',
-        companyId: compId,
-        companyName: compName,
-        companyKey: key,
-        hasAssignedRole: true,
-        roleNotAssigned: false,
-      };
-
-      const subData: CompanySubscription = {
-        id: compId,
-        companyName: compName,
-        planType: 'BUSINESS',
-        trialDaysLeft: 30,
-        isExpired: false,
-        userSeatsAllocated: 18,
-        userSeatsUsed: 3,
-        hasTeamLeaders: true,
-        features: {
-          whatsApp: true,
-          emailAutomation: true,
-          aiLeadScoring: true,
-          customSalaryBuilder: true,
-          exportCSV: true,
-        },
-      };
-
-      if (rememberMe) {
-        const credsStr = JSON.stringify({
-          email: emailTrimmed,
-          password,
-          companyKey: key,
-          companyId: compId,
-          companyName: compName,
-          role: effectiveRole,
-          savedAt: new Date().toISOString(),
-        });
-        await AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-        await AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${effectiveRole}`, credsStr);
-      }
-
-      await setAuthSession(
-        userSession,
-        'offline_jwt_' + Date.now(),
-        subData,
-      );
-
-      setLoading(false);
-      onLoginSuccess(getPostLoginDefaultTab(effectiveRole));
-    } catch (e: any) {
-      setLoading(false);
-      setError(e?.message || 'Offline login failed');
-    }
-  };
-
   /**
-   * Workspace Login — Fully aligned with Web LoginGateway.tsx.
-   * Probes active endpoint, sends LoginDto, handles role assignment & verification pending.
+   * Workspace Login — Strictly authenticates with live backend (Render or LAN).
+   * Verifies Company Key, Role Perspective, Email, and Password exactly like Web LoginGateway.tsx.
+   * Handles Render ~1 minute cold start gracefully with live elapsed counter and retry tolerance.
    */
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
@@ -474,6 +382,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
     setLoading(true);
     setError(null);
+    setIsWakingServer(false);
+    setColdStartSeconds(0);
+
+    // Track Render cold-start elapsed time
+    const coldStartStartTime = Date.now();
+    const coldStartTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - coldStartStartTime) / 1000);
+      setColdStartSeconds(elapsed);
+      if (elapsed >= 3) {
+        setIsWakingServer(true);
+      }
+    }, 1000);
 
     const loginPayload = {
       email: email.trim(),
@@ -488,30 +408,52 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       const candidateBases = Array.from(
         new Set([activeBase, ...getCandidateApiUrls()]),
       ).filter(
-        (url) =>
-          url &&
-          typeof url === 'string' &&
-          url.startsWith('http'),
+        (url) => url && typeof url === 'string' && url.startsWith('http'),
       );
 
-      let networkResponse: Response | null = null;
-      let data: any = null;
+      let targetBase = activeBase;
 
-      // Check if sync engine already detected server offline
-      const isEngineOffline = !offlineSyncEngine.getState().isBackendConnected;
-
-      // Prioritize activeBase first, then fall back to candidates
-      const priorityBases = Array.from(
-        new Set([activeBase, ...candidateBases]),
+      // Fast LAN check (1.2s): If on office Wi-Fi with local server running, connect instantly
+      const localCandidates = candidateBases.filter(
+        (u) => !u.includes('.onrender.com') && !u.includes('localhost') && !u.includes('127.0.0.1'),
       );
+      if (localCandidates.length > 0) {
+        try {
+          const quickLAN: any = await Promise.race([
+            ...localCandidates.map(async (u) => {
+              const c = new AbortController();
+              const t = setTimeout(() => c.abort(), 1200);
+              const r = await fetch(`${u}/health`, { signal: c.signal });
+              clearTimeout(t);
+              if (r.ok) return u;
+              throw new Error('LAN unreachable');
+            }),
+            new Promise((res) => setTimeout(() => res(null), 1400)),
+          ]);
+          if (quickLAN && typeof quickLAN === 'string') {
+            targetBase = quickLAN;
+            setApiBase(quickLAN);
+          }
+        } catch (_) {}
+      }
 
-      for (const baseUrl of priorityBases) {
+      // Default to live Render cloud endpoint if local host unreachable
+      if (!targetBase || targetBase.includes('localhost') || targetBase.includes('127.0.0.1')) {
+        targetBase = 'https://dascrm-backend.onrender.com/api/v1';
+      }
+
+      let networkResponse = null;
+      let data = null;
+      const isCloud = targetBase.includes('.onrender.com');
+      // Render free-tier can take 50-75 seconds on cold boot
+      const maxAttempts = isCloud ? 4 : 2;
+      const timeoutPerAttempt = isCloud ? 70000 : 8000;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const controller = new AbortController();
-          // Fast timeout if engine already detected offline, else generous timeout
-          const timeoutMs = isEngineOffline ? 2000 : (baseUrl === activeBase ? 6000 : 2500);
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-          const res = await fetch(`${baseUrl}/auth/login`, {
+          const timeoutId = setTimeout(() => controller.abort(), timeoutPerAttempt);
+          const res = await fetch(`${targetBase}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(loginPayload),
@@ -521,29 +463,39 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
           const parsed = await res.json().catch(() => null);
 
-          // If the endpoint responded with an authentic auth response
-          if (
-            (res.ok && parsed?.accessToken) ||
-            (res.status === 403 && parsed) ||
-            ((res.status === 401 || res.status === 400) && parsed?.message)
-          ) {
+          // Authentic response received (HTTP 200, 400, 401, 403)
+          if (res.ok || res.status === 400 || res.status === 401 || res.status === 403) {
             networkResponse = res;
             data = parsed;
-            setApiBase(baseUrl);
+            setApiBase(targetBase);
             break;
           }
-        } catch (_) {
-          // Candidate failed or timed out, probe next candidate
+
+          // If Render returned 502/503 during cold boot, pause briefly and retry
+          if (res.status === 502 || res.status === 503 || res.status === 504) {
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+        } catch (fetchErr) {
+          // If connection dropped/reset while container was initializing, retry
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 2500));
+            continue;
+          }
         }
       }
 
+      clearInterval(coldStartTimer);
+      setIsWakingServer(false);
+
       // ── Handle Backend Responses ──────────────────────────────────────────
 
-      // Case A: Unreachable server (Network down or server not responding)
-      // Automatically seamlessly transition into offline workspace with zero blocking!
+      // Case A: Unreachable server (Network down or server did not respond within cold-start window)
       if (!networkResponse || !data) {
-        console.log('[LoginScreen] Cloud server unreachable, transitioning seamlessly to Offline Workspace');
-        await handleOfflineFallbackLogin();
+        setError(
+          'Cannot connect to DAS CRM server. The cloud backend on Render may still be waking up from sleep (~1 min cold start). Please check your internet connection and tap Login to retry.',
+        );
+        setLoading(false);
         return;
       }
 
@@ -1036,28 +988,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               Sign In to Your Company Workspace
             </Text>
 
-            {/* Quick Server Gateway Switcher */}
-            <TouchableOpacity
-              onPress={() => setServerModalOpen(true)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                borderColor: 'rgba(99, 102, 241, 0.3)',
-                borderWidth: 1,
-                paddingVertical: 4,
-                paddingHorizontal: 12,
-                borderRadius: 20,
-                marginTop: 8,
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 11, color: '#818cf8', fontWeight: '700' }}>
-                🌐 Server: {getApiBase().replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '')}
-              </Text>
-              <Text style={{ fontSize: 10, color: '#6366f1', fontWeight: '800' }}>⚙️ Edit</Text>
-            </TouchableOpacity>
+            
           </View>
 
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
@@ -1124,26 +1055,20 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                      <TouchableOpacity
-                        onPress={handleOfflineFallbackLogin}
-                        disabled={loading}
-                        style={styles.offlineBtn}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.offlineBtnText}>⚡ Continue in Offline Mode</Text>
-                      </TouchableOpacity>
-                      {(error.toLowerCase().includes('server') || error.toLowerCase().includes('connect')) && (
-                        <TouchableOpacity
-                          onPress={() => setServerModalOpen(true)}
-                          style={styles.serverConfigInlineBtn}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.serverConfigInlineBtnText}>
-                            Configure / Auto-Detect Server IP ⚙️
-                          </Text>
-                        </TouchableOpacity>
-                      )}
+                  </View>
+                ) : null}
+
+                {/* Render Cold Start Progress Indicator */}
+                {isWakingServer ? (
+                  <View style={styles.coldStartBanner}>
+                    <ActivityIndicator size="small" color="#818cf8" style={{ marginRight: 10 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.coldStartTitle}>
+                        ⚡ Connecting to Cloud Server...
+                      </Text>
+                      <Text style={styles.coldStartSubtitle}>
+                        Render backend is waking up from sleep (~1 min cold start after 15 min idle). Elapsed: {coldStartSeconds}s
+                      </Text>
                     </View>
                   </View>
                 ) : null}
@@ -1368,30 +1293,23 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
                 {/* STEP 6 — LOGIN BUTTON */}
                 <TouchableOpacity
-                  style={styles.button}
+                  style={[styles.button, loading && { opacity: 0.85 }]}
                   onPress={handleWorkspaceLogin}
                   disabled={loading}
                   activeOpacity={0.8}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#fff" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      <ActivityIndicator color="#fff" />
+                      <Text style={styles.buttonText}>
+                        {isWakingServer ? `Waking Server (${coldStartSeconds}s)...` : 'Authenticating...'}
+                      </Text>
+                    </View>
                   ) : (
                     <Text style={styles.buttonText}>
                       Login to Workspace →
                     </Text>
                   )}
-                </TouchableOpacity>
-
-                {/* DIRECT OFFLINE ENTRY */}
-                <TouchableOpacity
-                  style={styles.offlineActionBtn}
-                  onPress={handleOfflineFallbackLogin}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.offlineActionBtnText}>
-                    ⚡ Enter Offline Workspace (No Server Needed)
-                  </Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -2454,6 +2372,27 @@ const styles = StyleSheet.create({
   validatedCompanyText: {
     fontSize: 11,
     color: '#94a3b8',
+  },
+  coldStartBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  coldStartTitle: {
+    color: '#818cf8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  coldStartSubtitle: {
+    color: '#94a3b8',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 16,
   },
   offlineBtn: {
     backgroundColor: '#10b981',

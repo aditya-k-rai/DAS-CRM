@@ -696,11 +696,13 @@ function RootAppContent() {
     <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* 📶 Global Network & Offline Sync Status Banner — auto-slides in when needed */}
-      <NetworkStatusBanner
-        token={token}
-        isOfflineSession={isOfflineSession}
-        onRequestReLogin={isOfflineSession ? handleReLoginForOfflineSession : undefined}
-      />
+      {token ? (
+        <NetworkStatusBanner
+          token={token}
+          isOfflineSession={isOfflineSession}
+          onRequestReLogin={isOfflineSession ? handleReLoginForOfflineSession : undefined}
+        />
+      ) : null}
       <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />
