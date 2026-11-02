@@ -352,7 +352,6 @@ export function Studio3DCanvas({
   const [aiPrompt, setAiPrompt] = useState('');
 
   // Projected 2D screen coordinates of the selected object for on-canvas HUD
-  const [screenHudPos, setScreenHudPos] = useState<{ x: number; y: number } | null>(null);
   const [hudHoverAction, setHudHoverAction] = useState<string | null>(null);
 
   // Wall Opening Modal
@@ -407,9 +406,17 @@ export function Studio3DCanvas({
     viewHeightRefInches.current = viewHeightInches;
   }, [viewMode, viewHeightInches]);
 
-  // Canvas refs
+  // Canvas & HUD refs
   const canvasMountRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const hudRef = useRef<HTMLDivElement>(null);
+  const dragLastPosRef = useRef<{ x: number; z: number } | null>(null);
+  const selectedTargetRef = useRef<SelectedElementType>(selectedTarget);
+
+  useEffect(() => {
+    selectedTargetRef.current = selectedTarget;
+  }, [selectedTarget]);
+
   const threeStateRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
@@ -431,6 +438,7 @@ export function Studio3DCanvas({
     wallMeshes: Map<string, THREE.Mesh>;
     floorMesh: THREE.Mesh | null;
     ceilingMesh: THREE.Mesh | null;
+    selectionBox: THREE.BoxHelper | null;
   } | null>(null);
 
   // Selected Object
@@ -572,6 +580,11 @@ export function Studio3DCanvas({
     const measureGroup = new THREE.Group();
     scene.add(measureGroup);
 
+    const selectionBox = new THREE.BoxHelper(new THREE.Mesh(), 0xfacc15);
+    selectionBox.name = 'scene_selection_box';
+    selectionBox.visible = false;
+    scene.add(selectionBox);
+
     threeStateRef.current = {
       scene,
       camera,
@@ -593,6 +606,7 @@ export function Studio3DCanvas({
       wallMeshes: new Map(),
       floorMesh: null,
       ceilingMesh: null,
+      selectionBox,
     };
 
     // Animation & Render Loop
@@ -655,23 +669,41 @@ export function Studio3DCanvas({
         state.camera.lookAt(state.walkCameraPos.clone().add(lookDir));
       }
 
-      // Update projected 2D HUD position over selected object
-      if (state.selectedMesh && canvasWrapperRef.current) {
-        const objPos = state.selectedMesh.position.clone();
-        objPos.y += 0.45; // slight elevation
-        const proj = objPos.project(state.camera);
-        const cw = canvasWrapperRef.current.clientWidth;
-        const ch = canvasWrapperRef.current.clientHeight;
-        const screenX = (proj.x * 0.5 + 0.5) * cw;
-        const screenY = (-(proj.y * 0.5) + 0.5) * ch;
-        // Only show if in front of camera
-        if (proj.z < 1) {
-          setScreenHudPos({ x: screenX, y: screenY });
+      // Update yellow selection box (hugs the selected mesh cleanly in place)
+      if (state.selectionBox) {
+        if (state.selectedMesh && selectedTargetRef.current?.type === 'object') {
+          state.selectionBox.setFromObject(state.selectedMesh);
+          state.selectionBox.visible = true;
+          state.selectionBox.update();
         } else {
-          setScreenHudPos(null);
+          state.selectionBox.visible = false;
         }
-      } else {
-        setScreenHudPos(null);
+      }
+
+      // Update projected 2D HUD position over selected object (direct DOM transform, zero React re-renders)
+      if (hudRef.current) {
+        if (
+          state.selectedMesh &&
+          canvasWrapperRef.current &&
+          selectedTargetRef.current?.type === 'object' &&
+          viewModeRef.current !== 'Walk'
+        ) {
+          const objPos = state.selectedMesh.position.clone();
+          objPos.y += 0.45; // slight elevation
+          const proj = objPos.project(state.camera);
+          if (proj.z < 1) {
+            const cw = canvasWrapperRef.current.clientWidth;
+            const ch = canvasWrapperRef.current.clientHeight;
+            const screenX = (proj.x * 0.5 + 0.5) * cw;
+            const screenY = (-(proj.y * 0.5) + 0.5) * ch;
+            hudRef.current.style.display = 'flex';
+            hudRef.current.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
+          } else {
+            hudRef.current.style.display = 'none';
+          }
+        } else {
+          hudRef.current.style.display = 'none';
+        }
       }
 
       state.renderer.render(state.scene, state.camera);
@@ -956,22 +988,33 @@ export function Studio3DCanvas({
 
     objects.forEach(obj => {
       let group = existingMeshes.get(obj.id);
-      const dimKey = `${obj.dimensions.width}_${obj.dimensions.height}_${obj.dimensions.depth}_${obj.color || ''}`;
+      const modelKey = `${obj.modelUrl || ''}_${obj.category}_${obj.color || ''}`;
 
-      if (!group || group.userData?.dimKey !== dimKey) {
+      if (!group || group.userData?.modelKey !== modelKey) {
         if (group) {
           state.scene.remove(group);
           existingMeshes.delete(obj.id);
         }
         group = new THREE.Group();
         group.name = obj.id;
-        group.userData = { elementType: 'object', objectId: obj.id, dimKey };
+        group.userData = {
+          elementType: 'object',
+          objectId: obj.id,
+          modelKey,
+          baseDimensions: { ...obj.dimensions },
+        };
 
-        // Bright Yellow Wireframe Bounding Box matching Screenshot 133440 / 133757
-        const bbox = new THREE.BoxHelper(new THREE.Mesh(), 0xfacc15); // Golden-yellow wireframe
-        bbox.name = 'bbox';
-        bbox.visible = false;
-        group.add(bbox);
+        // Invisible selection volume hitbox for 100% reliable click-detection
+        const wMeters = (obj.dimensions?.width || 36) * 0.0254;
+        const hMeters = (obj.dimensions?.height || 30) * 0.0254;
+        const dMeters = (obj.dimensions?.depth || 36) * 0.0254;
+        const hitboxGeo = new THREE.BoxGeometry(wMeters, hMeters, dMeters);
+        const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
+        const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+        hitbox.name = 'selection_hitbox';
+        hitbox.position.set(0, hMeters / 2, 0);
+        hitbox.userData = { objectId: obj.id };
+        group.add(hitbox);
 
         if (obj.modelUrl) {
           const cached = gltfCache.get(obj.modelUrl);
@@ -979,12 +1022,10 @@ export function Studio3DCanvas({
             const clone = cached.clone(true);
             applySubElementsToMesh(clone, obj);
             group.add(clone);
-            bbox.setFromObject(clone);
           } else {
             const placeholder = createProcedural3DMesh(obj);
             placeholder.name = 'placeholder_mesh';
             group.add(placeholder);
-            bbox.setFromObject(placeholder);
 
             loader.load(
               obj.modelUrl,
@@ -1017,7 +1058,6 @@ export function Studio3DCanvas({
 
                   applySubElementsToMesh(modelScene, obj);
                   currentGrp.add(modelScene);
-                  bbox.setFromObject(modelScene);
                 }
               },
               undefined,
@@ -1027,12 +1067,20 @@ export function Studio3DCanvas({
         } else {
           const mesh = createProcedural3DMesh(obj);
           group.add(mesh);
-          bbox.setFromObject(mesh);
         }
 
         state.scene.add(group);
         existingMeshes.set(obj.id, group);
       }
+
+      // In-place real-time transform updates (No teardown, no reload lag)
+      const baseW = group.userData?.baseDimensions?.width || obj.dimensions.width;
+      const baseH = group.userData?.baseDimensions?.height || obj.dimensions.height;
+      const baseD = group.userData?.baseDimensions?.depth || obj.dimensions.depth;
+      const scaleX = obj.dimensions.width / (baseW || 1);
+      const scaleY = obj.dimensions.height / (baseH || 1);
+      const scaleZ = obj.dimensions.depth / (baseD || 1);
+      group.scale.set(scaleX, scaleY, scaleZ);
 
       group.position.set(obj.position.x, obj.position.y, obj.position.z);
       group.rotation.set(
@@ -1042,10 +1090,8 @@ export function Studio3DCanvas({
       );
 
       const isSel = selectedTarget?.type === 'object' && selectedTarget.id === obj.id;
-      const bbox = group.getObjectByName('bbox') as THREE.BoxHelper;
-      if (bbox) {
-        bbox.visible = isSel;
-        (bbox.material as THREE.LineBasicMaterial).color.set(0xfacc15); // Yellow bounding box
+      if (isSel) {
+        state.selectedMesh = group;
       }
     });
   }, [objects, selectedTarget]);
@@ -1126,28 +1172,42 @@ export function Studio3DCanvas({
     const objectMeshes = Array.from(state.objectMeshes.values());
     const objIntersects = state.raycaster.intersectObjects(objectMeshes, true);
 
-    if (objIntersects.length > 0) {
-      let hit: THREE.Object3D | null = objIntersects[0].object;
-      while (hit && hit.parent && hit.parent !== state.scene) {
-        if (state.objectMeshes.has(hit.name)) break;
-        hit = hit.parent;
-      }
-      if (hit && state.objectMeshes.has(hit.name)) {
-        const objId = hit.name;
-        setSelectedTarget({ type: 'object', id: objId });
-        state.selectedMesh = hit as THREE.Group;
+    let selectedObjId: string | null = null;
+    let selectedGroup: THREE.Group | null = null;
 
-        const targetObj = objects.find(o => o.id === objId);
-        if (viewMode !== 'Walk' && targetObj) {
-          state.isDragging = true;
-          setIsDraggingObj(true);
-          state.dragPlane.set(new THREE.Vector3(0, 1, 0), -targetObj.position.y);
-          if (state.raycaster.ray.intersectPlane(state.dragPlane, state.planeIntersect)) {
-            state.dragOffset.copy(state.planeIntersect).sub(state.selectedMesh.position);
-          }
+    for (const hit of objIntersects) {
+      if (hit.object.name === 'bbox' || hit.object instanceof THREE.LineSegments) continue;
+      let curr: THREE.Object3D | null = hit.object;
+      while (curr && curr !== state.scene) {
+        if (curr.userData?.objectId && state.objectMeshes.has(curr.userData.objectId)) {
+          selectedObjId = curr.userData.objectId;
+          selectedGroup = state.objectMeshes.get(curr.userData.objectId) || null;
+          break;
         }
-        return;
+        if (curr.name && state.objectMeshes.has(curr.name)) {
+          selectedObjId = curr.name;
+          selectedGroup = state.objectMeshes.get(curr.name) || null;
+          break;
+        }
+        curr = curr.parent;
       }
+      if (selectedObjId && selectedGroup) break;
+    }
+
+    if (selectedObjId && selectedGroup) {
+      setSelectedTarget({ type: 'object', id: selectedObjId });
+      state.selectedMesh = selectedGroup;
+
+      const targetObj = objects.find(o => o.id === selectedObjId);
+      if (viewMode !== 'Walk' && targetObj) {
+        state.isDragging = true;
+        setIsDraggingObj(true);
+        state.dragPlane.set(new THREE.Vector3(0, 1, 0), -targetObj.position.y);
+        if (state.raycaster.ray.intersectPlane(state.dragPlane, state.planeIntersect)) {
+          state.dragOffset.copy(state.planeIntersect).sub(state.selectedMesh.position);
+        }
+      }
+      return;
     }
 
     // Wall / Floor Selection
@@ -1296,18 +1356,11 @@ export function Studio3DCanvas({
           }
         }
 
+        // Smoothly update position on Three.js group (hardware-accelerated 60 FPS)
         state.selectedMesh.position.x = finalX;
         state.selectedMesh.position.z = finalZ;
-
+        dragLastPosRef.current = { x: finalX, z: finalZ };
         setIsOnFloor(selectedObject.position.y <= 0.02);
-
-        onObjectsChange(
-          objects.map(o =>
-            o.id === selectedObject.id
-              ? { ...o, position: { ...o.position, x: finalX, z: finalZ } }
-              : o
-          )
-        );
       }
     } else if (e.buttons === 1 && viewMode === '3D' && activeTool === 'Orbit') {
       const rotSpeed = 0.005;
@@ -1325,8 +1378,20 @@ export function Studio3DCanvas({
   };
 
   const handlePointerUp = () => {
-    if (threeStateRef.current) {
-      threeStateRef.current.isDragging = false;
+    const state = threeStateRef.current;
+    if (state) {
+      if (state.isDragging && selectedObject && dragLastPosRef.current) {
+        const { x, z } = dragLastPosRef.current;
+        onObjectsChange(
+          objects.map(o =>
+            o.id === selectedObject.id
+              ? { ...o, position: { ...o.position, x, z } }
+              : o
+          )
+        );
+        dragLastPosRef.current = null;
+      }
+      state.isDragging = false;
     }
     setIsDraggingObj(false);
   };
@@ -1366,6 +1431,11 @@ export function Studio3DCanvas({
         }
       }
 
+      if (threeStateRef.current?.selectedMesh) {
+        threeStateRef.current.selectedMesh.position.x = targetX;
+        threeStateRef.current.selectedMesh.position.z = targetZ;
+      }
+
       onObjectsChange(
         objects.map(o =>
           o.id === selectedObject.id
@@ -1381,6 +1451,13 @@ export function Studio3DCanvas({
     if (!selectedObject) return;
     const delta = dir === 'left' ? -15 : 15;
     const axis = rotationAxis.toLowerCase() as 'x' | 'y' | 'z';
+    const currentDeg = selectedObject.rotation[axis] || 0;
+    const newDeg = (currentDeg + delta + 360) % 360;
+
+    if (threeStateRef.current?.selectedMesh) {
+      threeStateRef.current.selectedMesh.rotation[axis] = THREE.MathUtils.degToRad(newDeg);
+    }
+
     onObjectsChange(
       objects.map(o =>
         o.id === selectedObject.id
@@ -1388,7 +1465,7 @@ export function Studio3DCanvas({
               ...o,
               rotation: {
                 ...o.rotation,
-                [axis]: (o.rotation[axis] + delta) % 360,
+                [axis]: newDeg,
               },
             }
           : o
@@ -1398,6 +1475,9 @@ export function Studio3DCanvas({
 
   const handleResetRotation = useCallback(() => {
     if (!selectedObject) return;
+    if (threeStateRef.current?.selectedMesh) {
+      threeStateRef.current.selectedMesh.rotation.set(0, 0, 0);
+    }
     onObjectsChange(
       objects.map(o =>
         o.id === selectedObject.id
@@ -1409,9 +1489,14 @@ export function Studio3DCanvas({
 
   const handleElevate = useCallback((dir: 'up' | 'down') => {
     if (!selectedObject) return;
-    const delta = dir === 'up' ? 0.05 : -0.05;
-    const newY = Math.max(0, selectedObject.position.y + delta);
+    const step = 0.15; // 0.15m = ~6 inches (clear visible height step)
+    const newY = Math.max(0, Math.min(2.8, Math.round((selectedObject.position.y + (dir === 'up' ? step : -step)) * 100) / 100));
     setIsOnFloor(newY <= 0.02);
+
+    if (threeStateRef.current?.selectedMesh) {
+      threeStateRef.current.selectedMesh.position.y = newY;
+    }
+
     onObjectsChange(
       objects.map(o =>
         o.id === selectedObject.id
@@ -1419,6 +1504,46 @@ export function Studio3DCanvas({
           : o
       )
     );
+  }, [selectedObject, objects, onObjectsChange]);
+
+  const handleSnapToFloor = useCallback(() => {
+    if (!selectedObject) return;
+    setIsOnFloor(true);
+    if (threeStateRef.current?.selectedMesh) {
+      threeStateRef.current.selectedMesh.position.y = 0;
+    }
+    onObjectsChange(
+      objects.map(o =>
+        o.id === selectedObject.id
+          ? { ...o, position: { ...o.position, y: 0 } }
+          : o
+      )
+    );
+    addToast('Object snapped to floor (0.00m)', 'green');
+  }, [selectedObject, objects, onObjectsChange]);
+
+  const handleScaleObject = useCallback((deltaRatio: number) => {
+    if (!selectedObject) return;
+    const factor = 1 + deltaRatio;
+    const newWidth = Math.max(8, Math.min(240, Math.round(selectedObject.dimensions.width * factor)));
+    const newHeight = Math.max(6, Math.min(180, Math.round(selectedObject.dimensions.height * factor)));
+    const newDepth = Math.max(8, Math.min(240, Math.round(selectedObject.dimensions.depth * factor)));
+
+    onObjectsChange(
+      objects.map(o =>
+        o.id === selectedObject.id
+          ? {
+              ...o,
+              dimensions: {
+                width: newWidth,
+                height: newHeight,
+                depth: newDepth,
+              },
+            }
+          : o
+      )
+    );
+    addToast(`Object scaled: ${newWidth}" × ${newDepth}" × ${newHeight}"`, 'blue');
   }, [selectedObject, objects, onObjectsChange]);
 
   const handleDeleteObject = useCallback(() => {
@@ -2445,6 +2570,28 @@ export function Studio3DCanvas({
                   </div>
                 </div>
 
+                {/* Elevation Status / Snap to Floor */}
+                <div className="p-2.5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between text-xs shadow-2xs">
+                  <div>
+                    <span className="text-slate-400 text-[10px] block font-medium">Height off Floor</span>
+                    <span className="font-bold text-slate-800">
+                      {selectedObject.position.y <= 0.02
+                        ? 'On Floor (0.00m)'
+                        : `+${selectedObject.position.y.toFixed(2)}m (${Math.round(selectedObject.position.y * 39.37)}")`}
+                    </span>
+                  </div>
+                  {selectedObject.position.y > 0.02 && (
+                    <button
+                      type="button"
+                      onClick={handleSnapToFloor}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[10px] border border-emerald-200 transition-all flex items-center gap-1"
+                      title="Snap to floor"
+                    >
+                      <span>⚡ Snap to Floor</span>
+                    </button>
+                  )}
+                </div>
+
                 {/* 6 Actions Grid (Rotate L/R, Up/Down, Duplicate, Delete) */}
                 <div className="grid grid-cols-2 gap-2 text-center text-xs font-semibold text-slate-700">
                   <button
@@ -2595,6 +2742,46 @@ export function Studio3DCanvas({
                     >
                       {uniformLocked ? <Lock size={11} /> : <Unlock size={11} />}
                       <span>{uniformLocked ? 'Locked' : 'Unlocked'}</span>
+                    </button>
+                  </div>
+
+                  {/* Quick Scale Buttons */}
+                  <div className="grid grid-cols-3 gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleScaleObject(-0.1)}
+                      className="py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-[11px] font-bold text-slate-700 transition-all flex items-center justify-center gap-1"
+                      title="Scale down 10%"
+                    >
+                      <Minimize2 size={11} />
+                      <span>-10%</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleScaleObject(0.1)}
+                      className="py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-[11px] font-bold text-slate-700 transition-all flex items-center justify-center gap-1"
+                      title="Scale up 10%"
+                    >
+                      <Maximize2 size={11} />
+                      <span>+10%</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const def = MARKETPLACE_OBJECTS_CATALOG.find(m => m.name === selectedObject.name);
+                        if (def) {
+                          onObjectsChange(
+                            objects.map(o =>
+                              o.id === selectedObject.id ? { ...o, dimensions: { ...def.dimensions } } : o
+                            )
+                          );
+                          addToast('Dimensions reset to default', 'blue');
+                        }
+                      }}
+                      className="py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition-all"
+                      title="Reset dimensions to default"
+                    >
+                      Reset
                     </button>
                   </div>
 
@@ -2889,85 +3076,136 @@ export function Studio3DCanvas({
           )}
 
           {/* ── ON-CANVAS PROJECTED 3D HUD (Screenshots 133440, 133516, 133736, 133835, 133846) ── */}
-          {selectedObject && screenHudPos && viewMode !== 'Walk' && (
+          {selectedObject && viewMode !== 'Walk' && (
             <div
+              ref={hudRef}
               style={{
-                left: `${screenHudPos.x}px`,
-                top: `${screenHudPos.y}px`,
-                transform: 'translate(-50%, -50%)',
+                display: 'none',
+                left: 0,
+                top: 0,
               }}
-              className="absolute z-30 pointer-events-auto flex items-center justify-center"
+              className="absolute z-30 pointer-events-none flex items-center justify-center will-change-transform"
             >
               {/* HUD Center Cross Container */}
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                {/* Center Move Indicator */}
+              <div className="relative w-32 h-32 flex items-center justify-center pointer-events-none">
+                {/* Center Move Indicator (User can drag this or the 3D model) */}
                 <div
-                  onMouseEnter={() => setHudHoverAction('Move')}
+                  onMouseEnter={() => setHudHoverAction('Move Object')}
                   onMouseLeave={() => setHudHoverAction(null)}
-                  className="w-7 h-7 rounded-full bg-white/90 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 cursor-move hover:scale-110 transition-transform"
+                  className="w-8 h-8 rounded-full bg-white/95 backdrop-blur-md border border-slate-300 shadow-md flex items-center justify-center text-slate-700 cursor-move hover:scale-110 transition-transform pointer-events-auto"
+                  title="Click and drag to move object"
                 >
                   <Move size={14} />
                 </div>
 
-                {/* Top: Adjust Height (Screenshot 133516 / 133835) */}
-                <button
-                  type="button"
-                  onClick={() => handleElevate('up')}
-                  onMouseEnter={() => setHudHoverAction('Adjust Height')}
-                  onMouseLeave={() => setHudHoverAction(null)}
-                  className="absolute -top-1 w-6 h-6 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all"
-                  title="Adjust Height"
-                >
-                  <ArrowUp size={12} />
-                </button>
+                {/* Top: Adjust Height (Elevate Up / Down / Snap) */}
+                <div className="absolute -top-3 flex items-center gap-1 pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleElevate('up')}
+                    onMouseEnter={() => setHudHoverAction('Elevate Up (+0.15m / 6")')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    title="Elevate Up (+0.15m)"
+                  >
+                    <ArrowUp size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleElevate('down')}
+                    onMouseEnter={() => setHudHoverAction('Lower Down (-0.15m / 6")')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    title="Lower Down (-0.15m)"
+                  >
+                    <ArrowDown size={13} />
+                  </button>
+                </div>
 
-                {/* Left: Adjust Size (Screenshot 133516) */}
-                <button
-                  type="button"
-                  onClick={() => handleDimensionChange('width', selectedObject.dimensions.width + 2)}
-                  onMouseEnter={() => setHudHoverAction('Adjust Size')}
-                  onMouseLeave={() => setHudHoverAction(null)}
-                  className="absolute -left-1 w-6 h-6 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all"
-                  title="Adjust Size"
-                >
-                  <Maximize2 size={11} />
-                </button>
+                {/* Left: Adjust Size (Scale Up / Down) */}
+                <div className="absolute -left-3 flex items-center gap-1 pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleScaleObject(-0.1)}
+                    onMouseEnter={() => setHudHoverAction('Size Down (-10%)')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    title="Scale Down (-10%)"
+                  >
+                    <Minimize2 size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScaleObject(0.1)}
+                    onMouseEnter={() => setHudHoverAction('Size Up (+10%)')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    title="Scale Up (+10%)"
+                  >
+                    <Maximize2 size={12} />
+                  </button>
+                </div>
 
-                {/* Right: Rotate Object Y-Axis (Purple hover circle, Screenshot 133736) */}
-                <button
-                  type="button"
-                  onClick={() => handleRotate('right')}
-                  onMouseEnter={() => setHudHoverAction('Rotate Object (Y-axis)')}
-                  onMouseLeave={() => setHudHoverAction(null)}
-                  className="absolute -right-1 w-6 h-6 rounded-full bg-purple-600 text-white shadow-md flex items-center justify-center hover:scale-115 transition-all"
-                  title="Rotate Object (Y-axis)"
-                >
-                  <RotateCw size={12} />
-                </button>
+                {/* Right: Rotate Object (Y-Axis) */}
+                <div className="absolute -right-3 flex items-center gap-1 pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleRotate('left')}
+                    onMouseEnter={() => setHudHoverAction('Rotate Left (-15°)')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-purple-600 text-white shadow-md flex items-center justify-center hover:bg-purple-700 transition-all hover:scale-110 active:scale-95"
+                    title="Rotate Left (-15°)"
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRotate('right')}
+                    onMouseEnter={() => setHudHoverAction('Rotate Right (+15°)')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-purple-600 text-white shadow-md flex items-center justify-center hover:bg-purple-700 transition-all hover:scale-110 active:scale-95"
+                    title="Rotate Right (+15°)"
+                  >
+                    <RotateCw size={12} />
+                  </button>
+                </div>
 
-                {/* Bottom: Delete Object (Screenshot 133736) */}
+                {/* Bottom: Delete Object */}
                 <button
                   type="button"
                   onClick={handleDeleteObject}
                   onMouseEnter={() => setHudHoverAction('Delete Object')}
                   onMouseLeave={() => setHudHoverAction(null)}
-                  className="absolute -bottom-1 w-6 h-6 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                  className="absolute -bottom-3 w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-all hover:scale-110 active:scale-95 pointer-events-auto"
                   title="Delete Object"
                 >
-                  <Trash2 size={11} />
+                  <Trash2 size={12} />
                 </button>
 
-                {/* Floating Tooltip Label (Screenshots 133516, 133736) */}
+                {/* Floating Tooltip Label */}
                 {hudHoverAction && (
-                  <div className="absolute -top-8 bg-slate-900/90 text-white px-2 py-0.5 rounded-md text-[10px] font-semibold whitespace-nowrap shadow-md pointer-events-none">
+                  <div className="absolute -top-11 bg-slate-900/90 text-white px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap shadow-md pointer-events-none">
                     {hudHoverAction}
                   </div>
                 )}
 
-                {/* Green ON FLOOR Badge (Screenshot 133846) */}
-                {isOnFloor && !hudHoverAction && (
-                  <div className="absolute top-10 bg-emerald-700 text-white px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider shadow-md pointer-events-none">
-                    ON FLOOR
+                {/* Status Badge: ON FLOOR or ELEVATED (Clickable to Snap to floor) */}
+                {!hudHoverAction && selectedObject && (
+                  <div className="absolute top-12 pointer-events-auto flex items-center gap-1.5">
+                    {selectedObject.position.y <= 0.02 ? (
+                      <div className="bg-emerald-700 text-white px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider shadow-md pointer-events-none">
+                        ON FLOOR
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSnapToFloor}
+                        className="bg-amber-600 hover:bg-emerald-600 text-white px-2.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1 transition-colors"
+                        title="Click to snap object back to floor"
+                      >
+                        <span>+{(selectedObject.position.y).toFixed(2)}m (Snap)</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
