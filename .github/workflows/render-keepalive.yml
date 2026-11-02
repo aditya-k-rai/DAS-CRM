@@ -1,0 +1,49 @@
+# =============================================================================
+# DAS CRM — Render Backend Keep-Alive Automated Cron Workflow
+# Keeps the Render Cloud backend awake 24/7 by pinging the health endpoint
+# every 12 minutes (Render Free tier sleeps after 15 minutes of inactivity).
+# =============================================================================
+
+name: Render Backend Keep-Alive
+
+on:
+  schedule:
+    # Runs every 12 minutes (UTC)
+    - cron: '*/12 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI anytime
+
+concurrency:
+  group: render-keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    name: Ping Cloud Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping Primary Render Endpoint (dascrm-backend)
+        continue-on-error: true
+        run: |
+          echo "Pinging https://dascrm-backend.onrender.com/api/v1/health ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://dascrm-backend.onrender.com/api/v1/health" || echo "FAILED")
+          echo "Response HTTP Status: $HTTP_STATUS"
+
+      - name: Ping Alternate Render Endpoint (das-backend)
+        continue-on-error: true
+        run: |
+          echo "Pinging https://das-backend.onrender.com/api/v1/health ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://das-backend.onrender.com/api/v1/health" || echo "FAILED")
+          echo "Response HTTP Status: $HTTP_STATUS"
+
+      - name: Ping Custom Secret Endpoint (if configured)
+        if: env.CUSTOM_URL != ''
+        continue-on-error: true
+        env:
+          CUSTOM_URL: ${{ secrets.RENDER_API_URL }}
+        run: |
+          echo "Pinging custom URL: $CUSTOM_URL ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$CUSTOM_URL/health" || echo "FAILED")
+          echo "Response HTTP Status: $HTTP_STATUS"
+
