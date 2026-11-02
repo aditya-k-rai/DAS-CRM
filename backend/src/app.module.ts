@@ -36,6 +36,10 @@ import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
 import { DataRetentionModule } from './modules/data-retention/data-retention.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
+import { HrModule } from './modules/hr/hr.module';
+import { LeavesModule } from './modules/leaves/leaves.module';
+import { SalaryModule } from './modules/salary/salary.module';
 
 @Module({
   imports: [
@@ -123,6 +127,10 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     DataRetentionModule,
     FollowUpsModule,
     RealtimeModule,
+    AttendanceModule,
+    HrModule,
+    LeavesModule,
+    SalaryModule,
   ],
   controllers: [AppController],
   providers: [

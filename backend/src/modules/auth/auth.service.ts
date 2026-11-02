@@ -1074,17 +1074,15 @@ export class AuthService {
       ? await this.prisma.userInviteKey.findUnique({ where: { key: keyInput } })
       : null;
 
-    // If company was not explicitly passed in DTO, or if the provided key belongs to a registered company workspace
+    // Resolve company workspace from key ONLY if company was not explicitly selected by user
     const orgIdFromKey = resolvedCompanyKey?.usedByOrganizationId || resolvedUserKey?.organizationId;
-    if (!selectedOrg || (orgIdFromKey && selectedOrg.id !== orgIdFromKey && selectedOrg.registrationKeyId !== keyInput)) {
-      if (orgIdFromKey) {
-        const orgFromKey = await this.prisma.organization.findUnique({
-          where: { id: orgIdFromKey },
-          include: { subscription: true },
-        });
-        if (orgFromKey) {
-          selectedOrg = orgFromKey;
-        }
+    if (!selectedOrg && orgIdFromKey) {
+      const orgFromKey = await this.prisma.organization.findUnique({
+        where: { id: orgIdFromKey },
+        include: { subscription: true },
+      });
+      if (orgFromKey) {
+        selectedOrg = orgFromKey;
       }
     }
 
@@ -1092,15 +1090,16 @@ export class AuthService {
       throw new UnauthorizedException('No user found with this role.');
     }
 
-    // Verify key belongs to the selected company
+    // Verify key belongs to the selected company (strictly prevents cross-company leakage)
+    const isDevEnv = process.env.NODE_ENV !== 'production';
     const keyBelongsToOrg =
       (resolvedCompanyKey && (resolvedCompanyKey.usedByOrganizationId === selectedOrg.id || selectedOrg.registrationKeyId === keyInput)) ||
       (resolvedUserKey && resolvedUserKey.organizationId === selectedOrg.id) ||
       (selectedOrg.registrationKeyId === keyInput) ||
-      (keyInput === 'ADOR-EC-7187' && selectedOrg.name.toLowerCase().includes('adorable'));
+      (isDevEnv && keyInput === 'ADOR-EC-7187' && selectedOrg.name.toLowerCase().includes('adorable'));
 
     if (!keyBelongsToOrg) {
-      throw new UnauthorizedException('Invalid company key or key does not belong to selected company.');
+      throw new UnauthorizedException(`Company Key does not belong to selected company (${selectedOrg.name}). Please verify your key or select your company.`);
     }
 
     // Resolve active subscription & effective expiry
@@ -2806,7 +2805,7 @@ export class AuthService {
       (org?.registrationKeyId === cleanKey) ||
       (orgSettings.registrationKey === cleanKey) ||
       (user.inviteKeyUsed === cleanKey) ||
-      (cleanKey === 'ADOR-EC-7187'); // System master test key
+      (process.env.NODE_ENV !== 'production' && cleanKey === 'ADOR-EC-7187'); // Dev test key
 
     if (!keyMatchesOrg) {
       throw new BadRequestException('The provided Company Key does not match your organization workspace.');

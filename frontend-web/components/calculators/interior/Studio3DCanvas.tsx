@@ -688,8 +688,10 @@ export function Studio3DCanvas({
           selectedTargetRef.current?.type === 'object' &&
           viewModeRef.current !== 'Walk'
         ) {
+          const targetObj = objects.find(o => o.id === (selectedTargetRef.current as any)?.id);
           const objPos = state.selectedMesh.position.clone();
-          objPos.y += 0.45; // slight elevation
+          const objH = (targetObj?.dimensions?.height || 30) * 0.0254;
+          objPos.y += Math.max(0.35, objH * 0.5 + 0.15);
           const proj = objPos.project(state.camera);
           if (proj.z < 1) {
             const cw = canvasWrapperRef.current.clientWidth;
@@ -1016,11 +1018,33 @@ export function Studio3DCanvas({
         hitbox.userData = { objectId: obj.id };
         group.add(hitbox);
 
+        const normalizeAndScaleModel = (modelScene: THREE.Group, targetObj: StudioObject3D) => {
+          const box = new THREE.Box3().setFromObject(modelScene);
+          const size = box.getSize(new THREE.Vector3());
+          const targetX = (targetObj.dimensions?.width || 36) * 0.0254;
+          const targetY = (targetObj.dimensions?.height || 30) * 0.0254;
+          const targetZ = (targetObj.dimensions?.depth || 36) * 0.0254;
+
+          const scale = Math.min(
+            targetX / (size.x || 1),
+            targetY / (size.y || 1),
+            targetZ / (size.z || 1)
+          );
+          modelScene.scale.set(scale, scale, scale);
+          modelScene.traverse(child => {
+            if ((child as THREE.Mesh).isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+          applySubElementsToMesh(modelScene, targetObj);
+        };
+
         if (obj.modelUrl) {
           const cached = gltfCache.get(obj.modelUrl);
           if (cached) {
             const clone = cached.clone(true);
-            applySubElementsToMesh(clone, obj);
+            normalizeAndScaleModel(clone, obj);
             group.add(clone);
           } else {
             const placeholder = createProcedural3DMesh(obj);
@@ -1037,26 +1061,7 @@ export function Studio3DCanvas({
                   if (old) currentGrp.remove(old);
 
                   const modelScene = gltf.scene.clone(true);
-                  const box = new THREE.Box3().setFromObject(modelScene);
-                  const size = box.getSize(new THREE.Vector3());
-                  const targetX = obj.dimensions.width * 0.0254;
-                  const targetY = obj.dimensions.height * 0.0254;
-                  const targetZ = obj.dimensions.depth * 0.0254;
-
-                  const scale = Math.min(
-                    targetX / (size.x || 1),
-                    targetY / (size.y || 1),
-                    targetZ / (size.z || 1)
-                  );
-                  modelScene.scale.set(scale, scale, scale);
-                  modelScene.traverse(child => {
-                    if ((child as THREE.Mesh).isMesh) {
-                      child.castShadow = true;
-                      child.receiveShadow = true;
-                    }
-                  });
-
-                  applySubElementsToMesh(modelScene, obj);
+                  normalizeAndScaleModel(modelScene, obj);
                   currentGrp.add(modelScene);
                 }
               },
