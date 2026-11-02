@@ -406,82 +406,80 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     try {
       const activeBase = getApiBase();
       const candidateBases = Array.from(
-        new Set([activeBase, ...getCandidateApiUrls()]),
+        new Set([
+          activeBase,
+          'https://das-backend.onrender.com/api/v1',
+          'http://192.168.29.26:3001/api/v1',
+          'http://192.168.1.45:3001/api/v1',
+          ...getCandidateApiUrls(),
+        ]),
       ).filter(
         (url) => url && typeof url === 'string' && url.startsWith('http'),
       );
 
-      let targetBase = activeBase;
+      let networkResponse: any = null;
+      let data: any = null;
+      let workingBase = activeBase;
 
-      // Fast LAN check (1.2s): If on office Wi-Fi with local server running, connect instantly
-      const localCandidates = candidateBases.filter(
-        (u) => !u.includes('.onrender.com') && !u.includes('localhost') && !u.includes('127.0.0.1'),
-      );
-      if (localCandidates.length > 0) {
-        try {
-          const quickLAN: any = await Promise.race([
-            ...localCandidates.map(async (u) => {
-              const c = new AbortController();
-              const t = setTimeout(() => c.abort(), 1200);
-              const r = await fetch(`${u}/health`, { signal: c.signal });
-              clearTimeout(t);
-              if (r.ok) return u;
-              throw new Error('LAN unreachable');
-            }),
-            new Promise((res) => setTimeout(() => res(null), 1400)),
-          ]);
-          if (quickLAN && typeof quickLAN === 'string') {
-            targetBase = quickLAN;
-            setApiBase(quickLAN);
+      // Prioritize activeBase first, then fallback candidates
+      const prioritized = [
+        activeBase,
+        ...candidateBases.filter((b) => b !== activeBase),
+      ];
+
+      for (const baseUrl of prioritized) {
+        const isCloud = baseUrl.includes('.onrender.com');
+        const timeoutMs = isCloud ? 60000 : 3500;
+        const maxAttempts = isCloud ? 2 : 1;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            const res = await fetch(`${baseUrl}/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(loginPayload),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            const parsed = await res.json().catch(() => null);
+
+            // Authentic server response received (HTTP 200, 400, 401, 403)
+            if (
+              (res.ok && (parsed?.accessToken || parsed?.user || parsed?.token)) ||
+              res.status === 400 ||
+              res.status === 401 ||
+              res.status === 403
+            ) {
+              networkResponse = res;
+              data = parsed;
+              workingBase = baseUrl;
+              setApiBase(baseUrl);
+              break;
+            }
+
+            // If Render returned 502/503 during cold boot, pause briefly and retry
+            if (res.status === 502 || res.status === 503 || res.status === 504) {
+              await new Promise((r) => setTimeout(r, 2000));
+              continue;
+            }
+
+            // If 404 (e.g. no-server on this subdomain), skip candidate immediately
+            if (res.status === 404) {
+              break;
+            }
+          } catch (fetchErr) {
+            if (isCloud && attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, 2500));
+              continue;
+            }
           }
-        } catch (_) {}
-      }
+        }
 
-      // Default to live Render cloud endpoint if local host unreachable
-      if (!targetBase || targetBase.includes('localhost') || targetBase.includes('127.0.0.1')) {
-        targetBase = 'https://dascrm-backend.onrender.com/api/v1';
-      }
-
-      let networkResponse = null;
-      let data = null;
-      const isCloud = targetBase.includes('.onrender.com');
-      // Render free-tier can take 50-75 seconds on cold boot
-      const maxAttempts = isCloud ? 4 : 2;
-      const timeoutPerAttempt = isCloud ? 70000 : 8000;
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutPerAttempt);
-          const res = await fetch(`${targetBase}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(loginPayload),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          const parsed = await res.json().catch(() => null);
-
-          // Authentic response received (HTTP 200, 400, 401, 403)
-          if (res.ok || res.status === 400 || res.status === 401 || res.status === 403) {
-            networkResponse = res;
-            data = parsed;
-            setApiBase(targetBase);
-            break;
-          }
-
-          // If Render returned 502/503 during cold boot, pause briefly and retry
-          if (res.status === 502 || res.status === 503 || res.status === 504) {
-            await new Promise((r) => setTimeout(r, 2000));
-            continue;
-          }
-        } catch (fetchErr) {
-          // If connection dropped/reset while container was initializing, retry
-          if (attempt < maxAttempts) {
-            await new Promise((r) => setTimeout(r, 2500));
-            continue;
-          }
+        if (networkResponse) {
+          break;
         }
       }
 
@@ -492,8 +490,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
       // Case A: Unreachable server (Network down or server did not respond within cold-start window)
       if (!networkResponse || !data) {
+        const activeHost = activeBase.replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '');
         setError(
-          'Cannot connect to DAS CRM server. The cloud backend on Render may still be waking up from sleep (~1 min cold start). Please check your internet connection and tap Login to retry.',
+          `Cannot connect to DAS CRM server (${activeHost}). The cloud backend on Render may still be waking up from sleep (~1 min cold start) or server settings need update. Please check your internet connection or tap Configure Server below to adjust.`,
         );
         setLoading(false);
         return;
@@ -988,7 +987,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               Sign In to Your Company Workspace
             </Text>
 
-            
+            {/* Quick Server Gateway Switcher */}
+            <TouchableOpacity
+              onPress={() => setServerModalOpen(true)}
+              style={styles.serverPill}
+              activeOpacity={0.7}
+            >
+              <View style={styles.serverPillDot} />
+              <Text style={styles.serverPillText} numberOfLines={1}>
+                Server: {getApiBase().replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '')}
+              </Text>
+              <Text style={styles.serverPillAction}>⚙️ Edit</Text>
+            </TouchableOpacity>
           </View>
 
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
@@ -1055,6 +1065,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
+                    <TouchableOpacity
+                      onPress={() => setServerModalOpen(true)}
+                      style={styles.serverConfigInlineBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.serverConfigInlineBtnText}>
+                        Configure / Auto-Detect Server IP ⚙️
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1339,6 +1358,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
+                    <TouchableOpacity
+                      onPress={() => setServerModalOpen(true)}
+                      style={styles.serverConfigInlineBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.serverConfigInlineBtnText}>
+                        Configure / Auto-Detect Server IP ⚙️
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null}
 
