@@ -34,6 +34,7 @@ import {
   FloorLevel,
   RoomType,
   LeadActivityLog,
+  RoomShape,
 } from '@/types/interiorStudio';
 import {
   InteriorProjectsStore,
@@ -55,6 +56,9 @@ import {
   Plus,
   Trash2,
   Edit2,
+  Pencil,
+  Maximize2,
+  Minimize2,
   ChevronRight,
   ChevronLeft,
   Sparkles,
@@ -71,7 +75,6 @@ import {
   TrendingUp,
   ShieldCheck,
   DoorOpen,
-  Maximize2,
   Calendar,
   Clock,
   ArrowRight,
@@ -102,14 +105,20 @@ export function InteriorDesignerCalculatorView() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'info' | 'error' } | null>(null);
 
-  // Room creation form state
+  // Room creation / editing form state
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [newRoomName, setNewRoomName] = useState('Kids Bedroom');
   const [newRoomType, setNewRoomType] = useState<RoomType>('Bedroom');
+  const [newRoomShape, setNewRoomShape] = useState<RoomShape>('rectangle');
   const [newRoomLength, setNewRoomLength] = useState(14);
   const [newRoomWidth, setNewRoomWidth] = useState(12);
   const [newRoomHeight, setNewRoomHeight] = useState(10);
+  const [newRoomWallWidth, setNewRoomWallWidth] = useState<number>(4.5);
+  const [newRoomCutoutL, setNewRoomCutoutL] = useState<number>(5);
+  const [newRoomCutoutW, setNewRoomCutoutW] = useState<number>(4);
   const [newRoomUnit, setNewRoomUnit] = useState<MeasurementUnit>('ft');
+  const [isStudioExpanded, setIsStudioExpanded] = useState(false);
 
   // Load Initial Data from Store
   useEffect(() => {
@@ -188,56 +197,149 @@ export function InteriorDesignerCalculatorView() {
     showToast(`Building level set to ${level}`, 'info');
   };
 
-  // ── Step 3: Add / Update Room ──────────────────────────────────────
+  // ── Step 3: Add / Edit Room Handlers ──────────────────────────────
+  const handleOpenAddRoom = () => {
+    setEditingRoomId(null);
+    setNewRoomName(`Room ${(currentProject?.rooms.length || 0) + 1}`);
+    setNewRoomType('Bedroom');
+    setNewRoomShape('rectangle');
+    setNewRoomLength(14);
+    setNewRoomWidth(12);
+    setNewRoomHeight(10);
+    setNewRoomWallWidth(4.5);
+    setNewRoomCutoutL(5);
+    setNewRoomCutoutW(4);
+    setNewRoomUnit('ft');
+    setShowAddRoomModal(true);
+  };
+
+  const handleEditRoom = (room: RoomDefinition) => {
+    setEditingRoomId(room.id);
+    setNewRoomName(room.name);
+    setNewRoomType(room.type);
+    setNewRoomShape(room.shape || 'rectangle');
+    setNewRoomLength(room.length);
+    setNewRoomWidth(room.width);
+    setNewRoomHeight(room.height);
+    setNewRoomWallWidth(room.wallWidthInches || 4.5);
+    setNewRoomUnit(room.unit || 'ft');
+    if (room.lShapeParams) {
+      setNewRoomCutoutL(room.lShapeParams.cutoutLength);
+      setNewRoomCutoutW(room.lShapeParams.cutoutWidth);
+    } else {
+      setNewRoomCutoutL(Math.round(room.length * 0.35));
+      setNewRoomCutoutW(Math.round(room.width * 0.35));
+    }
+    setShowAddRoomModal(true);
+  };
+
   const handleAddRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentProject) return;
 
-    const metrics = computeRoomMetrics(newRoomLength, newRoomWidth, newRoomHeight, newRoomUnit, []);
-    const newRoom: RoomDefinition = {
-      id: `room-${Date.now()}`,
-      name: newRoomName,
-      type: newRoomType,
-      length: newRoomLength,
-      width: newRoomWidth,
-      height: newRoomHeight,
-      unit: newRoomUnit,
-      floorAreaSqFt: metrics.floorAreaSqFt,
-      perimeterFt: metrics.perimeterFt,
-      ceilingAreaSqFt: metrics.ceilingAreaSqFt,
-      wallAreaSqFt: metrics.wallAreaSqFt,
-      floorMaterial: 'Vitrified Tiles (800x800mm)',
-      ceilingFinish: 'Gypsum False Ceiling',
-      wallFinish: 'Premium Acrylic Emulsion Paint',
-      openings: [
-        {
-          id: `door-${Date.now()}`,
-          type: 'door',
-          wall: 'south',
-          width: 3.5,
-          height: 7,
-        },
-        {
-          id: `win-${Date.now()}`,
-          type: 'window',
-          wall: 'east',
-          width: 5,
-          height: 4.5,
-        },
-      ],
-    };
+    const effectiveWidth = newRoomShape === 'square' ? newRoomLength : newRoomWidth;
+    const lShapeParams = newRoomShape === 'l-shape' ? {
+      length1: newRoomLength,
+      width1: effectiveWidth,
+      cutoutLength: newRoomCutoutL,
+      cutoutWidth: newRoomCutoutW,
+    } : undefined;
 
-    const updatedRooms = [...currentProject.rooms, newRoom];
-    const updatedProject = {
-      ...currentProject,
-      rooms: updatedRooms,
-      totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + r.floorAreaSqFt, 0),
-    };
-    InteriorProjectsStore.saveProject(updatedProject);
-    setCurrentProject(updatedProject);
-    setActiveRoomId(newRoom.id);
-    setShowAddRoomModal(false);
-    showToast(`Added room "${newRoom.name}"`, 'success');
+    const metrics = computeRoomMetrics(
+      newRoomLength,
+      effectiveWidth,
+      newRoomHeight,
+      newRoomUnit,
+      [],
+      newRoomShape,
+      newRoomWallWidth,
+      lShapeParams
+    );
+
+    if (editingRoomId) {
+      // Update existing room
+      const updatedRooms = currentProject.rooms.map((r) => {
+        if (r.id === editingRoomId) {
+          return {
+            ...r,
+            name: newRoomName,
+            type: newRoomType,
+            shape: newRoomShape,
+            length: newRoomLength,
+            width: effectiveWidth,
+            height: newRoomHeight,
+            wallWidthInches: newRoomWallWidth,
+            lShapeParams,
+            unit: newRoomUnit,
+            floorAreaSqFt: metrics.floorAreaSqFt,
+            perimeterFt: metrics.perimeterFt,
+            ceilingAreaSqFt: metrics.ceilingAreaSqFt,
+            wallAreaSqFt: metrics.wallAreaSqFt,
+          };
+        }
+        return r;
+      });
+
+      const updatedProject = {
+        ...currentProject,
+        rooms: updatedRooms,
+        totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + r.floorAreaSqFt, 0),
+      };
+      InteriorProjectsStore.saveProject(updatedProject);
+      setCurrentProject(updatedProject);
+      setShowAddRoomModal(false);
+      setEditingRoomId(null);
+      showToast(`Updated "${newRoomName}" dimensions & architecture`, 'success');
+    } else {
+      // Add new room
+      const newRoom: RoomDefinition = {
+        id: `room-${Date.now()}`,
+        name: newRoomName,
+        type: newRoomType,
+        shape: newRoomShape,
+        length: newRoomLength,
+        width: effectiveWidth,
+        height: newRoomHeight,
+        wallWidthInches: newRoomWallWidth,
+        lShapeParams,
+        unit: newRoomUnit,
+        floorAreaSqFt: metrics.floorAreaSqFt,
+        perimeterFt: metrics.perimeterFt,
+        ceilingAreaSqFt: metrics.ceilingAreaSqFt,
+        wallAreaSqFt: metrics.wallAreaSqFt,
+        floorMaterial: 'Vitrified Tiles (800x800mm)',
+        ceilingFinish: 'Gypsum False Ceiling',
+        wallFinish: 'Premium Acrylic Emulsion Paint',
+        openings: [
+          {
+            id: `door-${Date.now()}`,
+            type: 'door',
+            wall: 'south',
+            width: 3.5,
+            height: 7,
+          },
+          {
+            id: `win-${Date.now()}`,
+            type: 'window',
+            wall: 'east',
+            width: 5,
+            height: 4.5,
+          },
+        ],
+      };
+
+      const updatedRooms = [...currentProject.rooms, newRoom];
+      const updatedProject = {
+        ...currentProject,
+        rooms: updatedRooms,
+        totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + r.floorAreaSqFt, 0),
+      };
+      InteriorProjectsStore.saveProject(updatedProject);
+      setCurrentProject(updatedProject);
+      setActiveRoomId(newRoom.id);
+      setShowAddRoomModal(false);
+      showToast(`Added room "${newRoom.name}"`, 'success');
+    }
   };
 
   const handleDeleteRoom = (roomId: string) => {
@@ -909,8 +1011,8 @@ export function InteriorDesignerCalculatorView() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowAddRoomModal(true)}
-                      className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5"
+                      onClick={handleOpenAddRoom}
+                      className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm"
                     >
                       <Plus size={14} /> Add New Room
                     </button>
@@ -928,6 +1030,17 @@ export function InteriorDesignerCalculatorView() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {currentProject.rooms.map((r) => {
                     const isActive = activeRoomId === r.id;
+                    const shapeLabel =
+                      r.shape === 'square'
+                        ? '⏹ Square'
+                        : r.shape === 'l-shape'
+                        ? '⌞ L-Shape'
+                        : r.shape === 't-shape'
+                        ? '┯ T-Shape'
+                        : r.shape === 'custom'
+                        ? '✦ Custom'
+                        : '⬚ Rectangle';
+
                     return (
                       <div
                         key={r.id}
@@ -939,9 +1052,14 @@ export function InteriorDesignerCalculatorView() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-bold text-foreground">{r.name}</span>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">
-                            {r.type}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">
+                              {shapeLabel}
+                            </span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">
+                              {r.type}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 my-3 p-3 bg-muted/40 rounded-xl text-xs font-mono">
@@ -956,8 +1074,8 @@ export function InteriorDesignerCalculatorView() {
                             <span className="font-bold text-rose-400">{r.floorAreaSqFt} sq.ft</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground text-[10px] block">Perimeter:</span>
-                            <span className="font-bold text-foreground">{r.perimeterFt} ft</span>
+                            <span className="text-muted-foreground text-[10px] block">Wall Thickness:</span>
+                            <span className="font-bold text-foreground">{r.wallWidthInches || 4.5}&quot;</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground text-[10px] block">Wall Area:</span>
@@ -972,15 +1090,24 @@ export function InteriorDesignerCalculatorView() {
                         </div>
 
                         <div className="flex items-center justify-between pt-3 border-t border-border">
-                          <button
-                            onClick={() => {
-                              setActiveRoomId(r.id);
-                              setCurrentStep(5);
-                            }}
-                            className="text-xs font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-1"
-                          >
-                            <Box size={14} /> Open in 3D Studio
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => {
+                                setActiveRoomId(r.id);
+                                setCurrentStep(5);
+                              }}
+                              className="text-xs font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-1"
+                            >
+                              <Box size={14} /> Open in 3D Studio
+                            </button>
+                            <button
+                              onClick={() => handleEditRoom(r)}
+                              className="text-xs font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                              title="Edit Dimensions & Architecture"
+                            >
+                              <Pencil size={13} /> Edit
+                            </button>
+                          </div>
                           {currentProject.rooms.length > 1 && (
                             <button
                               onClick={() => handleDeleteRoom(r.id)}
@@ -1093,6 +1220,14 @@ export function InteriorDesignerCalculatorView() {
 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => setIsStudioExpanded((prev) => !prev)}
+                    className="px-3.5 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-border transition-colors"
+                    title={isStudioExpanded ? 'Exit Expanded View' : 'Maximize Studio Workspace'}
+                  >
+                    {isStudioExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                    <span>{isStudioExpanded ? 'Exit Big Studio' : 'Big Studio Workspace'}</span>
+                  </button>
+                  <button
                     onClick={() => setCurrentStep(6)}
                     className="px-4 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm"
                   >
@@ -1103,12 +1238,20 @@ export function InteriorDesignerCalculatorView() {
               </div>
 
               {/* 3D Studio Canvas (Full-Featured Studio matching roomform.ai reference) */}
-              <div className="h-[800px] w-full rounded-3xl overflow-hidden border border-border shadow-2xl">
+              <div
+                className={`w-full rounded-3xl overflow-hidden border border-border shadow-2xl transition-all duration-300 ${
+                  isStudioExpanded
+                    ? 'fixed inset-0 z-50 rounded-none h-screen w-screen bg-background'
+                    : 'h-[88vh] min-h-[750px]'
+                }`}
+              >
                 <Studio3DCanvas
                   currentRoom={activeRoom}
                   objects={currentProject.objects3D.filter((o) => o.roomId === activeRoom.id)}
                   onObjectsChange={handleStudioObjectsChange}
                   onRoomChange={handleRoomUpdate}
+                  isExpanded={isStudioExpanded}
+                  onToggleExpand={() => setIsStudioExpanded((prev) => !prev)}
                   onSaveDesign={() => showToast('3D Scene, measurements and object transforms saved.', 'success')}
                   onExportFloorPlan={() => showToast('Exporting 2D Floor Plan CAD image...', 'info')}
                   onExportRender={() => showToast('High-resolution 3D render generated!', 'success')}
@@ -1252,98 +1395,300 @@ export function InteriorDesignerCalculatorView() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════
-          ADD ROOM MODAL
+          ADD / EDIT ROOM ARCHITECTURE MODAL
           ═══════════════════════════════════════════════════════════════ */}
-      {showAddRoomModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl">
-            <h3 className="text-sm font-bold text-foreground mb-4">Add Room to Project</h3>
-            <form onSubmit={handleAddRoomSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Room Name</label>
-                <input
-                  type="text"
-                  value={newRoomName}
-                  onChange={(e) => setNewRoomName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
-                  required
-                />
-              </div>
+      {showAddRoomModal && (() => {
+        const effectiveW = newRoomShape === 'square' ? newRoomLength : newRoomWidth;
+        const lParams = newRoomShape === 'l-shape' ? {
+          length1: newRoomLength,
+          width1: effectiveW,
+          cutoutLength: newRoomCutoutL,
+          cutoutWidth: newRoomCutoutW,
+        } : undefined;
 
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Room Type</label>
-                <select
-                  value={newRoomType}
-                  onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
-                >
-                  <option value="Master Bedroom">Master Bedroom</option>
-                  <option value="Bedroom">Bedroom</option>
-                  <option value="Living Room">Living Room</option>
-                  <option value="Kitchen">Kitchen</option>
-                  <option value="Bathroom">Bathroom</option>
-                  <option value="Dining Room">Dining Room</option>
-                  <option value="Home Office">Home Office</option>
-                  <option value="Balcony">Balcony</option>
-                  <option value="Pooja Room">Pooja Room</option>
-                </select>
-              </div>
+        const liveMetrics = computeRoomMetrics(
+          newRoomLength,
+          effectiveW,
+          newRoomHeight,
+          newRoomUnit,
+          [],
+          newRoomShape,
+          newRoomWallWidth,
+          lParams
+        );
 
-              <div className="grid grid-cols-3 gap-3">
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-card border border-border rounded-3xl w-full max-w-lg p-6 shadow-2xl my-8">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Length ({newRoomUnit})</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={newRoomLength}
-                    onChange={(e) => setNewRoomLength(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
-                    required
-                  />
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Layers size={16} className="text-rose-400" />
+                    {editingRoomId ? 'Edit Room Dimensions & Architecture' : 'Add Room to Project'}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Configure room boundary shape, wall thickness, and precise dimensional coordinates.
+                  </p>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Width ({newRoomUnit})</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={newRoomWidth}
-                    onChange={(e) => setNewRoomWidth(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Height ({newRoomUnit})</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={newRoomHeight}
-                    onChange={(e) => setNewRoomHeight(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
                 <button
-                  type="button"
                   onClick={() => setShowAddRoomModal(false)}
-                  className="px-4 py-2 bg-muted text-muted-foreground rounded-xl text-xs font-semibold"
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-semibold"
-                >
-                  Add Room
+                  ✕
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleAddRoomSubmit} className="space-y-4">
+                {/* 1. Room Name & Type */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">Room Name</label>
+                    <input
+                      type="text"
+                      value={newRoomName}
+                      onChange={(e) => setNewRoomName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">Room Type</label>
+                    <select
+                      value={newRoomType}
+                      onChange={(e) => setNewRoomType(e.target.value as RoomType)}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    >
+                      <option value="Master Bedroom">Master Bedroom</option>
+                      <option value="Bedroom">Bedroom</option>
+                      <option value="Living Room">Living Room</option>
+                      <option value="Kitchen">Kitchen</option>
+                      <option value="Bathroom">Bathroom</option>
+                      <option value="Dining Room">Dining Room</option>
+                      <option value="Home Office">Home Office</option>
+                      <option value="Balcony">Balcony</option>
+                      <option value="Pooja Room">Pooja Room</option>
+                      <option value="Corridor">Corridor</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 2. Room Shape Selector */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                    Room Boundary Shape
+                  </label>
+                  <div className="grid grid-cols-5 gap-1.5 p-1 bg-muted/40 rounded-xl border border-border text-center text-xs font-semibold">
+                    {[
+                      { id: 'rectangle', label: '⬚ Rect' },
+                      { id: 'square', label: '⏹ Square' },
+                      { id: 'l-shape', label: '⌞ L-Shape' },
+                      { id: 't-shape', label: '┯ T-Shape' },
+                      { id: 'custom', label: '✦ Custom' },
+                    ].map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          const shp = s.id as RoomShape;
+                          setNewRoomShape(shp);
+                          if (shp === 'square') {
+                            setNewRoomWidth(newRoomLength);
+                          }
+                        }}
+                        className={`py-1.5 rounded-lg transition-all ${
+                          newRoomShape === s.id
+                            ? 'bg-rose-500 text-white shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Dimensions Inputs */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                      {newRoomShape === 'square' ? 'Side Length' : 'Length'} ({newRoomUnit})
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="4"
+                      value={newRoomLength}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setNewRoomLength(val);
+                        if (newRoomShape === 'square') {
+                          setNewRoomWidth(val);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                      Width ({newRoomUnit})
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="4"
+                      disabled={newRoomShape === 'square'}
+                      value={newRoomShape === 'square' ? newRoomLength : newRoomWidth}
+                      onChange={(e) => setNewRoomWidth(parseFloat(e.target.value) || 0)}
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500 ${
+                        newRoomShape === 'square' ? 'opacity-60 cursor-not-allowed' : ''
+                      }`}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                      Height ({newRoomUnit})
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="7"
+                      value={newRoomHeight}
+                      onChange={(e) => setNewRoomHeight(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* L-Shape Cutout parameters if selected */}
+                {newRoomShape === 'l-shape' && (
+                  <div className="p-3 bg-muted/30 border border-border rounded-xl space-y-2">
+                    <span className="text-[11px] font-bold text-foreground block">
+                      L-Shape Cutout Alcove ({newRoomUnit})
+                    </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Cutout Length</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="1"
+                          max={newRoomLength - 1}
+                          value={newRoomCutoutL}
+                          onChange={(e) => setNewRoomCutoutL(parseFloat(e.target.value) || 0)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-card border border-border text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Cutout Width</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="1"
+                          max={newRoomWidth - 1}
+                          value={newRoomCutoutW}
+                          onChange={(e) => setNewRoomCutoutW(parseFloat(e.target.value) || 0)}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-card border border-border text-foreground"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Wall Width / Thickness */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                    Wall Thickness / Width
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { val: 4.5, label: '4.5" Partition' },
+                      { val: 6.0, label: '6" Shear' },
+                      { val: 9.0, label: '9" Brick Wall' },
+                      { val: 12.0, label: '12" Heavy' },
+                    ].map((w) => (
+                      <button
+                        key={w.val}
+                        type="button"
+                        onClick={() => setNewRoomWallWidth(w.val)}
+                        className={`p-2 rounded-xl text-center text-xs border transition-all ${
+                          newRoomWallWidth === w.val
+                            ? 'bg-rose-500/15 border-rose-500 text-rose-400 font-bold'
+                            : 'bg-muted/40 border-border text-muted-foreground hover:border-muted-foreground'
+                        }`}
+                      >
+                        <span className="block text-[11px]">{w.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 5. Live 2D Room Shape Preview & Calculated Measurements */}
+                <div className="p-3 bg-muted/40 rounded-2xl border border-border flex items-center justify-between gap-4">
+                  {/* SVG Shape Preview */}
+                  <div className="w-24 h-24 bg-card rounded-xl border border-border flex items-center justify-center p-2 shrink-0">
+                    <svg viewBox="0 0 100 100" className="w-full h-full text-rose-500">
+                      {newRoomShape === 'square' && (
+                        <rect x="15" y="15" width="70" height="70" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth={newRoomWallWidth > 6 ? 6 : 4} rx="3" />
+                      )}
+                      {newRoomShape === 'rectangle' && (
+                        <rect x="10" y="25" width="80" height="50" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth={newRoomWallWidth > 6 ? 6 : 4} rx="3" />
+                      )}
+                      {newRoomShape === 'l-shape' && (
+                        <polygon points="15,15 85,15 85,55 55,55 55,85 15,85" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth={newRoomWallWidth > 6 ? 6 : 4} strokeLinejoin="round" />
+                      )}
+                      {newRoomShape === 't-shape' && (
+                        <polygon points="15,15 85,15 85,45 65,45 65,85 35,85 35,45 15,45" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth={newRoomWallWidth > 6 ? 6 : 4} strokeLinejoin="round" />
+                      )}
+                      {newRoomShape === 'custom' && (
+                        <polygon points="20,15 80,20 85,60 55,85 15,70" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth={newRoomWallWidth > 6 ? 6 : 4} strokeLinejoin="round" />
+                      )}
+                    </svg>
+                  </div>
+
+                  {/* Calculated metrics badges */}
+                  <div className="flex-1 space-y-1.5 text-xs font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-[10px]">Carpet Area:</span>
+                      <span className="font-bold text-rose-400">{liveMetrics.floorAreaSqFt} sq.ft</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-[10px]">Perimeter:</span>
+                      <span className="font-bold text-foreground">{liveMetrics.perimeterFt} ft</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-[10px]">Wall Area:</span>
+                      <span className="font-bold text-foreground">{liveMetrics.wallAreaSqFt} sq.ft</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-[10px]">Wall Width:</span>
+                      <span className="font-bold text-foreground">{newRoomWallWidth}&quot;</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRoomModal(false)}
+                    className="px-4 py-2 bg-muted text-muted-foreground rounded-xl text-xs font-semibold hover:bg-muted/80"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                  >
+                    {editingRoomId ? 'Save Room Dimensions' : 'Add Room to Project'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════
           DUAL QUOTATION VIEWER MODAL

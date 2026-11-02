@@ -44,15 +44,34 @@ export interface SubElementCustomization {
   texture?: string;
 }
 
+export type RoomShape = 'rectangle' | 'square' | 'l-shape' | 't-shape' | 'custom';
+
+export interface LShapeParams {
+  length1: number;
+  width1: number;
+  cutoutLength: number;
+  cutoutWidth: number;
+}
+
+export interface RoomVertex2D {
+  x: number;
+  y: number;
+}
+
 export interface RoomDefinition {
   id: string;
   name: string;
   type: RoomType;
+  shape?: RoomShape;
   length: number; // in current units
   width: number;
   height: number;
+  wallWidthInches?: number;
+  lShapeParams?: LShapeParams;
+  customVertices?: RoomVertex2D[];
   unit: MeasurementUnit;
   floorAreaSqFt: number;
+  carpetAreaSqFt?: number; // Alias for floorAreaSqFt
   wallAreaSqFt: number;
   ceilingAreaSqFt: number;
   perimeterFt: number;

@@ -24,6 +24,7 @@ import {
   TextInput,
   Alert,
   Linking,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -49,9 +50,11 @@ interface MobileRoom {
   id: string;
   name: string;
   type: string;
+  shape?: 'rectangle' | 'square' | 'l-shape' | 't-shape' | 'custom';
   length: number;
   width: number;
   height: number;
+  wallWidthInches?: number;
   carpetAreaSqFt: number;
   perimeterFt: number;
   wallAreaSqFt: number;
@@ -108,6 +111,8 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
       id: 'room-1',
       name: 'Living & Dining Lounge',
       type: 'Living Room',
+      shape: 'rectangle',
+      wallWidthInches: 4.5,
       length: 18,
       width: 14,
       height: 10,
@@ -120,6 +125,8 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
       id: 'room-2',
       name: 'Master Bedroom Suite',
       type: 'Master Bedroom',
+      shape: 'rectangle',
+      wallWidthInches: 4.5,
       length: 16,
       width: 12,
       height: 10,
@@ -132,6 +139,8 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
       id: 'room-3',
       name: 'Modern Modular Kitchen',
       type: 'Kitchen',
+      shape: 'rectangle',
+      wallWidthInches: 4.5,
       length: 12,
       width: 10,
       height: 10,
@@ -141,6 +150,99 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
       furnitureCount: 1,
     },
   ]);
+
+  // Active Studio Room & Room Edit Modal State
+  const [activeStudioRoomId, setActiveStudioRoomId] = useState<string>('room-1');
+  const [isBigStudioMode, setIsBigStudioMode] = useState<boolean>(false);
+  const [isEditRoomModalVisible, setIsEditRoomModalVisible] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [roomNameInput, setRoomNameInput] = useState('');
+  const [roomTypeInput, setRoomTypeInput] = useState('Living Room');
+  const [roomShapeInput, setRoomShapeInput] = useState<'rectangle' | 'square' | 'l-shape' | 't-shape' | 'custom'>('rectangle');
+  const [roomWallWidthInput, setRoomWallWidthInput] = useState<number>(4.5);
+  const [roomLengthInput, setRoomLengthInput] = useState('18');
+  const [roomWidthInput, setRoomWidthInput] = useState('14');
+  const [roomHeightInput, setRoomHeightInput] = useState('10');
+
+  const computeRoomStats = (l: number, w: number, h: number, shape: string) => {
+    let carpet = l * w;
+    let peri = 2 * (l + w);
+    if (shape === 'square') {
+      carpet = l * l;
+      peri = 4 * l;
+    } else if (shape === 'l-shape') {
+      const cutL = l * 0.45;
+      const cutW = w * 0.45;
+      carpet = Math.round(l * w - cutL * cutW);
+      peri = Math.round(2 * (l + w));
+    }
+    const wallArea = Math.round(peri * h);
+    return { carpet, peri, wallArea };
+  };
+
+  const handleOpenEditRoom = (room: MobileRoom) => {
+    setEditingRoomId(room.id);
+    setRoomNameInput(room.name);
+    setRoomTypeInput(room.type);
+    setRoomShapeInput(room.shape || 'rectangle');
+    setRoomWallWidthInput(room.wallWidthInches || 4.5);
+    setRoomLengthInput(String(room.length));
+    setRoomWidthInput(String(room.width));
+    setRoomHeightInput(String(room.height));
+    setIsEditRoomModalVisible(true);
+  };
+
+  const handleOpenAddRoom = () => {
+    setEditingRoomId(null);
+    setRoomNameInput('New Room');
+    setRoomTypeInput('Bedroom');
+    setRoomShapeInput('rectangle');
+    setRoomWallWidthInput(4.5);
+    setRoomLengthInput('14');
+    setRoomWidthInput('12');
+    setRoomHeightInput('10');
+    setIsEditRoomModalVisible(true);
+  };
+
+  const handleSaveRoomModal = () => {
+    const l = parseFloat(roomLengthInput) || 12;
+    const w = roomShapeInput === 'square' ? l : (parseFloat(roomWidthInput) || 10);
+    const h = parseFloat(roomHeightInput) || 10;
+    const stats = computeRoomStats(l, w, h, roomShapeInput);
+
+    if (editingRoomId) {
+      setRooms(prev => prev.map(r => r.id === editingRoomId ? {
+        ...r,
+        name: roomNameInput.trim() || r.name,
+        type: roomTypeInput,
+        shape: roomShapeInput,
+        wallWidthInches: roomWallWidthInput,
+        length: l,
+        width: w,
+        height: h,
+        carpetAreaSqFt: stats.carpet,
+        perimeterFt: stats.peri,
+        wallAreaSqFt: stats.wallArea,
+      } : r));
+    } else {
+      const newRoom: MobileRoom = {
+        id: `room-${Date.now()}`,
+        name: roomNameInput.trim() || 'New Room',
+        type: roomTypeInput,
+        shape: roomShapeInput,
+        wallWidthInches: roomWallWidthInput,
+        length: l,
+        width: w,
+        height: h,
+        carpetAreaSqFt: stats.carpet,
+        perimeterFt: stats.peri,
+        wallAreaSqFt: stats.wallArea,
+        furnitureCount: 0,
+      };
+      setRooms(prev => [...prev, newRoom]);
+    }
+    setIsEditRoomModalVisible(false);
+  };
 
   // Categories Toggles
   const [categories, setCategories] = useState({
@@ -407,37 +509,111 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
             {currentStep === 3 && (
               <View style={[styles.sectionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                 <View style={styles.rowBetween}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Step 3: Rooms & Dimensions</Text>
-                  <Text style={[styles.totalAreaText, { color: '#f43f5e' }]}>{totalArea} sq.ft Total</Text>
+                  <View>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>Step 3: Rooms & Dimensions</Text>
+                    <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                      Architectural boundary shapes, wall widths & calculations
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleOpenAddRoom}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      backgroundColor: '#f43f5e',
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>+ Add Room</Text>
+                  </TouchableOpacity>
                 </View>
 
-                {rooms.map((room) => (
-                  <View
-                    key={room.id}
-                    style={[styles.roomCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-                  >
-                    <View style={styles.rowBetween}>
-                      <Text style={[styles.roomName, { color: colors.text }]}>{room.name}</Text>
-                      <Text style={styles.roomTypeBadge}>{room.type}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 8 }}>
+                  <Text style={[styles.totalAreaText, { color: '#f43f5e' }]}>{totalArea} sq.ft Carpet Area</Text>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>{rooms.length} Rooms Configured</Text>
+                </View>
+
+                {rooms.map((room) => {
+                  const shapeLabel = room.shape === 'square' ? '⏹ Square' : room.shape === 'l-shape' ? '⌞ L-Shape' : room.shape === 't-shape' ? '⊤ T-Shape' : '⬚ Rectangle';
+                  return (
+                    <View
+                      key={room.id}
+                      style={[styles.roomCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                    >
+                      <View style={styles.rowBetween}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <Text style={[styles.roomName, { color: colors.text }]}>{room.name}</Text>
+                          <Text style={{ fontSize: 10, color: '#f43f5e', fontWeight: 'bold' }}>• {room.type}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          <View style={{ backgroundColor: 'rgba(244,63,94,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 9, color: '#f43f5e', fontWeight: 'bold' }}>{shapeLabel}</Text>
+                          </View>
+                          <View style={{ backgroundColor: 'rgba(100,116,139,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: 'bold' }}>{room.wallWidthInches || 4.5}&quot; Wall</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.metricsGrid}>
+                        <View>
+                          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Dimensions</Text>
+                          <Text style={[styles.metricValue, { color: colors.text }]}>
+                            {room.length}&apos; × {room.width}&apos; × {room.height}&apos;
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Carpet Area</Text>
+                          <Text style={[styles.metricValue, { color: '#f43f5e' }]}>{room.carpetAreaSqFt} sq.ft</Text>
+                        </View>
+                        <View>
+                          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Wall Area</Text>
+                          <Text style={[styles.metricValue, { color: colors.text }]}>{room.wallAreaSqFt} sq.ft</Text>
+                        </View>
+                        <View>
+                          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Perimeter</Text>
+                          <Text style={[styles.metricValue, { color: colors.text }]}>{room.perimeterFt} ft</Text>
+                        </View>
+                      </View>
+
+                      {/* Action Buttons */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
+                        <TouchableOpacity
+                          onPress={() => handleOpenEditRoom(room)}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 7,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            alignItems: 'center',
+                            backgroundColor: 'rgba(255,255,255,0.03)',
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: 'bold', color: colors.text }}>✏️ Edit Room</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            setActiveStudioRoomId(room.id);
+                            setCurrentStep(5);
+                          }}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 7,
+                            borderRadius: 8,
+                            backgroundColor: 'rgba(244,63,94,0.15)',
+                            borderWidth: 1,
+                            borderColor: '#f43f5e',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#f43f5e' }}>🛋️ Open in 3D Studio</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.metricsGrid}>
-                      <View>
-                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Dimensions</Text>
-                        <Text style={[styles.metricValue, { color: colors.text }]}>
-                          {room.length}&apos; × {room.width}&apos; × {room.height}&apos;
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Carpet Area</Text>
-                        <Text style={[styles.metricValue, { color: '#f43f5e' }]}>{room.carpetAreaSqFt} sq.ft</Text>
-                      </View>
-                      <View>
-                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Perimeter</Text>
-                        <Text style={[styles.metricValue, { color: colors.text }]}>{room.perimeterFt} ft</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
 
                 <TouchableOpacity
                   onPress={() => setCurrentStep(4)}
@@ -496,35 +672,173 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
             )}
 
             {/* STEP 5: 3D STUDIO LAUNCH */}
-            {currentStep === 5 && (
-              <View style={[styles.sectionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Step 5: Interactive 2D/3D Studio</Text>
-                <Text style={[styles.cardDesc, { color: colors.textMuted }]}>
-                  Place furniture, edit room dimensions, and manipulate 3D models in real-time.
-                </Text>
+            {currentStep === 5 && (() => {
+              const activeRoom = rooms.find(r => r.id === activeStudioRoomId) || rooms[0];
+              const shapeName = activeRoom.shape === 'square' ? 'Square' : activeRoom.shape === 'l-shape' ? 'L-Shape' : activeRoom.shape === 't-shape' ? 'T-Shape' : 'Rectangle';
 
-                <View style={styles.studioBannerBox}>
-                  <Text style={{ fontSize: 36, marginBottom: 8 }}>🛋️</Text>
-                  <Text style={[styles.studioBannerTitle, { color: colors.text }]}>WebGL 3D Studio Ready</Text>
-                  <Text style={[styles.studioBannerDesc, { color: colors.textMuted }]}>
-                    Orbit, Walkthrough, 3D Gizmo transform matrix, and marketplace models live on Web / Tablet.
-                  </Text>
-                  <TouchableOpacity
-                    onPress={handleOpenWebStudio}
-                    style={[styles.webStudioBtn, { backgroundColor: '#f43f5e' }]}
+              return (
+                <View style={[styles.sectionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <View style={styles.rowBetween}>
+                    <View>
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>Step 5: Interactive 2D/3D Studio</Text>
+                      <Text style={[styles.cardDesc, { color: colors.textMuted }]}>
+                        Big Studio View & live fetched room dimensions
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setIsBigStudioMode(!isBigStudioMode)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                        backgroundColor: isBigStudioMode ? '#f43f5e' : 'rgba(255,255,255,0.08)',
+                        borderWidth: 1,
+                        borderColor: isBigStudioMode ? '#f43f5e' : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>
+                        {isBigStudioMode ? '⛶ Normal View' : '⛶ Big Studio'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Room Switcher Pills */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {rooms.map((r) => (
+                        <TouchableOpacity
+                          key={r.id}
+                          onPress={() => setActiveStudioRoomId(r.id)}
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 8,
+                            backgroundColor: r.id === activeRoom.id ? '#f43f5e' : colors.cardBgElevated,
+                            borderWidth: 1,
+                            borderColor: r.id === activeRoom.id ? '#f43f5e' : colors.border,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 'bold',
+                              color: r.id === activeRoom.id ? '#fff' : colors.textSecondary,
+                            }}
+                          >
+                            {r.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+
+                  {/* Room Architecture & Dimensions Card (Fetched from Step 3) */}
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.cardBgElevated,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      marginBottom: 12,
+                    }}
                   >
-                    <Text style={styles.webStudioBtnText}>Launch WebGL 3D Studio ↗</Text>
+                    <View style={styles.rowBetween}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }}>
+                          📐 Architecture: {activeRoom.name}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: '#f43f5e', fontWeight: 'bold' }}>
+                          ({shapeName})
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => handleOpenEditRoom(activeRoom)}>
+                        <Text style={{ fontSize: 11, color: '#f43f5e', fontWeight: 'bold' }}>✏️ Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
+                      <View>
+                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Dimensions</Text>
+                        <Text style={[styles.metricValue, { color: colors.text }]}>
+                          {activeRoom.length}&apos; × {activeRoom.width}&apos; × {activeRoom.height}&apos;
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Wall Thickness</Text>
+                        <Text style={[styles.metricValue, { color: colors.text }]}>
+                          {activeRoom.wallWidthInches || 4.5}&quot;
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Carpet Area</Text>
+                        <Text style={[styles.metricValue, { color: '#f43f5e' }]}>
+                          {activeRoom.carpetAreaSqFt} sq.ft
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Wall Area</Text>
+                        <Text style={[styles.metricValue, { color: colors.text }]}>
+                          {activeRoom.wallAreaSqFt} sq.ft
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 3D Studio Workspace Viewport (Spacious Canvas View) */}
+                  <View
+                    style={[
+                      styles.studioBannerBox,
+                      {
+                        backgroundColor: '#0f172a',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        padding: isBigStudioMode ? 32 : 18,
+                        minHeight: isBigStudioMode ? 320 : 200,
+                      },
+                    ]}
+                  >
+                    {/* Viewport Floating Mode Pills */}
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16 }}>
+                      {['2D Floor Plan', '3D Orbit View', '👁️ First-Person Walk'].map((m, idx) => (
+                        <View
+                          key={m}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 6,
+                            backgroundColor: idx === 1 ? '#f43f5e' : 'rgba(255,255,255,0.1)',
+                          }}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: 'bold', color: '#fff' }}>{m}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    <Text style={{ fontSize: 40, marginBottom: 8 }}>🛋️ ✨ 📐</Text>
+                    <Text style={[styles.studioBannerTitle, { color: '#f8fafc' }]}>
+                      {activeRoom.name} (3D Studio)
+                    </Text>
+                    <Text style={[styles.studioBannerDesc, { color: '#94a3b8' }]}>
+                      Accurate models loaded: Bixler sectional sofa, dining set, modular kitchen suite, king bed & TV credenza.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleOpenWebStudio}
+                      style={[styles.webStudioBtn, { backgroundColor: '#f43f5e', marginTop: 4 }]}
+                    >
+                      <Text style={styles.webStudioBtnText}>Launch Interactive WebGL 3D Studio ↗</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => setCurrentStep(6)}
+                    style={[styles.primaryActionBtn, { backgroundColor: '#f43f5e' }]}
+                  >
+                    <Text style={styles.primaryActionText}>Next: Live Itemized BOQ →</Text>
                   </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity
-                  onPress={() => setCurrentStep(6)}
-                  style={[styles.primaryActionBtn, { backgroundColor: '#f43f5e' }]}
-                >
-                  <Text style={styles.primaryActionText}>Next: Live Itemized BOQ →</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              );
+            })()}
 
             {/* STEP 6: LIVE BOQ & COSTS */}
             {currentStep === 6 && (
@@ -736,6 +1050,156 @@ export const InteriorDesignerCalculatorScreen: React.FC<Props> = ({ onClose }) =
           </View>
         )}
       </ScrollView>
+
+      {/* ── ADD / EDIT ROOM MODAL ── */}
+      <Modal
+        visible={isEditRoomModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsEditRoomModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            justifyContent: 'center',
+            padding: 18,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: colors.cardBg,
+              borderRadius: 16,
+              padding: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <View style={styles.rowBetween}>
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: colors.text }}>
+                {editingRoomId ? 'Edit Room Architecture' : 'Add New Room'}
+              </Text>
+              <TouchableOpacity onPress={() => setIsEditRoomModalVisible(false)}>
+                <Text style={{ fontSize: 18, color: colors.textMuted }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Room Name */}
+            <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginTop: 12, marginBottom: 4 }}>
+              Room Name
+            </Text>
+            <TextInput
+              value={roomNameInput}
+              onChangeText={setRoomNameInput}
+              style={[styles.input, { backgroundColor: colors.cardBgElevated, color: colors.text, borderColor: colors.border }]}
+              placeholder="e.g. Master Suite"
+              placeholderTextColor={colors.textMuted}
+            />
+
+            {/* Room Shape */}
+            <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }}>
+              Boundary Shape
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+              {[
+                { id: 'rectangle' as const, label: '⬚ Rect' },
+                { id: 'square' as const, label: '⏹ Square' },
+                { id: 'l-shape' as const, label: '⌞ L-Shape' },
+                { id: 't-shape' as const, label: '⊤ T-Shape' },
+              ].map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  onPress={() => setRoomShapeInput(s.id)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 7,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    backgroundColor: roomShapeInput === s.id ? '#f43f5e' : colors.cardBgElevated,
+                    borderWidth: 1,
+                    borderColor: roomShapeInput === s.id ? '#f43f5e' : colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: 'bold', color: roomShapeInput === s.id ? '#fff' : colors.textSecondary }}>
+                    {s.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Dimensions: Length, Width, Height */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>Length (ft)</Text>
+                <TextInput
+                  value={roomLengthInput}
+                  onChangeText={setRoomLengthInput}
+                  keyboardType="numeric"
+                  style={[styles.input, { backgroundColor: colors.cardBgElevated, color: colors.text, borderColor: colors.border }]}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>Width (ft)</Text>
+                <TextInput
+                  value={roomShapeInput === 'square' ? roomLengthInput : roomWidthInput}
+                  onChangeText={setRoomWidthInput}
+                  editable={roomShapeInput !== 'square'}
+                  keyboardType="numeric"
+                  style={[styles.input, { backgroundColor: colors.cardBgElevated, color: colors.text, borderColor: colors.border, opacity: roomShapeInput === 'square' ? 0.6 : 1 }]}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>Height (ft)</Text>
+                <TextInput
+                  value={roomHeightInput}
+                  onChangeText={setRoomHeightInput}
+                  keyboardType="numeric"
+                  style={[styles.input, { backgroundColor: colors.cardBgElevated, color: colors.text, borderColor: colors.border }]}
+                />
+              </View>
+            </View>
+
+            {/* Wall Width Selection */}
+            <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }}>
+              Wall Thickness
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16 }}>
+              {[
+                { val: 4.5, label: '4.5"' },
+                { val: 6.0, label: '6.0"' },
+                { val: 9.0, label: '9.0"' },
+                { val: 12.0, label: '12.0"' },
+              ].map(w => (
+                <TouchableOpacity
+                  key={w.val}
+                  onPress={() => setRoomWallWidthInput(w.val)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    backgroundColor: roomWallWidthInput === w.val ? colors.text : colors.cardBgElevated,
+                    borderWidth: 1,
+                    borderColor: roomWallWidthInput === w.val ? colors.text : colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: 'bold', color: roomWallWidthInput === w.val ? colors.cardBg : colors.textSecondary }}>
+                    {w.val}&quot;
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Save Button */}
+            <TouchableOpacity
+              onPress={handleSaveRoomModal}
+              style={[styles.primaryActionBtn, { backgroundColor: '#f43f5e' }]}
+            >
+              <Text style={styles.primaryActionText}>Save Room & Update Calculations</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };

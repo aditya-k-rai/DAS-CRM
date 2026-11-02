@@ -12,7 +12,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QFrame, QPushButton, QScrollArea, QTableWidget,
                               QTableWidgetItem, QHeaderView, QAbstractItemView,
                               QLineEdit, QComboBox, QMessageBox, QTabWidget,
-                              QTextEdit, QSpinBox, QDoubleSpinBox, QCheckBox)
+                              QTextEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
+                              QDialog, QFormLayout)
 import webbrowser
 
 
@@ -30,10 +31,11 @@ class InteriorCalculatorView(QFrame):
         super().__init__(parent)
         self.setStyleSheet("background: #0D1117; border: none;")
         self._selected_lead = self.SAMPLE_LEADS[0]
+        self._active_room_idx = 0
         self._rooms = [
-            {"name": "Living & Dining Lounge", "type": "Living Room", "l": 18.0, "w": 14.0, "h": 10.0, "area": 252.0, "peri": 64.0},
-            {"name": "Master Suite", "type": "Master Bedroom", "l": 16.0, "w": 12.0, "h": 10.0, "area": 192.0, "peri": 56.0},
-            {"name": "Modular Kitchen", "type": "Kitchen", "l": 12.0, "w": 10.0, "h": 10.0, "area": 120.0, "peri": 44.0},
+            {"name": "Living & Dining Lounge", "type": "Living Room", "shape": "Rectangle", "l": 18.0, "w": 14.0, "h": 10.0, "wall_width": 4.5, "area": 252.0, "peri": 64.0, "wall_area": 640.0},
+            {"name": "Master Suite", "type": "Master Bedroom", "shape": "Rectangle", "l": 16.0, "w": 12.0, "h": 10.0, "wall_width": 4.5, "area": 192.0, "peri": 56.0, "wall_area": 560.0},
+            {"name": "Modular Kitchen", "type": "Kitchen", "shape": "Rectangle", "l": 12.0, "w": 10.0, "h": 10.0, "wall_width": 4.5, "area": 120.0, "peri": 44.0, "wall_area": 440.0},
         ]
         self._setup_ui()
 
@@ -296,31 +298,214 @@ class InteriorCalculatorView(QFrame):
         lay.addStretch()
         return w
 
+    def _compute_metrics(self, l: float, w: float, h: float, shape: str):
+        if shape == "Square":
+            area = round(l * l, 1)
+            peri = round(4 * l, 1)
+        elif shape == "L-Shape":
+            cut_l = l * 0.45
+            cut_w = w * 0.45
+            area = round(l * w - cut_l * cut_w, 1)
+            peri = round(2 * (l + w), 1)
+        else:
+            area = round(l * w, 1)
+            peri = round(2 * (l + w), 1)
+        wall_area = round(peri * h, 1)
+        return area, peri, wall_area
+
+    def _open_edit_room_dialog(self, room_idx: int = -1):
+        is_edit = room_idx >= 0
+        target = self._rooms[room_idx] if is_edit else {
+            "name": "New Room",
+            "type": "Bedroom",
+            "shape": "Rectangle",
+            "l": 14.0,
+            "w": 12.0,
+            "h": 10.0,
+            "wall_width": 4.5,
+            "area": 168.0,
+            "peri": 52.0,
+            "wall_area": 520.0,
+        }
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Edit Room Architecture & Dimensions" if is_edit else "Add New Room")
+        dlg.setMinimumWidth(440)
+        dlg.setStyleSheet("""
+            QDialog { background: #161B22; color: #F0F6FC; }
+            QLabel { color: #8B949E; font-size: 11px; font-weight: bold; }
+            QLineEdit, QComboBox, QDoubleSpinBox {
+                background: #0D1117; color: #F0F6FC; border: 1px solid #30363D;
+                border-radius: 6px; padding: 6px; font-size: 12px;
+            }
+            QPushButton {
+                background: #F43F5E; color: #fff; font-weight: bold;
+                border-radius: 6px; padding: 8px 16px;
+            }
+        """)
+        d_lay = QVBoxLayout(dlg)
+        form = QFormLayout()
+
+        name_in = QLineEdit(target["name"])
+        type_in = QComboBox()
+        type_in.addItems(["Living Room", "Master Bedroom", "Bedroom", "Kitchen", "Bathroom", "Dining Room"])
+        type_in.setCurrentText(target.get("type", "Living Room"))
+
+        shape_in = QComboBox()
+        shape_in.addItems(["Rectangle", "Square", "L-Shape", "T-Shape"])
+        shape_in.setCurrentText(target.get("shape", "Rectangle"))
+
+        l_in = QDoubleSpinBox()
+        l_in.setRange(4.0, 100.0)
+        l_in.setValue(target["l"])
+
+        w_in = QDoubleSpinBox()
+        w_in.setRange(4.0, 100.0)
+        w_in.setValue(target["w"])
+
+        h_in = QDoubleSpinBox()
+        h_in.setRange(7.0, 30.0)
+        h_in.setValue(target.get("h", 10.0))
+
+        wall_in = QComboBox()
+        wall_in.addItems(["4.5\" Partition", "6.0\" Shear Wall", "9.0\" Brick Wall", "12.0\" Heavy Masonry"])
+        cur_w = f"{target.get('wall_width', 4.5)}\""
+        for i in range(wall_in.count()):
+            if cur_w in wall_in.itemText(i):
+                wall_in.setCurrentIndex(i)
+
+        calc_lbl = QLabel(f"Carpet Area: {target['area']} sq.ft | Wall Area: {target.get('wall_area', 0)} sq.ft | Perimeter: {target['peri']} ft")
+        calc_lbl.setStyleSheet("color: #F43F5E; font-weight: bold; font-size: 12px; margin-top: 6px;")
+
+        def update_preview():
+            shp = shape_in.currentText()
+            w_in.setEnabled(shp != "Square")
+            if shp == "Square":
+                w_in.setValue(l_in.value())
+            a, p, wa = self._compute_metrics(l_in.value(), w_in.value(), h_in.value(), shp)
+            calc_lbl.setText(f"Carpet Area: {a} sq.ft | Wall Area: {wa} sq.ft | Perimeter: {p} ft")
+
+        shape_in.currentTextChanged.connect(update_preview)
+        l_in.valueChanged.connect(update_preview)
+        w_in.valueChanged.connect(update_preview)
+        h_in.valueChanged.connect(update_preview)
+
+        form.addRow("Room Name:", name_in)
+        form.addRow("Room Type:", type_in)
+        form.addRow("Boundary Shape:", shape_in)
+        form.addRow("Length (ft):", l_in)
+        form.addRow("Width (ft):", w_in)
+        form.addRow("Height (ft):", h_in)
+        form.addRow("Wall Thickness:", wall_in)
+        form.addRow("Calculated Metrics:", calc_lbl)
+        d_lay.addLayout(form)
+
+        btn_row = QHBoxLayout()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("background: #21262D; color: #C9D1D9;")
+        cancel_btn.clicked.connect(dlg.reject)
+        save_btn = QPushButton("Save Room & Recalculate")
+
+        def on_save():
+            shp = shape_in.currentText()
+            l_val = l_in.value()
+            w_val = l_val if shp == "Square" else w_in.value()
+            h_val = h_in.value()
+            a, p, wa = self._compute_metrics(l_val, w_val, h_val, shp)
+            wall_str = wall_in.currentText().split('"')[0]
+            try:
+                wall_flt = float(wall_str)
+            except ValueError:
+                wall_flt = 4.5
+
+            data = {
+                "name": name_in.text().strip() or "Untitled Room",
+                "type": type_in.currentText(),
+                "shape": shp,
+                "l": l_val,
+                "w": w_val,
+                "h": h_val,
+                "wall_width": wall_flt,
+                "area": a,
+                "peri": p,
+                "wall_area": wa,
+            }
+            if is_edit:
+                self._rooms[room_idx] = data
+            else:
+                self._rooms.append(data)
+            dlg.accept()
+            self._refresh_rooms_table()
+            self._refresh_studio_view()
+
+        save_btn.clicked.connect(on_save)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(save_btn)
+        d_lay.addLayout(btn_row)
+        dlg.exec()
+
+    def _open_studio_for_room(self, idx: int):
+        self._active_room_idx = idx
+        self._refresh_studio_view()
+        self.workflow_stack.setCurrentIndex(4)
+
+    def _refresh_rooms_table(self):
+        if not hasattr(self, '_rooms_table'):
+            return
+        self._rooms_table.setRowCount(len(self._rooms))
+        for r, rm in enumerate(self._rooms):
+            self._rooms_table.setItem(r, 0, QTableWidgetItem(rm["name"]))
+            self._rooms_table.setItem(r, 1, QTableWidgetItem(rm["type"]))
+            self._rooms_table.setItem(r, 2, QTableWidgetItem(rm.get("shape", "Rectangle")))
+            self._rooms_table.setItem(r, 3, QTableWidgetItem(f"{rm['l']}' × {rm['w']}' × {rm.get('h', 10.0)}'"))
+            self._rooms_table.setItem(r, 4, QTableWidgetItem(f"{rm.get('wall_width', 4.5)}\""))
+            self._rooms_table.setItem(r, 5, QTableWidgetItem(f"{rm['area']} sq.ft"))
+
+            actions_w = QWidget()
+            a_lay = QHBoxLayout(actions_w)
+            a_lay.setContentsMargins(2, 2, 2, 2)
+            edit_b = QPushButton("✏️ Edit")
+            edit_b.setStyleSheet("background: #21262D; color: #58A6FF; border: 1px solid #30363D; border-radius: 4px; padding: 4px 8px; font-size: 11px;")
+            edit_b.clicked.connect(lambda _, idx=r: self._open_edit_room_dialog(idx))
+
+            std_b = QPushButton("🛋️ Studio")
+            std_b.setStyleSheet("background: rgba(244,63,94,0.15); color: #F43F5E; border: 1px solid #F43F5E; border-radius: 4px; padding: 4px 8px; font-size: 11px;")
+            std_b.clicked.connect(lambda _, idx=r: self._open_studio_for_room(idx))
+
+            a_lay.addWidget(edit_b)
+            a_lay.addWidget(std_b)
+            self._rooms_table.setCellWidget(r, 6, actions_w)
+
     def _build_step_rooms(self) -> QWidget:
         w = QFrame()
         w.setStyleSheet("background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 16px;")
         lay = QVBoxLayout(w)
 
+        top_row = QHBoxLayout()
+        v_box = QVBoxLayout()
         lbl = QLabel("Step 3: Define Rooms & Dimensional Calculations")
         lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         lbl.setStyleSheet("color: #F0F6FC;")
-        lay.addWidget(lbl)
+        v_box.addWidget(lbl)
+        sub_lbl = QLabel("Configure room boundary shapes, wall thickness & observe live areas")
+        sub_lbl.setStyleSheet("color: #8B949E; font-size: 11px;")
+        v_box.addWidget(sub_lbl)
+        top_row.addLayout(v_box)
 
-        table = QTableWidget(len(self._rooms), 6)
-        table.setHorizontalHeaderLabels(["Room Name", "Type", "Length (ft)", "Width (ft)", "Carpet Area (sq.ft)", "Perimeter (ft)"])
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.setStyleSheet("background: #0D1117; color: #F0F6FC; gridline-color: #21262D; border: 1px solid #30363D;")
-        table.verticalHeader().hide()
+        add_btn = QPushButton("+ Add New Room")
+        add_btn.setStyleSheet("background: #F43F5E; color: #fff; font-weight: bold; border-radius: 6px; padding: 8px 14px;")
+        add_btn.clicked.connect(lambda: self._open_edit_room_dialog(-1))
+        top_row.addWidget(add_btn)
+        lay.addLayout(top_row)
 
-        for r, rm in enumerate(self._rooms):
-            table.setItem(r, 0, QTableWidgetItem(rm["name"]))
-            table.setItem(r, 1, QTableWidgetItem(rm["type"]))
-            table.setItem(r, 2, QTableWidgetItem(str(rm["l"])))
-            table.setItem(r, 3, QTableWidgetItem(str(rm["w"])))
-            table.setItem(r, 4, QTableWidgetItem(f"{rm['area']} sq.ft"))
-            table.setItem(r, 5, QTableWidgetItem(f"{rm['peri']} ft"))
+        self._rooms_table = QTableWidget(len(self._rooms), 7)
+        self._rooms_table.setHorizontalHeaderLabels(["Room Name", "Type", "Shape", "Dimensions (L×W×H)", "Wall Width", "Carpet Area", "Actions"])
+        self._rooms_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._rooms_table.setStyleSheet("background: #0D1117; color: #F0F6FC; gridline-color: #21262D; border: 1px solid #30363D;")
+        self._rooms_table.verticalHeader().hide()
+        lay.addWidget(self._rooms_table)
 
-        lay.addWidget(table)
+        self._refresh_rooms_table()
 
         next_btn = QPushButton("Proceed to Work Scope Categories →")
         next_btn.setStyleSheet("background: #F43F5E; color: #fff; font-weight: bold; border-radius: 6px; padding: 10px;")
@@ -362,35 +547,107 @@ class InteriorCalculatorView(QFrame):
 
     def _build_step_studio(self) -> QWidget:
         w = QFrame()
-        w.setStyleSheet("background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 24px;")
+        w.setStyleSheet("background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 20px;")
         lay = QVBoxLayout(w)
-        lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._studio_layout = lay
 
-        icon = QLabel("🛋️")
-        icon.setFont(QFont("Segoe UI Emoji", 42))
-        lay.addWidget(icon, alignment=Qt.AlignmentFlag.AlignCenter)
+        # Architecture & Dimensions Info Card
+        self._studio_arch_card = QFrame()
+        self._studio_arch_card.setStyleSheet("background: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 14px;")
+        self._studio_arch_layout = QVBoxLayout(self._studio_arch_card)
+        lay.addWidget(self._studio_arch_card)
 
-        t = QLabel("Interactive 2D/3D Design Studio")
-        t.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        t.setStyleSheet("color: #F0F6FC;")
-        lay.addWidget(t, alignment=Qt.AlignmentFlag.AlignCenter)
+        # 3D Studio Canvas Simulation Card
+        self._studio_canvas_card = QFrame()
+        self._studio_canvas_card.setStyleSheet("background: #0F172A; border: 1px solid #334155; border-radius: 12px; padding: 20px;")
+        c_lay = QVBoxLayout(self._studio_canvas_card)
+        c_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        desc = QLabel("Replicates roomform.ai layout: 2D CAD Top View, 3D Orbit, First-Person Walkthrough, Transform Gizmo & Marketplace Catalog.")
-        desc.setStyleSheet("color: #8B949E; font-size: 12px; text-align: center;")
+        # Viewport floating buttons
+        vp_row = QHBoxLayout()
+        for mode in ["2D Floor Plan", "3D Orbit View", "👁️ First-Person Walk"]:
+            btn = QPushButton(mode)
+            btn.setStyleSheet("background: #1E293B; color: #F8FAFC; border: 1px solid #475569; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: bold;")
+            vp_row.addWidget(btn)
+        full_btn = QPushButton("⛶ Big Studio Mode")
+        full_btn.setStyleSheet("background: #F43F5E; color: #fff; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: bold;")
+        vp_row.addWidget(full_btn)
+        c_lay.addLayout(vp_row)
+
+        icon = QLabel("🛋️ ✨ 📐")
+        icon.setFont(QFont("Segoe UI Emoji", 36))
+        c_lay.addWidget(icon, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self._studio_room_title = QLabel("3D Studio Workspace")
+        self._studio_room_title.setFont(QFont("Segoe UI", 15, QFont.Weight.Bold))
+        self._studio_room_title.setStyleSheet("color: #F8FAFC;")
+        c_lay.addWidget(self._studio_room_title, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        desc = QLabel("Accurate 3D models: Bixler sectional sofa, dining set with chairs, modular kitchen suite with fridge, king bed with nightstands & OLED TV console.")
+        desc.setStyleSheet("color: #94A3B8; font-size: 11px; text-align: center;")
         desc.setWordWrap(True)
-        lay.addWidget(desc, alignment=Qt.AlignmentFlag.AlignCenter)
+        c_lay.addWidget(desc, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        launch_btn = QPushButton("Open Full WebGL Studio in Browser ↗")
-        launch_btn.setStyleSheet("background: #6366F1; color: #fff; font-weight: bold; font-size: 13px; border-radius: 8px; padding: 12px 24px;")
+        launch_btn = QPushButton("Open Full WebGL 3D Studio in Browser ↗")
+        launch_btn.setStyleSheet("background: #6366F1; color: #fff; font-weight: bold; font-size: 13px; border-radius: 8px; padding: 12px 24px; margin-top: 8px;")
         launch_btn.clicked.connect(self._launch_web_studio)
-        lay.addWidget(launch_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        c_lay.addWidget(launch_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        lay.addWidget(self._studio_canvas_card)
+
+        self._refresh_studio_view()
 
         next_btn = QPushButton("Next: View Live Itemized BOQ →")
-        next_btn.setStyleSheet("background: #F43F5E; color: #fff; font-weight: bold; border-radius: 6px; padding: 10px 20px; margin-top: 16px;")
+        next_btn.setStyleSheet("background: #F43F5E; color: #fff; font-weight: bold; border-radius: 6px; padding: 10px 20px; margin-top: 12px;")
         next_btn.clicked.connect(lambda: self.workflow_stack.setCurrentIndex(5))
         lay.addWidget(next_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
         return w
+
+    def _refresh_studio_view(self):
+        if not hasattr(self, '_studio_arch_card') or not self._rooms:
+            return
+        if self._active_room_idx >= len(self._rooms):
+            self._active_room_idx = 0
+        rm = self._rooms[self._active_room_idx]
+
+        while self._studio_arch_layout.count():
+            item = self._studio_arch_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        header_row = QHBoxLayout()
+        title_lbl = QLabel(f"📐 Active Room: {rm['name']} ({rm.get('shape', 'Rectangle')})")
+        title_lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        title_lbl.setStyleSheet("color: #F0F6FC;")
+        header_row.addWidget(title_lbl)
+
+        edit_btn = QPushButton("✏️ Edit Dimensions & Shape")
+        edit_btn.setStyleSheet("background: #21262D; color: #F43F5E; border: 1px solid #30363D; border-radius: 4px; padding: 4px 10px; font-weight: bold; font-size: 11px;")
+        edit_btn.clicked.connect(lambda: self._open_edit_room_dialog(self._active_room_idx))
+        header_row.addWidget(edit_btn)
+        self._studio_arch_layout.addLayout(header_row)
+
+        m_row = QHBoxLayout()
+        for lbl, val in [
+            ("Dimensions (L×W×H)", f"{rm['l']}' × {rm['w']}' × {rm.get('h', 10.0)}'"),
+            ("Wall Thickness", f"{rm.get('wall_width', 4.5)}\""),
+            ("Carpet Area", f"{rm['area']} sq.ft"),
+            ("Wall Area", f"{rm.get('wall_area', 0)} sq.ft"),
+            ("Perimeter", f"{rm['peri']} ft"),
+        ]:
+            col = QVBoxLayout()
+            l_lbl = QLabel(lbl)
+            l_lbl.setStyleSheet("color: #8B949E; font-size: 10px;")
+            v_lbl = QLabel(val)
+            v_lbl.setStyleSheet("color: #F43F5E; font-size: 12px; font-weight: bold;" if "Area" in lbl else "color: #F0F6FC; font-size: 12px; font-weight: bold;")
+            col.addWidget(l_lbl)
+            col.addWidget(v_lbl)
+            m_row.addLayout(col)
+
+        self._studio_arch_layout.addLayout(m_row)
+        if hasattr(self, '_studio_room_title'):
+            self._studio_room_title.setText(f"{rm['name']} ({rm['l']}' × {rm['w']}') — 3D Studio")
 
     def _build_step_boq(self) -> QWidget:
         w = QFrame()

@@ -16,6 +16,9 @@ import {
   FloorLevel,
   RoomType,
   MeasurementUnit,
+  RoomShape,
+  LShapeParams,
+  RoomVertex2D,
 } from '@/types/interiorStudio';
 import { InteriorCatalogStore } from './interiorCatalogStore';
 
@@ -546,7 +549,17 @@ export class InteriorProjectsStore {
   /**
    * Calculates Area, Perimeter, and Wall Area from raw measurements
    */
-  static computeRoomMetrics(length: number, width: number, height: number, unit: MeasurementUnit, openings: RoomDefinition['openings'] = []) {
+  static computeRoomMetrics(
+    length: number,
+    width: number,
+    height: number,
+    unit: MeasurementUnit,
+    openings: RoomDefinition['openings'] = [],
+    shape: RoomShape = 'rectangle',
+    wallWidthInches: number = 4.5,
+    lShapeParams?: LShapeParams,
+    customVertices?: RoomVertex2D[]
+  ) {
     // Convert all to feet for standardized cost calculation
     let lFt = length;
     let wFt = width;
@@ -566,9 +579,42 @@ export class InteriorProjectsStore {
       hFt = height / 304.8;
     }
 
-    const floorAreaSqFt = Math.round(lFt * wFt * 10) / 10;
+    let floorAreaSqFt = 0;
+    let perimeterFt = 0;
+
+    if (shape === 'square') {
+      floorAreaSqFt = Math.round(lFt * lFt * 10) / 10;
+      perimeterFt = Math.round(4 * lFt * 10) / 10;
+    } else if (shape === 'l-shape') {
+      const cutL = lShapeParams?.cutoutLength ? lShapeParams.cutoutLength : lFt * 0.4;
+      const cutW = lShapeParams?.cutoutWidth ? lShapeParams.cutoutWidth : wFt * 0.4;
+      floorAreaSqFt = Math.max(10, Math.round((lFt * wFt - cutL * cutW) * 10) / 10);
+      perimeterFt = Math.round(2 * (lFt + wFt) * 10) / 10;
+    } else if (shape === 't-shape') {
+      floorAreaSqFt = Math.round((lFt * (wFt * 0.5) + (lFt * 0.5) * (wFt * 0.5)) * 10) / 10;
+      perimeterFt = Math.round((2 * lFt + 2 * wFt) * 10) / 10;
+    } else if (shape === 'custom' && customVertices && customVertices.length >= 3) {
+      // Shoelace polygon area formula
+      let a = 0;
+      let p = 0;
+      const n = customVertices.length;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        a += customVertices[i].x * customVertices[j].y;
+        a -= customVertices[j].x * customVertices[i].y;
+        const dx = customVertices[j].x - customVertices[i].x;
+        const dy = customVertices[j].y - customVertices[i].y;
+        p += Math.sqrt(dx * dx + dy * dy);
+      }
+      floorAreaSqFt = Math.max(10, Math.round((Math.abs(a) / 2) * 10) / 10);
+      perimeterFt = Math.round(p * 10) / 10;
+    } else {
+      // Default: Rectangle
+      floorAreaSqFt = Math.round(lFt * wFt * 10) / 10;
+      perimeterFt = Math.round(2 * (lFt + wFt) * 10) / 10;
+    }
+
     const ceilingAreaSqFt = floorAreaSqFt;
-    const perimeterFt = Math.round(2 * (lFt + wFt) * 10) / 10;
     const grossWallAreaSqFt = perimeterFt * hFt;
 
     // Deduct openings (doors, windows)
@@ -795,9 +841,11 @@ export class InteriorProjectsStore {
         id: 'room-living',
         name: 'Living & Dining Lounge',
         type: 'Living Room',
+        shape: 'rectangle',
         length: 18,
         width: 14,
         height: 10,
+        wallWidthInches: 4.5,
         unit: 'ft',
         ...livingMetrics,
         openings: [
@@ -812,9 +860,11 @@ export class InteriorProjectsStore {
         id: 'room-master',
         name: 'Master Suite',
         type: 'Master Bedroom',
+        shape: 'rectangle',
         length: 16,
         width: 12,
         height: 10,
+        wallWidthInches: 4.5,
         unit: 'ft',
         ...masterBedMetrics,
         openings: [
@@ -829,9 +879,11 @@ export class InteriorProjectsStore {
         id: 'room-kitchen',
         name: 'Modular Kitchen',
         type: 'Kitchen',
+        shape: 'rectangle',
         length: 12,
         width: 10,
         height: 10,
+        wallWidthInches: 4.5,
         unit: 'ft',
         ...kitchenMetrics,
         openings: [
