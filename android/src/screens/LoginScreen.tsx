@@ -200,9 +200,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       if (Array.isArray(comps) && comps.length > 0) {
         setPublicCompanies(comps);
 
-        // Select company: Prioritize active workspace that has a designated Company Key (e.g. Adorable Trading)
+        // Select company: Retain current valid selection if already set
         setSelectedCompanyId((prevId) => {
-          if (prevId && comps.some((c) => c.id === prevId && c.companyKey)) {
+          if (prevId && comps.some((c) => c.id === prevId)) {
             return prevId;
           }
           const withKey = comps.find((c) => (c.status === 'APPROVED' || c.isActive) && c.companyKey);
@@ -339,9 +339,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const formatted = formatCompanyKey(rawText);
     setCompanyKeyInput(formatted);
 
-    // Auto-match company dropdown if key matches a known company
+    // Auto-match company dropdown ONLY if no company has been selected yet
     const clean = formatted.toUpperCase();
-    if (clean.length >= 4) {
+    if (clean.length >= 8 && !selectedCompanyId) {
       const matched = publicCompanies.find(
         (c) => (c.companyKey && c.companyKey.toUpperCase() === clean) ||
           (clean.startsWith('ADOR-') && (c.id === 'cmuev7n3o000mikew7je1tdiw' || c.name.toLowerCase().includes('adorable'))),
@@ -367,20 +367,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const trimmedKey = companyKeyInput.trim().toUpperCase();
     let effectiveCompanyId = selectedCompanyId;
 
-    // Auto-resolve organization if key matches any known company workspace
-    const matchedCompByKey = publicCompanies.find(
-      (c) => c.companyKey && c.companyKey.toUpperCase() === trimmedKey,
-    );
-    if (matchedCompByKey) {
-      effectiveCompanyId = matchedCompByKey.id;
-      setSelectedCompanyId(matchedCompByKey.id);
-    } else if (trimmedKey.startsWith('ADOR-') || trimmedKey.includes('ADOR')) {
-      const adr = publicCompanies.find(
-        (c) => c.id === 'cmuev7n3o000mikew7je1tdiw' || c.name.toLowerCase().includes('adorable'),
+    // Auto-resolve organization ONLY if user hasn't selected a company workspace yet
+    if (!effectiveCompanyId) {
+      const matchedCompByKey = publicCompanies.find(
+        (c) => c.companyKey && c.companyKey.toUpperCase() === trimmedKey,
       );
-      if (adr) {
-        effectiveCompanyId = adr.id;
-        setSelectedCompanyId(adr.id);
+      if (matchedCompByKey) {
+        effectiveCompanyId = matchedCompByKey.id;
+        setSelectedCompanyId(matchedCompByKey.id);
+      } else if (trimmedKey.startsWith('ADOR-') || trimmedKey.includes('ADOR')) {
+        const adr = publicCompanies.find(
+          (c) => c.id === 'cmuev7n3o000mikew7je1tdiw' || c.name.toLowerCase().includes('adorable'),
+        );
+        if (adr) {
+          effectiveCompanyId = adr.id;
+          setSelectedCompanyId(adr.id);
+        }
       }
     }
 

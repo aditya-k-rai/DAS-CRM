@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -169,6 +169,7 @@ export function LoginGateway() {
     return [];
   });
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const userSelectedCompanyRef = useRef(false);
   const [companyKeyInput, setCompanyKeyInput] = useState('');
 
   const [email, setEmail] = useState('');
@@ -386,18 +387,29 @@ export function LoginGateway() {
         }
       }
 
-      // Auto-select company
-      if (urlCompanyId && companies.some(c => c.id === urlCompanyId)) {
-        setSelectedCompanyId(urlCompanyId);
-      } else if (storedCompany?.id && companies.some(c => c.id === storedCompany.id)) {
-        setSelectedCompanyId(storedCompany.id);
-      } else if (selectedCompanyId && companies.some(c => c.id === selectedCompanyId)) {
-        // Retain current valid selection
-      } else if (companies.length === 1) {
-        setSelectedCompanyId(companies[0].id);
-      } else if (companies.length > 0 && !selectedCompanyId) {
-        setSelectedCompanyId(companies[0].id);
-      }
+      // Auto-select company safely without overwriting user's active selection
+      setSelectedCompanyId(current => {
+        // 1. If user has already chosen a company and it exists in the fetched list, retain it unconditionally
+        if (current && companies.some(c => c.id === current)) {
+          return current;
+        }
+        if (userSelectedCompanyRef.current && current) {
+          return current;
+        }
+        // 2. URL param takes priority on initial load
+        if (urlCompanyId && companies.some(c => c.id === urlCompanyId)) {
+          return urlCompanyId;
+        }
+        // 3. Last registered company
+        if (storedCompany?.id && companies.some(c => c.id === storedCompany.id)) {
+          return storedCompany.id;
+        }
+        // 4. Default to first company in the list
+        if (companies.length > 0) {
+          return companies[0].id;
+        }
+        return current;
+      });
 
       // Pre-fill company key ONLY from URL param or stored own registration — never from another company
       if (urlKey) {
@@ -1115,6 +1127,7 @@ export function LoginGateway() {
                         value={selectedCompanyId}
                         onChange={e => {
                           const val = e.target.value;
+                          userSelectedCompanyRef.current = true;
                           setSelectedCompanyId(val);
                           const comp = publicCompanies.find(c => c.id === val);
                           if (comp?.companyKey) {
@@ -1226,7 +1239,7 @@ export function LoginGateway() {
                     onChange={e => {
                       const formatted = formatCompanyKey(e.target.value);
                       setCompanyKeyInput(formatted);
-                      if (formatted.length >= 8) {
+                      if (formatted.length >= 8 && !userSelectedCompanyRef.current) {
                         const matched = publicCompanies.find(c => c.companyKey?.toUpperCase() === formatted.toUpperCase());
                         if (matched && matched.id !== selectedCompanyId) {
                           setSelectedCompanyId(matched.id);
