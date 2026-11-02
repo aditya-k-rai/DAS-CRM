@@ -48,8 +48,13 @@ Welcome to the official, end-to-end technical documentation for **DAS CRM** — 
      - [Flow D: Lead Assignment & Queue Rebalancing Flow](#flow-d-lead-assignment--queue-rebalancing-flow)
      - [Flow E: Multi-Tab & Cross-Component Realtime Broadcast Flow](#flow-e-multi-tab--cross-component-realtime-broadcast-flow)
      - [Flow F: Offline Network Disconnection & Error Safeguard Flow](#flow-f-offline-network-disconnection--error-safeguard-flow)
+     - [Flow G: Cloud Backend Keep-Alive & Active Toast Broadcast Flow](#flow-g-cloud-backend-keep-alive--active-toast-broadcast-flow)
    - [Local Storage, Session Storage & Cookies Audit](#115-local-storage-session-storage--cookies-audit)
    - [Tenant Isolation & RBAC Security Guarantees](#116-tenant-isolation--rbac-security-guarantees)
+12. [Cloud Backend Keep-Alive Engine & Real-Time Active Broadcast](#12-cloud-backend-keep-alive-engine--real-time-active-broadcast)
+   - [24/7 Zero Cold Start Architecture](#247-zero-cold-start-architecture)
+   - [Anti-Detection Jitter & Irregular Cron Workflow](#anti-detection-jitter--irregular-cron-workflow)
+   - [Real-Time Toast Implementation across Web, Mobile & Windows](#real-time-toast-implementation-across-web-mobile--windows)
 
 ---
 
@@ -1074,6 +1079,40 @@ sequenceDiagram
 
 ---
 
+#### Flow G: Cloud Backend Keep-Alive & Active Toast Broadcast Flow
+Governs how the cloud backend on Render is kept awake 24/7 via automated anti-detection heartbeats, and how all active user dashboards across Web, Mobile, and Windows receive an instant floating "Backend Refreshed & Active" notification:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GH as GitHub Keep-Alive / External Ping
+    participant Backend as NestJS Backend (Render)
+    participant Web as Web Dashboard (All Roles)
+    participant Android as Android Mobile App (All Screens)
+    participant Windows as Windows Desktop (.exe)
+
+    GH->>Backend: Ping /api/v1/health with anti-detection jitter
+    Note over Backend: Updates lastRefreshedAt timestamp & resets 15-min idle timer
+
+    par Clients Detect Refresh
+        Web->>Backend: Heartbeat check (/health)
+        Backend-->>Web: 200 OK (New timestamp)
+        Note over Web: 🟢 Floating Pill slides down: "Backend Refreshed & Active"
+    and
+        Android->>Backend: Heartbeat check (/health)
+        Backend-->>Android: 200 OK (New timestamp)
+        Note over Android: 🟢 Animated Top Pill slides down: "Backend Refreshed & Active"
+    and
+        Windows->>Backend: Heartbeat check (/health)
+        Backend-->>Windows: 200 OK (New timestamp)
+        Note over Windows: 🟢 Top-center Toast Pill appears: "Backend Refreshed & Active"
+    end
+
+    Note over Web,Windows: Auto-fades out smoothly after 3.8 seconds
+```
+
+---
+
 ### 11.5 Local Storage, Session Storage & Cookies Audit
 
 The following table provides the exhaustive security and authority audit of all browser storage items:
@@ -1107,6 +1146,28 @@ The following table provides the exhaustive security and authority audit of all 
    ```
 3. **Departmental Ownership**: Managers and Team Leaders can only access records matching their assigned department or team IDs. Sales Executives are restricted to leads where `ownerId === user.id` or unclaimed leads in the open grab pool.
 4. **Broadcast Isolation**: In-browser `BroadcastChannel` communication is confined to the same origin (`window.origin`) and browser profile, physically preventing cross-tenant event leakage across different users or browser containers.
+
+---
+
+## 12. Cloud Backend Keep-Alive Engine & Real-Time Active Broadcast
+
+### 24/7 Zero Cold Start Architecture
+Render's free tier automatically suspends web instances after **15 minutes of inactivity**, causing a **~50–75 second cold boot** on the next incoming request. To guarantee continuous high performance and zero login latency, DAS CRM employs an enterprise keep-alive and active broadcast engine:
+
+1. **Automated Irregular Cron Pipeline (`.github/workflows/render-keepalive.yml`)**:
+   - Executes at irregular, non-uniform intervals (`cron: '7,19,31,43,54 * * * *'`) approximately every 11–12 minutes.
+   - Resets the 15-minute shutdown timer before Render can ever sleep.
+2. **Anti-Detection Timing & Natural Jitter**:
+   - Injects a randomized dynamic delay of `15s to 90s` on each run (`$((RANDOM % 75 + 15))`), preventing fixed-timestamp pattern detection.
+   - Rotates realistic modern browser `User-Agent` headers (Chrome, Safari, Android).
+   - Uses nano-second cache-busting timestamps (`?_t=...`) to ensure requests pierce CDN/edge caches and keep the live Node.js container active.
+   - Dual-pings both `/api/v1/health` and `/api/v1/auth/public-companies` to keep the Supabase/Prisma database connection pool warm.
+3. **Multi-Platform Floating Pop Notifications**:
+   - Whenever a ping is processed and the backend confirms its active timestamp, all active user dashboards across **Web, Android, and Windows** receive an instant floating notification:
+     - **Web (`frontend-web`)**: Floating glassmorphism pill (`top-4`) rendered in `RootLayout`.
+     - **Android App (`android`)**: Animated slide-down pill (`BackendActiveToast.tsx`) in `App.tsx` rendered above all screens.
+     - **Windows Desktop (`Win`)**: Top-centered floating notification widget (`BackendToastWidget`) in `MainWindow`.
+   - All notifications feature a live pulsing green indicator (`🟢`), auto-fade after 3.8 seconds, and never block user input.
 
 ---
 
