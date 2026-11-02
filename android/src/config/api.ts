@@ -54,6 +54,7 @@ export function normalizeApiUrl(rawUrl: string): string {
 export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
 export const PREV_LAN_API_URL = 'http://192.168.1.45:3001/api/v1';
 export const DEFAULT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
+export const ALT_CLOUD_API_URL = 'https://das-backend.onrender.com/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
 export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : 'https://dascrm-backend.onrender.com/api/v1';
@@ -71,6 +72,7 @@ export function getCandidateApiUrls(): string[] {
 
   // 2. Production Cloud URL
   candidates.push(PROD_CLOUD_API_URL);
+  candidates.push(ALT_CLOUD_API_URL);
 
   // 3. Web & Desktop prioritization (direct localhost connection)
   if (Platform.OS === 'web') {

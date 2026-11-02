@@ -695,14 +695,7 @@ function RootAppContent() {
   return (
     <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {/* 📶 Global Network & Offline Sync Status Banner — auto-slides in when needed */}
-      {token ? (
-        <NetworkStatusBanner
-          token={token}
-          isOfflineSession={isOfflineSession}
-          onRequestReLogin={isOfflineSession ? handleReLoginForOfflineSession : undefined}
-        />
-      ) : null}
+      {/* Offline banner removed for production purity */}
       <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />

@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Theme } from '../context/ThemeContext';
 import { useLanguage, AppLanguage } from '../context/LanguageContext';
 import { getApiBase } from '../config/api';
-import ServerConnectionModal from '../components/ServerConnectionModal';
+// ServerConnectionModal removed for production purity
 
 const PREF_PUSH_KEY = '@das_crm_pref_push_alerts';
 const PREF_BIOMETRIC_KEY = '@das_crm_pref_biometric_lock';
@@ -41,7 +41,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showServerModal, setShowServerModal] = useState(false);
+  // Server modal disabled in production
 
   // Load preferences on mount
   useEffect(() => {
@@ -360,11 +360,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
           <Text style={[styles.sectionSub, { color: subColor }]}>Enterprise gateway status, latency ping &amp; offline queue</Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.aboutCard, { backgroundColor: cardBg, borderColor, padding: 14 }]}
-          onPress={() => setShowServerModal(true)}
-          activeOpacity={0.75}
-        >
+        <View style={[styles.aboutCard, { backgroundColor: cardBg, borderColor, padding: 14 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
               <View style={[styles.appLogoCircle, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
@@ -378,10 +374,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
               </View>
             </View>
             <View style={{ backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>Diagnostics ⚡</Text>
+              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>Production ⚡</Text>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* ℹ️ ABOUT & DEVELOPER SECTION */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
@@ -439,10 +435,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
         </View>
       </ScrollView>
 
-      <ServerConnectionModal
-        visible={showServerModal}
-        onClose={() => setShowServerModal(false)}
-      />
+      {/* ServerConnectionModal removed in production */}
     </View>
   );
 };

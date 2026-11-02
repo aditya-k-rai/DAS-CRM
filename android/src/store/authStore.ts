@@ -414,6 +414,9 @@ export function isFakeOfflineToken(token: string | null | undefined): boolean {
   if (!token) return false;
   return (
     token.startsWith('offline_session_') ||
+    token.startsWith('jwt_offline_') ||
+    token.startsWith('jwt_mock_') ||
+    token.startsWith('offline_') ||
     token === 'demo_active_token' ||
     token.startsWith('staff_pending_token_') ||
     token.startsWith('google_oauth_pending_') ||

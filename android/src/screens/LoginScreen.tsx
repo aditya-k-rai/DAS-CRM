@@ -42,7 +42,7 @@ import {
   testApiEndpoint,
   fetchWithFailover,
 } from '../config/api';
-import ServerConnectionModal from '../components/ServerConnectionModal';
+// ServerConnectionModal removed for production purity
 import { offlineSyncEngine } from '../services/offlineSyncEngine';
 
 // ─── Types & Helpers ──────────────────────────────────────────────────────────
@@ -166,7 +166,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   // Modals
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
-  const [serverModalOpen, setServerModalOpen] = useState(false);
+  // serverModalOpen removed for production purity
   const [isServerOnline, setIsServerOnline] = useState<boolean | null>(null);
 
   // General UI state
@@ -364,7 +364,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
    */
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
-      setError('Please enter your Company Key.');
+      const msg = 'Please enter your Company Key.';
+      setError(msg);
+      Alert.alert('Missing Key', msg);
       return;
     }
 
@@ -396,11 +398,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
 
     if (!effectiveCompanyId) {
-      setError('Please select your company workspace.');
+      const msg = 'Please select your company workspace.';
+      setError(msg);
+      Alert.alert('Missing Workspace', msg);
       return;
     }
     if (!email.trim() || !password) {
-      setError('Please enter your email and password.');
+      const msg = 'Please enter your email and password.';
+      setError(msg);
+      Alert.alert('Missing Credentials', msg);
       return;
     }
 
@@ -418,7 +424,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
     const activeBase = getApiBase();
     const isCloud = activeBase.includes('.onrender.com') || activeBase.startsWith('https://');
-    const MAX_WAIT_SECONDS = isCloud ? 60 : 15;
+    const MAX_WAIT_SECONDS = isCloud ? 75 : 20;
 
     // Track Render cold-start elapsed time (capped at MAX_WAIT_SECONDS, never 300s!)
     const coldStartStartTime = Date.now();
@@ -512,133 +518,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       // ── Handle Backend Responses ──────────────────────────────────────────
 
       // Case A: Unreachable server (Network down or server did not respond within cold-start window)
-      // Provide authenticated access for verified staff roster & company workspace (smooth, unblocked login)
+      // STRICT PRODUCTION REQUIREMENT: Never forge offline tokens or enter fake blank dashboards.
       if (!networkResponse || !data) {
         setIsServerOnline(false);
-        const keyUpper = trimmedKey.toUpperCase();
-        const matchedComp = publicCompanies.find(
-          (c) => c.companyKey && c.companyKey.toUpperCase() === keyUpper,
-        ) || (keyUpper.startsWith('ADOR') ? DEFAULT_ACTIVE_COMPANY : null);
-
-        // Validate Key Format
-        const isKeyFormatValid = /^[A-Z0-9]{3,6}-[A-Z0-9]{2,4}-[0-9]{4}$/.test(keyUpper) || keyUpper === 'ADOR-EC-7187';
-        if (!matchedComp && !isKeyFormatValid) {
-          setError('Invalid Company Key. Please check your assigned key (Format: ABCD-EF-1234).');
-          setLoading(false);
-          return;
-        }
-
-        // Validate Password
-        if (!password || password.trim().length < 4) {
-          setError('Invalid password. Please enter a valid password (minimum 4 characters).');
-          setLoading(false);
-          return;
-        }
-
-        // Enterprise Staff Roster (matches backend database seeded users)
-        const knownStaff = [
-          { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', email: 'rastoginandini92@gmail.com', role: 'SALES_EXEC' },
-          { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', email: 'sulekhatmr@gmail.com', role: 'SALES_EXEC' },
-          { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', email: 'sadhnadikshit98@gmail.com', role: 'SALES_EXEC' },
-          { id: 'cmuev7ni70016ikew8an7tdw8', name: 'Anurag Sharma', email: 'adorabletrading08@gmail.com', role: 'ADMIN' },
-          { id: 'usr_super', name: 'Super Administrative', email: 'adtyamighty@gmail.com', role: 'SUPER_ADMIN' },
-          { id: 'usr_admin', name: 'Admin', email: 'admin@das.com', role: 'ADMIN' },
-          { id: 'usr_hr', name: 'HR Manager', email: 'hr@das.com', role: 'HR' },
-          { id: 'usr_mgr', name: 'Department Manager', email: 'manager@das.com', role: 'MANAGER' },
-          { id: 'usr_tl', name: 'Team Leader', email: 'teamleader@das.com', role: 'TEAM_LEADER' },
-          { id: 'usr_rep', name: 'Sales Executive', email: 'sales@das.com', role: 'SALES_EXEC' },
-        ];
-
-        const emailTrimmed = email.trim().toLowerCase();
-        const matchedEmp = knownStaff.find((s) => s.email.toLowerCase() === emailTrimmed);
-        const selectedRoleNorm: UserRole = normalizeRoleStr(selectedRole);
-
-        // Enforce Role Mismatch security check (identical to web backend logic)
-        if (matchedEmp) {
-          const assignedRoleNorm = normalizeRoleStr(matchedEmp.role);
-          if (assignedRoleNorm !== selectedRoleNorm) {
-            const prettyAssigned = assignedRoleNorm.replace('_', ' ');
-            const prettySelected = selectedRoleNorm.replace('_', ' ');
-            setError(
-              `Role Mismatch: Your account is assigned as "${prettyAssigned}" but you selected "${prettySelected}". Please select "${prettyAssigned}" above to sign in.`
-            );
-            setSelectedRole(assignedRoleNorm);
-            setLoading(false);
-            return;
-          }
-        }
-
-        // Build authenticated session
-        const finalRole: UserRole = matchedEmp ? normalizeRoleStr(matchedEmp.role) : selectedRoleNorm;
-        let resolvedName = matchedEmp ? matchedEmp.name : '';
-        if (!resolvedName && emailTrimmed.includes('@')) {
-          const username = emailTrimmed.split('@')[0];
-          const cleaned = username.replace(/[0-9]/g, '').replace(/[._-]/g, ' ').trim();
-          resolvedName = cleaned ? cleaned.replace(/\b\w/g, (c) => c.toUpperCase()) : username;
-        }
-        if (!resolvedName) resolvedName = 'Staff Member';
-
-        const resolvedUserId = matchedEmp ? matchedEmp.id : `usr_auth_${Date.now()}`;
-        const compName = matchedComp?.name || selectedCompanyName || 'Adorable Trading';
-        const compId = matchedComp?.id || effectiveCompanyId || 'cmuev7n3o000mikew7je1tdiw';
-
-        const subData: CompanySubscription = {
-          id: compId,
-          companyName: compName,
-          planType: 'BUSINESS',
-          trialDaysLeft: 30,
-          isExpired: false,
-          userSeatsAllocated: 18,
-          userSeatsUsed: 3,
-          hasTeamLeaders: true,
-          features: {
-            whatsApp: true,
-            emailAutomation: true,
-            aiLeadScoring: true,
-            customSalaryBuilder: true,
-            exportCSV: true,
-          },
-        };
-
-        if (rememberMe) {
-          const credsStr = JSON.stringify({
-            email: emailTrimmed,
-            companyKey: trimmedKey,
-            companyId: compId,
-            companyName: compName,
-            role: finalRole,
-            savedAt: new Date().toISOString(),
-          });
-          AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-          AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
-        } else {
-          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
-        }
-
-        await setAuthSession(
-          {
-            id: resolvedUserId,
-            name: resolvedName,
-            email: emailTrimmed,
-            role: finalRole,
-            avatar:
-              resolvedName
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase() || finalRole.slice(0, 2).toUpperCase(),
-            companyId: compId,
-            companyName: compName,
-            hasAssignedRole: true,
-            roleNotAssigned: false,
-          },
-          `jwt_offline_${resolvedUserId}_${Date.now()}`,
-          subData,
-        );
-
         setLoading(false);
-        onLoginSuccess(getPostLoginDefaultTab(finalRole));
+        const failMsg = isCloud
+          ? 'Cannot connect to DAS CRM server. The cloud backend on Render may still be waking up (~1 min cold start after 15 min idle). Please check your internet connection and tap Login to retry.'
+          : 'Cannot connect to DAS CRM server. Please check your network connection and tap Login to retry.';
+        setError(failMsg);
+        Alert.alert('Server Unreachable', failMsg);
         return;
       }
 
@@ -656,6 +544,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           companyKey: companyKeyInput.trim(),
           email: email.trim(),
         });
+        Alert.alert(
+          'Verification Pending',
+          'Your account registration is awaiting approval by your company Administrator. Once approved, you will be able to sign in.'
+        );
         return;
       }
 
@@ -668,9 +560,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           (typeof data?.message === 'string' && data.message.toLowerCase().includes('different role'))
         ) {
           const assignedRole = data?.assignedRole || (selectedRole === 'ADMIN' ? 'Sales Executive' : 'Admin');
-          setError(
-            `Role Mismatch: Your account is assigned as "${assignedRole}" but you selected "${selectedRole.replace('_', ' ')}". Please select "${assignedRole}" above to sign in.`
-          );
+          const mismatchMsg = `Role Mismatch: Your account is assigned as "${assignedRole}" but you selected "${selectedRole.replace('_', ' ')}". We have updated your selection to "${assignedRole}". Please tap Login.`;
+          setError(mismatchMsg);
+          Alert.alert('Role Mismatch', mismatchMsg);
           const norm = normalizeRoleStr(assignedRole);
           if (ALL_ROLES.includes(norm)) {
             setSelectedRole(norm);
@@ -688,6 +580,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           errMsg = String(data.error);
         }
         setError(errMsg);
+        Alert.alert('Login Failed', errMsg);
         setLoading(false);
         return;
       }
@@ -845,15 +738,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setLoading(false);
     } catch (err: any) {
       console.error('[LoginScreen] handleWorkspaceLogin error:', err);
+      let errMsg = 'A connection error occurred. Please check your network and try again.';
+      let alertTitle = 'Connection Failed';
       if (abortCtrl.signal.aborted) {
-        setError(
-          `Connection timed out (${MAX_WAIT_SECONDS}s). The Render cloud backend is waking up from sleep. Please check your network and tap Login to retry.`,
-        );
-      } else {
-        setError(
-          'A connection error occurred. Please check your network and try again.',
-        );
+        errMsg = `Connection timed out (${MAX_WAIT_SECONDS}s). The Render cloud backend is waking up from sleep (~1 min cold start). Please check your internet connection and tap Login to retry.`;
+        alertTitle = 'Server Waking Up';
       }
+      setError(errMsg);
+      Alert.alert(alertTitle, errMsg);
       setLoading(false);
     } finally {
       if (wakeIntervalRef.current) {
@@ -1159,30 +1051,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               Sign In to Your Company Workspace
             </Text>
 
-            {/* Quick Server Gateway Switcher */}
-            <TouchableOpacity
-              onPress={() => setServerModalOpen(true)}
-              style={styles.serverPill}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.serverPillDot,
-                  {
-                    backgroundColor:
-                      isServerOnline === true
-                        ? '#10b981'
-                        : isServerOnline === false
-                        ? '#ef4444'
-                        : '#f59e0b',
-                  },
-                ]}
-              />
-              <Text style={styles.serverPillText} numberOfLines={1}>
-                Server: {getApiBase().replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '')}
-              </Text>
-              <Text style={styles.serverPillAction}>⚙️ Edit</Text>
-            </TouchableOpacity>
+            {/* Server switcher removed for production purity */}
           </View>
 
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
@@ -1249,15 +1118,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <TouchableOpacity
-                      onPress={() => setServerModalOpen(true)}
-                      style={styles.serverConfigInlineBtn}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.serverConfigInlineBtnText}>
-                        Configure / Auto-Detect Server IP ⚙️
-                      </Text>
-                    </TouchableOpacity>
+                    {/* IP config removed for production */}
                   </View>
                 ) : null}
 
@@ -1557,15 +1418,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <TouchableOpacity
-                      onPress={() => setServerModalOpen(true)}
-                      style={styles.serverConfigInlineBtn}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.serverConfigInlineBtnText}>
-                        Configure / Auto-Detect Server IP ⚙️
-                      </Text>
-                    </TouchableOpacity>
+                    {/* IP config removed for production */}
                   </View>
                 ) : null}
 
@@ -2171,14 +2024,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       </Modal>
 
       {/* ⚙️ Server Connection & Auto-Discovery Configuration Modal */}
-      <ServerConnectionModal
-        visible={serverModalOpen}
-        onClose={() => {
-          setServerModalOpen(false);
-          fetchAndSyncCompanies(true);
-          offlineSyncEngine.checkNetworkStatus(true);
-        }}
-      />
+      {/* ServerConnectionModal removed in production */}
     </SafeAreaView>
   );
 }
