@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { BackendActiveToast } from '@/components/common/BackendActiveToast';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
+            <BackendActiveToast />
             {children}
           </AuthProvider>
         </ThemeProvider>

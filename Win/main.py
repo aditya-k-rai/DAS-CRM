@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout,
     QStackedWidget, QMessageBox, QLabel, QVBoxLayout,
-    QDialog
+    QDialog, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon
@@ -49,6 +49,59 @@ def _access_denied_widget(reason: str = "You don't have permission to access thi
     return w
 
 
+
+class BackendToastWidget(QWidget):
+    """Floating active backend notification pill rendered above all views."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(36)
+        self.setStyleSheet("""
+            QWidget#BackendToast {
+                background-color: #0F172A;
+                border: 1px solid rgba(16, 185, 129, 0.6);
+                border-radius: 18px;
+            }
+            QLabel {
+                color: #F8FAFC;
+                font-size: 11px;
+                font-weight: bold;
+            }
+        """)
+        self.setObjectName("BackendToast")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 0, 10, 0)
+        lay.setSpacing(8)
+
+        dot = QLabel("🟢")
+        dot.setStyleSheet("background: transparent; font-size: 10px;")
+        lay.addWidget(dot)
+
+        self.lbl = QLabel("Backend Refreshed & Active")
+        self.lbl.setStyleSheet("background: transparent; color: #FFFFFF;")
+        lay.addWidget(self.lbl)
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(16, 16)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #94A3B8;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #FFFFFF;
+            }
+        """)
+        close_btn.clicked.connect(self.hide)
+        lay.addWidget(close_btn)
+        self.hide()
+
+    def set_message(self, text: str):
+        self.lbl.setText(text)
+
+
 class MainWindow(QMainWindow):
     """Main application window with role-based sidebar and full view stack."""
 
@@ -86,6 +139,7 @@ class MainWindow(QMainWindow):
         # Setup
         self._setup_ui()
         self._setup_dark_theme()
+        self._setup_backend_toast()
 
         # Route to default view for this role
         default_view = get_default_route(self._role_key)

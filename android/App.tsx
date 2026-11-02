@@ -55,7 +55,7 @@ import { ModernAlertModal } from './src/components/ModernAlertModal';
 import { ModernAlert, initModernAlertOverride } from './src/services/modernAlert';
 import { ThemeToggle } from './src/components/ThemeToggle';
 import { getApiBase } from './src/config/api';
-import NetworkStatusBanner from './src/components/NetworkStatusBanner';
+import BackendActiveToast from './src/components/BackendActiveToast';
 import { offlineSyncEngine } from './src/services/offlineSyncEngine';
 import { useModuleAccessStore } from './src/store/moduleAccessStore';
 
@@ -695,7 +695,8 @@ function RootAppContent() {
   return (
     <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {/* Offline banner removed for production purity */}
+      {/* Floating Backend Refreshed & Active Pop Notification */}
+      <BackendActiveToast />
       <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />
