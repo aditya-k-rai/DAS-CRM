@@ -336,8 +336,10 @@ def main():
         login.setWindowIcon(app_icon)
 
     res = login.exec()
-    accepted_codes = (QDialog.DialogCode.Accepted, 1, getattr(LoginWindow, "Accepted", 1))
-    if res not in accepted_codes or not LoginWindow.LOGGED_IN:
+    accepted_codes = {1, getattr(LoginWindow, "Accepted", 1)}
+    if hasattr(QDialog, "DialogCode"):
+        accepted_codes.add(QDialog.DialogCode.Accepted)
+    if res not in accepted_codes or not getattr(LoginWindow, "LOGGED_IN", None):
         sys.exit(0)
 
     user_info = LoginWindow.LOGGED_IN

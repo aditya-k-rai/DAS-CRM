@@ -174,6 +174,24 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [isWakingServer, setIsWakingServer] = useState(false);
   const [coldStartSeconds, setColdStartSeconds] = useState(0);
 
+  const loginAbortCtrlRef = useRef<AbortController | null>(null);
+  const wakeIntervalRef = useRef<any>(null);
+
+  const handleCancelLogin = () => {
+    if (loginAbortCtrlRef.current) {
+      loginAbortCtrlRef.current.abort();
+      loginAbortCtrlRef.current = null;
+    }
+    if (wakeIntervalRef.current) {
+      clearInterval(wakeIntervalRef.current);
+      wakeIntervalRef.current = null;
+    }
+    setIsWakingServer(false);
+    setLoading(false);
+    setColdStartSeconds(0);
+    setError('Login attempt cancelled.');
+  };
+
   /** Live Fetch & Sync Companies from Backend */
   const fetchAndSyncCompanies = async (showIndicator = false) => {
     if (showIndicator) setSyncingCompanies(true);
@@ -380,18 +398,36 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       return;
     }
 
+    // Abort any prior in-flight login attempt
+    if (loginAbortCtrlRef.current) {
+      loginAbortCtrlRef.current.abort();
+    }
+    const abortCtrl = new AbortController();
+    loginAbortCtrlRef.current = abortCtrl;
+
     setLoading(true);
     setError(null);
     setIsWakingServer(false);
     setColdStartSeconds(0);
 
-    // Track Render cold-start elapsed time
+    const activeBase = getApiBase();
+    const isCloud = activeBase.includes('.onrender.com') || activeBase.startsWith('https://');
+    const MAX_WAIT_SECONDS = isCloud ? 60 : 15;
+
+    // Track Render cold-start elapsed time (capped at MAX_WAIT_SECONDS, never 300s!)
     const coldStartStartTime = Date.now();
-    const coldStartTimer = setInterval(() => {
+    wakeIntervalRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - coldStartStartTime) / 1000);
       setColdStartSeconds(elapsed);
-      if (elapsed >= 3) {
+      if (elapsed >= 2) {
         setIsWakingServer(true);
+      }
+      if (elapsed >= MAX_WAIT_SECONDS) {
+        if (wakeIntervalRef.current) {
+          clearInterval(wakeIntervalRef.current);
+          wakeIntervalRef.current = null;
+        }
+        abortCtrl.abort();
       }
     }, 1000);
 
@@ -404,86 +440,58 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     };
 
     try {
-      const activeBase = getApiBase();
-      const candidateBases = Array.from(
-        new Set([
-          activeBase,
-          'https://das-backend.onrender.com/api/v1',
-          'http://192.168.29.26:3001/api/v1',
-          'http://192.168.1.45:3001/api/v1',
-          ...getCandidateApiUrls(),
-        ]),
-      ).filter(
-        (url) => url && typeof url === 'string' && url.startsWith('http'),
-      );
-
       let networkResponse: any = null;
       let data: any = null;
-      let workingBase = activeBase;
 
-      // Prioritize activeBase first, then fallback candidates
-      const prioritized = [
-        activeBase,
-        ...candidateBases.filter((b) => b !== activeBase),
-      ];
+      // Primary attempt targeted directly at activeBase
+      try {
+        const res = await fetch(`${activeBase}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loginPayload),
+          signal: abortCtrl.signal,
+        });
 
-      for (const baseUrl of prioritized) {
-        const isCloud = baseUrl.includes('.onrender.com');
-        const timeoutMs = isCloud ? 60000 : 3500;
-        const maxAttempts = isCloud ? 2 : 1;
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-            const res = await fetch(`${baseUrl}/auth/login`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(loginPayload),
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            const parsed = await res.json().catch(() => null);
-
-            // Authentic server response received (HTTP 200, 400, 401, 403)
-            if (
-              (res.ok && (parsed?.accessToken || parsed?.user || parsed?.token)) ||
-              res.status === 400 ||
-              res.status === 401 ||
-              res.status === 403
-            ) {
-              networkResponse = res;
-              data = parsed;
-              workingBase = baseUrl;
-              setApiBase(baseUrl);
-              break;
-            }
-
-            // If Render returned 502/503 during cold boot, pause briefly and retry
-            if (res.status === 502 || res.status === 503 || res.status === 504) {
-              await new Promise((r) => setTimeout(r, 2000));
-              continue;
-            }
-
-            // If 404 (e.g. no-server on this subdomain), skip candidate immediately
-            if (res.status === 404) {
-              break;
-            }
-          } catch (fetchErr) {
-            if (isCloud && attempt < maxAttempts) {
-              await new Promise((r) => setTimeout(r, 2500));
-              continue;
-            }
-          }
+        const parsed = await res.json().catch(() => null);
+        networkResponse = res;
+        data = parsed;
+      } catch (fetchErr: any) {
+        if (abortCtrl.signal.aborted) {
+          throw fetchErr;
         }
-
-        if (networkResponse) {
-          break;
+        // If activeBase was unreachable immediately and NOT cloud, probe local LAN candidates quickly
+        if (!isCloud) {
+          const lanCandidates = getCandidateApiUrls().filter(
+            (u) => u !== activeBase && !u.includes('das-backend') && u.startsWith('http')
+          );
+          for (const candUrl of lanCandidates.slice(0, 2)) {
+            try {
+              const candCtrl = new AbortController();
+              const candTimer = setTimeout(() => candCtrl.abort(), 3000);
+              const candRes = await fetch(`${candUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(loginPayload),
+                signal: candCtrl.signal,
+              });
+              clearTimeout(candTimer);
+              const candParsed = await candRes.json().catch(() => null);
+              if (candRes.ok || candRes.status === 400 || candRes.status === 401 || candRes.status === 403) {
+                networkResponse = candRes;
+                data = candParsed;
+                setApiBase(candUrl);
+                break;
+              }
+            } catch (_) {}
+          }
         }
       }
 
-      clearInterval(coldStartTimer);
+      // Clear interval immediately upon receiving server response
+      if (wakeIntervalRef.current) {
+        clearInterval(wakeIntervalRef.current);
+        wakeIntervalRef.current = null;
+      }
       setIsWakingServer(false);
 
       // ── Handle Backend Responses ──────────────────────────────────────────
@@ -492,7 +500,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       if (!networkResponse || !data) {
         const activeHost = activeBase.replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '');
         setError(
-          `Cannot connect to DAS CRM server (${activeHost}). The cloud backend on Render may still be waking up from sleep (~1 min cold start) or server settings need update. Please check your internet connection or tap Configure Server below to adjust.`,
+          `Cannot connect to DAS CRM server (${activeHost}). The server did not respond within ${MAX_WAIT_SECONDS}s (~1 min Render cold start window). Please check your internet connection or tap Login to retry.`,
         );
         setLoading(false);
         return;
@@ -515,8 +523,26 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         return;
       }
 
-      // Case C: Credentials / Key Rejected (HTTP 400, 401, 403, etc.)
+      // Case C: Credentials / Key / Role Rejected (HTTP 400, 401, 403, etc.)
       if (!networkResponse.ok) {
+        // Clear Handling for Role Mismatch
+        if (
+          data?.code === 'ROLE_MISMATCH' ||
+          data?.assignedRole ||
+          (typeof data?.message === 'string' && data.message.toLowerCase().includes('different role'))
+        ) {
+          const assignedRole = data?.assignedRole || (selectedRole === 'ADMIN' ? 'Sales Executive' : 'Admin');
+          setError(
+            `Role Mismatch: Your account is assigned as "${assignedRole}" but you selected "${selectedRole.replace('_', ' ')}". Please select "${assignedRole}" above to sign in.`
+          );
+          const norm = normalizeRoleStr(assignedRole);
+          if (ALL_ROLES.includes(norm)) {
+            setSelectedRole(norm);
+          }
+          setLoading(false);
+          return;
+        }
+
         let errMsg = 'Authentication failed. Please check your credentials and Company Key.';
         if (Array.isArray(data?.message)) {
           errMsg = data.message.join(', ');
@@ -608,17 +634,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         }
 
         // Full authenticated role
-        // ── SECURITY: finalRole MUST come from the backend-assigned role only.
-        // We NEVER fall back to the user-selected UI role (selectedRole) because
-        // that would allow an Admin-credential holder to log in as Sales by
-        // simply selecting a different role chip on the login screen.
         const backendRoleName: string | null =
           data.user?.role?.name ||
           (typeof data.user?.role === 'string' ? data.user.role : null);
 
         if (!backendRoleName) {
-          // Backend confirmed login but did not return a role — this is an
-          // unexpected server state. Reject and show a recoverable error.
           setError(
             'Authentication failed: Server did not return your assigned role. Please contact your Admin.',
           );
@@ -628,14 +648,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         const finalRole: UserRole = normalizeRoleStr(backendRoleName);
 
-        // ── SECURITY: Enforce that the selected login perspective matches the
-        // actual DB-assigned role. If the user selected "Admin" but their
-        // account is a Sales Executive, deny access with a clear message.
+        // Security check: selected role perspective matches DB assigned role
         const selectedRoleNorm: UserRole = normalizeRoleStr(selectedRole);
         if (selectedRoleNorm !== finalRole) {
           setError(
-            `Role mismatch: Your account is assigned as "${finalRole.replace('_', ' ')}" but you selected "${selectedRoleNorm.replace('_', ' ')}". Please select the correct role.`,
+            `Role mismatch: Your account is assigned as "${finalRole.replace('_', ' ')}" but you selected "${selectedRoleNorm.replace('_', ' ')}". Please select "${finalRole.replace('_', ' ')}" above.`,
           );
+          setSelectedRole(finalRole);
           setLoading(false);
           return;
         }
@@ -678,6 +697,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           subData,
         );
 
+        // Pre-fetch live data in background so user lands on full dashboard with leads immediately
+        apiService.getLeads(data.accessToken).catch(() => {});
+
         setLoading(false);
         onLoginSuccess(getPostLoginDefaultTab(finalRole));
         return;
@@ -687,10 +709,24 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setLoading(false);
     } catch (err: any) {
       console.error('[LoginScreen] handleWorkspaceLogin error:', err);
-      setError(
-        'A connection error occurred. Please check your network and try again.',
-      );
+      if (abortCtrl.signal.aborted) {
+        setError(
+          `Connection timed out (${MAX_WAIT_SECONDS}s). The Render cloud backend is waking up from sleep. Please check your network and tap Login to retry.`,
+        );
+      } else {
+        setError(
+          'A connection error occurred. Please check your network and try again.',
+        );
+      }
       setLoading(false);
+    } finally {
+      if (wakeIntervalRef.current) {
+        clearInterval(wakeIntervalRef.current);
+        wakeIntervalRef.current = null;
+      }
+      setIsWakingServer(false);
+      setLoading(false);
+      loginAbortCtrlRef.current = null;
     }
   };
 
@@ -1086,9 +1122,24 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         ⚡ Connecting to Cloud Server...
                       </Text>
                       <Text style={styles.coldStartSubtitle}>
-                        Render backend is waking up from sleep (~1 min cold start after 15 min idle). Elapsed: {coldStartSeconds}s
+                        Render backend is waking up from sleep (~1 min cold start after 15 min idle). Elapsed: {coldStartSeconds}s / ~60s
                       </Text>
+                      <View style={styles.coldStartProgressTrack}>
+                        <View
+                          style={[
+                            styles.coldStartProgressBar,
+                            { width: `${Math.min(100, Math.round((coldStartSeconds / 60) * 100))}%` },
+                          ]}
+                        />
+                      </View>
                     </View>
+                    <TouchableOpacity
+                      onPress={handleCancelLogin}
+                      style={styles.cancelWakeBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.cancelWakeBtnText}>Cancel</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1321,7 +1372,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                       <ActivityIndicator color="#fff" />
                       <Text style={styles.buttonText}>
-                        {isWakingServer ? `Waking Server (${coldStartSeconds}s)...` : 'Authenticating...'}
+                        {isWakingServer ? `Waking Cloud Server (${coldStartSeconds}s)...` : 'Authenticating...'}
                       </Text>
                     </View>
                   ) : (
@@ -2421,6 +2472,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     lineHeight: 16,
+  },
+  coldStartProgressTrack: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  coldStartProgressBar: {
+    height: '100%',
+    backgroundColor: '#818cf8',
+    borderRadius: 2,
+  },
+  cancelWakeBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderRadius: 6,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    alignSelf: 'center',
+  },
+  cancelWakeBtnText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '700',
   },
   offlineBtn: {
     backgroundColor: '#10b981',

@@ -51,3 +51,5 @@ backend/storage/vault/
 frontend-web/public/models/*.glb
 storage/
 
+ 
+*.mp4

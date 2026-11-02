@@ -508,8 +508,9 @@ class GradientBanner(QWidget):
 class LoginWindow(QDialog):
     """Role-based login — mirrors Android LoginScreen and web LoginGateway."""
 
-    Accepted = QDialog.DialogCode.Accepted
-    Rejected = QDialog.DialogCode.Rejected
+    Accepted = 1
+    Rejected = 0
+    DialogCode = getattr(QDialog, "DialogCode", None)
     LOGGED_IN = None  # Holds user dict after successful login
 
     def __init__(self, parent=None):

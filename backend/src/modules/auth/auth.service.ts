@@ -1255,7 +1255,13 @@ export class AuthService {
         this.logger.warn(
           `[Auth] Role mismatch for ${emailLower}: DB role="${user.role?.name}" selected="${dto.selectedRole}"`,
         );
-        throw new UnauthorizedException('User exists with a different role.');
+        throw new UnauthorizedException({
+          statusCode: 401,
+          message: `User exists with a different role (${normAssigned}).`,
+          assignedRole: normAssigned,
+          selectedRole: normSelected,
+          error: 'Role Mismatch',
+        });
       }
     }
 
