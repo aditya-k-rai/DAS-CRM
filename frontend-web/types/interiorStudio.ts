@@ -62,6 +62,7 @@ export interface RoomDefinition {
   id: string;
   name: string;
   type: RoomType;
+  floorLevel?: FloorLevel;
   shape?: RoomShape;
   length: number; // in current units
   width: number;

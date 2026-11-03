@@ -54,6 +54,7 @@ import {
   FileCheck2,
   Lock,
   Plus,
+  Minus,
   Trash2,
   Edit2,
   Pencil,
@@ -197,6 +198,180 @@ export function InteriorDesignerCalculatorView() {
     showToast(`Building level set to ${level}`, 'info');
   };
 
+  const DEFAULT_FLOOR_ROOM_PRESETS: { name: string; type: RoomType; length: number; width: number; height: number }[] = [
+    { name: 'Living & Dining Lounge', type: 'Living Room', length: 18, width: 14, height: 10 },
+    { name: 'Master Bedroom', type: 'Master Bedroom', length: 16, width: 12, height: 10 },
+    { name: 'Modular Kitchen', type: 'Kitchen', length: 12, width: 10, height: 10 },
+    { name: 'Bedroom 2 / Guest Room', type: 'Bedroom', length: 14, width: 12, height: 10 },
+    { name: 'Dining Room', type: 'Dining Room', length: 14, width: 11, height: 10 },
+    { name: 'Kids Bedroom', type: 'Bedroom', length: 13, width: 11, height: 10 },
+    { name: 'Attached Bathroom', type: 'Bathroom', length: 9, width: 6, height: 10 },
+    { name: 'Balcony & Deck', type: 'Balcony', length: 12, width: 5, height: 10 },
+    { name: 'Pooja Room', type: 'Pooja Room', length: 8, width: 6, height: 10 },
+    { name: 'Home Office / Study', type: 'Home Office', length: 12, width: 10, height: 10 },
+    { name: 'Common Bathroom', type: 'Bathroom', length: 8, width: 5, height: 10 },
+    { name: 'Corridor & Foyer', type: 'Corridor', length: 14, width: 4.5, height: 10 },
+  ];
+
+  // Scoped rooms on the selected building level / floor
+  const currentFloorRooms = useMemo(() => {
+    if (!currentProject) return [];
+    const onThisFloor = currentProject.rooms.filter(
+      (r) => (r.floorLevel || currentProject.floorLevel) === currentProject.floorLevel
+    );
+    if (onThisFloor.length === 0 && currentProject.rooms.length > 0) {
+      // Legacy compatibility: If no rooms have explicit floorLevel set, treat current rooms as belonging to this floor
+      return currentProject.rooms;
+    }
+    return onThisFloor;
+  }, [currentProject]);
+
+  // Adjust room count on selected floor up or down
+  const handleSetFloorRoomCount = (targetCount: number) => {
+    if (!currentProject) return;
+    const count = Math.max(1, Math.min(20, targetCount));
+    const currentOnThisFloor = currentProject.rooms.filter(
+      (r) => (r.floorLevel || currentProject.floorLevel) === currentProject.floorLevel
+    );
+    const otherFloorRooms = currentProject.rooms.filter(
+      (r) => (r.floorLevel || currentProject.floorLevel) !== currentProject.floorLevel
+    );
+
+    if (count > currentOnThisFloor.length) {
+      // Add missing rooms with smart names
+      const additional: RoomDefinition[] = [];
+      for (let i = currentOnThisFloor.length; i < count; i++) {
+        const preset = DEFAULT_FLOOR_ROOM_PRESETS[i % DEFAULT_FLOOR_ROOM_PRESETS.length];
+        const newRoomId = `room-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        const metrics = computeRoomMetrics(preset.length, preset.width, preset.height, 'ft', [
+          { id: `op-${Date.now()}-d`, type: 'door', wall: 'north', width: 3.2, height: 7 },
+        ]);
+        additional.push({
+          id: newRoomId,
+          name: i < DEFAULT_FLOOR_ROOM_PRESETS.length ? preset.name : `Room ${i + 1}`,
+          type: preset.type,
+          floorLevel: currentProject.floorLevel,
+          shape: 'rectangle',
+          length: preset.length,
+          width: preset.width,
+          height: preset.height,
+          wallWidthInches: 4.5,
+          unit: 'ft',
+          ...metrics,
+          openings: [
+            { id: `op-${Date.now()}-d`, type: 'door', wall: 'north', width: 3.2, height: 7 },
+          ],
+          floorMaterial: 'Italian Botticino Marble',
+          wallFinish: 'Royal Luxury Emulsion',
+          ceilingFinish: 'Gypsum Board with Concealed LED Cove',
+        });
+      }
+      const updatedRooms = [...currentProject.rooms, ...additional];
+      const updatedProject = {
+        ...currentProject,
+        rooms: updatedRooms,
+        totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + (r.floorAreaSqFt || 0), 0),
+      };
+      InteriorProjectsStore.saveProject(updatedProject);
+      setCurrentProject(updatedProject);
+      showToast(`Set ${currentProject.floorLevel} to ${count} rooms`, 'success');
+    } else if (count < currentOnThisFloor.length) {
+      // Trim from the end of this floor
+      const keptOnThisFloor = currentOnThisFloor.slice(0, count);
+      const updatedRooms = [...otherFloorRooms, ...keptOnThisFloor];
+      const updatedProject = {
+        ...currentProject,
+        rooms: updatedRooms,
+        totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + (r.floorAreaSqFt || 0), 0),
+      };
+      InteriorProjectsStore.saveProject(updatedProject);
+      setCurrentProject(updatedProject);
+      showToast(`Adjusted ${currentProject.floorLevel} to ${count} rooms`, 'info');
+    }
+  };
+
+  // Live update room name on the selected floor
+  const handleUpdateRoomName = (roomId: string, newName: string) => {
+    if (!currentProject) return;
+    const updatedRooms = currentProject.rooms.map((r) =>
+      r.id === roomId ? { ...r, name: newName, floorLevel: r.floorLevel || currentProject.floorLevel } : r
+    );
+    const updated = { ...currentProject, rooms: updatedRooms };
+    setCurrentProject(updated);
+    InteriorProjectsStore.saveProject(updated);
+  };
+
+  // Live update room type on the selected floor
+  const handleUpdateRoomType = (roomId: string, newType: RoomType) => {
+    if (!currentProject) return;
+    const updatedRooms = currentProject.rooms.map((r) =>
+      r.id === roomId ? { ...r, type: newType, floorLevel: r.floorLevel || currentProject.floorLevel } : r
+    );
+    const updated = { ...currentProject, rooms: updatedRooms };
+    setCurrentProject(updated);
+    InteriorProjectsStore.saveProject(updated);
+  };
+
+  // Add a single custom or suggested room to the floor
+  const handleAddSingleRoomToFloor = (suggestedName?: string, suggestedType?: RoomType) => {
+    if (!currentProject) return;
+    const currentOnThisFloor = currentProject.rooms.filter(
+      (r) => (r.floorLevel || currentProject.floorLevel) === currentProject.floorLevel
+    );
+    const nextIdx = currentOnThisFloor.length;
+    const preset = DEFAULT_FLOOR_ROOM_PRESETS[nextIdx % DEFAULT_FLOOR_ROOM_PRESETS.length];
+    const roomName = suggestedName || (nextIdx < DEFAULT_FLOOR_ROOM_PRESETS.length ? preset.name : `Room ${nextIdx + 1}`);
+    const roomType = suggestedType || preset.type;
+    const newRoomId = `room-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const metrics = computeRoomMetrics(preset.length, preset.width, preset.height, 'ft', [
+      { id: `op-${Date.now()}-d`, type: 'door', wall: 'north', width: 3.2, height: 7 },
+    ]);
+    const newRoom: RoomDefinition = {
+      id: newRoomId,
+      name: roomName,
+      type: roomType,
+      floorLevel: currentProject.floorLevel,
+      shape: 'rectangle',
+      length: preset.length,
+      width: preset.width,
+      height: preset.height,
+      wallWidthInches: 4.5,
+      unit: 'ft',
+      ...metrics,
+      openings: [
+        { id: `op-${Date.now()}-d`, type: 'door', wall: 'north', width: 3.2, height: 7 },
+      ],
+      floorMaterial: 'Italian Botticino Marble',
+      wallFinish: 'Royal Luxury Emulsion',
+      ceilingFinish: 'Gypsum Board with Concealed LED Cove',
+    };
+    const updatedRooms = [...currentProject.rooms, newRoom];
+    const updated = {
+      ...currentProject,
+      rooms: updatedRooms,
+      totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + (r.floorAreaSqFt || 0), 0),
+    };
+    setCurrentProject(updated);
+    InteriorProjectsStore.saveProject(updated);
+    showToast(`Added "${roomName}" to ${currentProject.floorLevel}`, 'success');
+  };
+
+  // Remove a room from the selected floor
+  const handleRemoveRoomFromFloor = (roomId: string) => {
+    if (!currentProject) return;
+    const roomToRemove = currentProject.rooms.find((r) => r.id === roomId);
+    if (!roomToRemove) return;
+    const updatedRooms = currentProject.rooms.filter((r) => r.id !== roomId);
+    const updated = {
+      ...currentProject,
+      rooms: updatedRooms,
+      totalCarpetAreaSqFt: updatedRooms.reduce((acc, r) => acc + (r.floorAreaSqFt || 0), 0),
+    };
+    setCurrentProject(updated);
+    InteriorProjectsStore.saveProject(updated);
+    showToast(`Removed "${roomToRemove.name}" from ${currentProject.floorLevel}`, 'info');
+  };
+
   // ── Step 3: Add / Edit Room Handlers ──────────────────────────────
   const handleOpenAddRoom = () => {
     setEditingRoomId(null);
@@ -296,6 +471,7 @@ export function InteriorDesignerCalculatorView() {
         id: `room-${Date.now()}`,
         name: newRoomName,
         type: newRoomType,
+        floorLevel: currentProject.floorLevel,
         shape: newRoomShape,
         length: newRoomLength,
         width: effectiveWidth,
@@ -936,31 +1112,33 @@ export function InteriorDesignerCalculatorView() {
           )}
 
           {/* ─────────────────────────────────────────────────────────────
-              STEP 2: SELECT PROJECT / BUILDING AREA
+              STEP 2: SELECT PROJECT / BUILDING AREA & DEFINE FLOOR ROOMS
               ───────────────────────────────────────────────────────────── */}
           {currentStep === 2 && currentProject && (
-            <div className="space-y-4">
-              <div className="bg-card border border-border rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
+            <div className="space-y-6">
+              {/* Floor & Project Overview Card */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-5 pb-4 border-b border-border/60">
                   <div>
                     <h2 className="text-base font-bold text-foreground flex items-center gap-2">
                       <Building size={18} className="text-rose-400" />
                       Step 2: Project & Building Area
                     </h2>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure floor level, default measurement units, and project metadata.
+                      Configure floor level, define how many rooms are on this floor, and assign custom room names.
                     </p>
                   </div>
                   <button
                     onClick={() => setCurrentStep(3)}
-                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-2"
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm transition"
                   >
-                    <span>Proceed to Rooms</span>
+                    <span>Proceed to Rooms & Dimensions</span>
                     <ArrowRight size={14} />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Top Row: Project Name & Building Level Selector */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Project Name</label>
                     <input
@@ -971,16 +1149,16 @@ export function InteriorDesignerCalculatorView() {
                         setCurrentProject(updated);
                         InteriorProjectsStore.saveProject(updated);
                       }}
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Building Level</label>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Building Level / Floor</label>
                     <select
                       value={currentProject.floorLevel}
                       onChange={(e) => handleUpdateProjectLevel(e.target.value as FloorLevel)}
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500 font-medium"
                     >
                       <option value="Basement">Basement</option>
                       <option value="Ground Floor">Ground Floor</option>
@@ -991,6 +1169,315 @@ export function InteriorDesignerCalculatorView() {
                       <option value="Terrace">Terrace</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Floor Switcher Navigation Pills */}
+                <div>
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
+                    Floor Level Quick Selection:
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(['Basement', 'Ground Floor', 'First Floor', 'Second Floor', 'Third Floor', 'Penthouse', 'Terrace'] as FloorLevel[]).map((lvl) => {
+                      const countOnFloor = currentProject.rooms.filter(
+                        (r) => (r.floorLevel || currentProject.floorLevel) === lvl
+                      ).length;
+                      const isActive = currentProject.floorLevel === lvl;
+                      return (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => handleUpdateProjectLevel(lvl)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5 border ${
+                            isActive
+                              ? 'bg-rose-500/15 border-rose-500/40 text-rose-400 font-semibold shadow-sm'
+                              : 'bg-muted/30 border-border/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                          }`}
+                        >
+                          <span>{lvl}</span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                              isActive ? 'bg-rose-500 text-white' : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {countOnFloor}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Floor Rooms Configuration Section */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-border/60">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 font-bold text-sm">
+                      {currentFloorRooms.length}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                        Rooms on {currentProject.floorLevel}
+                        <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {currentFloorRooms.length} room{currentFloorRooms.length === 1 ? '' : 's'} configured
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Define room count and customize the name of each room for this floor.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Room Count Stepper & Quick Add */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground mr-1">Floor Room Count:</span>
+                    <div className="inline-flex items-center rounded-xl bg-muted/40 border border-border p-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSetFloorRoomCount(currentFloorRooms.length - 1)}
+                        disabled={currentFloorRooms.length <= 1}
+                        title="Decrease room count"
+                        className="w-7 h-7 rounded-lg bg-card hover:bg-muted text-foreground flex items-center justify-center disabled:opacity-40 transition"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={currentFloorRooms.length}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val) && val >= 1 && val <= 20) {
+                            handleSetFloorRoomCount(val);
+                          }
+                        }}
+                        className="w-12 text-center text-xs font-bold bg-transparent border-none text-foreground focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSetFloorRoomCount(currentFloorRooms.length + 1)}
+                        disabled={currentFloorRooms.length >= 20}
+                        title="Increase room count"
+                        className="w-7 h-7 rounded-lg bg-card hover:bg-muted text-foreground flex items-center justify-center disabled:opacity-40 transition"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAddSingleRoomToFloor()}
+                      className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition"
+                    >
+                      <Plus size={13} /> Add Room
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick BHK Count Buttons */}
+                <div className="flex flex-wrap items-center gap-2 mb-5">
+                  <span className="text-[11px] font-semibold text-muted-foreground">Standard Floor Presets:</span>
+                  {[
+                    { label: '1 Room Studio', count: 1 },
+                    { label: '1 BHK (3 rooms)', count: 3 },
+                    { label: '2 BHK (4 rooms)', count: 4 },
+                    { label: '3 BHK (5 rooms)', count: 5 },
+                    { label: '4 BHK (6 rooms)', count: 6 },
+                    { label: 'Luxury Villa (8 rooms)', count: 8 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => handleSetFloorRoomCount(preset.count)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition ${
+                        currentFloorRooms.length === preset.count
+                          ? 'bg-rose-500/10 border-rose-500/40 text-rose-400 font-semibold'
+                          : 'bg-muted/20 border-border/60 text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Quick Add Specific Room Preset Chips */}
+                <div className="mb-6 bg-muted/20 border border-border/50 rounded-xl p-3">
+                  <div className="text-[11px] font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-amber-400" />
+                    Quick Add Room to {currentProject.floorLevel}:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DEFAULT_FLOOR_ROOM_PRESETS.map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => handleAddSingleRoomToFloor(preset.name, preset.type)}
+                        className="text-[11px] px-2.5 py-1 rounded-lg bg-card hover:bg-rose-500/10 hover:border-rose-500/40 border border-border text-foreground hover:text-rose-400 font-medium transition flex items-center gap-1 shadow-xs"
+                      >
+                        <Plus size={11} className="text-rose-400" />
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Defined Rooms Grid for this floor */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-foreground">
+                      Defined Rooms on {currentProject.floorLevel} ({currentFloorRooms.length})
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Click any room name to edit inline or use quick rename tags below each card.
+                    </span>
+                  </div>
+
+                  {currentFloorRooms.length === 0 ? (
+                    <div className="p-8 text-center border border-dashed border-border rounded-xl">
+                      <p className="text-xs text-muted-foreground mb-3">
+                        No rooms configured on {currentProject.floorLevel} yet.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleSetFloorRoomCount(4)}
+                        className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5"
+                      >
+                        <Plus size={13} /> Initialize 4 Standard Rooms
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {currentFloorRooms.map((room, idx) => {
+                        const quickNames = [
+                          'Living Room',
+                          'Master Bedroom',
+                          'Modular Kitchen',
+                          'Bedroom 2',
+                          'Dining Room',
+                          'Kids Bedroom',
+                          'Bathroom',
+                          'Balcony',
+                          'Pooja Room',
+                        ];
+
+                        return (
+                          <div
+                            key={room.id}
+                            className="bg-card/70 border border-border hover:border-rose-500/30 rounded-xl p-3.5 space-y-2.5 transition group shadow-xs"
+                          >
+                            {/* Card Header: Room number, Type selector, Delete */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-md bg-muted text-muted-foreground font-mono text-[11px] font-bold flex items-center justify-center">
+                                  {idx + 1}
+                                </span>
+                                <select
+                                  value={room.type}
+                                  onChange={(e) => handleUpdateRoomType(room.id, e.target.value as RoomType)}
+                                  className="text-[11px] font-medium bg-muted/40 border border-border/80 rounded-md px-2 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                >
+                                  <option value="Living Room">Living Room</option>
+                                  <option value="Master Bedroom">Master Bedroom</option>
+                                  <option value="Bedroom">Bedroom</option>
+                                  <option value="Dining Room">Dining Room</option>
+                                  <option value="Kitchen">Kitchen</option>
+                                  <option value="Bathroom">Bathroom</option>
+                                  <option value="Home Office">Home Office</option>
+                                  <option value="Balcony">Balcony</option>
+                                  <option value="Pooja Room">Pooja Room</option>
+                                  <option value="Corridor">Corridor</option>
+                                </select>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRoomFromFloor(room.id)}
+                                title={`Delete ${room.name}`}
+                                className="w-6 h-6 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center opacity-70 group-hover:opacity-100 transition"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+
+                            {/* Editable Room Name Input */}
+                            <div>
+                              <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                                Room Name:
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={room.name}
+                                  onChange={(e) => handleUpdateRoomName(room.id, e.target.value)}
+                                  placeholder="e.g. Master Bedroom, Living Lounge"
+                                  className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Quick Rename Chips */}
+                            <div>
+                              <div className="flex flex-wrap gap-1">
+                                {quickNames.slice(0, 5).map((qName) => (
+                                  <button
+                                    key={qName}
+                                    type="button"
+                                    onClick={() => handleUpdateRoomName(room.id, qName)}
+                                    className={`text-[9px] px-1.5 py-0.5 rounded border transition ${
+                                      room.name === qName
+                                        ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 font-bold'
+                                        : 'bg-muted/40 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                                    }`}
+                                  >
+                                    {qName}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Room Info Footer */}
+                            <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                              <span>
+                                {room.length} × {room.width} ft ({room.floorAreaSqFt || Math.round(room.length * room.width)} sq.ft)
+                              </span>
+                              <span className="font-mono text-[9px] text-muted-foreground/80">
+                                {room.floorLevel || currentProject.floorLevel}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Stats & Proceed Bar */}
+                <div className="mt-6 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div>
+                      Floor Rooms:{' '}
+                      <strong className="text-foreground">{currentFloorRooms.length}</strong>
+                    </div>
+                    <div>
+                      Floor Area:{' '}
+                      <strong className="text-foreground">
+                        {currentFloorRooms.reduce((acc, r) => acc + (r.floorAreaSqFt || 0), 0)} sq.ft
+                      </strong>
+                    </div>
+                    <div>
+                      Total Project Rooms:{' '}
+                      <strong className="text-foreground">{currentProject.rooms.length}</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="px-5 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm transition"
+                  >
+                    <span>Proceed to Rooms & Dimensions</span>
+                    <ArrowRight size={14} />
+                  </button>
                 </div>
               </div>
             </div>
