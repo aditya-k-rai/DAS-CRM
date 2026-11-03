@@ -12,7 +12,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
-import { getApiBase, probeAndSetWorkingApiBase } from '../config/api';
+import { getApiBase, probeAndSetWorkingApiBase, fetchWithFailover } from '../config/api';
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 export const QUEUE_STORAGE_KEY = '@das_crm_offline_mutation_queue';
@@ -135,6 +135,19 @@ class OfflineSyncEngine {
   /** Set current active authentication token for queue draining */
   public setAuthToken(token: string | null) {
     this.activeToken = token;
+  }
+
+  /** Retrieve the active auth token, hydrating from AsyncStorage if currently null */
+  public async getAuthToken(): Promise<string | null> {
+    if (this.activeToken) return this.activeToken;
+    try {
+      const stored = await AsyncStorage.getItem('das_crm_token');
+      if (stored && typeof stored === 'string') {
+        this.activeToken = stored;
+        return stored;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /** Subscribe to real-time engine state changes */
@@ -359,8 +372,8 @@ class OfflineSyncEngine {
     let succeeded = 0;
     let failed = 0;
 
+    const token = await this.getAuthToken();
     const remainingQueue: QueuedMutation[] = [];
-    const apiBase = getApiBase();
 
     for (const item of queue) {
       processed++;
@@ -368,8 +381,8 @@ class OfflineSyncEngine {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
-        if (this.activeToken) {
-          headers.Authorization = `Bearer ${this.activeToken}`;
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
         }
 
         // 1. Conflict Detection for updates: Fetch current server version first
@@ -381,10 +394,10 @@ class OfflineSyncEngine {
           !item.entityId.startsWith('lead-local-')
         ) {
           try {
-            const checkRes = await fetch(`${apiBase}/leads/${item.entityId}`, {
+            const checkRes = await fetchWithFailover(`/leads/${item.entityId}`, {
               method: 'GET',
               headers,
-            });
+            }, 3000);
 
             if (checkRes.ok) {
               const serverLead = await checkRes.json();
@@ -434,16 +447,12 @@ class OfflineSyncEngine {
           }
         }
 
-        // 2. Execute network mutation
-        const targetUrl = item.endpoint.startsWith('http')
-          ? item.endpoint
-          : `${apiBase}${item.endpoint.startsWith('/') ? '' : '/'}${item.endpoint}`;
-
-        const res = await fetch(targetUrl, {
+        // 2. Execute network mutation with dynamic endpoint failover
+        const res = await fetchWithFailover(item.endpoint, {
           method: item.method,
           headers,
           body: item.method === 'DELETE' && !resolvedPayload ? undefined : JSON.stringify(resolvedPayload),
-        });
+        }, 5000);
 
         if (res.ok || res.status === 201 || res.status === 204) {
           succeeded++;
@@ -451,6 +460,13 @@ class OfflineSyncEngine {
           if (item.entityId) {
             await this.markLeadSynced(item.entityId);
           }
+        } else if (res.status === 401 || res.status === 403) {
+          // Authentication error: Token expired or unverified.
+          // DO NOT DROP MUTATIONS — keep in queue and retry when user is authenticated!
+          failed++;
+          item.retryCount += 1;
+          item.lastError = `Authentication required (${res.status})`;
+          remainingQueue.push(item);
         } else if (res.status >= 400 && res.status < 500 && res.status !== 408) {
           // Client error (validation / unprocessable): Don't retry endlessly, archive it
           failed++;

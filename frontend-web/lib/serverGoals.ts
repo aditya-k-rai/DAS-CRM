@@ -48,9 +48,9 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalGoalSettings = {
 
 export const DEFAULT_USER_OVERRIDES: UserGoalTarget[] = [
   {
-    userId: 'usr_tl',
+    userId: 'cmukv4tgl000n7d2d65001ydp',
     userName: 'Sachin Puri',
-    userEmail: 'sachin.puri@das.com',
+    userEmail: 'sachinpuri938@gmail.com',
     userRole: 'TEAM_LEADER',
     dailyCallsTarget: 35,
     dailyWhatsappTarget: 20,
@@ -59,7 +59,7 @@ export const DEFAULT_USER_OVERRIDES: UserGoalTarget[] = [
     updatedAt: new Date().toISOString(),
   },
   {
-    userId: 'usr_rep_1',
+    userId: 'cmuhp0517000ngg2dq93a6nlp',
     userName: 'Nandini Rastogi',
     userEmail: 'rastoginandini92@gmail.com',
     userRole: 'SALES_EXEC',
@@ -67,6 +67,28 @@ export const DEFAULT_USER_OVERRIDES: UserGoalTarget[] = [
     dailyWhatsappTarget: 25,
     monthlyRevenueTarget: 450000,
     monthlyMeetingsTarget: 10,
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    userId: 'cmukwwdv9000ng42dghtw6t3z',
+    userName: 'Sulekha Tomar',
+    userEmail: 'sulekhatmr@gmail.com',
+    userRole: 'SALES_EXEC',
+    dailyCallsTarget: 40,
+    dailyWhatsappTarget: 25,
+    monthlyRevenueTarget: 500000,
+    monthlyMeetingsTarget: 10,
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    userId: 'cmukykfoe000nht2d0ylnsd3t',
+    userName: 'Sadhana',
+    userEmail: 'sadhnadikshit98@gmail.com',
+    userRole: 'SALES_EXEC',
+    dailyCallsTarget: 40,
+    dailyWhatsappTarget: 20,
+    monthlyRevenueTarget: 400000,
+    monthlyMeetingsTarget: 8,
     updatedAt: new Date().toISOString(),
   },
 ];

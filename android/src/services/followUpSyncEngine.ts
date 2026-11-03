@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiBase, fetchWithFailover } from '../config/api';
 import { LeadItem } from './apiService';
 import { ENTERPRISE_SEED_TASKS } from '../data/enterpriseSeedData';
+import { offlineSyncEngine } from './offlineSyncEngine';
 
 export const STORAGE_FOLLOWUPS_PRIMARY = '@das_crm_followup_tasks_cache';
 export const STORAGE_FOLLOWUPS_SECONDARY = 'das_crm_followup_tasks_cache';
@@ -277,6 +278,18 @@ export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string
 };
 
 class FollowUpSyncEngine {
+  constructor() {
+    try {
+      offlineSyncEngine.subscribe((state) => {
+        if (state.isOnline && state.isBackendConnected) {
+          this.getLocalCachedFollowUps().then((tasks) => {
+            this.syncPendingOfflineTasksToServer(null, tasks).catch(() => {});
+          }).catch(() => {});
+        }
+      });
+    } catch (_) {}
+  }
+
   /**
    * Reads cached follow-up tasks from all local storage buckets.
    */
@@ -449,6 +462,11 @@ class FollowUpSyncEngine {
     token: string | null,
     cachedTasks: FollowUpTask[]
   ): Promise<void> {
+    if (!token) {
+      try {
+        token = await AsyncStorage.getItem('das_crm_token');
+      } catch (_) {}
+    }
     const pendingTasks = cachedTasks.filter(
       (t) =>
         t &&

@@ -51,8 +51,9 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
-export const PREV_LAN_API_URL = 'http://192.168.1.45:3001/api/v1';
+export const CURRENT_LAN_API_URL = 'http://192.168.1.43:3001/api/v1';
+export const PREV_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
+export const ALT_LAN_API_URL = 'http://192.168.1.45:3001/api/v1';
 export const DEFAULT_CLOUD_API_URL = 'https://das-backend.onrender.com/api/v1';
 export const ALT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
@@ -72,47 +73,45 @@ export function getCandidateApiUrls(): string[] {
 
   // 2. Active Host Machine Wi-Fi LAN IP (Instant connection on local network)
   candidates.push(CURRENT_LAN_API_URL);
+  candidates.push('http://192.168.1.43:3001/api/v1');
+  candidates.push(PREV_LAN_API_URL);
+  candidates.push(ALT_LAN_API_URL);
+  candidates.push('http://192.168.1.34:3001/api/v1');
 
-  // 3. Production Cloud URLs
-  candidates.push(PROD_CLOUD_API_URL);
-  candidates.push(DEFAULT_CLOUD_API_URL);
-  candidates.push(ALT_CLOUD_API_URL);
-
-  // 3. Web & Desktop prioritization (direct localhost connection)
-  if (Platform.OS === 'web') {
-    candidates.push(LOCALHOST_API_URL);
-    candidates.push('http://127.0.0.1:3001/api/v1');
-  }
-
-  // 4. Dynamic host IP from Expo Metro bundler
+  // 3. Dynamic host IP from Expo Metro bundler
   const expoIp = getExpoHostIp();
   if (expoIp) {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 5. Active Host Machine Wi-Fi LAN IP (Primary for real physical devices on local network)
-  candidates.push('http://192.168.1.45:3001/api/v1');
-  candidates.push(CURRENT_LAN_API_URL);
-  candidates.push('http://192.168.29.26:3001/api/v1');
-  candidates.push(PREV_LAN_API_URL);
-  candidates.push('http://192.168.1.34:3001/api/v1');
+  // 4. Production Cloud URLs
+  candidates.push(PROD_CLOUD_API_URL);
+  candidates.push(DEFAULT_CLOUD_API_URL);
+  candidates.push(ALT_CLOUD_API_URL);
 
-  // Common local subnet fallback candidates (192.168.1.x / 192.168.29.x / 192.168.0.x)
-  candidates.push('http://192.168.1.2:3001/api/v1');
-  candidates.push('http://192.168.1.100:3001/api/v1');
-  candidates.push('http://192.168.0.100:3001/api/v1');
+  // 5. Common local subnet fallback candidates (192.168.1.x / 192.168.29.x / 192.168.0.x)
+  for (const hostSuffix of [43, 45, 34, 26, 2, 10, 100, 15, 20]) {
+    candidates.push(`http://192.168.1.${hostSuffix}:3001/api/v1`);
+    candidates.push(`http://192.168.29.${hostSuffix}:3001/api/v1`);
+  }
 
-  // 6. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  // 6. Web & Desktop prioritization (direct localhost connection)
+  if (Platform.OS === 'web') {
+    candidates.push(LOCALHOST_API_URL);
+    candidates.push('http://127.0.0.1:3001/api/v1');
+  }
+
+  // 7. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
   if (Platform.OS === 'android') {
     candidates.push(EMULATOR_API_URL);
   }
 
-  // 7. Previously saved active API base from AsyncStorage if valid
+  // 8. Previously saved active API base from AsyncStorage if valid
   if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http')) {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
-  // 8. Localhost & 127.0.0.1 fallback
+  // 9. Localhost & 127.0.0.1 fallback
   candidates.push(LOCALHOST_API_URL);
   candidates.push('http://127.0.0.1:3001/api/v1');
 

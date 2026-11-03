@@ -6,6 +6,7 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { offlineSyncEngine } from '../services/offlineSyncEngine';
 
 // ─── Types (identical to web AuthContext) ───────────────────────────────────
 
@@ -537,6 +538,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         isOfflineSession: false, // Real JWT: session is verified, not an offline session
         isHydrated: true,
       });
+      if (restoredToken) {
+        offlineSyncEngine.setAuthToken(restoredToken);
+        offlineSyncEngine.checkNetworkStatus(true).then((online) => {
+          if (online) offlineSyncEngine.flushQueue().catch(() => {});
+        }).catch(() => {});
+      }
     } catch {
       set({ isHydrated: true });
     }
@@ -610,9 +617,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       AsyncStorage.setItem(STORAGE_KEYS.token, token),
       AsyncStorage.setItem(STORAGE_KEYS.role, normalizedUser.role),
     ]);
+    offlineSyncEngine.setAuthToken(token);
+    offlineSyncEngine.checkNetworkStatus(true).then((online) => {
+      if (online) offlineSyncEngine.flushQueue().catch(() => {});
+    }).catch(() => {});
   },
 
   logout: async () => {
+    offlineSyncEngine.setAuthToken(null);
     set({
       token: null,
       isOfflineSession: false,

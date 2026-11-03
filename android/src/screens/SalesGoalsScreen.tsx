@@ -176,6 +176,50 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             }
           });
           setContactHistoriesMap(historyMap);
+
+          // 3b. Auto-reconcile local offline contact histories to server /activities
+          const sActs = Array.isArray(actRes) ? actRes : ((actRes as any)?.items || []);
+          const serverSigs = new Set<string>();
+          sActs.forEach((a: any) => {
+            const lId = String(a.leadId || '');
+            const cType = String(a.type || a.metadata?.channel || a.metadata?.type || '').toUpperCase();
+            const tMin = a.createdAt ? String(a.createdAt).slice(0, 16) : '';
+            serverSigs.add(`${lId}_${cType}_${tMin}`);
+            if (a.id) serverSigs.add(String(a.id));
+          });
+
+          for (const [leadId, attempts] of historyMap.entries()) {
+            if (!leadId || leadId.startsWith('lead-local-') || !Array.isArray(attempts)) continue;
+            for (const att of attempts) {
+              if (!att || String(att.id || '').startsWith('act_')) continue;
+              const attType = String(att.type || att.sharingMedium || '').toUpperCase();
+              const tMin = att.timestamp ? String(att.timestamp).slice(0, 16) : '';
+              const sig = `${leadId}_${attType}_${tMin}`;
+              if (!serverSigs.has(sig)) {
+                serverSigs.add(sig);
+                const isCall = attType.includes('CALL') || attType.includes('PHONE');
+                const isWA = attType.includes('WA') || attType.includes('WHATSAPP');
+                const isMeeting = attType.includes('MEETING') || att.scheduledType === 'MEETING';
+                apiService.logLeadActivity(token, {
+                  activityType: isCall ? 'CALL' : (isMeeting ? 'MEETING' : 'NOTE'),
+                  leadId,
+                  notes: att.notes || (isWA ? 'Direct WhatsApp Outreach' : 'Contact attempt logged'),
+                  outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
+                  metadata: {
+                    channel: isWA ? 'WHATSAPP_DIRECT' : (isCall ? 'CALL' : 'DIRECT'),
+                    type: att.type || (isWA ? 'WHATSAPP_DIRECT' : 'NOTE'),
+                    outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
+                    by: att.by || currentUser?.name || 'Sales Rep',
+                    byRole: att.byRole || currentUser?.role || 'SALES_EXEC',
+                    durationSeconds: att.durationSeconds || 0,
+                    followUpDate: att.followUpDate,
+                    followUpTime: att.followUpTime,
+                    reconciledFromDevice: true,
+                  },
+                }).catch(() => {});
+              }
+            }
+          }
         }
       } catch (e) {
         console.warn('[SalesGoalsScreen] Error loading contact histories:', e);
@@ -214,10 +258,10 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
     });
 
     const fallbackReps = [
-      { id: 'emp-1', name: 'Nandini Rastogi', email: 'nandini@das.com', role: 'SALES_EXEC', designation: 'Senior Sales Executive', reportingTo: 'Rahul Joshi' },
-      { id: 'emp-2', name: 'Sulekha Sharma', email: 'sulekha@das.com', role: 'SALES_EXEC', designation: 'Sales Consultant', reportingTo: 'Rahul Joshi' },
-      { id: 'emp-3', name: 'Sadhana Verma', email: 'sadhana@das.com', role: 'SALES_EXEC', designation: 'Account Specialist', reportingTo: 'Rahul Joshi' },
-      { id: 'emp-4', name: 'Rahul Joshi', email: 'rahul@das.com', role: 'TEAM_LEADER', designation: 'Team Leader Sales', reportingTo: undefined },
+      { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', email: 'rastoginandini92@gmail.com', role: 'SALES_EXEC', designation: 'Senior Sales Executive', reportingTo: 'Sachin Puri' },
+      { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', email: 'sulekhatmr@gmail.com', role: 'SALES_EXEC', designation: 'Sales Consultant', reportingTo: 'Sachin Puri' },
+      { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', email: 'sadhnadikshit98@gmail.com', role: 'SALES_EXEC', designation: 'Account Specialist', reportingTo: 'Sachin Puri' },
+      { id: 'cmukv4tgl000n7d2d65001ydp', name: 'Sachin Puri', email: 'sachinpuri938@gmail.com', role: 'TEAM_LEADER', designation: 'Team Leader Sales', reportingTo: undefined },
     ];
 
     const listToUse = rawReps.length > 0 ? rawReps : fallbackReps;

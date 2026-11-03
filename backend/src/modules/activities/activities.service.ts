@@ -50,12 +50,30 @@ export class ActivitiesService {
       nextActionDate: dto.nextActionDate || dto.metadata?.nextActionDate,
     };
 
+    // Safe validation of leadId against organization's leads to prevent foreign key errors on offline drafts
+    let validLeadId: string | undefined = undefined;
+    if (dto.leadId) {
+      try {
+        const lead = await this.prisma.lead.findFirst({
+          where: {
+            organizationId,
+            OR: [
+              { id: dto.leadId },
+              ...(dto.metadata?.phone ? [{ phone: { contains: String(dto.metadata.phone).replace(/[^0-9]/g, '') } }] : []),
+              ...(dto.metadata?.leadPhone ? [{ phone: { contains: String(dto.metadata.leadPhone).replace(/[^0-9]/g, '') } }] : []),
+            ],
+          },
+        });
+        if (lead) validLeadId = lead.id;
+      } catch (_) {}
+    }
+
     const activity = await this.prisma.activity.create({
       data: {
         organizationId,
         userId,
         type: typeEnum,
-        leadId: dto.leadId,
+        leadId: validLeadId,
         contactId: dto.contactId,
         dealId: dto.dealId,
         description: dto.notes,
@@ -74,16 +92,16 @@ export class ActivitiesService {
       },
     });
 
-    if (dto.leadId) {
+    if (validLeadId) {
       await this.prisma.lead.update({
-        where: { id: dto.leadId },
+        where: { id: validLeadId },
         data: { lastActivityAt: new Date() },
       }).catch(() => {});
     }
 
     // ⚡ Automatic Two-Way Synchronization to CRM Follow-up Pipeline
     const followUpDateStr = mergedMetadata.followUpDate || (dto.nextActionDate ? new Date(dto.nextActionDate).toISOString().slice(0, 10) : undefined);
-    if (followUpDateStr && dto.leadId) {
+    if (followUpDateStr && validLeadId) {
       try {
         const timeStr = mergedMetadata.followUpTime || '10:00 AM';
         const isMeeting = dto.activityType === 'MEETING' || mergedMetadata.scheduledType === 'MEETING' || dto.outcome === 'MEETING_SCHEDULED';
@@ -119,7 +137,7 @@ export class ActivitiesService {
         const existingTask = await this.prisma.task.findFirst({
           where: {
             organizationId,
-            leadId: dto.leadId,
+            leadId: validLeadId,
             dueAt: {
               gte: new Date(dueAt.getTime() - 2 * 60 * 60 * 1000),
               lte: new Date(dueAt.getTime() + 2 * 60 * 60 * 1000),
@@ -129,7 +147,7 @@ export class ActivitiesService {
 
         if (!existingTask) {
           const lead = await this.prisma.lead.findUnique({
-            where: { id: dto.leadId },
+            where: { id: validLeadId },
             select: { firstName: true, lastName: true, phone: true },
           });
           const leadFullName = lead ? `${lead.firstName} ${lead.lastName || ''}`.trim() : 'Lead Prospect';
@@ -142,7 +160,7 @@ export class ActivitiesService {
               organizationId,
               createdById: userId,
               assigneeId: userId,
-              leadId: dto.leadId,
+              leadId: validLeadId,
               contactId: dto.contactId,
               dealId: dto.dealId,
               title,

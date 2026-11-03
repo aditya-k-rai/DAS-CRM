@@ -526,8 +526,16 @@ export class FollowUpsService {
     let validLeadId: string | undefined = undefined;
     if (dto.leadId) {
       try {
+        const phoneMatch = dto.title?.match(/\+?\d[\d\s-]{8,}/);
+        const digitsOnly = phoneMatch ? phoneMatch[0].replace(/[^0-9]/g, '') : null;
         const lead = await this.prisma.lead.findFirst({
-          where: { id: dto.leadId, organizationId },
+          where: {
+            organizationId,
+            OR: [
+              { id: dto.leadId },
+              ...(digitsOnly && digitsOnly.length >= 7 ? [{ phone: { contains: digitsOnly } }] : []),
+            ],
+          },
         });
         if (lead) {
           validLeadId = lead.id;
