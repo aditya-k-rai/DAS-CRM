@@ -45,8 +45,8 @@ export function BackendActiveToast() {
     // Initial check after 3 seconds
     const initialTimer = setTimeout(checkHeartbeat, 3000);
 
-    // Periodic check every 30 seconds
-    const interval = setInterval(checkHeartbeat, 30000);
+    // Periodic check every 20 seconds
+    const interval = setInterval(checkHeartbeat, 20000);
 
     return () => {
       clearTimeout(initialTimer);

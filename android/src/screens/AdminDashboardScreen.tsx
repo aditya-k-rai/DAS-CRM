@@ -529,18 +529,18 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
     });
   };
 
-  const handleJumpToLeadDetail = (leadId?: string, leadName?: string) => {
+  const handleJumpToLeadDetail = (leadId?: string, leadName?: string, phone?: string) => {
     setSelectedMeeting(null);
     setSelectedActivity(null);
     if (leadId) {
       try {
         navigation?.navigate('Leads', {
           screen: 'LeadDetail',
-          params: { leadId, leadName: leadName || 'Lead File', origin: 'Home' },
+          params: { leadId, leadName: leadName || 'Lead File', phone, leadPhone: phone, origin: 'Home' },
         });
       } catch (_) {
         try {
-          navigation?.navigate('LeadDetail', { leadId });
+          navigation?.navigate('LeadDetail', { leadId, leadName, phone, leadPhone: phone });
         } catch {}
       }
     }

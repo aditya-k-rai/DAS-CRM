@@ -83,12 +83,20 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   let lead = propLead;
   let origin: string | undefined;
   try {
-    const route = useRoute<LeadDetailRouteProp>();
+    const route = useRoute<any>();
     if (route?.params) {
-      const { leadId, leadName, origin: navOrigin } = route.params;
+      const { leadId, leadName, origin: navOrigin, phone: navPhone, leadPhone: navLeadPhone, lead: navLead } = route.params;
       origin = navOrigin;
+      const initialPhone = navPhone || navLeadPhone || navLead?.phone || propLead?.phone || '';
       if (leadId && !lead) {
-        lead = { id: leadId, name: leadName || 'Lead Detail', phone: '' };
+        lead = {
+          id: leadId,
+          name: leadName || navLead?.name || 'Lead Detail',
+          phone: initialPhone,
+          ...(navLead || {}),
+        };
+      } else if (lead && !lead.phone && initialPhone) {
+        lead = { ...lead, phone: initialPhone };
       }
     }
   } catch {}
@@ -150,6 +158,25 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       })
       .catch(() => {});
   }, [leadId]);
+
+  // ⚡ Immediately hydrate full lead details from cache if phone is empty on mount
+  useEffect(() => {
+    if (!leadPhone && leadId) {
+      AsyncStorage.getItem('das_crm_leads_cache')
+        .then(cached => {
+          if (cached) {
+            try {
+              const list = JSON.parse(cached);
+              const found = Array.isArray(list) ? list.find((l: any) => String(l.id) === String(leadId)) : null;
+              if (found && found.phone) {
+                setLeadData(prev => ({ ...(prev || {}), ...found }));
+              }
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+  }, [leadId, leadPhone]);
 
   // 🔄 Function to fetch lead and timeline activities from backend
   const fetchLeadDetailsAndActivities = useCallback(async () => {
@@ -627,19 +654,44 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   }, [onBack, navigation, origin]);
 
   // 📞 CALL NOW HANDLER
-  const handleCall = () => {
+  const handleCall = async () => {
     if (!whatsappTemplateEngine.canRoleCommunicate(userRole)) {
       Alert.alert('Access Restricted', 'HR role does not have permission to initiate calls to sales leads.');
       return;
     }
 
-    const cleaned = (leadPhone || '').replace(/[^\d+]/g, '');
+    let activePhone = (leadPhone || leadData?.phone || lead?.phone || '').trim();
+
+    // If activePhone is still resolving on first touch, immediately query cached leads
+    if (!activePhone && leadId) {
+      try {
+        const cached = await AsyncStorage.getItem('das_crm_leads_cache');
+        if (cached) {
+          const list = JSON.parse(cached);
+          const found = Array.isArray(list) ? list.find((l: any) => String(l.id) === String(leadId)) : null;
+          if (found?.phone) {
+            activePhone = found.phone;
+            setLeadData(prev => ({ ...(prev || {}), ...found }));
+          }
+        }
+      } catch {}
+    }
+
+    const cleaned = activePhone.replace(/[^\d+]/g, '');
+    if (!cleaned || cleaned.replace(/[^\d]/g, '').length < 4) {
+      Alert.alert(
+        'Phone Number Missing',
+        `No valid phone number is registered for ${leadName}. Please edit the lead to add a phone number.`
+      );
+      return;
+    }
+
     const dialUrl = `tel:${cleaned}`;
     Linking.openURL(dialUrl).catch(() => {
       Alert.alert('Dialing Direct', `Direct dialing ${cleaned} for ${leadName}...`);
     });
 
-    callSyncEngine.initiateCall(leadId, leadName, leadPhone, (updated: LeadCallSummary) => {
+    callSyncEngine.initiateCall(leadId, leadName, activePhone, (updated: LeadCallSummary) => {
       setTelemetry(updated);
     });
 
@@ -1275,7 +1327,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
   const handleSendDirectWhatsApp = () => {
     setWaModalOpen(false);
-    let cleaned = (leadPhone || '').replace(/[^\d]/g, '');
+    const activePhone = (leadPhone || leadData?.phone || lead?.phone || '').trim();
+    let cleaned = activePhone.replace(/[^\d]/g, '');
+    if (!cleaned || cleaned.length < 5) {
+      Alert.alert('Phone Number Missing', 'No valid phone number found for WhatsApp.');
+      return;
+    }
     if (cleaned.length === 10) cleaned = '91' + cleaned;
 
     const encoded = encodeURIComponent(customMsgText || `Hi ${leadName}, following up regarding ${leadCompany}.`);

@@ -836,15 +836,15 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
           setSelectedDrilldownRep(null);
         }}
         rep={selectedDrilldownRep}
-        onOpenLead={(leadId: string) => {
+        onOpenLead={(leadId: string, leadName?: string, phone?: string) => {
           try {
             navigation?.navigate('Leads', {
               screen: 'LeadDetail',
-              params: { leadId, leadName: 'Lead File', origin: 'Home' },
+              params: { leadId, leadName: leadName || 'Lead File', phone, leadPhone: phone, origin: 'Home' },
             });
           } catch (_) {
             try {
-              navigation?.navigate('LeadDetail', { leadId });
+              navigation?.navigate('LeadDetail', { leadId, leadName, phone, leadPhone: phone });
             } catch {}
           }
         }}

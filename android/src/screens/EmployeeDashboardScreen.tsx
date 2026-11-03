@@ -709,16 +709,16 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     }
   };
 
-  const handleOpenLead = (leadId: string, leadName?: string) => {
+  const handleOpenLead = (leadId: string, leadName?: string, phone?: string) => {
     if (!leadId) return;
     try {
       navigation?.navigate('Leads', {
         screen: 'LeadDetail',
-        params: { leadId, leadName: leadName || 'Lead File', origin: 'Home' },
+        params: { leadId, leadName: leadName || 'Lead File', phone, leadPhone: phone, origin: 'Home' },
       });
     } catch (_) {
       try {
-        navigation?.navigate('LeadDetail', { leadId, leadName, origin: 'Home' });
+        navigation?.navigate('LeadDetail', { leadId, leadName, phone, leadPhone: phone, origin: 'Home' });
       } catch (err) {
         console.warn('Could not navigate to lead detail:', err);
       }
@@ -866,7 +866,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                             </Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <TouchableOpacity onPress={() => handleOpenLead(String(lead.id), name)}>
+                            <TouchableOpacity onPress={() => handleOpenLead(String(lead.id), name, phone)}>
                               <Text style={[styles.leadCardName, { color: colors.text }]} numberOfLines={1}>
                                 {name} ↗
                               </Text>
@@ -899,7 +899,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.leadBtnDetails, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-                          onPress={() => handleOpenLead(String(lead.id), name)}
+                          onPress={() => handleOpenLead(String(lead.id), name, phone)}
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.leadBtnDetailsText, { color: colors.text }]}>Details</Text>
@@ -984,7 +984,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
                       <View style={{ flex: 1, paddingHorizontal: 8 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <TouchableOpacity onPress={() => fu.leadId && handleOpenLead(fu.leadId, fu.leadName)}>
+                          <TouchableOpacity onPress={() => fu.leadId && handleOpenLead(fu.leadId, fu.leadName, fu.phone)}>
                             <Text
                               style={[
                                 styles.fuLeadName,
@@ -1067,7 +1067,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <TouchableOpacity onPress={() => m.leadId && handleOpenLead(m.leadId, m.leadName)}>
+                          <TouchableOpacity onPress={() => m.leadId && handleOpenLead(m.leadId, m.leadName, m.phone)}>
                             <Text style={[styles.oppTitle, { color: colors.text }]}>{m.leadName} ↗</Text>
                           </TouchableOpacity>
                           <View style={[styles.newBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>

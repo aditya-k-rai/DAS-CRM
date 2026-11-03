@@ -62,10 +62,10 @@ export default function BackendActiveToast() {
       } catch (_) {}
     };
 
-    // Initial check after 4s
-    const initTimer = setTimeout(checkBackendRefresh, 4000);
-    // Recurring check every 30s
-    const interval = setInterval(checkBackendRefresh, 30000);
+    // Initial check after 3s
+    const initTimer = setTimeout(checkBackendRefresh, 3000);
+    // Recurring check every 20s
+    const interval = setInterval(checkBackendRefresh, 20000);
 
     return () => {
       clearTimeout(initTimer);

@@ -169,7 +169,7 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
     try {
       navigation?.navigate('Leads', {
         screen: 'LeadDetail',
-        params: { leadId: meeting.leadId, leadName: meeting.leadName, origin: 'Home' },
+        params: { leadId: meeting.leadId, leadName: meeting.leadName, phone: meeting.phone, leadPhone: meeting.phone, origin: 'Home' },
       });
     } catch (_) {
       try {

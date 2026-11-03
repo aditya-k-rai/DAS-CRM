@@ -82,7 +82,14 @@ const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [];
 // Navigation Param Lists
 export type LeadsStackParamList = {
   LeadsList: undefined;
-  LeadDetail: { leadId: string; leadName?: string; origin?: string };
+  LeadDetail: {
+    leadId: string;
+    leadName?: string;
+    phone?: string;
+    leadPhone?: string;
+    origin?: string;
+    lead?: any;
+  };
 };
 
 const LeadsStack = createStackNavigator<LeadsStackParamList>();
@@ -1006,12 +1013,12 @@ function RootAppContent() {
           <NotificationsScreen
             onClose={() => setNotifModalOpen(false)}
             onUnreadCountChange={(count) => setOverrideUnreadCount(count)}
-            onNavigateToLead={(leadId, leadName) => {
+            onNavigateToLead={(leadId: string, leadName?: string, phone?: string) => {
               setNotifModalOpen(false);
               try {
                 (navigationRef as any).navigate('Leads', {
                   screen: 'LeadDetail',
-                  params: { leadId, leadName },
+                  params: { leadId, leadName, phone, leadPhone: phone },
                 });
               } catch {
                 (navigationRef as any).navigate('Leads');

@@ -49,7 +49,7 @@ export { FollowUpTask };
 
 interface Props {
   onClose?: () => void;
-  onNavigateToLead?: (leadId: string) => void;
+  onNavigateToLead?: (leadId: string, leadName?: string, phone?: string) => void;
   navigation?: any;
   embedded?: boolean;
 }
@@ -135,19 +135,19 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
     setTimeout(() => setToastMessage(null), 3200);
   };
 
-  const handleOpenLead = (leadId: string, leadName?: string) => {
+  const handleOpenLead = (leadId: string, leadName?: string, phone?: string) => {
     if (onNavigateToLead) {
-      onNavigateToLead(leadId);
+      onNavigateToLead(leadId, leadName, phone);
     } else if (navigation) {
       if (onClose) onClose();
       try {
         navigation.navigate('Leads', {
           screen: 'LeadDetail',
-          params: { leadId, leadName: leadName || 'Lead File', origin: 'Menu' },
+          params: { leadId, leadName: leadName || 'Lead File', phone, leadPhone: phone, origin: 'Menu' },
         });
       } catch (_) {
         try {
-          navigation.navigate('LeadDetail', { leadId, leadName });
+          navigation.navigate('LeadDetail', { leadId, leadName, phone, leadPhone: phone });
         } catch {}
       }
     }
@@ -853,7 +853,7 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <TouchableOpacity
-                        onPress={() => handleOpenLead(task.leadId, task.leadName)}
+                        onPress={() => handleOpenLead(task.leadId, task.leadName, task.leadPhone || (task as any).phone)}
                         activeOpacity={0.75}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                       >

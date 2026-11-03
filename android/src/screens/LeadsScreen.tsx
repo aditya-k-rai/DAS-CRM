@@ -868,7 +868,7 @@ export default function LeadsScreen() {
           <TouchableOpacity
             key={colKey}
             style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}
-            onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name })}
+            onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name, phone: item.phone, leadPhone: item.phone, lead: item })}
           >
             <Text style={[styles.excelCellName, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           </TouchableOpacity>
@@ -1076,7 +1076,14 @@ export default function LeadsScreen() {
             <FollowUpsScreen
               embedded={true}
               onNavigateToLead={(leadId) => {
-                navigation.navigate('LeadDetail', { leadId, leadName: 'Lead Detail' });
+                const found = leadsList.find(l => l.id === leadId);
+                navigation.navigate('LeadDetail', {
+                  leadId,
+                  leadName: found?.name || 'Lead Detail',
+                  phone: found?.phone,
+                  leadPhone: found?.phone,
+                  lead: found,
+                });
               }}
             />
           </View>
@@ -1681,7 +1688,7 @@ export default function LeadsScreen() {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[styles.leadCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-                  onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name })}
+                  onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name, phone: item.phone, leadPhone: item.phone, lead: item })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.cardHeader}>

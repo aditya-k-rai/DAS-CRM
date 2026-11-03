@@ -1,8 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query, Headers } from '@nestjs/common';
 import { AppService } from './app.service';
-
-let lastRefreshedTimestamp = Date.now();
-let totalPingsCount = 0;
 
 @Controller()
 export class AppController {
@@ -14,47 +11,25 @@ export class AppController {
   }
 
   @Get('health')
-  getHealth() {
-    lastRefreshedTimestamp = Date.now();
-    totalPingsCount++;
-    return {
-      status: 'ok',
-      active: true,
-      message: 'Backend Refreshed & Active',
-      service: 'DAS CRM NestJS Production Backend',
-      timestamp: new Date().toISOString(),
-      lastRefreshedAt: lastRefreshedTimestamp,
-      pingsCount: totalPingsCount,
-      uptimeSeconds: process.uptime(),
-    };
+  getHealth(
+    @Query('interval') interval?: string,
+    @Headers('x-ping-interval') headerInterval?: string,
+  ) {
+    const hint = interval || headerInterval;
+    return this.appService.recordExternalPing(hint);
   }
 
   @Get('api/v1/health')
-  getApiV1Health() {
-    lastRefreshedTimestamp = Date.now();
-    totalPingsCount++;
-    return {
-      status: 'ok',
-      active: true,
-      message: 'Backend Refreshed & Active',
-      service: 'DAS CRM NestJS Production Backend API v1',
-      timestamp: new Date().toISOString(),
-      lastRefreshedAt: lastRefreshedTimestamp,
-      pingsCount: totalPingsCount,
-      uptimeSeconds: process.uptime(),
-    };
+  getApiV1Health(
+    @Query('interval') interval?: string,
+    @Headers('x-ping-interval') headerInterval?: string,
+  ) {
+    const hint = interval || headerInterval;
+    return this.appService.recordExternalPing(hint);
   }
 
   @Get('api/v1/system/heartbeat')
   getHeartbeat() {
-    return {
-      status: 'ok',
-      active: true,
-      message: 'Backend Refreshed & Active',
-      lastRefreshedAt: lastRefreshedTimestamp,
-      pingsCount: totalPingsCount,
-      uptimeSeconds: process.uptime(),
-      serverTime: new Date().toISOString(),
-    };
+    return this.appService.getStatus();
   }
 }

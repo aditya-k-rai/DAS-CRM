@@ -53,7 +53,7 @@ export const INITIAL_DETAILED_NOTIFICATIONS: DetailedNotification[] = getRoleNot
 interface NotificationsScreenProps {
   navigation?: any;
   onClose?: () => void;
-  onNavigateToLead?: (leadId: string, leadName: string) => void;
+  onNavigateToLead?: (leadId: string, leadName?: string, phone?: string) => void;
   onNavigateToRoute?: (routeName: string) => void;
   onUnreadCountChange?: (unreadCount: number) => void;
 }
@@ -116,12 +116,12 @@ export default function NotificationsScreen({
 
     if (notif.routeTarget === 'LeadDetail' && notif.leadId) {
       if (onNavigateToLead) {
-        onNavigateToLead(notif.leadId, notif.leadName || 'Lead File');
+        onNavigateToLead(notif.leadId, notif.leadName || 'Lead File', notif.phone || (notif as any).leadPhone);
       } else {
         try {
           navigation.navigate('Leads', {
             screen: 'LeadDetail',
-            params: { leadId: notif.leadId, leadName: notif.leadName },
+            params: { leadId: notif.leadId, leadName: notif.leadName, phone: notif.phone || (notif as any).leadPhone, leadPhone: notif.phone || (notif as any).leadPhone },
           });
         } catch {
           navigation.navigate('Leads');
