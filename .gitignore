@@ -53,3 +53,6 @@ storage/
 
  
 *.mp4
+
+# Scratch and local test scripts
+scratch/
