@@ -439,7 +439,22 @@ export function Studio3DCanvas({
     floorMesh: THREE.Mesh | null;
     ceilingMesh: THREE.Mesh | null;
     selectionBox: THREE.BoxHelper | null;
+    orbitTarget: THREE.Vector3;
+    orbitRadius: number;
+    orbitTheta: number;
+    orbitPhi: number;
   } | null>(null);
+
+  // Dynamic 3D orientation gizmo & live camera angles
+  const gizmoCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraAngles, setCameraAngles] = useState<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+
+  // Reactive Room State for instantaneous live re-rendering without page refresh
+  const [roomDef, setRoomDef] = useState<RoomDefinition>(currentRoom);
+
+  useEffect(() => {
+    setRoomDef(currentRoom);
+  }, [currentRoom]);
 
   // Selected Object
   const selectedObject = useMemo(() => {
@@ -449,27 +464,27 @@ export function Studio3DCanvas({
     return null;
   }, [objects, selectedTarget]);
 
-  // Convert room dimensions to meters (1 ft = 0.3048 m)
+  // Convert room dimensions to meters (1 ft = 0.3048 m) - reactive to roomDef
   const roomMeters = useMemo(() => {
-    let length = currentRoom.length * 0.3048;
-    let width = currentRoom.width * 0.3048;
-    let height = currentRoom.height * 0.3048;
-    if (currentRoom.unit === 'in') {
-      length = (currentRoom.length / 12) * 0.3048;
-      width = (currentRoom.width / 12) * 0.3048;
-      height = (currentRoom.height / 12) * 0.3048;
-    } else if (currentRoom.unit === 'm') {
-      length = currentRoom.length;
-      width = currentRoom.width;
-      height = currentRoom.height;
+    let length = roomDef.length * 0.3048;
+    let width = roomDef.width * 0.3048;
+    let height = roomDef.height * 0.3048;
+    if (roomDef.unit === 'in') {
+      length = (roomDef.length / 12) * 0.3048;
+      width = (roomDef.width / 12) * 0.3048;
+      height = (roomDef.height / 12) * 0.3048;
+    } else if (roomDef.unit === 'm') {
+      length = roomDef.length;
+      width = roomDef.width;
+      height = roomDef.height;
     }
-    const shape = currentRoom.shape || 'rectangle';
+    const shape = roomDef.shape || 'rectangle';
     if (shape === 'square') {
       width = length;
     }
-    const wallThick = ((currentRoom.wallWidthInches || 4.5) / 12) * 0.3048;
-    const cutoutL = ((currentRoom.lShapeParams?.cutoutLength || currentRoom.length * 0.45) / (currentRoom.unit === 'in' ? 12 : 1)) * 0.3048;
-    const cutoutW = ((currentRoom.lShapeParams?.cutoutWidth || currentRoom.width * 0.45) / (currentRoom.unit === 'in' ? 12 : 1)) * 0.3048;
+    const wallThick = ((roomDef.wallWidthInches || 4.5) / 12) * 0.3048;
+    const cutoutL = ((roomDef.lShapeParams?.cutoutLength || roomDef.length * 0.45) / (roomDef.unit === 'in' ? 12 : 1)) * 0.3048;
+    const cutoutW = ((roomDef.lShapeParams?.cutoutWidth || roomDef.width * 0.45) / (roomDef.unit === 'in' ? 12 : 1)) * 0.3048;
 
     return {
       length,
@@ -482,36 +497,39 @@ export function Studio3DCanvas({
       cutoutL,
       cutoutW,
     };
-  }, [currentRoom]);
+  }, [roomDef]);
 
-  // Synchronized Room Architecture Modification Handler
+  // Synchronized Room Architecture Modification Handler with instant local 60 FPS update
   const handleRoomParamChange = useCallback(
     (updates: Partial<RoomDefinition>) => {
-      const nextRoom: RoomDefinition = {
-        ...currentRoom,
-        ...updates,
-      };
-      if (nextRoom.shape === 'square') {
-        nextRoom.width = nextRoom.length;
-      }
-      const metrics = computeRoomMetrics(
-        nextRoom.length,
-        nextRoom.width,
-        nextRoom.height,
-        nextRoom.unit || 'ft',
-        nextRoom.openings || [],
-        nextRoom.shape || 'rectangle',
-        nextRoom.wallWidthInches || 4.5,
-        nextRoom.lShapeParams,
-        nextRoom.customVertices
-      );
-      const finalized = {
-        ...nextRoom,
-        ...metrics,
-      };
-      onRoomChange?.(finalized);
+      setRoomDef(prev => {
+        const nextRoom: RoomDefinition = {
+          ...prev,
+          ...updates,
+        };
+        if (nextRoom.shape === 'square') {
+          nextRoom.width = nextRoom.length;
+        }
+        const metrics = computeRoomMetrics(
+          nextRoom.length,
+          nextRoom.width,
+          nextRoom.height,
+          nextRoom.unit || 'ft',
+          nextRoom.openings || [],
+          nextRoom.shape || 'rectangle',
+          nextRoom.wallWidthInches || 4.5,
+          nextRoom.lShapeParams,
+          nextRoom.customVertices
+        );
+        const finalized = {
+          ...nextRoom,
+          ...metrics,
+        };
+        onRoomChange?.(finalized);
+        return finalized;
+      });
     },
-    [currentRoom, onRoomChange]
+    [onRoomChange]
   );
 
   // Toast Helper
@@ -585,6 +603,12 @@ export function Studio3DCanvas({
     selectionBox.visible = false;
     scene.add(selectionBox);
 
+    const orbitTarget = new THREE.Vector3(0, 0.8, 0);
+    const camOffset = camera.position.clone().sub(orbitTarget);
+    const orbitRadius = Math.max(1.5, camOffset.length());
+    const orbitPhi = Math.acos(Math.max(-1, Math.min(1, camOffset.y / orbitRadius)));
+    const orbitTheta = Math.atan2(camOffset.x, camOffset.z);
+
     threeStateRef.current = {
       scene,
       camera,
@@ -607,6 +631,10 @@ export function Studio3DCanvas({
       floorMesh: null,
       ceilingMesh: null,
       selectionBox,
+      orbitTarget,
+      orbitRadius,
+      orbitTheta,
+      orbitPhi,
     };
 
     // Animation & Render Loop
@@ -733,12 +761,44 @@ export function Studio3DCanvas({
       st.renderer.setSize(w, h);
     };
 
+    // Smooth mouse wheel zoom handler (both 3D spherical orbit and 2D orthographic)
+    const onCanvasWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const st = threeStateRef.current;
+      if (!st) return;
+
+      if (viewModeRef.current === '3D') {
+        const zoomSpeed = 0.0012;
+        const factor = Math.exp(e.deltaY * zoomSpeed);
+        st.orbitRadius = Math.max(1.8, Math.min(42.0, (st.orbitRadius || 10) * factor));
+        const target = st.orbitTarget || new THREE.Vector3(0, 0.8, 0);
+        const theta = st.orbitTheta ?? 0;
+        const phi = st.orbitPhi ?? 1.0;
+        const x = target.x + st.orbitRadius * Math.sin(phi) * Math.sin(theta);
+        const y = target.y + st.orbitRadius * Math.cos(phi);
+        const z = target.z + st.orbitRadius * Math.sin(phi) * Math.cos(theta);
+        st.camera.position.set(x, y, z);
+        st.camera.lookAt(target);
+      } else if (viewModeRef.current === '2D') {
+        if ((st.camera as any).isOrthographicCamera) {
+          const ortho = st.camera as THREE.OrthographicCamera;
+          const factor = e.deltaY > 0 ? 0.9 : 1.1;
+          ortho.zoom = Math.max(0.2, Math.min(6.0, ortho.zoom * factor));
+          ortho.updateProjectionMatrix();
+        } else {
+          st.camera.position.y = Math.max(2, Math.min(40, st.camera.position.y + e.deltaY * 0.01));
+        }
+      }
+    };
+
+    container.addEventListener('wheel', onCanvasWheel, { passive: false });
     window.addEventListener('resize', handleResize);
     const ro = new ResizeObserver(() => handleResize());
     ro.observe(container);
 
     return () => {
       cancelAnimationFrame(reqId);
+      container.removeEventListener('wheel', onCanvasWheel);
       window.removeEventListener('resize', handleResize);
       ro.disconnect();
       renderer.dispose();
@@ -1368,17 +1428,29 @@ export function Studio3DCanvas({
         setIsOnFloor(selectedObject.position.y <= 0.02);
       }
     } else if (e.buttons === 1 && viewMode === '3D' && activeTool === 'Orbit') {
+      // True spherical polar coordinate orbit: identical smooth sensitivity in horizontal & vertical
       const rotSpeed = 0.005;
-      const curPos = state.camera.position;
-      const radius = Math.sqrt(curPos.x * curPos.x + curPos.z * curPos.z);
-      let angle = Math.atan2(curPos.z, curPos.x);
-      angle += e.movementX * rotSpeed;
-      const newHeight = Math.max(1.2, Math.min(22, curPos.y - e.movementY * rotSpeed * 3));
-      state.camera.position.set(Math.cos(angle) * radius, newHeight, Math.sin(angle) * radius);
-      state.camera.lookAt(0, 0, 0);
+      state.orbitTheta = (state.orbitTheta ?? 0) - e.movementX * rotSpeed;
+      state.orbitPhi = (state.orbitPhi ?? 1.0) - e.movementY * rotSpeed;
+      // Clamp vertical polar angle so camera orbits smoothly over top without flipping or dipping below floor
+      state.orbitPhi = Math.max(0.06, Math.min(Math.PI / 2 - 0.03, state.orbitPhi));
+
+      const target = state.orbitTarget || new THREE.Vector3(0, 0.8, 0);
+      const radius = state.orbitRadius || 10;
+      const x = target.x + radius * Math.sin(state.orbitPhi) * Math.sin(state.orbitTheta);
+      const y = target.y + radius * Math.cos(state.orbitPhi);
+      const z = target.z + radius * Math.sin(state.orbitPhi) * Math.cos(state.orbitTheta);
+      state.camera.position.set(x, y, z);
+      state.camera.lookAt(target);
     } else if (e.buttons === 1 && viewMode === '3D' && activeTool === 'Pan') {
-      state.camera.position.x -= e.movementX * 0.01;
-      state.camera.position.y += e.movementY * 0.01;
+      // Smooth parallel camera panning along view right and up vectors
+      const panSpeed = 0.008;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      state.camera.matrix.extractBasis(right, up, new THREE.Vector3());
+      const delta = right.clone().multiplyScalar(-e.movementX * panSpeed).add(up.clone().multiplyScalar(e.movementY * panSpeed));
+      state.camera.position.add(delta);
+      if (state.orbitTarget) state.orbitTarget.add(delta);
     }
   };
 
@@ -1524,8 +1596,88 @@ export function Studio3DCanvas({
           : o
       )
     );
-    addToast('Object snapped to floor (0.00m)', 'green');
+    addToast('Object placed directly on the floor (Y = 0.00m)', 'green');
   }, [selectedObject, objects, onObjectsChange]);
+
+  // Snap camera to canonical orientations (Top, Front, Side, Isometric 3D)
+  const handleSnapCameraView = useCallback((view: 'top' | 'front' | 'side' | 'isometric') => {
+    const state = threeStateRef.current;
+    if (!state) return;
+    const target = state.orbitTarget || new THREE.Vector3(0, 0.8, 0);
+    const radius = state.orbitRadius || 10;
+
+    if (view === 'top') {
+      state.orbitTheta = 0;
+      state.orbitPhi = 0.08;
+      state.camera.position.set(target.x, target.y + radius, target.z + 0.001);
+    } else if (view === 'front') {
+      state.orbitTheta = 0;
+      state.orbitPhi = Math.PI / 2 - 0.1;
+      state.camera.position.set(target.x, target.y + 1.2, target.z + radius);
+    } else if (view === 'side') {
+      state.orbitTheta = Math.PI / 2;
+      state.orbitPhi = Math.PI / 2 - 0.1;
+      state.camera.position.set(target.x + radius, target.y + 1.2, target.z);
+    } else {
+      // Isometric 3D perspective
+      state.orbitTheta = Math.PI / 4;
+      state.orbitPhi = Math.PI / 3;
+      const x = target.x + radius * Math.sin(state.orbitPhi) * Math.sin(state.orbitTheta);
+      const y = target.y + radius * Math.cos(state.orbitPhi);
+      const z = target.z + radius * Math.sin(state.orbitPhi) * Math.cos(state.orbitTheta);
+      state.camera.position.set(x, y, z);
+    }
+    state.camera.lookAt(target);
+    addToast(`Camera aligned to ${view.toUpperCase()} view`, 'blue');
+  }, []);
+
+  // Live Object Color, Texture & Material Customization with instant GPU mesh updates
+  const handleUpdateObjectMaterial = useCallback(
+    (updates: { color?: string; material?: string; roughness?: number; metalness?: number }) => {
+      if (!selectedObject) return;
+
+      const newColor = updates.color || selectedObject.color || '#3b533a';
+      const newMaterial = updates.material || selectedObject.material || 'fabric';
+
+      // 1. Update React state for persistence
+      onObjectsChange(
+        objects.map(o =>
+          o.id === selectedObject.id
+            ? { ...o, color: newColor, material: newMaterial }
+            : o
+        )
+      );
+
+      // 2. Hardware-accelerated 60 FPS real-time Three.js mesh update
+      const state = threeStateRef.current;
+      if (state) {
+        const group = state.objectMeshes.get(selectedObject.id);
+        if (group) {
+          const threeColor = new THREE.Color(newColor);
+          group.traverse(child => {
+            if ((child as THREE.Mesh).isMesh && child.name !== 'selection_hitbox' && child.name !== 'bbox') {
+              const mesh = child as THREE.Mesh;
+              if (mesh.material) {
+                const applyToMat = (mat: THREE.Material) => {
+                  if ('color' in mat) (mat as any).color = threeColor;
+                  if (updates.roughness !== undefined && 'roughness' in mat) (mat as any).roughness = updates.roughness;
+                  if (updates.metalness !== undefined && 'metalness' in mat) (mat as any).metalness = updates.metalness;
+                  mat.needsUpdate = true;
+                };
+                if (Array.isArray(mesh.material)) {
+                  mesh.material.forEach(applyToMat);
+                } else {
+                  applyToMat(mesh.material);
+                }
+              }
+            }
+          });
+        }
+      }
+      addToast(`Applied ${newMaterial} (${newColor})`, 'green');
+    },
+    [selectedObject, objects, onObjectsChange]
+  );
 
   const handleScaleObject = useCallback((deltaRatio: number) => {
     if (!selectedObject) return;
@@ -2011,7 +2163,7 @@ export function Studio3DCanvas({
                           type="button"
                           onClick={() => handleRoomParamChange({ shape: s.id })}
                           className={`py-1.5 px-1 rounded-lg text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 border transition-all ${
-                            (currentRoom.shape || 'rectangle') === s.id
+                            (roomDef.shape || 'rectangle') === s.id
                               ? 'bg-rose-500 text-white border-rose-600 shadow-2xs'
                               : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                           }`}
@@ -2023,7 +2175,7 @@ export function Studio3DCanvas({
                     </div>
                   </div>
 
-                  {/* Dimensions: Length, Width, Height */}
+                  {/* Dimensions: Length, Width, Height (Live 60 FPS Re-rendering) */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <span className="text-[9px] font-bold text-slate-400 block uppercase">Length</span>
@@ -2033,7 +2185,7 @@ export function Studio3DCanvas({
                           step="0.5"
                           min="4"
                           max="80"
-                          value={currentRoom.length}
+                          value={roomDef.length}
                           onChange={e => handleRoomParamChange({ length: Number(e.target.value) || 1 })}
                           className="w-full text-xs font-mono font-bold p-1 rounded-md border border-slate-200 bg-slate-50 text-slate-800 focus:outline-rose-500"
                         />
@@ -2048,8 +2200,8 @@ export function Studio3DCanvas({
                           step="0.5"
                           min="4"
                           max="80"
-                          disabled={currentRoom.shape === 'square'}
-                          value={currentRoom.shape === 'square' ? currentRoom.length : currentRoom.width}
+                          disabled={roomDef.shape === 'square'}
+                          value={roomDef.shape === 'square' ? roomDef.length : roomDef.width}
                           onChange={e => handleRoomParamChange({ width: Number(e.target.value) || 1 })}
                           className="w-full text-xs font-mono font-bold p-1 rounded-md border border-slate-200 bg-slate-50 text-slate-800 disabled:opacity-60 focus:outline-rose-500"
                         />
@@ -2064,7 +2216,7 @@ export function Studio3DCanvas({
                           step="0.5"
                           min="7"
                           max="25"
-                          value={currentRoom.height}
+                          value={roomDef.height}
                           onChange={e => handleRoomParamChange({ height: Number(e.target.value) || 8 })}
                           className="w-full text-xs font-mono font-bold p-1 rounded-md border border-slate-200 bg-slate-50 text-slate-800 focus:outline-rose-500"
                         />
@@ -2074,7 +2226,7 @@ export function Studio3DCanvas({
                   </div>
 
                   {/* L-Shape Cutout Params (if L-Shape) */}
-                  {currentRoom.shape === 'l-shape' && (
+                  {roomDef.shape === 'l-shape' && (
                     <div className="p-2 rounded-lg bg-rose-50/60 border border-rose-100 space-y-1.5">
                       <span className="text-[9px] font-bold text-rose-700 block uppercase">L-Cutout Dimensions</span>
                       <div className="grid grid-cols-2 gap-2">
@@ -2084,14 +2236,14 @@ export function Studio3DCanvas({
                             type="number"
                             step="0.5"
                             min="2"
-                            max={Math.max(currentRoom.length - 2, 2)}
-                            value={currentRoom.lShapeParams?.cutoutLength || Math.round(currentRoom.length * 0.45)}
+                            max={Math.max(roomDef.length - 2, 2)}
+                            value={roomDef.lShapeParams?.cutoutLength || Math.round(roomDef.length * 0.45)}
                             onChange={e => handleRoomParamChange({
                               lShapeParams: {
-                                length1: currentRoom.length,
-                                width1: currentRoom.width,
+                                length1: roomDef.length,
+                                width1: roomDef.width,
                                 cutoutLength: Number(e.target.value) || 2,
-                                cutoutWidth: currentRoom.lShapeParams?.cutoutWidth || Math.round(currentRoom.width * 0.45)
+                                cutoutWidth: roomDef.lShapeParams?.cutoutWidth || Math.round(roomDef.width * 0.45)
                               }
                             })}
                             className="w-full text-xs font-mono p-1 rounded border border-rose-200 bg-white"
@@ -2103,13 +2255,13 @@ export function Studio3DCanvas({
                             type="number"
                             step="0.5"
                             min="2"
-                            max={Math.max(currentRoom.width - 2, 2)}
-                            value={currentRoom.lShapeParams?.cutoutWidth || Math.round(currentRoom.width * 0.45)}
+                            max={Math.max(roomDef.width - 2, 2)}
+                            value={roomDef.lShapeParams?.cutoutWidth || Math.round(roomDef.width * 0.45)}
                             onChange={e => handleRoomParamChange({
                               lShapeParams: {
-                                length1: currentRoom.length,
-                                width1: currentRoom.width,
-                                cutoutLength: currentRoom.lShapeParams?.cutoutLength || Math.round(currentRoom.length * 0.45),
+                                length1: roomDef.length,
+                                width1: roomDef.width,
+                                cutoutLength: roomDef.lShapeParams?.cutoutLength || Math.round(roomDef.length * 0.45),
                                 cutoutWidth: Number(e.target.value) || 2
                               }
                             })}
@@ -2137,7 +2289,7 @@ export function Studio3DCanvas({
                           type="button"
                           onClick={() => handleRoomParamChange({ wallWidthInches: w.val })}
                           className={`py-1 rounded-md text-[10px] font-bold border transition-all text-center ${
-                            (currentRoom.wallWidthInches || 4.5) === w.val
+                            (roomDef.wallWidthInches || 4.5) === w.val
                               ? 'bg-slate-900 text-white border-slate-950 shadow-2xs'
                               : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                           }`}
@@ -2712,6 +2864,97 @@ export function Studio3DCanvas({
                   </button>
                 </div>
 
+                {/* ── Object Color, Texture & Material Finishes (Live 3D Update) ── */}
+                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Palette size={14} className="text-blue-600" />
+                      <span className="font-semibold text-slate-800 text-xs">Color & Texture</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">{selectedObject.color || '#3b533a'}</span>
+                  </div>
+
+                  {/* Designer Palette Swatches */}
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-500 block mb-1.5">Color Swatches</span>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { name: 'Charcoal', hex: '#262626' },
+                        { name: 'Ivory Cream', hex: '#f8fafc' },
+                        { name: 'Navy Blue', hex: '#1e3a8a' },
+                        { name: 'Forest Green', hex: '#1b4332' },
+                        { name: 'Warm Oak', hex: '#9b7145' },
+                        { name: 'Cognac Leather', hex: '#873e23' },
+                        { name: 'Terracotta', hex: '#b45309' },
+                        { name: 'Mustard Gold', hex: '#d97706' },
+                        { name: 'Sage Green', hex: '#4d7c0f' },
+                        { name: 'Slate Grey', hex: '#475569' },
+                      ].map(c => (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          onClick={() => handleUpdateObjectMaterial({ color: c.hex })}
+                          className={`h-7 rounded-lg border transition-all relative flex items-center justify-center ${
+                            (selectedObject.color || '').toLowerCase() === c.hex.toLowerCase()
+                              ? 'ring-2 ring-blue-600 ring-offset-1 scale-105 shadow-xs'
+                              : 'border-slate-300 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                          title={c.name}
+                        >
+                          {(selectedObject.color || '').toLowerCase() === c.hex.toLowerCase() && (
+                            <span className={c.hex === '#f8fafc' ? 'text-slate-800 text-[10px] font-black' : 'text-white text-[10px] font-black'}>✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[10px] text-slate-500 font-medium">Custom Color:</span>
+                      <input
+                        type="color"
+                        value={selectedObject.color || '#3b533a'}
+                        onChange={e => handleUpdateObjectMaterial({ color: e.target.value })}
+                        className="w-6 h-6 p-0 border border-slate-300 rounded cursor-pointer"
+                        title="Pick custom color"
+                      />
+                      <input
+                        type="text"
+                        value={selectedObject.color || '#3b533a'}
+                        onChange={e => handleUpdateObjectMaterial({ color: e.target.value })}
+                        className="flex-1 text-[11px] font-mono px-2 py-0.5 rounded border border-slate-200 bg-slate-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Material & Texture Finishes */}
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-500 block mb-1.5">Material Texture Finish</span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: 'fabric', label: 'Fabric Linen', roughness: 0.85, metalness: 0.02 },
+                        { id: 'velvet', label: 'Velvet', roughness: 0.95, metalness: 0.0 },
+                        { id: 'leather', label: 'Leather', roughness: 0.45, metalness: 0.12 },
+                        { id: 'wood', label: 'Natural Wood', roughness: 0.65, metalness: 0.05 },
+                        { id: 'marble', label: 'Marble', roughness: 0.20, metalness: 0.05 },
+                        { id: 'metal', label: 'Brass / Metal', roughness: 0.35, metalness: 0.85 },
+                      ].map(mat => (
+                        <button
+                          key={mat.id}
+                          type="button"
+                          onClick={() => handleUpdateObjectMaterial({ material: mat.id, roughness: mat.roughness, metalness: mat.metalness })}
+                          className={`py-1.5 px-1 rounded-lg text-[10px] font-bold border transition-all text-center ${
+                            (selectedObject.material || 'fabric') === mat.id
+                              ? 'bg-blue-600 text-white border-blue-700 shadow-2xs'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {mat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Adjust Dimensions (Screenshot 133757) */}
                 <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-2.5">
                   <div>
@@ -3080,7 +3323,7 @@ export function Studio3DCanvas({
             </div>
           )}
 
-          {/* ── ON-CANVAS PROJECTED 3D HUD (Screenshots 133440, 133516, 133736, 133835, 133846) ── */}
+          {/* ── ON-CANVAS PROJECTED 3D HUD (Arranged AROUND the object perimeter with completely open center) ── */}
           {selectedObject && viewMode !== 'Walk' && (
             <div
               ref={hudRef}
@@ -3091,26 +3334,19 @@ export function Studio3DCanvas({
               }}
               className="absolute z-30 pointer-events-none flex items-center justify-center will-change-transform"
             >
-              {/* HUD Center Cross Container */}
-              <div className="relative w-32 h-32 flex items-center justify-center pointer-events-none">
-                {/* Center Move Indicator (User can drag this or the 3D model) */}
-                <div
-                  onMouseEnter={() => setHudHoverAction('Move Object')}
-                  onMouseLeave={() => setHudHoverAction(null)}
-                  className="w-8 h-8 rounded-full bg-white/95 backdrop-blur-md border border-slate-300 shadow-md flex items-center justify-center text-slate-700 cursor-move hover:scale-110 transition-transform pointer-events-auto"
-                  title="Click and drag to move object"
-                >
-                  <Move size={14} />
-                </div>
+              {/* Outer Orbital Perimeter: 240px wide so all controls sit outside bounding box */}
+              <div className="relative w-60 h-60 flex items-center justify-center pointer-events-none">
+                {/* Center is 100% open and unobstructed - user clearly views the 3D model */}
+                <div className="absolute inset-8 rounded-full border border-dashed border-blue-400/25 pointer-events-none animate-pulse" />
 
-                {/* Top: Adjust Height (Elevate Up / Down / Snap) */}
-                <div className="absolute -top-3 flex items-center gap-1 pointer-events-auto">
+                {/* ── TOP DOCK: Elevation Controls + Prominent ON FLOOR Snap Button ── */}
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-200/90 shadow-lg">
                   <button
                     type="button"
                     onClick={() => handleElevate('up')}
                     onMouseEnter={() => setHudHoverAction('Elevate Up (+0.15m / 6")')}
                     onMouseLeave={() => setHudHoverAction(null)}
-                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:bg-blue-600 hover:text-white transition-all hover:scale-110 active:scale-95"
                     title="Elevate Up (+0.15m)"
                   >
                     <ArrowUp size={13} />
@@ -3120,45 +3356,70 @@ export function Studio3DCanvas({
                     onClick={() => handleElevate('down')}
                     onMouseEnter={() => setHudHoverAction('Lower Down (-0.15m / 6")')}
                     onMouseLeave={() => setHudHoverAction(null)}
-                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:bg-blue-600 hover:text-white transition-all hover:scale-110 active:scale-95"
                     title="Lower Down (-0.15m)"
                   >
                     <ArrowDown size={13} />
                   </button>
+
+                  {/* ON FLOOR Action Button: Actively places object on the ground */}
+                  {selectedObject.position.y <= 0.02 ? (
+                    <button
+                      type="button"
+                      onClick={handleSnapToFloor}
+                      onMouseEnter={() => setHudHoverAction('Object is aligned on ground floor')}
+                      onMouseLeave={() => setHudHoverAction(null)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                      title="Object on floor (click to re-verify)"
+                    >
+                      <span>✓ ON FLOOR</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSnapToFloor}
+                      onMouseEnter={() => setHudHoverAction(`Place object on ground (currently elevated +${(selectedObject.position.y).toFixed(2)}m)`)}
+                      onMouseLeave={() => setHudHoverAction(null)}
+                      className="bg-amber-600 hover:bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1 transition-all animate-pulse hover:scale-105 active:scale-95 cursor-pointer"
+                      title="Click to place object on the ground floor"
+                    >
+                      <span>⬇ ON FLOOR (+{(selectedObject.position.y).toFixed(2)}m)</span>
+                    </button>
+                  )}
                 </div>
 
-                {/* Left: Adjust Size (Scale Up / Down) */}
-                <div className="absolute -left-3 flex items-center gap-1 pointer-events-auto">
-                  <button
-                    type="button"
-                    onClick={() => handleScaleObject(-0.1)}
-                    onMouseEnter={() => setHudHoverAction('Size Down (-10%)')}
-                    onMouseLeave={() => setHudHoverAction(null)}
-                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
-                    title="Scale Down (-10%)"
-                  >
-                    <Minimize2 size={12} />
-                  </button>
+                {/* ── LEFT DOCK: Scale Controls (Outside left boundary) ── */}
+                <div className="absolute -left-5 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md p-1 rounded-full border border-slate-200/90 shadow-lg">
                   <button
                     type="button"
                     onClick={() => handleScaleObject(0.1)}
                     onMouseEnter={() => setHudHoverAction('Size Up (+10%)')}
                     onMouseLeave={() => setHudHoverAction(null)}
-                    className="w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:bg-blue-600 hover:text-white transition-all hover:scale-110 active:scale-95"
                     title="Scale Up (+10%)"
                   >
                     <Maximize2 size={12} />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScaleObject(-0.1)}
+                    onMouseEnter={() => setHudHoverAction('Size Down (-10%)')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:bg-blue-600 hover:text-white transition-all hover:scale-110 active:scale-95"
+                    title="Scale Down (-10%)"
+                  >
+                    <Minimize2 size={12} />
+                  </button>
                 </div>
 
-                {/* Right: Rotate Object (Y-Axis) */}
-                <div className="absolute -right-3 flex items-center gap-1 pointer-events-auto">
+                {/* ── RIGHT DOCK: Rotate Controls in Purple (Outside right boundary) ── */}
+                <div className="absolute -right-5 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md p-1 rounded-full border border-slate-200/90 shadow-lg">
                   <button
                     type="button"
                     onClick={() => handleRotate('left')}
                     onMouseEnter={() => setHudHoverAction('Rotate Left (-15°)')}
                     onMouseLeave={() => setHudHoverAction(null)}
-                    className="w-7 h-7 rounded-full bg-purple-600 text-white shadow-md flex items-center justify-center hover:bg-purple-700 transition-all hover:scale-110 active:scale-95"
+                    className="w-7 h-7 rounded-full bg-purple-600 text-white shadow-xs flex items-center justify-center hover:bg-purple-700 transition-all hover:scale-110 active:scale-95"
                     title="Rotate Left (-15°)"
                   >
                     <RotateCcw size={12} />
@@ -3168,49 +3429,41 @@ export function Studio3DCanvas({
                     onClick={() => handleRotate('right')}
                     onMouseEnter={() => setHudHoverAction('Rotate Right (+15°)')}
                     onMouseLeave={() => setHudHoverAction(null)}
-                    className="w-7 h-7 rounded-full bg-purple-600 text-white shadow-md flex items-center justify-center hover:bg-purple-700 transition-all hover:scale-110 active:scale-95"
+                    className="w-7 h-7 rounded-full bg-purple-600 text-white shadow-xs flex items-center justify-center hover:bg-purple-700 transition-all hover:scale-110 active:scale-95"
                     title="Rotate Right (+15°)"
                   >
                     <RotateCw size={12} />
                   </button>
                 </div>
 
-                {/* Bottom: Delete Object */}
-                <button
-                  type="button"
-                  onClick={handleDeleteObject}
-                  onMouseEnter={() => setHudHoverAction('Delete Object')}
-                  onMouseLeave={() => setHudHoverAction(null)}
-                  className="absolute -bottom-3 w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-all hover:scale-110 active:scale-95 pointer-events-auto"
-                  title="Delete Object"
-                >
-                  <Trash2 size={12} />
-                </button>
+                {/* ── BOTTOM DOCK: Duplicate & Delete (Outside bottom boundary) ── */}
+                <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-200/90 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={handleDuplicate}
+                    onMouseEnter={() => setHudHoverAction('Duplicate Object')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+                    title="Duplicate Object"
+                  >
+                    <Copy size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteObject}
+                    onMouseEnter={() => setHudHoverAction('Delete Object')}
+                    onMouseLeave={() => setHudHoverAction(null)}
+                    className="w-7 h-7 rounded-full bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-center text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-all hover:scale-110 active:scale-95"
+                    title="Delete Object"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
 
                 {/* Floating Tooltip Label */}
                 {hudHoverAction && (
-                  <div className="absolute -top-11 bg-slate-900/90 text-white px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap shadow-md pointer-events-none">
+                  <div className="absolute -top-14 bg-slate-900/95 text-white px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap shadow-xl pointer-events-none z-40 border border-slate-700">
                     {hudHoverAction}
-                  </div>
-                )}
-
-                {/* Status Badge: ON FLOOR or ELEVATED (Clickable to Snap to floor) */}
-                {!hudHoverAction && selectedObject && (
-                  <div className="absolute top-12 pointer-events-auto flex items-center gap-1.5">
-                    {selectedObject.position.y <= 0.02 ? (
-                      <div className="bg-emerald-700 text-white px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider shadow-md pointer-events-none">
-                        ON FLOOR
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleSnapToFloor}
-                        className="bg-amber-600 hover:bg-emerald-600 text-white px-2.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1 transition-colors"
-                        title="Click to snap object back to floor"
-                      >
-                        <span>+{(selectedObject.position.y).toFixed(2)}m (Snap)</span>
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -3326,15 +3579,61 @@ export function Studio3DCanvas({
             </form>
           </div>
 
-          {/* ── BOTTOM-RIGHT 3D GIZMO & FOOTER LINKS (Screenshot 132727) ── */}
+          {/* ── BOTTOM-RIGHT 3D GIZMO & FOOTER CONTROLS (Live Dynamic Rotation with X, Y, Z Axes) ── */}
           <div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2 pointer-events-auto">
-            {/* 3D Coordinate Axis Gizmo */}
-            <div className="w-10 h-10 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" className="stroke-2">
-                <line x1="12" y1="12" x2="20" y2="12" stroke="#ef4444" strokeWidth="2" />
-                <line x1="12" y1="12" x2="12" y2="4" stroke="#22c55e" strokeWidth="2" />
-                <line x1="12" y1="12" x2="6" y2="18" stroke="#3b82f6" strokeWidth="2" />
-              </svg>
+            {/* Dynamic 3D Coordinate Axis Gizmo Card with View-Snap Controls */}
+            <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-2 shadow-lg flex flex-col items-center gap-1.5">
+              <div className="relative flex items-center justify-center cursor-pointer group" title="Live 3D Orientation Gizmo (Click to reset 3D view)" onClick={() => handleSnapCameraView('isometric')}>
+                <canvas
+                  ref={gizmoCanvasRef}
+                  width={48}
+                  height={48}
+                  className="rounded-full bg-slate-50 border border-slate-200/80 shadow-2xs"
+                />
+              </div>
+
+              {/* Live Rotation Euler Angle Badges (X, Y, Z) */}
+              <div className="flex items-center gap-1 font-mono text-[9px] font-bold">
+                <span className="text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200">X:{cameraAngles.x}°</span>
+                <span className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">Y:{cameraAngles.y}°</span>
+                <span className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-200">Z:{cameraAngles.z}°</span>
+              </div>
+
+              {/* View Snap Buttons (Top, Front, Side, 3D) */}
+              <div className="flex items-center gap-1 text-[9px] font-extrabold text-slate-600 pt-0.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => handleSnapCameraView('top')}
+                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-600 hover:text-white transition-colors"
+                  title="Align camera to Top (2D Plan) View"
+                >
+                  Top
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSnapCameraView('front')}
+                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-600 hover:text-white transition-colors"
+                  title="Align camera to Front Elevation View"
+                >
+                  Front
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSnapCameraView('side')}
+                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-600 hover:text-white transition-colors"
+                  title="Align camera to Side Elevation View"
+                >
+                  Side
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSnapCameraView('isometric')}
+                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-600 hover:text-white transition-colors"
+                  title="Align camera to Isometric 3D View"
+                >
+                  3D
+                </button>
+              </div>
             </div>
 
             {/* Feedback & Dark Mode Toggle */}

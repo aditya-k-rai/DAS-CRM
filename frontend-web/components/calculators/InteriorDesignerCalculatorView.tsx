@@ -389,6 +389,9 @@ export function InteriorDesignerCalculatorView() {
 
   const handleRoomUpdate = (updatedRoom: RoomDefinition) => {
     if (!currentProject) return;
+    if (!activeRoomId && updatedRoom.id) {
+      setActiveRoomId(updatedRoom.id);
+    }
     const updatedRooms = currentProject.rooms.map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
     const updatedProject = { ...currentProject, rooms: updatedRooms };
     InteriorProjectsStore.saveProject(updatedProject);
