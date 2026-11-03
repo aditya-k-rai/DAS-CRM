@@ -53,11 +53,11 @@ export function normalizeApiUrl(rawUrl: string): string {
 
 export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
 export const PREV_LAN_API_URL = 'http://192.168.1.45:3001/api/v1';
-export const DEFAULT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
-export const ALT_CLOUD_API_URL = 'https://das-backend.onrender.com/api/v1';
+export const DEFAULT_CLOUD_API_URL = 'https://das-backend.onrender.com/api/v1';
+export const ALT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
-export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : 'https://dascrm-backend.onrender.com/api/v1';
+export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL ? normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) : 'https://das-backend.onrender.com/api/v1';
 
 /**
  * Returns prioritized list of backend URLs to probe
@@ -70,8 +70,12 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 2. Production Cloud URL
+  // 2. Active Host Machine Wi-Fi LAN IP (Instant connection on local network)
+  candidates.push(CURRENT_LAN_API_URL);
+
+  // 3. Production Cloud URLs
   candidates.push(PROD_CLOUD_API_URL);
+  candidates.push(DEFAULT_CLOUD_API_URL);
   candidates.push(ALT_CLOUD_API_URL);
 
   // 3. Web & Desktop prioritization (direct localhost connection)

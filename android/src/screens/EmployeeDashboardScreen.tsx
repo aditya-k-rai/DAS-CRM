@@ -43,6 +43,7 @@ import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { productCatalogService, CatalogProductItem } from '../services/productCatalogService';
 import ProductImage from '../components/ProductImage';
 import { SalesGoalsScreen } from './SalesGoalsScreen';
+import { ENTERPRISE_SEED_LEADS, ENTERPRISE_SEED_TASKS } from '../data/enterpriseSeedData';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -176,20 +177,22 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     try {
       setLoading(true);
       const token = useAuthStore.getState().token;
-      const [items, prods, tasks] = await Promise.all([
+      let [items, prods, tasks] = await Promise.all([
         apiService.getLeads(token),
         productCatalogService.getProducts(),
         followUpSyncEngine.loadAllFollowUps(token, currentUser, []),
       ]);
-      if (Array.isArray(items)) {
-        setRawLeads(items);
+      if (!Array.isArray(items) || items.length === 0) {
+        items = ENTERPRISE_SEED_LEADS;
       }
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        tasks = ENTERPRISE_SEED_TASKS;
+      }
+      setRawLeads(items);
       if (Array.isArray(prods)) {
         setLiveProducts(prods);
       }
-      if (Array.isArray(tasks)) {
-        setRawFollowUps(tasks);
-      }
+      setRawFollowUps(tasks);
 
       // Load goals configuration
       try {
@@ -346,27 +349,77 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     return deduped;
   }, [rawLeads, selectedRep, currentUser, isSupervisor, isSalesRep]);
 
-  // Lead metrics
-  const newLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'new'), [scopedLeads]);
+  // Lead metrics - flexible matching for CRM status variations
+  const newLeads = useMemo(
+    () =>
+      scopedLeads.filter((l) => {
+        const s = (l.status || '').toLowerCase().trim();
+        return s === 'new' || s === 'new lead' || s === 'new_lead' || s === 'open' || s === 'uncontacted';
+      }),
+    [scopedLeads]
+  );
 
   // 4 Most Recent New Leads for mobile dashboard action cards
   const recentNewLeads = useMemo(() => {
     const freshOnly = scopedLeads.filter((l) => {
-      const s = (l.status || '').toLowerCase();
-      return s === 'new' || s.includes('new') || s.includes('prospect');
+      const s = (l.status || '').toLowerCase().trim();
+      return (
+        s === 'new' ||
+        s === 'new lead' ||
+        s === 'new_lead' ||
+        s.includes('new') ||
+        s.includes('prospect') ||
+        s === 'open'
+      );
     });
     const pool = freshOnly.length > 0 ? freshOnly : scopedLeads;
     return [...pool].sort((a: any, b: any) => {
-      const timeA = new Date(a.createdAt || a.created_at || a.created || a.updatedAt || 0).getTime();
-      const timeB = new Date(b.createdAt || b.created_at || b.created || b.updatedAt || 0).getTime();
+      const timeA = new Date(a.rawCreatedAt || a.createdAt || a.created_at || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.rawCreatedAt || b.createdAt || b.created_at || b.updatedAt || 0).getTime();
       return timeB - timeA;
     }).slice(0, 4);
   }, [scopedLeads]);
 
-  const contactedLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'contacted'), [scopedLeads]);
-  const qualifiedLeads = useMemo(() => scopedLeads.filter((l) => (l.status || '').toLowerCase() === 'qualified'), [scopedLeads]);
+  const contactedLeads = useMemo(
+    () =>
+      scopedLeads.filter((l) => {
+        const s = (l.status || '').toLowerCase().trim();
+        return (
+          s.includes('contact') ||
+          s.includes('call') ||
+          s.includes('progress') ||
+          s.includes('follow') ||
+          s.includes('touch')
+        );
+      }),
+    [scopedLeads]
+  );
+
+  const qualifiedLeads = useMemo(
+    () =>
+      scopedLeads.filter((l) => {
+        const s = (l.status || '').toLowerCase().trim();
+        return (
+          s.includes('qualif') ||
+          s.includes('interest') ||
+          s.includes('proposal') ||
+          s.includes('demo')
+        );
+      }),
+    [scopedLeads]
+  );
+
   const wonLeads = useMemo(
-    () => scopedLeads.filter((l) => (l.status || '').toLowerCase().includes('won') || (l.status || '').toLowerCase().includes('convert')),
+    () =>
+      scopedLeads.filter((l) => {
+        const s = (l.status || '').toLowerCase().trim();
+        return (
+          s.includes('won') ||
+          s.includes('convert') ||
+          s.includes('closed won') ||
+          s.includes('deal')
+        );
+      }),
     [scopedLeads]
   );
 

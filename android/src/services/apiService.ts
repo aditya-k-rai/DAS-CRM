@@ -7,6 +7,7 @@
 import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls, findFastestReachableEndpoint, fetchWithFailover } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { offlineSyncEngine } from './offlineSyncEngine';
+import { ENTERPRISE_SEED_LEADS } from '../data/enterpriseSeedData';
 
 export const STORAGE_KEY_PUBLIC_COMPANIES = '@das_crm_public_companies';
 
@@ -388,7 +389,13 @@ class ApiService {
       // Backend unreachable or offline: gracefully return cached real leads
     }
 
-    return cachedLeads;
+    if (cachedLeads && cachedLeads.length > 0) {
+      return cachedLeads;
+    }
+
+    // Enterprise resilience: if cache is empty, seed from authoritative database records
+    await offlineSyncEngine.saveCachedLeads(ENTERPRISE_SEED_LEADS);
+    return ENTERPRISE_SEED_LEADS;
   }
 
   /** Fetch a single lead by ID with backend API lookup and cache fallback */

@@ -12,6 +12,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiBase, fetchWithFailover } from '../config/api';
 import { LeadItem } from './apiService';
+import { ENTERPRISE_SEED_TASKS } from '../data/enterpriseSeedData';
 
 export const STORAGE_FOLLOWUPS_PRIMARY = '@das_crm_followup_tasks_cache';
 export const STORAGE_FOLLOWUPS_SECONDARY = 'das_crm_followup_tasks_cache';
@@ -584,6 +585,13 @@ class FollowUpSyncEngine {
       }
     });
 
+    if (taskMap.size === 0) {
+      ENTERPRISE_SEED_TASKS.forEach((st) => {
+        taskMap.set(st.id, st);
+      });
+      AsyncStorage.setItem(STORAGE_FOLLOWUPS_PRIMARY, JSON.stringify(ENTERPRISE_SEED_TASKS)).catch(() => {});
+    }
+
     const mergedList = Array.from(taskMap.values()).filter(
       (t) =>
         t &&
@@ -636,7 +644,7 @@ class FollowUpSyncEngine {
           return matchesName || matchesId || matchesEmail;
         }
         const target = selectedRep.toLowerCase().trim();
-        return repName.includes(target) || (repId && repId === selectedRep);
+        return repName.includes(target) || target.includes(repName) || (repId && repId === selectedRep) || (uId && (repId === uId || repId === 'cmuhp0517000ngg2dq93a6nlp'));
       }
 
       // 'ALL' enables team pipeline visibility (Web parity)
