@@ -39,6 +39,40 @@ import {
   RoomOpening,
   RoomShape,
 } from '@/types/interiorStudio';
+
+export type MetricUnit = 'mm' | 'cm' | 'm';
+
+export interface HistorySnapshot {
+  actionName: string;
+  objects: StudioObject3D[];
+  roomDef: RoomDefinition;
+}
+
+export function inchesToUnit(inches: number, unit: MetricUnit): number {
+  if (unit === 'mm') {
+    return Math.round(inches * 25.4);
+  }
+  if (unit === 'cm') {
+    return Math.round(inches * 2.54 * 10) / 10;
+  }
+  return Math.round(inches * 0.0254 * 100) / 100;
+}
+
+export function unitToInches(val: number, unit: MetricUnit): number {
+  if (unit === 'mm') {
+    return val / 25.4;
+  }
+  if (unit === 'cm') {
+    return val / 2.54;
+  }
+  return val / 0.0254;
+}
+
+export function formatMetricDistance(meters: number, unit: MetricUnit): string {
+  if (unit === 'mm') return `${Math.round(meters * 1000)} mm`;
+  if (unit === 'cm') return `${(meters * 100).toFixed(1)} cm`;
+  return `${meters.toFixed(2)} m`;
+}
 import { MARKETPLACE_OBJECTS_CATALOG, computeRoomMetrics } from '@/lib/interiorProjectsStore';
 import { MarketplaceModal, MarketplaceProduct } from './MarketplaceModal';
 import {
@@ -311,8 +345,17 @@ export function Studio3DCanvas({
   const [showDimensions, setShowDimensions] = useState(true);
   const [smartCollisions, setSmartCollisions] = useState(true);
   const [rotationAxis, setRotationAxis] = useState<'X' | 'Y' | 'Z'>('Y');
-  const [unitMode, setUnitMode] = useState<'in' | 'ft' | 'm'>('in');
+  const [unitMode, setUnitMode] = useState<MetricUnit>('mm');
   const [uniformLocked, setUniformLocked] = useState(false);
+  const [customSizeStep, setCustomSizeStep] = useState<number>(50); // Default 50mm
+
+  // Undo / Redo History Stack with Action Tracking
+  const undoStackRef = useRef<HistorySnapshot[]>([]);
+  const redoStackRef = useRef<HistorySnapshot[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [lastUndoName, setLastUndoName] = useState('');
+  const [lastRedoName, setLastRedoName] = useState('');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   const isExpandedView = isExpanded ?? internalFullscreen;
@@ -386,13 +429,15 @@ export function Studio3DCanvas({
       const dataUrl = loadEvent.target?.result as string;
       if (dataUrl) {
         setFloorTextureUrl(dataUrl);
-        if (onRoomChange) {
-          onRoomChange({
-            ...currentRoom,
-            floorTextureUrl: dataUrl,
-          });
-        }
-        addToast('Custom floor texture image applied!', 'green');
+        setShowGrid(false); // Clean floor without CAD grid lines overlaying the texture
+        const updatedRoom = {
+          ...roomDef,
+          floorTextureUrl: dataUrl,
+        };
+        setRoomDef(updatedRoom);
+        onRoomChange?.(updatedRoom);
+        pushHistory('Applied Floor Texture Image', undefined, updatedRoom);
+        addToast('Custom floor texture image applied! Grid lining removed.', 'green');
       }
     };
     reader.readAsDataURL(file);
@@ -1018,8 +1063,9 @@ export function Studio3DCanvas({
       group.add(winGrp);
     });
 
-    // Architectural CAD Grid
-    if (showGrid && viewMode !== 'Walk') {
+    // Architectural CAD Grid (Automatically hides over applied floor textures for clean unobstructed rendering)
+    const hasAppliedFloorTexture = Boolean(floorTextureUrl);
+    if (showGrid && !hasAppliedFloorTexture && viewMode !== 'Walk') {
       const grid = new THREE.GridHelper(
         Math.max(width, length) * 1.8,
         32,
@@ -1454,18 +1500,90 @@ export function Studio3DCanvas({
     }
   };
 
+  // Push a state snapshot into Undo history stack
+  const pushHistory = useCallback((actionName: string, customObjects?: StudioObject3D[], customRoom?: RoomDefinition) => {
+    const snapshot: HistorySnapshot = {
+      actionName,
+      objects: JSON.parse(JSON.stringify(customObjects || objects)),
+      roomDef: JSON.parse(JSON.stringify(customRoom || roomDef)),
+    };
+    undoStackRef.current.push(snapshot);
+    if (undoStackRef.current.length > 50) {
+      undoStackRef.current.shift();
+    }
+    redoStackRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+    setLastUndoName(actionName);
+    setLastRedoName('');
+  }, [objects, roomDef]);
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) {
+      addToast('Nothing to undo', 'blue');
+      return;
+    }
+    const currentSnapshot: HistorySnapshot = {
+      actionName: lastUndoName || 'Current State',
+      objects: JSON.parse(JSON.stringify(objects)),
+      roomDef: JSON.parse(JSON.stringify(roomDef)),
+    };
+    redoStackRef.current.push(currentSnapshot);
+
+    const prev = undoStackRef.current.pop()!;
+    onObjectsChange(prev.objects);
+    if (JSON.stringify(prev.roomDef) !== JSON.stringify(roomDef)) {
+      setRoomDef(prev.roomDef);
+      onRoomChange?.(prev.roomDef);
+    }
+
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+    setLastUndoName(undoStackRef.current.length > 0 ? undoStackRef.current[undoStackRef.current.length - 1].actionName : '');
+    setLastRedoName(prev.actionName);
+
+    addToast(`Undo: ${prev.actionName}`, 'blue');
+  }, [objects, roomDef, lastUndoName, onObjectsChange, onRoomChange]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) {
+      addToast('Nothing to redo', 'blue');
+      return;
+    }
+    const nextSnapshot = redoStackRef.current.pop()!;
+    const currentSnapshot: HistorySnapshot = {
+      actionName: nextSnapshot.actionName,
+      objects: JSON.parse(JSON.stringify(objects)),
+      roomDef: JSON.parse(JSON.stringify(roomDef)),
+    };
+    undoStackRef.current.push(currentSnapshot);
+
+    onObjectsChange(nextSnapshot.objects);
+    if (JSON.stringify(nextSnapshot.roomDef) !== JSON.stringify(roomDef)) {
+      setRoomDef(nextSnapshot.roomDef);
+      onRoomChange?.(nextSnapshot.roomDef);
+    }
+
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+    setLastUndoName(nextSnapshot.actionName);
+    setLastRedoName(redoStackRef.current.length > 0 ? redoStackRef.current[redoStackRef.current.length - 1].actionName : '');
+
+    addToast(`Redo: ${nextSnapshot.actionName}`, 'blue');
+  }, [objects, roomDef, onObjectsChange, onRoomChange]);
+
   const handlePointerUp = () => {
     const state = threeStateRef.current;
     if (state) {
       if (state.isDragging && selectedObject && dragLastPosRef.current) {
         const { x, z } = dragLastPosRef.current;
-        onObjectsChange(
-          objects.map(o =>
-            o.id === selectedObject.id
-              ? { ...o, position: { ...o.position, x, z } }
-              : o
-          )
+        const updated = objects.map(o =>
+          o.id === selectedObject.id
+            ? { ...o, position: { ...o.position, x, z } }
+            : o
         );
+        pushHistory(`Moved ${selectedObject.name}`, updated);
+        onObjectsChange(updated);
         dragLastPosRef.current = null;
       }
       state.isDragging = false;
@@ -1535,20 +1653,20 @@ export function Studio3DCanvas({
       threeStateRef.current.selectedMesh.rotation[axis] = THREE.MathUtils.degToRad(newDeg);
     }
 
-    onObjectsChange(
-      objects.map(o =>
-        o.id === selectedObject.id
-          ? {
-              ...o,
-              rotation: {
-                ...o.rotation,
-                [axis]: newDeg,
-              },
-            }
-          : o
-      )
+    const updated = objects.map(o =>
+      o.id === selectedObject.id
+        ? {
+            ...o,
+            rotation: {
+              ...o.rotation,
+              [axis]: newDeg,
+            },
+          }
+        : o
     );
-  }, [selectedObject, rotationAxis, objects, onObjectsChange]);
+    pushHistory(`Rotated ${selectedObject.name} (${dir === 'right' ? '+15°' : '-15°'})`, updated);
+    onObjectsChange(updated);
+  }, [selectedObject, rotationAxis, objects, onObjectsChange, pushHistory]);
 
   const handleResetRotation = useCallback(() => {
     if (!selectedObject) return;
@@ -1574,14 +1692,14 @@ export function Studio3DCanvas({
       threeStateRef.current.selectedMesh.position.y = newY;
     }
 
-    onObjectsChange(
-      objects.map(o =>
-        o.id === selectedObject.id
-          ? { ...o, position: { ...o.position, y: newY } }
-          : o
-      )
+    const updated = objects.map(o =>
+      o.id === selectedObject.id
+        ? { ...o, position: { ...o.position, y: newY } }
+        : o
     );
-  }, [selectedObject, objects, onObjectsChange]);
+    pushHistory(`Elevated ${selectedObject.name} (${dir === 'up' ? '+15cm' : '-15cm'})`, updated);
+    onObjectsChange(updated);
+  }, [selectedObject, objects, onObjectsChange, pushHistory]);
 
   const handleSnapToFloor = useCallback(() => {
     if (!selectedObject) return;
@@ -1589,15 +1707,15 @@ export function Studio3DCanvas({
     if (threeStateRef.current?.selectedMesh) {
       threeStateRef.current.selectedMesh.position.y = 0;
     }
-    onObjectsChange(
-      objects.map(o =>
-        o.id === selectedObject.id
-          ? { ...o, position: { ...o.position, y: 0 } }
-          : o
-      )
+    const updated = objects.map(o =>
+      o.id === selectedObject.id
+        ? { ...o, position: { ...o.position, y: 0 } }
+        : o
     );
+    pushHistory(`Placed ${selectedObject.name} on Floor`, updated);
+    onObjectsChange(updated);
     addToast('Object placed directly on the floor (Y = 0.00m)', 'green');
-  }, [selectedObject, objects, onObjectsChange]);
+  }, [selectedObject, objects, onObjectsChange, pushHistory]);
 
   // Snap camera to canonical orientations (Top, Front, Side, Isometric 3D)
   const handleSnapCameraView = useCallback((view: 'top' | 'front' | 'side' | 'isometric') => {
@@ -1679,35 +1797,83 @@ export function Studio3DCanvas({
     [selectedObject, objects, onObjectsChange]
   );
 
-  const handleScaleObject = useCallback((deltaRatio: number) => {
+  const handleScaleObject = useCallback((deltaRatio: number, customAddValInches?: number) => {
     if (!selectedObject) return;
-    const factor = 1 + deltaRatio;
-    const newWidth = Math.max(8, Math.min(240, Math.round(selectedObject.dimensions.width * factor)));
-    const newHeight = Math.max(6, Math.min(180, Math.round(selectedObject.dimensions.height * factor)));
-    const newDepth = Math.max(8, Math.min(240, Math.round(selectedObject.dimensions.depth * factor)));
+    let newWidth: number;
+    let newHeight: number;
+    let newDepth: number;
 
-    onObjectsChange(
-      objects.map(o =>
-        o.id === selectedObject.id
-          ? {
-              ...o,
-              dimensions: {
-                width: newWidth,
-                height: newHeight,
-                depth: newDepth,
-              },
-            }
-          : o
-      )
+    if (customAddValInches !== undefined && customAddValInches !== 0) {
+      const curW = selectedObject.dimensions.width;
+      const curH = selectedObject.dimensions.height;
+      const curD = selectedObject.dimensions.depth;
+      if (uniformLocked) {
+        const ratio = Math.max(0.1, (curW + customAddValInches) / (curW || 1));
+        newWidth = Math.max(2, Math.min(400, Math.round(curW * ratio * 10) / 10));
+        newHeight = Math.max(2, Math.min(400, Math.round(curH * ratio * 10) / 10));
+        newDepth = Math.max(2, Math.min(400, Math.round(curD * ratio * 10) / 10));
+      } else {
+        newWidth = Math.max(2, Math.min(400, Math.round((curW + customAddValInches) * 10) / 10));
+        newHeight = Math.max(2, Math.min(400, Math.round((curH + customAddValInches) * 10) / 10));
+        newDepth = Math.max(2, Math.min(400, Math.round((curD + customAddValInches) * 10) / 10));
+      }
+    } else {
+      const factor = 1 + deltaRatio;
+      newWidth = Math.max(2, Math.min(400, Math.round(selectedObject.dimensions.width * factor * 10) / 10));
+      newHeight = Math.max(2, Math.min(400, Math.round(selectedObject.dimensions.height * factor * 10) / 10));
+      newDepth = Math.max(2, Math.min(400, Math.round(selectedObject.dimensions.depth * factor * 10) / 10));
+    }
+
+    // Hardware-accelerated 60 FPS Three.js mesh update
+    const state = threeStateRef.current;
+    if (state?.selectedMesh) {
+      const baseW = state.selectedMesh.userData?.baseDimensions?.width || 36;
+      const baseH = state.selectedMesh.userData?.baseDimensions?.height || 30;
+      const baseD = state.selectedMesh.userData?.baseDimensions?.depth || 36;
+      state.selectedMesh.scale.set(
+        newWidth / (baseW || 1),
+        newHeight / (baseH || 1),
+        newDepth / (baseD || 1)
+      );
+      if (state.selectionBox) {
+        state.selectionBox.setFromObject(state.selectedMesh);
+        state.selectionBox.update();
+      }
+    }
+
+    const updated = objects.map(o =>
+      o.id === selectedObject.id
+        ? {
+            ...o,
+            dimensions: {
+              width: newWidth,
+              height: newHeight,
+              depth: newDepth,
+            },
+          }
+        : o
     );
-    addToast(`Object scaled: ${newWidth}" × ${newDepth}" × ${newHeight}"`, 'blue');
-  }, [selectedObject, objects, onObjectsChange]);
+
+    const actionDesc = customAddValInches !== undefined
+      ? `Resized ${selectedObject.name} (${customAddValInches > 0 ? '+' : ''}${Math.round(customAddValInches * 25.4)}mm)`
+      : `Scaled ${selectedObject.name} (${deltaRatio > 0 ? '+10%' : '-10%'})`;
+
+    pushHistory(actionDesc, updated);
+    onObjectsChange(updated);
+
+    const dispW = inchesToUnit(newWidth, unitMode);
+    const dispD = inchesToUnit(newDepth, unitMode);
+    const dispH = inchesToUnit(newHeight, unitMode);
+    addToast(`${actionDesc}: ${dispW} × ${dispD} × ${dispH} ${unitMode}`, 'blue');
+  }, [selectedObject, objects, uniformLocked, unitMode, onObjectsChange, pushHistory]);
 
   const handleDeleteObject = useCallback(() => {
     if (!selectedObject) return;
-    onObjectsChange(objects.filter(o => o.id !== selectedObject.id));
+    const updated = objects.filter(o => o.id !== selectedObject.id);
+    pushHistory(`Deleted ${selectedObject.name}`, updated);
+    onObjectsChange(updated);
     setSelectedTarget(null);
-  }, [selectedObject, objects, onObjectsChange]);
+  }, [selectedObject, objects, onObjectsChange, pushHistory]);
 
   // ── 7. Keyboard Listeners ──────────────────────────────────────────
   useEffect(() => {
@@ -1716,6 +1882,22 @@ export function Studio3DCanvas({
         threeStateRef.current.keysDown.add(e.code);
       }
       if (e.key === 'Shift') setIsShiftPressed(true);
+
+      // Global Undo (Ctrl+Z) & Redo (Ctrl+Y / Ctrl+Shift+Z)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
 
       // Arrow keys move object
       if (selectedObject && !['input', 'textarea'].includes((e.target as HTMLElement).tagName.toLowerCase())) {
@@ -1744,7 +1926,7 @@ export function Studio3DCanvas({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedObject, handleMoveObject, handleRotate, handleElevate, handleDeleteObject]);
+  }, [selectedObject, handleMoveObject, handleRotate, handleElevate, handleDeleteObject, handleUndo, handleRedo]);
 
   // Find open, non-overlapping 3D placement coordinates
   const findOpenPlacementPosition = useCallback(
@@ -1809,40 +1991,50 @@ export function Studio3DCanvas({
         z: openPos.z,
       },
     };
-    onObjectsChange([...objects, dup]);
+    const updated = [...objects, dup];
+    pushHistory(`Duplicated ${selectedObject.name}`, updated);
+    onObjectsChange(updated);
     setSelectedTarget({ type: 'object', id: dup.id });
     addToast('Object duplicated successfully.', 'blue');
   };
 
-  const handleDimensionChange = (key: 'width' | 'height' | 'depth', valInches: number) => {
+  const handleDimensionChange = (key: 'width' | 'height' | 'depth', valInActiveUnit: number) => {
     if (!selectedObject) return;
+    const valInches = Math.max(2, Math.min(400, unitToInches(valInActiveUnit, unitMode)));
     const oldVal = selectedObject.dimensions[key];
     const ratio = valInches / (oldVal || 1);
 
+    let newDims = { ...selectedObject.dimensions, [key]: Math.round(valInches * 10) / 10 };
     if (uniformLocked) {
-      onObjectsChange(
-        objects.map(o =>
-          o.id === selectedObject.id
-            ? {
-                ...o,
-                dimensions: {
-                  width: Math.round(o.dimensions.width * ratio),
-                  height: Math.round(o.dimensions.height * ratio),
-                  depth: Math.round(o.dimensions.depth * ratio),
-                },
-              }
-            : o
-        )
-      );
-    } else {
-      onObjectsChange(
-        objects.map(o =>
-          o.id === selectedObject.id
-            ? { ...o, dimensions: { ...o.dimensions, [key]: Math.max(4, valInches) } }
-            : o
-        )
-      );
+      newDims = {
+        width: Math.max(2, Math.min(400, Math.round(selectedObject.dimensions.width * ratio * 10) / 10)),
+        height: Math.max(2, Math.min(400, Math.round(selectedObject.dimensions.height * ratio * 10) / 10)),
+        depth: Math.max(2, Math.min(400, Math.round(selectedObject.dimensions.depth * ratio * 10) / 10)),
+      };
     }
+
+    // Hardware-accelerated 60 FPS mesh scale update
+    const state = threeStateRef.current;
+    if (state?.selectedMesh) {
+      const baseW = state.selectedMesh.userData?.baseDimensions?.width || 36;
+      const baseH = state.selectedMesh.userData?.baseDimensions?.height || 30;
+      const baseD = state.selectedMesh.userData?.baseDimensions?.depth || 36;
+      state.selectedMesh.scale.set(
+        newDims.width / (baseW || 1),
+        newDims.height / (baseH || 1),
+        newDims.depth / (baseD || 1)
+      );
+      if (state.selectionBox) {
+        state.selectionBox.setFromObject(state.selectedMesh);
+        state.selectionBox.update();
+      }
+    }
+
+    const updated = objects.map(o =>
+      o.id === selectedObject.id ? { ...o, dimensions: newDims } : o
+    );
+    pushHistory(`Adjusted ${key} of ${selectedObject.name}`, updated);
+    onObjectsChange(updated);
   };
 
   // Add Item to Room with Collision-Safe Placement
@@ -2018,19 +2210,41 @@ export function Studio3DCanvas({
 
           <button
             type="button"
-            onClick={() => addToast('Undo action', 'blue')}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-            title="Undo"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className={`px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all ${
+              canUndo
+                ? 'bg-white hover:bg-slate-100 text-slate-700 shadow-2xs border border-slate-200'
+                : 'text-slate-300 border border-transparent cursor-not-allowed'
+            }`}
+            title={canUndo ? `Undo: ${lastUndoName} (Ctrl+Z)` : 'Nothing to undo (Ctrl+Z)'}
           >
-            <Undo2 size={14} />
+            <Undo2 size={13} />
+            <span>Undo</span>
+            {canUndo && lastUndoName && (
+              <span className="text-[10px] text-blue-600 font-mono max-w-[120px] truncate hidden md:inline">
+                ({lastUndoName})
+              </span>
+            )}
           </button>
           <button
             type="button"
-            onClick={() => addToast('Redo action', 'blue')}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-            title="Redo"
+            onClick={handleRedo}
+            disabled={!canRedo}
+            className={`px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all ${
+              canRedo
+                ? 'bg-white hover:bg-slate-100 text-slate-700 shadow-2xs border border-slate-200'
+                : 'text-slate-300 border border-transparent cursor-not-allowed'
+            }`}
+            title={canRedo ? `Redo: ${lastRedoName} (Ctrl+Y)` : 'Nothing to redo (Ctrl+Y)'}
           >
-            <Redo2 size={14} />
+            <Redo2 size={13} />
+            <span>Redo</span>
+            {canRedo && lastRedoName && (
+              <span className="text-[10px] text-purple-600 font-mono max-w-[120px] truncate hidden md:inline">
+                ({lastRedoName})
+              </span>
+            )}
           </button>
         </div>
 
@@ -2496,6 +2710,7 @@ export function Studio3DCanvas({
                         onClick={() => {
                           setFloorPreset(preset.key as FloorPresetType);
                           setFloorTextureUrl('');
+                          setShowGrid(false); // Clean floor without CAD grid lines overlaying the texture
                           if (onRoomChange) {
                             onRoomChange({
                               ...currentRoom,
@@ -2955,24 +3170,29 @@ export function Studio3DCanvas({
                   </div>
                 </div>
 
-                {/* Adjust Dimensions (Screenshot 133757) */}
-                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-2.5">
+                {/* ── Adjust Dimensions & 3-Tier Metric Unit Sizing ── */}
+                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-3">
                   <div>
-                    <span className="font-semibold text-slate-800 text-xs block">Adjust Dimensions</span>
-                    <span className="text-[9px] text-slate-400 block">Fine-tune object scale in real time</span>
+                    <span className="font-semibold text-slate-800 text-xs block">Adjust Dimensions & Sizing</span>
+                    <span className="text-[9px] text-slate-400 block">Precision metric modelling with 60 FPS live scale</span>
                   </div>
 
-                  {/* Units & Uniform lock */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-500">Units</span>
-                    <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
-                      {(['in', 'ft', 'm'] as const).map(u => (
+                  {/* 3-Tier Metric Measurement Unit Selector */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Measurement Unit</span>
+                      <span className="text-[9px] font-semibold text-blue-600">
+                        {unitMode === 'mm' ? 'Primary: Millimetres (mm)' : unitMode === 'cm' ? 'Secondary: Centimetres (cm)' : 'Secondary: Metres (m)'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-bold">
+                      {(['mm', 'cm', 'm'] as const).map(u => (
                         <button
                           key={u}
                           type="button"
                           onClick={() => setUnitMode(u)}
-                          className={`px-2 py-0.5 rounded transition-all ${
-                            unitMode === u ? 'bg-blue-600 text-white' : 'text-slate-600'
+                          className={`py-1 rounded text-center transition-all ${
+                            unitMode === u ? 'bg-blue-600 text-white shadow-xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
                           {u}
@@ -2981,98 +3201,168 @@ export function Studio3DCanvas({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-500">Uniform</span>
+                  {/* Uniform Scale Lock Toggle */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                    <span className="text-[11px] font-semibold text-slate-600">Uniform Proportional Lock</span>
                     <button
                       type="button"
                       onClick={() => setUniformLocked(!uniformLocked)}
-                      className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-700 flex items-center gap-1"
+                      className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all ${
+                        uniformLocked
+                          ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
                     >
                       {uniformLocked ? <Lock size={11} /> : <Unlock size={11} />}
                       <span>{uniformLocked ? 'Locked' : 'Unlocked'}</span>
                     </button>
                   </div>
 
-                  {/* Quick Scale Buttons */}
-                  <div className="grid grid-cols-3 gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleScaleObject(-0.1)}
-                      className="py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-[11px] font-bold text-slate-700 transition-all flex items-center justify-center gap-1"
-                      title="Scale down 10%"
-                    >
-                      <Minimize2 size={11} />
-                      <span>-10%</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleScaleObject(0.1)}
-                      className="py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-[11px] font-bold text-slate-700 transition-all flex items-center justify-center gap-1"
-                      title="Scale up 10%"
-                    >
-                      <Maximize2 size={11} />
-                      <span>+10%</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const def = MARKETPLACE_OBJECTS_CATALOG.find(m => m.name === selectedObject.name);
-                        if (def) {
-                          onObjectsChange(
-                            objects.map(o =>
+                  {/* Quick Scale Up & Scale Down Buttons */}
+                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Scale Buttons</span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleScaleObject(-0.1)}
+                        className="py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-xs font-bold text-slate-700 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-2xs"
+                        title="Scale Down (-10%)"
+                      >
+                        <Minimize2 size={13} />
+                        <span>Size -10%</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleScaleObject(0.1)}
+                        className="py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-xs font-bold text-slate-700 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-2xs"
+                        title="Scale Up (+10%)"
+                      >
+                        <Maximize2 size={13} />
+                        <span>Size +10%</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const def = MARKETPLACE_OBJECTS_CATALOG.find(m => m.name === selectedObject.name);
+                          if (def) {
+                            const updated = objects.map(o =>
                               o.id === selectedObject.id ? { ...o, dimensions: { ...def.dimensions } } : o
-                            )
-                          );
-                          addToast('Dimensions reset to default', 'blue');
-                        }
-                      }}
-                      className="py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition-all"
-                      title="Reset dimensions to default"
-                    >
-                      Reset
-                    </button>
+                            );
+                            pushHistory(`Reset dimensions of ${selectedObject.name}`, updated);
+                            onObjectsChange(updated);
+                            addToast('Dimensions reset to default', 'blue');
+                          }
+                        }}
+                        className="py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-600 transition-all active:scale-95 text-center"
+                        title="Reset dimensions to default"
+                      >
+                        Reset
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Dimension sliders/inputs */}
-                  <div className="space-y-1.5 pt-1 text-[11px]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Width</span>
-                      <span className="font-mono font-bold text-slate-900">{selectedObject.dimensions.width}&quot;</span>
+                  {/* Custom Size Addition in Numbers */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Custom Size Addition</span>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">{unitMode}</span>
                     </div>
-                    <input
-                      type="range"
-                      min={12}
-                      max={144}
-                      value={selectedObject.dimensions.width}
-                      onChange={e => handleDimensionChange('width', Number(e.target.value))}
-                      className="w-full accent-blue-600"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        value={customSizeStep}
+                        onChange={e => setCustomSizeStep(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-20 text-xs font-mono font-bold p-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-center focus:outline-blue-500"
+                        placeholder="50"
+                      />
+                      <span className="text-xs font-bold text-slate-600">{unitMode}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inInches = unitToInches(customSizeStep, unitMode);
+                          handleScaleObject(0, -inInches);
+                        }}
+                        className="flex-1 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 text-xs font-bold text-slate-700 transition-all flex items-center justify-center gap-1 active:scale-95"
+                        title={`Subtract ${customSizeStep} ${unitMode}`}
+                      >
+                        <span>-{customSizeStep} {unitMode}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inInches = unitToInches(customSizeStep, unitMode);
+                          handleScaleObject(0, inInches);
+                        }}
+                        className="flex-1 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-600 hover:text-white text-xs font-bold text-blue-700 transition-all flex items-center justify-center gap-1 active:scale-95"
+                        title={`Add ${customSizeStep} ${unitMode}`}
+                      >
+                        <span>+{customSizeStep} {unitMode}</span>
+                      </button>
+                    </div>
+                    <div className="flex gap-1 text-[9px] font-bold text-slate-500 justify-end">
+                      {[10, 50, 100, 250].map(step => (
+                        <button
+                          key={step}
+                          type="button"
+                          onClick={() => setCustomSizeStep(unitMode === 'm' ? step / 1000 : unitMode === 'cm' ? step / 10 : step)}
+                          className="px-1.5 py-0.5 rounded bg-white border border-slate-200 hover:bg-slate-100"
+                        >
+                          {unitMode === 'm' ? `${step / 1000}m` : unitMode === 'cm' ? `${step / 10}cm` : `${step}mm`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Depth</span>
-                      <span className="font-mono font-bold text-slate-900">{selectedObject.dimensions.depth}&quot;</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={12}
-                      max={96}
-                      value={selectedObject.dimensions.depth}
-                      onChange={e => handleDimensionChange('depth', Number(e.target.value))}
-                      className="w-full accent-blue-600"
-                    />
+                  {/* Individual Dimension Steppers in Active Metric Unit */}
+                  <div className="space-y-2.5 pt-1 border-t border-slate-100">
+                    {(['width', 'depth', 'height'] as const).map(dimKey => {
+                      const currentVal = inchesToUnit(selectedObject.dimensions[dimKey], unitMode);
+                      const label = dimKey === 'width' ? 'Width (W)' : dimKey === 'depth' ? 'Depth (D)' : 'Height (H)';
+                      const stepVal = unitMode === 'mm' ? 10 : unitMode === 'cm' ? 1 : 0.05;
 
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Height</span>
-                      <span className="font-mono font-bold text-slate-900">{selectedObject.dimensions.height}&quot;</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={10}
-                      max={120}
-                      value={selectedObject.dimensions.height}
-                      onChange={e => handleDimensionChange('height', Number(e.target.value))}
-                      className="w-full accent-blue-600"
-                    />
+                      return (
+                        <div key={dimKey} className="space-y-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-slate-600">{label}</span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleDimensionChange(dimKey, Math.max(stepVal, currentVal - (unitMode === 'mm' ? 25 : unitMode === 'cm' ? 2.5 : 0.05)))}
+                                className="w-5 h-5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 font-bold active:scale-95 text-[10px]"
+                                title="Decrease"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                step={stepVal}
+                                value={currentVal}
+                                onChange={e => handleDimensionChange(dimKey, Number(e.target.value) || 1)}
+                                className="w-16 p-0.5 text-center font-mono font-bold text-slate-900 border border-slate-200 rounded text-xs"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleDimensionChange(dimKey, currentVal + (unitMode === 'mm' ? 25 : unitMode === 'cm' ? 2.5 : 0.05))}
+                                className="w-5 h-5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 font-bold active:scale-95 text-[10px]"
+                                title="Increase"
+                              >
+                                +
+                              </button>
+                              <span className="text-[10px] font-bold text-slate-400 w-6 text-left">{unitMode}</span>
+                            </div>
+                          </div>
+                          <input
+                            type="range"
+                            min={unitMode === 'mm' ? 100 : unitMode === 'cm' ? 10 : 0.1}
+                            max={unitMode === 'mm' ? 4000 : unitMode === 'cm' ? 400 : 4.0}
+                            step={stepVal}
+                            value={currentVal}
+                            onChange={e => handleDimensionChange(dimKey, Number(e.target.value))}
+                            className="w-full accent-blue-600 h-1.5"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -3513,7 +3803,7 @@ export function Studio3DCanvas({
             <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-blue-600 text-white font-bold px-4 py-1.5 rounded-2xl shadow-xl z-30 text-xs flex items-center gap-2">
               <Ruler size={14} />
               <span>
-                Distance: {(measureDistanceMeters * 3.28084).toFixed(2)} ft ({measureDistanceMeters.toFixed(2)} m)
+                Distance: {formatMetricDistance(measureDistanceMeters, unitMode)}
               </span>
               <button
                 type="button"
