@@ -10,7 +10,11 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
   async rewrites() {
-    const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://localhost:3001';
+    const backendUrl =
+      process.env.BACKEND_INTERNAL_URL ||
+      (process.env.NODE_ENV === 'production'
+        ? (process.env.NEXT_PUBLIC_API_URL || 'https://dascrm-backend.onrender.com/api/v1').replace(/\/api\/v1\/?$/, '')
+        : 'http://localhost:3001');
     return [
       {
         source: '/api/v1/:path*',

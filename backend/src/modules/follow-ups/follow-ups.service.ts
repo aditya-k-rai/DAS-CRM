@@ -60,15 +60,122 @@ export class FollowUpsService {
   }
 
   /**
-   * Base where clause that always scopes to organization + FOLLOW_UP taskType.
+   * Base where clause that always scopes to organization + follow-up tasks.
+   * Matches explicit FOLLOW_UP tasks or any task with followUpType set.
    */
   private async baseWhere(organizationId: string, userId: string, userRole?: string) {
     const scope = await this.getOwnershipScope(organizationId, userId, userRole);
     return {
       organizationId,
-      taskType: 'FOLLOW_UP',
+      OR: [
+        { taskType: 'FOLLOW_UP' },
+        { followUpType: { not: null } },
+      ],
       ...scope,
     };
+  }
+
+  /**
+   * Reconciles lead activities that have follow-up schedules with prisma.task.
+   * Ensures that follow-ups logged via Call Funnel, WhatsApp direct, or Activity logs
+   * are 100% synchronized and visible in the Company Follow-up Dashboard.
+   */
+  async syncActivitiesToFollowUpTasks(organizationId: string): Promise<number> {
+    try {
+      const activities = await this.prisma.activity.findMany({
+        where: {
+          organizationId,
+          type: { in: ['CALL', 'MEETING', 'NOTE', 'TASK'] },
+        },
+        include: { lead: true, user: true },
+        orderBy: { createdAt: 'desc' },
+        take: 300,
+      });
+
+      const existingTasks = await this.prisma.task.findMany({
+        where: { organizationId },
+        select: { id: true, leadId: true, dueAt: true },
+      });
+
+      const existingTaskSet = new Set<string>();
+      existingTasks.forEach((t) => {
+        if (t.leadId && t.dueAt) {
+          const dStr = t.dueAt.toISOString().slice(0, 10);
+          existingTaskSet.add(`${t.leadId}_${dStr}`);
+        }
+      });
+
+      let createdCount = 0;
+      for (const act of activities) {
+        const meta = (act.metadata || {}) as Record<string, any>;
+        const fDate = meta.followUpDate || (meta.nextActionDate ? String(meta.nextActionDate).slice(0, 10) : null);
+        if (!fDate || !act.leadId) continue;
+
+        const key = `${act.leadId}_${fDate}`;
+        if (existingTaskSet.has(key)) continue;
+
+        const timeStr = meta.followUpTime || '10:00 AM';
+        const isMeeting = act.type === 'MEETING' || meta.scheduledType === 'MEETING' || meta.outcome === 'MEETING_SCHEDULED';
+        const channelType = isMeeting ? 'MEETING' : (meta.channel === 'WHATSAPP_DIRECT' ? 'WHATSAPP' : 'CALL');
+
+        let dueAt: Date;
+        try {
+          let hours = 10;
+          let mins = 0;
+          if (timeStr) {
+            const isPM = /pm/i.test(timeStr);
+            const isAM = /am/i.test(timeStr);
+            const clean = timeStr.replace(/[^\d:]/g, '');
+            const parts = clean.split(':');
+            if (parts.length >= 2) {
+              let h = parseInt(parts[0], 10) || 10;
+              mins = parseInt(parts[1], 10) || 0;
+              if (isPM && h < 12) h += 12;
+              if (isAM && h === 12) h = 0;
+              hours = h;
+            }
+          }
+          const hh = String(hours).padStart(2, '0');
+          const mm = String(mins).padStart(2, '0');
+          dueAt = new Date(`${fDate}T${hh}:${mm}:00+05:30`);
+          if (isNaN(dueAt.getTime())) dueAt = new Date(fDate);
+        } catch (_) {
+          dueAt = new Date();
+        }
+
+        const leadName = act.lead ? `${act.lead.firstName} ${act.lead.lastName || ''}`.trim() : 'Lead Contact';
+        const title = isMeeting
+          ? `🏢 In-Person / Virtual Visit: ${leadName}`
+          : `📞 Callback: ${leadName}${act.lead?.phone ? ` (${act.lead.phone})` : ''}`;
+
+        await this.prisma.task.create({
+          data: {
+            organizationId,
+            createdById: act.userId,
+            assigneeId: act.userId || act.lead?.ownerId,
+            leadId: act.leadId,
+            contactId: act.contactId,
+            dealId: act.dealId,
+            title,
+            description: act.description || `Follow-up scheduled from ${act.type}`,
+            purpose: act.description || `Follow-up scheduled from ${act.type}`,
+            taskType: 'FOLLOW_UP',
+            followUpType: channelType,
+            priority: 'HIGH',
+            status: 'PENDING',
+            dueAt,
+            reminderAt: new Date(dueAt.getTime() - 5 * 60 * 1000),
+            isCompleted: false,
+          },
+        });
+
+        existingTaskSet.add(key);
+        createdCount++;
+      }
+      return createdCount;
+    } catch (_) {
+      return 0;
+    }
   }
 
   /**
@@ -222,6 +329,9 @@ export class FollowUpsService {
 
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(String(limit), 10) || 50));
+
+    // Ensure any lead activities with follow-up metadata are synced
+    await this.syncActivitiesToFollowUpTasks(organizationId).catch(() => {});
 
     const base = await this.baseWhere(organizationId, userId, userRole);
     const where: any = { ...base };
@@ -847,6 +957,9 @@ export class FollowUpsService {
    * Get follow-up summary counts for dashboard cards.
    */
   async getSummary(organizationId: string, userId: string, userRole?: string) {
+    // Ensure any lead activities with follow-up metadata are synced
+    await this.syncActivitiesToFollowUpTasks(organizationId).catch(() => {});
+
     const base = await this.baseWhere(organizationId, userId, userRole);
     const now = new Date();
     // Accommodate IST (UTC+5:30) and local server time for accurate date boundaries

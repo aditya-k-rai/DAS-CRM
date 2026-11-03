@@ -40,7 +40,7 @@ export class ActivitiesService {
       ? dto.activityType
       : 'NOTE';
 
-    const mergedMetadata = {
+    const mergedMetadata: Record<string, any> = {
       ...(dto.metadata || {}),
       subject: dto.subject || dto.metadata?.subject,
       durationMin: dto.durationMin ?? (dto.durationSeconds ? Math.ceil(dto.durationSeconds / 60) : undefined) ?? dto.metadata?.durationMin,
@@ -79,6 +79,95 @@ export class ActivitiesService {
         where: { id: dto.leadId },
         data: { lastActivityAt: new Date() },
       }).catch(() => {});
+    }
+
+    // ⚡ Automatic Two-Way Synchronization to CRM Follow-up Pipeline
+    const followUpDateStr = mergedMetadata.followUpDate || (dto.nextActionDate ? new Date(dto.nextActionDate).toISOString().slice(0, 10) : undefined);
+    if (followUpDateStr && dto.leadId) {
+      try {
+        const timeStr = mergedMetadata.followUpTime || '10:00 AM';
+        const isMeeting = dto.activityType === 'MEETING' || mergedMetadata.scheduledType === 'MEETING' || dto.outcome === 'MEETING_SCHEDULED';
+        const channelType = isMeeting ? 'MEETING' : (mergedMetadata.channel === 'WHATSAPP_DIRECT' ? 'WHATSAPP' : 'CALL');
+
+        let dueAt: Date;
+        try {
+          let hours = 10;
+          let mins = 0;
+          if (timeStr) {
+            const isPM = /pm/i.test(timeStr);
+            const isAM = /am/i.test(timeStr);
+            const clean = timeStr.replace(/[^\d:]/g, '');
+            const parts = clean.split(':');
+            if (parts.length >= 2) {
+              let h = parseInt(parts[0], 10) || 10;
+              mins = parseInt(parts[1], 10) || 0;
+              if (isPM && h < 12) h += 12;
+              if (isAM && h === 12) h = 0;
+              hours = h;
+            }
+          }
+          const hh = String(hours).padStart(2, '0');
+          const mm = String(mins).padStart(2, '0');
+          dueAt = new Date(`${followUpDateStr}T${hh}:${mm}:00+05:30`);
+          if (isNaN(dueAt.getTime())) {
+            dueAt = new Date(followUpDateStr);
+          }
+        } catch (_) {
+          dueAt = new Date();
+        }
+
+        const existingTask = await this.prisma.task.findFirst({
+          where: {
+            organizationId,
+            leadId: dto.leadId,
+            dueAt: {
+              gte: new Date(dueAt.getTime() - 2 * 60 * 60 * 1000),
+              lte: new Date(dueAt.getTime() + 2 * 60 * 60 * 1000),
+            },
+          },
+        });
+
+        if (!existingTask) {
+          const lead = await this.prisma.lead.findUnique({
+            where: { id: dto.leadId },
+            select: { firstName: true, lastName: true, phone: true },
+          });
+          const leadFullName = lead ? `${lead.firstName} ${lead.lastName || ''}`.trim() : 'Lead Prospect';
+          const title = isMeeting
+            ? `🏢 In-Person / Virtual Visit: ${leadFullName}`
+            : `📞 Callback: ${leadFullName}${lead?.phone ? ` (${lead?.phone})` : ''}`;
+
+          const createdTask = await this.prisma.task.create({
+            data: {
+              organizationId,
+              createdById: userId,
+              assigneeId: userId,
+              leadId: dto.leadId,
+              contactId: dto.contactId,
+              dealId: dto.dealId,
+              title,
+              description: dto.notes || `Scheduled via ${dto.activityType}`,
+              purpose: dto.notes || `Follow-up scheduled from ${dto.activityType}`,
+              taskType: 'FOLLOW_UP',
+              followUpType: channelType,
+              priority: 'HIGH',
+              status: 'PENDING',
+              dueAt,
+              reminderAt: new Date(dueAt.getTime() - 5 * 60 * 1000),
+              isCompleted: false,
+            },
+          });
+
+          // Link task ID back to activity metadata
+          mergedMetadata.followUpId = createdTask.id;
+          await this.prisma.activity.update({
+            where: { id: activity.id },
+            data: { metadata: mergedMetadata },
+          }).catch(() => {});
+        }
+      } catch (syncErr) {
+        // Safe failover so logging never interrupts user flow
+      }
     }
 
     if (this.realtimeService) {

@@ -48,7 +48,14 @@ import { apiFetch } from '@/lib/apiClient';
 
 const fetchApi = async (endpoint: string, _token?: string | null, options: RequestInit = {}) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const res = await apiFetch(cleanEndpoint, options);
+  const mergedOptions: RequestInit = {
+    ...options,
+    headers: {
+      ...((options.headers as Record<string, string>) || {}),
+      ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
+    },
+  };
+  const res = await apiFetch(cleanEndpoint, mergedOptions);
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'API request failed' }));
     throw new Error(error.message || `Request failed with status ${res.status}`);
@@ -1052,7 +1059,7 @@ export default function FollowUpsModule() {
         try { bc.close(); } catch (_) {}
       }
     };
-  }, [activeTab]);
+  }, [activeTab, token, currentUser?.id, currentUser?.role]);
 
   useEffect(() => {
     if (searchQuery.trim().length > 1) {
@@ -1909,7 +1916,7 @@ export default function FollowUpsModule() {
                   )}
                 </div>
               ) : (
-                <EmptyFollowUpsState onNew={() => setShowCreateModal(true)} tab="TODAY" />
+                <EmptyFollowUpsState onNew={() => setShowCreateModal(true)} tab="TODAY" summary={summary} onSelectTab={setActiveTab} />
               )
             ) : activeTab === 'CALENDAR' ? (
               <SimpleCalendar data={calendarData} onSelectFollowUp={setSelectedFollowUp} />
@@ -1930,7 +1937,7 @@ export default function FollowUpsModule() {
                 ))}
               </div>
             ) : (
-              <EmptyFollowUpsState onNew={() => setShowCreateModal(true)} tab={activeTab} />
+              <EmptyFollowUpsState onNew={() => setShowCreateModal(true)} tab={activeTab} summary={summary} onSelectTab={setActiveTab} />
             )}
           </div>
         </div>
@@ -2826,7 +2833,10 @@ function ProductivityWorkbench({
   );
 }
 
-function EmptyFollowUpsState({ onNew, tab }: { onNew: () => void; tab: string }) {
+function EmptyFollowUpsState({ onNew, tab, summary, onSelectTab }: { onNew: () => void; tab: string; summary?: any; onSelectTab?: (tab: TabId) => void }) {
+  const hasOverdue = (summary?.overdue || 0) > 0;
+  const hasTotal = (summary?.total || 0) > 0;
+
   return (
     <div className="py-16 px-6 text-center space-y-4 max-w-sm mx-auto">
       <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 mx-auto shadow-inner">
@@ -2836,15 +2846,37 @@ function EmptyFollowUpsState({ onNew, tab }: { onNew: () => void; tab: string })
         <h4 className="text-sm font-black text-white">All Caught Up In This View!</h4>
         <p className="text-xs text-slate-400 mt-1">
           {tab === 'TODAY'
-            ? 'No follow-ups due today. Take initiative and schedule your next outreach.'
+            ? hasOverdue
+              ? `No follow-ups scheduled for today, but your company team has ${summary.overdue} overdue follow-ups pending.`
+              : hasTotal
+              ? `No follow-ups due today. You have ${summary.total} total follow-ups in other pipeline views.`
+              : 'No follow-ups due today. Take initiative and schedule your next outreach.'
             : tab === 'OVERDUE'
             ? 'Awesome! No overdue follow-ups on your desk.'
             : 'No follow-ups found for the selected view.'}
         </p>
       </div>
-      <button onClick={onNew} className="btn-primary text-xs font-bold px-4 py-2 inline-flex items-center gap-1.5 shadow-md">
-        <Plus size={14} /> Schedule Follow-up
-      </button>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+        {tab === 'TODAY' && hasOverdue && onSelectTab && (
+          <button
+            onClick={() => onSelectTab('OVERDUE')}
+            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors shadow-md"
+          >
+            <AlertCircle size={14} /> Review Overdue ({summary.overdue})
+          </button>
+        )}
+        {tab === 'TODAY' && !hasOverdue && hasTotal && onSelectTab && (
+          <button
+            onClick={() => onSelectTab('ALL')}
+            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors shadow-md"
+          >
+            <ListTodo size={14} /> View All ({summary.total})
+          </button>
+        )}
+        <button onClick={onNew} className="w-full sm:w-auto btn-primary text-xs font-bold px-4 py-2 inline-flex items-center justify-center gap-1.5 shadow-md">
+          <Plus size={14} /> Schedule Follow-up
+        </button>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,7 @@ export type ChannelType = 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING';
 export type PriorityLevel = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface FollowUpTask {
+  title?: string;
   id: string;
   leadId: string;
   leadName: string;
@@ -440,6 +441,72 @@ class FollowUpSyncEngine {
   }
 
   /**
+   * Flushes and synchronizes any offline-created follow-up tasks to the backend.
+   * Ensures that any follow-ups scheduled while offline or during cold-start
+   * are immediately persisted to PostgreSQL so Company Admin and Managers see them live.
+   */
+  async syncPendingOfflineTasksToServer(
+    token: string | null,
+    cachedTasks: FollowUpTask[]
+  ): Promise<void> {
+    const pendingTasks = cachedTasks.filter(
+      (t) =>
+        t &&
+        t.id &&
+        (String(t.id).startsWith('task_') || String(t.id).startsWith('local_')) &&
+        !t.isCompleted
+    );
+
+    if (pendingTasks.length === 0) return;
+
+    let updated = false;
+    const nextTasks = [...cachedTasks];
+
+    for (const task of pendingTasks) {
+      try {
+        const payload = {
+          title: (task as any).title || ('\u{1F4DE} Callback: ' + task.leadName),
+          followUpType: task.channel || 'CALL',
+          leadId: task.leadId,
+          scheduledDate: task.scheduledDate,
+          scheduledTime: task.scheduledTime,
+          dueAt: task.dueAt,
+          priority: task.priority || 'HIGH',
+          purpose: task.purpose || 'Follow-up callback',
+          notes: task.purpose,
+          reminderMinutes: task.reminderMinutes ?? 5,
+          assigneeId: task.assignedRepId,
+        };
+
+        const res = await fetchWithFailover('/follow-ups', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: 'Bearer ' + token } : {}),
+          },
+          body: JSON.stringify(payload),
+        }, 5000);
+
+        if (res.ok) {
+          const saved = await res.json();
+          if (saved && saved.id) {
+            const idx = nextTasks.findIndex((t) => t.id === task.id);
+            if (idx >= 0) {
+              nextTasks[idx] = { ...nextTasks[idx], id: String(saved.id) };
+              updated = true;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (updated) {
+      await this.persistTasks(nextTasks);
+    }
+  }
+
+
+  /**
    * Multi-Source Loader:
    * Merges server tasks, local cached tasks, and scans all AsyncStorage contact histories.
    * Authoritative server reconciliation eliminates stale/mock tasks from older sessions.
@@ -564,6 +631,11 @@ class FollowUpSyncEngine {
 
     // 2. Load Local Cached Tasks
     const localTasks = await this.getLocalCachedFollowUps();
+
+    // 2b. Flush and synchronize any offline-created tasks to backend
+    if (serverSuccess) {
+      this.syncPendingOfflineTasksToServer(token, localTasks).catch(() => {});
+    }
 
     localTasks.forEach((t) => {
       if (!t || !t.id || isTaskFromDeletedLead(t, deletedData)) return;

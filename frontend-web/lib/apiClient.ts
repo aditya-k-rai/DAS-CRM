@@ -4,8 +4,17 @@
  * transparent token refresh, and retry of failed requests.
  */
 
+export const CLOUD_CANDIDATE_URLS = [
+  'http://localhost:3001/api/v1',
+  'https://dascrm-backend.onrender.com/api/v1',
+  'https://das-backend.onrender.com/api/v1',
+];
+
 export const getApiBase = () => {
   if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('das_crm_active_api_base');
+    if (saved) return saved.replace(/\/+$/, '');
+
     const host = window.location.hostname;
     const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
     if (isLocal) {
@@ -17,10 +26,10 @@ export const getApiBase = () => {
       return `http://${host}:3001/api/v1`;
     }
     const envUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    if (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1')) {
-      return '/api/v1';
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl.replace(/\/+$/, '');
     }
-    return envUrl.replace(/\/+$/, '');
+    return '/api/v1';
   }
   return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/+$/, '');
 };
@@ -112,7 +121,34 @@ export async function apiFetch(
   try {
     response = await fetch(fullUrl, { ...options, headers });
   } catch (netErr) {
+    if (!urlOrPath.startsWith('http') && typeof window !== 'undefined') {
+      const candidates = CLOUD_CANDIDATE_URLS.filter((c) => !apiBase.includes(c));
+      for (const cand of candidates) {
+        try {
+          const fallbackUrl = `${cand}${urlOrPath.startsWith('/') ? '' : '/'}${urlOrPath}`;
+          const res = await fetch(fallbackUrl, { ...options, headers });
+          if (res.ok || res.status < 500) {
+            localStorage.setItem('das_crm_active_api_base', cand);
+            return res;
+          }
+        } catch (_) {}
+      }
+    }
     throw netErr;
+  }
+
+  if ((response.status === 502 || response.status === 504) && !urlOrPath.startsWith('http') && typeof window !== 'undefined') {
+    const candidates = CLOUD_CANDIDATE_URLS.filter((c) => !apiBase.includes(c));
+    for (const cand of candidates) {
+      try {
+        const fallbackUrl = `${cand}${urlOrPath.startsWith('/') ? '' : '/'}${urlOrPath}`;
+        const res = await fetch(fallbackUrl, { ...options, headers });
+        if (res.ok || res.status < 500) {
+          localStorage.setItem('das_crm_active_api_base', cand);
+          return res;
+        }
+      } catch (_) {}
+    }
   }
 
   // Handle 401 Unauthorized with transparent token refresh
