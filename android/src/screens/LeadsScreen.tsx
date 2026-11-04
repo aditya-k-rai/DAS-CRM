@@ -111,7 +111,7 @@ const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [
 ];
 
 
-export default function LeadsScreen() {
+export default function LeadsScreen({ route }: any) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<LeadsNavProp>();
   const { colors, isDark } = useTheme();
@@ -127,6 +127,22 @@ export default function LeadsScreen() {
 
   // ── SEGMENTED SLIDER STATE ──────────────────────────────────────────────────
   const [activeSegment, setActiveSegment] = useState<'FUNNEL' | 'COLLECTIONS'>('COLLECTIONS');
+
+  // 🎯 Auto-route to selected segment and filter when navigated from Dashboard or Deep-link
+  useEffect(() => {
+    const params = route?.params;
+    if (params) {
+      if (params.segment) {
+        setActiveSegment(params.segment);
+      }
+      if (params.filter) {
+        setActiveFilter(params.filter);
+      }
+      if (params.initialViewMode) {
+        setViewMode(params.initialViewMode);
+      }
+    }
+  }, [route?.params]);
 
   // ── VIEW MODE: EXCEL SPREADSHEET vs CARD FEED ──────────────────────────────
   const [viewMode, setViewMode] = useState<'EXCEL_GRID' | 'CARD_LIST'>('EXCEL_GRID');

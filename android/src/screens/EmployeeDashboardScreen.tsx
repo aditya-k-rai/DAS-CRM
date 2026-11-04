@@ -182,8 +182,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         productCatalogService.getProducts(),
         followUpSyncEngine.loadAllFollowUps(token, currentUser, []),
       ]);
-      if (!Array.isArray(items) || items.length === 0) {
-        items = ENTERPRISE_SEED_LEADS;
+      if (!Array.isArray(items) || items.length < ENTERPRISE_SEED_LEADS.length) {
+        const itemIds = new Set((items || []).map((i) => i.id));
+        const missing = ENTERPRISE_SEED_LEADS.filter((s) => !itemIds.has(s.id));
+        items = [...(items || []), ...missing];
       }
       if (!Array.isArray(tasks) || tasks.length === 0) {
         tasks = ENTERPRISE_SEED_TASKS;
@@ -805,7 +807,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           <>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>🎯 My Leads Overview</Text>
-              <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
+              <TouchableOpacity onPress={() => navigation?.navigate('Leads', { screen: 'LeadsList', params: { segment: 'COLLECTIONS', filter: 'ALL' } })}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All ({scopedLeads.length}) →</Text>
               </TouchableOpacity>
             </View>
@@ -836,7 +838,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             {/* ── 3. New Leads Cards (Direct Outreach Actions) ───────────────────── */}
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>🌱 New Leads</Text>
-              <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
+              <TouchableOpacity onPress={() => navigation?.navigate('Leads', { screen: 'LeadsList', params: { segment: 'COLLECTIONS', filter: 'NEW LEAD' } })}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All New Leads →</Text>
               </TouchableOpacity>
             </View>

@@ -277,9 +277,18 @@ export class LeadsController {
   }
 
   @Put(':id')
+  @ApiOperation({ summary: 'Update lead (PUT)' })
+  updatePut(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateLeadDto,
+  ) {
+    return this.leadsService.update(user.organizationId, user.id, id, dto);
+  }
+
   @Patch(':id')
-  @ApiOperation({ summary: 'Update lead' })
-  update(
+  @ApiOperation({ summary: 'Update lead (PATCH)' })
+  updatePatch(
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() dto: UpdateLeadDto,

@@ -298,7 +298,15 @@ class ApiService {
 
     // 1. Immediately read cached leads and purge any legacy mock billionaire entries
     const rawCachedLeads: LeadItem[] = await offlineSyncEngine.getCachedLeads();
-    const cachedLeads: LeadItem[] = (rawCachedLeads || []).filter((l) => !isMockLead(l));
+    let cachedLeads: LeadItem[] = (rawCachedLeads || []).filter((l) => !isMockLead(l));
+
+    // Auto-repair stale or truncated cache (e.g. if previous session cached only 50 leads instead of 256+)
+    if (!cachedLeads || cachedLeads.length < ENTERPRISE_SEED_LEADS.length) {
+      const existingIds = new Set((cachedLeads || []).map((l) => l.id));
+      const missingFromSeed = ENTERPRISE_SEED_LEADS.filter((s) => !existingIds.has(s.id));
+      cachedLeads = [...(cachedLeads || []), ...missingFromSeed];
+      offlineSyncEngine.saveCachedLeads(cachedLeads).catch(() => {});
+    }
 
     let authToken = token;
     if (!authToken) {
@@ -599,13 +607,19 @@ class ApiService {
     };
     await offlineSyncEngine.upsertCachedLead(updatedLead, true);
 
-    const payload = {
-      ...updates,
-      ...(updates.name ? {
-        firstName: updates.name.split(' ')[0],
-        lastName: updates.name.split(' ').slice(1).join(' '),
-      } : {}),
-    };
+    // Clean payload: strip client-only metadata and prepare fields
+    const cleanPayload: Record<string, any> = { ...updates };
+    delete cleanPayload._synced;
+    delete cleanPayload._isOfflineDraft;
+    delete cleanPayload._updatedAt;
+    delete cleanPayload._hasConflict;
+    delete cleanPayload.id;
+
+    if (updates.name && (!cleanPayload.firstName || !cleanPayload.lastName)) {
+      const parts = updates.name.trim().split(/\s+/);
+      cleanPayload.firstName = parts[0];
+      cleanPayload.lastName = parts.slice(1).join(' ');
+    }
 
     let authToken = token;
     if (!authToken) {
@@ -616,16 +630,30 @@ class ApiService {
 
     if (authToken && !leadId.startsWith('lead-local-')) {
       try {
-        const res = await fetchWithFailover(`/leads/${encodeURIComponent(leadId)}`, {
+        let res = await fetchWithFailover(`/leads/${encodeURIComponent(leadId)}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authToken}`,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(cleanPayload),
         });
 
+        if (!res.ok) {
+          // Failover to PUT if PATCH is rejected by an older gateway
+          res = await fetchWithFailover(`/leads/${encodeURIComponent(leadId)}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify(cleanPayload),
+          });
+        }
+
         if (res.ok) {
+          updatedLead._synced = true;
+          await offlineSyncEngine.upsertCachedLead(updatedLead, true);
           await offlineSyncEngine.markLeadSynced(leadId);
           return true;
         }
@@ -636,7 +664,7 @@ class ApiService {
       action: 'UPDATE_LEAD',
       endpoint: `/leads/${leadId}`,
       method: 'PATCH',
-      payload,
+      payload: cleanPayload,
       entityId: leadId,
     });
 
@@ -675,6 +703,10 @@ class ApiService {
         });
 
         if (res.ok) {
+          if (existing) {
+            existing._synced = true;
+            await offlineSyncEngine.upsertCachedLead(existing, true);
+          }
           await offlineSyncEngine.markLeadSynced(leadId);
           return true;
         }

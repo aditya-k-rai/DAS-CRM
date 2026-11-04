@@ -710,11 +710,21 @@ export class LeadsService {
       }
     }
 
-    // Resolve stage to statusId if passed
+    // Parse combined name if firstName not explicitly provided
+    let firstName = dto.firstName;
+    let lastName = dto.lastName;
+    if (!firstName && dto.name && dto.name.trim()) {
+      const parts = dto.name.trim().split(/\s+/);
+      firstName = parts[0];
+      lastName = parts.slice(1).join(' ');
+    }
+
+    // Resolve stage or status string to statusId if passed
     let statusId = dto.statusId;
-    if (!statusId && dto.stage) {
+    const rawStatus = dto.stage || dto.status;
+    if (!statusId && rawStatus && rawStatus.trim()) {
       const st = await this.prisma.leadStatus.findFirst({
-        where: { organizationId, name: { equals: dto.stage.trim(), mode: 'insensitive' } },
+        where: { organizationId, name: { equals: rawStatus.trim(), mode: 'insensitive' } },
       });
       if (st) statusId = st.id;
     }
@@ -747,23 +757,49 @@ export class LeadsService {
       if (comp) companyId = comp.id;
     }
 
+    // Merge city, budget, requirement, etc. into customFields
+    const currentCustomFields = (existing.customFields as Record<string, any>) || {};
+    const updatedCustomFields = {
+      ...currentCustomFields,
+      ...(dto.customFields || {}),
+      ...(dto.city ? { city: dto.city } : {}),
+      ...(dto.budget ? { budget: dto.budget } : {}),
+      ...(dto.requirement ? { requirement: dto.requirement } : {}),
+      ...(dto.callSyncStatus ? { callSyncStatus: dto.callSyncStatus } : {}),
+      ...(dto.assignedRep ? { assignedRep: dto.assignedRep } : {}),
+      ...(dto.value ? { value: dto.value } : {}),
+    };
+
+    const effectiveNotes = dto.notes !== undefined ? dto.notes : (dto.note !== undefined ? dto.note : undefined);
+
     const lead = await this.prisma.lead.update({
       where: { id },
       data: {
-        ...(dto.firstName && { firstName: dto.firstName }),
-        ...(dto.lastName && { lastName: dto.lastName }),
+        ...(firstName && { firstName }),
+        ...(lastName !== undefined && { lastName }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(statusId && { statusId }),
         ...(dto.ownerId !== undefined && { ownerId: dto.ownerId }),
         ...(companyId !== undefined && { companyId }),
         ...(dto.sourceId !== undefined && { sourceId: dto.sourceId }),
-        ...(dto.customFields && { customFields: dto.customFields }),
+        customFields: updatedCustomFields,
         ...(dto.tags && { tags: dto.tags }),
-        ...(dto.notes !== undefined && { notes: dto.notes }),
+        ...(effectiveNotes !== undefined && { notes: effectiveNotes }),
         lastActivityAt: new Date(),
       },
     });
+
+    if (effectiveNotes && effectiveNotes.trim()) {
+      await this.prisma.note.create({
+        data: {
+          organizationId,
+          leadId: id,
+          createdById: userId,
+          content: effectiveNotes.trim(),
+        },
+      }).catch(() => {});
+    }
 
     if (this.realtimeService) {
       this.realtimeService.emitDomainEvent({

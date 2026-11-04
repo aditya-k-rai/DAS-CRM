@@ -81,7 +81,7 @@ const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [];
 
 // Navigation Param Lists
 export type LeadsStackParamList = {
-  LeadsList: undefined;
+  LeadsList: { segment?: 'COLLECTIONS' | 'FUNNEL'; filter?: string; initialViewMode?: 'EXCEL_GRID' | 'CARD_LIST' } | undefined;
   LeadDetail: {
     leadId: string;
     leadName?: string;
