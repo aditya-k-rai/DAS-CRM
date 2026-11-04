@@ -643,26 +643,53 @@ export class FollowUpsService {
 
     // Log activity if linked to a valid DB lead
     if (validLeadId) {
-      await this.prisma.activity.create({
-        data: {
+      // Check if an outreach activity (CALL / WHATSAPP / EMAIL) was recently logged for this lead with the same followUpDate
+      const recentOutreach = await this.prisma.activity.findFirst({
+        where: {
           organizationId,
-          type: 'TASK',
-          userId,
           leadId: validLeadId,
-          description: `Follow-up created: ${dto.title.trim()} (${followUpType})`,
-          metadata: {
-            followUpId: followUp.id,
-            followUpType,
-            dueAt: dueAt ? dueAt.toISOString() : undefined,
-            followUpDate: dto.scheduledDate,
-            followUpTime: dto.scheduledTime,
-            title: dto.title.trim(),
-            purpose: dto.purpose,
-            notes: dto.notes,
-            priority,
-          },
+          createdAt: { gte: new Date(Date.now() - 60 * 1000) },
+          type: { in: ['CALL', 'NOTE', 'TASK'] },
         },
-      }).catch(() => null);
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const recentMeta = (recentOutreach?.metadata as any) || {};
+      const alreadyCovered =
+        recentMeta.followUpDate &&
+        dto.scheduledDate &&
+        recentMeta.followUpDate === dto.scheduledDate;
+
+      if (!alreadyCovered) {
+        await this.prisma.activity.create({
+          data: {
+            organizationId,
+            type: 'TASK',
+            userId,
+            leadId: validLeadId,
+            description: `Follow-up created: ${dto.title.trim()} (${followUpType})`,
+            metadata: {
+              followUpId: followUp.id,
+              followUpType,
+              dueAt: dueAt ? dueAt.toISOString() : undefined,
+              followUpDate: dto.scheduledDate,
+              followUpTime: dto.scheduledTime,
+              title: dto.title.trim(),
+              purpose: dto.purpose,
+              notes: dto.notes,
+              priority,
+            },
+          },
+        }).catch(() => null);
+      } else if (recentOutreach && !recentMeta.followUpId) {
+        // Link task ID & followUpType to the recent outreach activity
+        recentMeta.followUpId = followUp.id;
+        recentMeta.followUpType = followUpType;
+        await this.prisma.activity.update({
+          where: { id: recentOutreach.id },
+          data: { metadata: recentMeta },
+        }).catch(() => null);
+      }
     }
 
     return { ...followUp, computedStatus: 'PENDING' };

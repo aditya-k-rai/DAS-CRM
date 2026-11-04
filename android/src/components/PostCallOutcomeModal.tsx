@@ -176,6 +176,7 @@ export default function PostCallOutcomeModal({
   const [scheduledTime, setScheduledTime] = useState<string>('10:30 AM');
   const [selectedQuickChip, setSelectedQuickChip] = useState<string>('Tomorrow (10:30 AM)');
   const [enablePreAlert5Min, setEnablePreAlert5Min] = useState<boolean>(true);
+  const [followUpChannel, setFollowUpChannel] = useState<'CALL' | 'WHATSAPP' | 'MEETING' | 'EMAIL'>('CALL');
 
   // ── Product Catalog & Custom Product ────────────────────────────────────────
   const [productSearch, setProductSearch] = useState('');
@@ -346,6 +347,7 @@ export default function PostCallOutcomeModal({
     setScheduledTime('10:30 AM');
     setSelectedQuickChip('Tomorrow (10:30 AM)');
     setEnablePreAlert5Min(true);
+    setFollowUpChannel('CALL');
     setProductSearch('');
     setSelectedProduct(null);
     setCustomProductInput('');
@@ -493,6 +495,7 @@ export default function PostCallOutcomeModal({
       scheduledDate: isSchedulingApplicable ? (scheduledIsoDate || scheduledDate) : undefined,
       scheduledDisplayDate: isSchedulingApplicable ? scheduledDate : undefined,
       scheduledTime: isSchedulingApplicable ? scheduledTime : undefined,
+      scheduledType: isSchedulingApplicable ? followUpChannel : undefined,
       enablePreAlert5Min: isSchedulingApplicable ? enablePreAlert5Min : undefined,
       selectedProduct,
       customProduct: customProductInput.trim() || undefined,
@@ -1267,7 +1270,67 @@ export default function PostCallOutcomeModal({
                   ))}
                 </View>
 
+                {/* Follow-up Channel Selector */}
+                <View style={{ marginTop: 8 }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
+                    Follow-up Channel / Type:
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'CALL', label: 'Call Callback', icon: '📞' },
+                      { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
+                      { key: 'MEETING', label: 'Meeting', icon: '🏢' },
+                      { key: 'EMAIL', label: 'Email', icon: '📧' },
+                    ].map(ch => (
+                      <TouchableOpacity
+                        key={ch.key}
+                        style={[
+                          styles.channelChip,
+                          followUpChannel === ch.key && styles.channelChipActive,
+                        ]}
+                        onPress={() => setFollowUpChannel(ch.key as any)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
+                        <Text style={[styles.channelChipText, followUpChannel === ch.key && { color: '#ffffff', fontWeight: '800' }]}>
+                          {ch.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
                 {/* Pre-Alert 5-Min Notification */}
+                {/* Follow-up Channel Selector */}
+                <View style={{ marginTop: 8 }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
+                    Callback Channel / Type:
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'CALL', label: 'Call Callback', icon: '📞' },
+                      { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
+                      { key: 'MEETING', label: 'Meeting', icon: '🏢' },
+                      { key: 'EMAIL', label: 'Email', icon: '📧' },
+                    ].map(ch => (
+                      <TouchableOpacity
+                        key={ch.key}
+                        style={[
+                          styles.channelChip,
+                          followUpChannel === ch.key && styles.channelChipActive,
+                        ]}
+                        onPress={() => setFollowUpChannel(ch.key as any)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
+                        <Text style={[styles.channelChipText, followUpChannel === ch.key && { color: '#ffffff', fontWeight: '800' }]}>
+                          {ch.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
                 <TouchableOpacity
                   style={[styles.checkboxRow, { marginTop: 8 }]}
                   onPress={() => setEnablePreAlert5Min(!enablePreAlert5Min)}
@@ -1372,6 +1435,36 @@ export default function PostCallOutcomeModal({
                     </View>
                   </View>
                 )}
+
+                {/* Follow-up Channel Selector */}
+                <View style={{ marginTop: 8 }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
+                    Callback Channel / Type:
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'CALL', label: 'Call Callback', icon: '📞' },
+                      { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
+                      { key: 'MEETING', label: 'Meeting', icon: '🏢' },
+                      { key: 'EMAIL', label: 'Email', icon: '📧' },
+                    ].map(ch => (
+                      <TouchableOpacity
+                        key={ch.key}
+                        style={[
+                          styles.channelChip,
+                          followUpChannel === ch.key && styles.channelChipActive,
+                        ]}
+                        onPress={() => setFollowUpChannel(ch.key as any)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
+                        <Text style={[styles.channelChipText, followUpChannel === ch.key && { color: '#ffffff', fontWeight: '800' }]}>
+                          {ch.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
 
                 <TouchableOpacity
                   style={[styles.checkboxRow, { marginTop: 8 }]}
@@ -1809,6 +1902,27 @@ const styles = StyleSheet.create({
   },
   stageBadge: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
   stageBadgeText: { fontSize: 9, fontWeight: '900' },
+
+  channelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+  },
+  channelChipActive: {
+    borderColor: '#38bdf8',
+    backgroundColor: 'rgba(56,189,248,0.2)',
+  },
+  channelChipText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#94a3b8',
+  },
 
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center' },
   cancelBtn: {

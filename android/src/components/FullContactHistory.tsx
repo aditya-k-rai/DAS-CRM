@@ -57,7 +57,7 @@ export interface ContactAttempt {
   id: string;
   type: ContactType;
   outcome: ContactOutcome;
-  scheduledType?: 'CALL' | 'MEETING';
+  scheduledType?: 'CALL' | 'MEETING' | 'WHATSAPP' | 'EMAIL' | string;
   by: string; // Rep name
   byRole?: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | string;
   timestamp: string; // ISO string or human-readable timestamp
@@ -192,11 +192,65 @@ export function deduplicateContactAttempts(history: ContactAttempt[]): ContactAt
       continue;
     }
 
-    // 2. Semantic content key match
+    // 2. Exact semantic content key match
     const timeMinute = item.timestamp ? item.timestamp.slice(0, 16) : '';
-    const contentKey = `${item.type}_${item.outcome}_${timeMinute}_${item.followUpDate || ''}_${(item.notes || '').slice(0, 40)}`;
+    const contentKey = `${item.type}_${item.outcome}_${timeMinute}_${item.followUpDate || ''}_${item.followUpTime || ''}_${(item.notes || '').slice(0, 40)}`;
     if (seenContentKeys.has(contentKey)) {
       continue;
+    }
+
+    // 3. Prevent duplicate generic FOLLOWUP_SCHEDULED or 'Follow-up created:' card if an outreach attempt (CALL, WHATSAPP, EMAIL) covers it
+    const isGenericFollowUp =
+      item.type === 'FOLLOWUP_SCHEDULED' ||
+      (item.type as string) === 'TASK' ||
+      Boolean(item.notes && item.notes.toLowerCase().includes('follow-up created:')) ||
+      Boolean(item.notes && item.notes.toLowerCase().includes('callback:'));
+
+    if (isGenericFollowUp) {
+      const isAlreadyCovered = history.some(other => {
+        if (!other || other === item) return false;
+        const isOutreach =
+          other.type.startsWith('CALL') ||
+          other.type.startsWith('WHATSAPP') ||
+          other.type.startsWith('EMAIL') ||
+          other.type === 'QUOTATION' ||
+          other.type === 'INVOICE' ||
+          other.sharingMedium?.includes('WHATSAPP') ||
+          other.sharingMedium?.includes('EMAIL');
+
+        if (!isOutreach) return false;
+
+        // Match by same followUpDate
+        if (item.followUpDate && other.followUpDate && item.followUpDate === other.followUpDate) return true;
+
+        // Match by timestamp proximity within 3 minutes (180,000ms)
+        const tItem = new Date(item.timestamp || 0).getTime();
+        const tOther = new Date(other.timestamp || 0).getTime();
+        if (tItem > 0 && tOther > 0 && Math.abs(tItem - tOther) < 180000 && other.followUpDate) return true;
+
+        return false;
+      });
+
+      if (isAlreadyCovered) {
+        continue;
+      }
+
+      // Also prevent duplicate generic follow-up cards for the same follow-up date and time
+      const isDuplicateStandaloneFollowUp = result.some(prev => {
+        const isPrevGeneric =
+          prev.type === 'FOLLOWUP_SCHEDULED' ||
+          (prev.type as string) === 'TASK' ||
+          Boolean(prev.notes && prev.notes.toLowerCase().includes('follow-up created:'));
+        if (!isPrevGeneric) return false;
+        if (item.followUpDate && prev.followUpDate && item.followUpDate === prev.followUpDate) {
+          if (!item.followUpTime || !prev.followUpTime || item.followUpTime === prev.followUpTime) return true;
+        }
+        return false;
+      });
+
+      if (isDuplicateStandaloneFollowUp) {
+        continue;
+      }
     }
 
     if (item.id) seenIds.add(item.id);
@@ -205,6 +259,330 @@ export function deduplicateContactAttempts(history: ContactAttempt[]): ContactAt
   }
 
   return result;
+}
+
+export function resolveAttemptMethod(attempt?: Partial<ContactAttempt>): {
+  key: string;
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  border: string;
+} {
+  const type = (attempt?.type || '').toUpperCase();
+  const med = (attempt?.sharingMedium || '').toLowerCase();
+  const notes = (attempt?.notes || '').toLowerCase();
+
+  if (type === 'CALL_IN') {
+    return {
+      key: 'CALL_IN',
+      label: 'INBOUND CALL',
+      icon: '📲',
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  if (type.startsWith('CALL')) {
+    return {
+      key: 'CALL_OUT',
+      label: 'OUTBOUND CALL',
+      icon: '📞',
+      color: '#34d399',
+      bg: 'rgba(52,211,153,0.15)',
+      border: 'rgba(52,211,153,0.35)',
+    };
+  }
+
+  if (type === 'WHATSAPP_CLOUD' || med.includes('cloud')) {
+    return {
+      key: 'WHATSAPP_CLOUD',
+      label: 'WHATSAPP CLOUD',
+      icon: '💬',
+      color: '#2dd4bf',
+      bg: 'rgba(45,212,191,0.15)',
+      border: 'rgba(45,212,191,0.35)',
+    };
+  }
+
+  if (type.startsWith('WHATSAPP') || med.includes('whatsapp') || notes.includes('whatsapp')) {
+    return {
+      key: 'WHATSAPP_DIRECT',
+      label: 'WHATSAPP DIRECT',
+      icon: '💬',
+      color: '#4ade80',
+      bg: 'rgba(74,222,128,0.15)',
+      border: 'rgba(74,222,128,0.35)',
+    };
+  }
+
+  if (type === 'EMAIL_AUTOMATION' || med.includes('automation')) {
+    return {
+      key: 'EMAIL_AUTOMATION',
+      label: 'EMAIL AUTO',
+      icon: '⚡',
+      color: '#a78bfa',
+      bg: 'rgba(167,139,250,0.15)',
+      border: 'rgba(167,139,250,0.35)',
+    };
+  }
+
+  if (type.startsWith('EMAIL') || med.includes('email') || notes.includes('email')) {
+    return {
+      key: 'EMAIL_DIRECT',
+      label: 'EMAIL DIRECT',
+      icon: '📧',
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  if (type === 'QUOTATION' || attempt?.outcome === 'QUOTATION_SHARED' || attempt?.docType === 'QUOTATION') {
+    return {
+      key: 'QUOTATION',
+      label: 'QUOTATION',
+      icon: '📄',
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  if (type === 'INVOICE' || attempt?.outcome === 'INVOICE_SHARED' || attempt?.docType === 'INVOICE') {
+    return {
+      key: 'INVOICE',
+      label: 'INVOICE',
+      icon: '🧾',
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  const isMeeting =
+    attempt?.outcome === 'MEETING_SCHEDULED' ||
+    attempt?.scheduledType === 'MEETING' ||
+    /meeting|visit|in-person/i.test(notes);
+
+  if (isMeeting) {
+    return {
+      key: 'MEETING',
+      label: 'MEETING / VISIT',
+      icon: '🏢',
+      color: '#a855f7',
+      bg: 'rgba(168,85,247,0.15)',
+      border: 'rgba(168,85,247,0.35)',
+    };
+  }
+
+  // Standalone Follow-up
+  return {
+    key: 'FOLLOWUP_SCHEDULED',
+    label: 'FOLLOW-UP SCHEDULED',
+    icon: '⏱️',
+    color: '#38bdf8',
+    bg: 'rgba(56,189,248,0.15)',
+    border: 'rgba(56,189,248,0.35)',
+  };
+}
+
+export function resolveAttemptOutput(attempt?: Partial<ContactAttempt>): {
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  border: string;
+} | null {
+  const type = (attempt?.type || '').toUpperCase();
+  const outcome = (attempt?.outcome || '').toUpperCase();
+
+  // Call outcomes
+  if (type === 'CALL_BUSY' || outcome === 'BUSY') {
+    return {
+      label: 'BUSY / ENGAGED',
+      icon: '🔴',
+      color: '#f59e0b',
+      bg: 'rgba(245,158,11,0.15)',
+      border: 'rgba(245,158,11,0.35)',
+    };
+  }
+
+  if (type === 'CALL_MISSED' || outcome === 'NO_ANSWER' || outcome === 'NOT_RESPONDING') {
+    return {
+      label: 'NO ANSWER',
+      icon: '🔕',
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,0.15)',
+      border: 'rgba(239,68,68,0.35)',
+    };
+  }
+
+  if (type === 'CALL_SWITCH_OFF' || type === 'CALL_NOT_RESPONDING' || outcome === 'SWITCH_OFF' || outcome === 'SWITCHED_OFF') {
+    return {
+      label: 'SWITCHED OFF',
+      icon: '📵',
+      color: '#94a3b8',
+      bg: 'rgba(148,163,184,0.15)',
+      border: 'rgba(148,163,184,0.35)',
+    };
+  }
+
+  if (
+    outcome === 'TALKED' ||
+    outcome === 'CONNECTED' ||
+    (type.startsWith('CALL') &&
+      (outcome === 'TALKED' || outcome === 'CONNECTED' || outcome === 'DEAL_CLOSED' || outcome === 'INTERESTED_MORE_INFO'))
+  ) {
+    return {
+      label: 'CONNECTED',
+      icon: '✅',
+      color: '#10b981',
+      bg: 'rgba(16,185,129,0.15)',
+      border: 'rgba(16,185,129,0.35)',
+    };
+  }
+
+  if (outcome === 'NOT_INTERESTED') {
+    return {
+      label: 'NOT INTERESTED',
+      icon: '❌',
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,0.15)',
+      border: 'rgba(239,68,68,0.35)',
+    };
+  }
+
+  if (outcome === 'WILL_CALL_BACK') {
+    return {
+      label: 'WILL CALL BACK',
+      icon: '🔄',
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  if (outcome === 'WA_SENT' || outcome === 'SENT') {
+    return {
+      label: 'SENT',
+      icon: '✅',
+      color: '#22c55e',
+      bg: 'rgba(34,197,94,0.15)',
+      border: 'rgba(34,197,94,0.35)',
+    };
+  }
+
+  if (outcome === 'WA_RESPONDED') {
+    return {
+      label: 'RESPONDED',
+      icon: '💬',
+      color: '#10b981',
+      bg: 'rgba(16,185,129,0.15)',
+      border: 'rgba(16,185,129,0.35)',
+    };
+  }
+
+  if (outcome === 'EMAIL_SENT') {
+    return {
+      label: 'SENT',
+      icon: '📨',
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  if (outcome === 'MEETING_SCHEDULED') {
+    return {
+      label: 'SCHEDULED',
+      icon: '📅',
+      color: '#a855f7',
+      bg: 'rgba(168,85,247,0.15)',
+      border: 'rgba(168,85,247,0.35)',
+    };
+  }
+
+  if (outcome === 'FOLLOW_UP_COMPLETED') {
+    return {
+      label: 'COMPLETED',
+      icon: '✅',
+      color: '#10b981',
+      bg: 'rgba(16,185,129,0.15)',
+      border: 'rgba(16,185,129,0.35)',
+    };
+  }
+
+  if (type === 'FOLLOWUP_SCHEDULED') {
+    return {
+      label: 'PENDING',
+      icon: '⏳',
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.15)',
+      border: 'rgba(56,189,248,0.35)',
+    };
+  }
+
+  return null;
+}
+
+export function resolveFollowUpType(attempt?: Partial<ContactAttempt>): {
+  type: string;
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  border: string;
+} {
+  const schedType = String(attempt?.scheduledType || '').toUpperCase();
+  const notes = String(attempt?.notes || '').toLowerCase();
+  const title = String(attempt?.title || '').toLowerCase();
+  const purpose = String(attempt?.purpose || '').toLowerCase();
+  const text = `${notes} ${title} ${purpose}`;
+
+  if (schedType === 'MEETING' || /meeting|visit|in-person|walkthrough|demo/i.test(text)) {
+    return {
+      type: 'MEETING',
+      label: 'Meeting / Visit',
+      icon: '🏢',
+      color: '#a855f7',
+      bg: 'rgba(168,85,247,0.15)',
+      border: 'rgba(168,85,247,0.35)',
+    };
+  }
+
+  if (schedType === 'WHATSAPP' || /whatsapp|wa chat|wa direct/i.test(text)) {
+    return {
+      type: 'WHATSAPP',
+      label: 'WhatsApp Outreach',
+      icon: '💬',
+      color: '#22c55e',
+      bg: 'rgba(34,197,94,0.15)',
+      border: 'rgba(34,197,94,0.35)',
+    };
+  }
+
+  if (schedType === 'EMAIL' || /email|mail/i.test(text)) {
+    return {
+      type: 'EMAIL',
+      label: 'Email Follow-up',
+      icon: '📧',
+      color: '#818cf8',
+      bg: 'rgba(129,140,248,0.15)',
+      border: 'rgba(129,140,248,0.35)',
+    };
+  }
+
+  // Default to Phone Call / Callback
+  return {
+    type: 'CALL',
+    label: 'Call Callback',
+    icon: '📞',
+    color: '#38bdf8',
+    bg: 'rgba(56,189,248,0.15)',
+    border: 'rgba(56,189,248,0.35)',
+  };
 }
 
 export function groupByDate(history: ContactAttempt[]): Record<string, ContactAttempt[]> {
@@ -742,7 +1120,7 @@ export default function FullContactHistory({
     let quote = 0;
     let inv = 0;
     let meet = 0;
-    let fu = 0;
+    const fuDistinctSet = new Set<string>();
     let calls = 0;
 
     for (const h of dedupedHistory) {
@@ -768,15 +1146,16 @@ export default function FullContactHistory({
         meet++;
       }
 
-      // Follow-ups
-      if (
+      // Follow-ups - count distinct follow-up instances
+      if (h.followUpDate) {
+        fuDistinctSet.add(`${h.followUpDate}_${h.followUpTime || ''}`);
+      } else if (
         type.startsWith('FOLLOWUP') ||
         outcome.startsWith('FOLLOW_UP') ||
-        h.followUpDate ||
         notes.includes('follow-up') ||
         notes.includes('callback')
       ) {
-        fu++;
+        fuDistinctSet.add(h.id || h.timestamp);
       }
 
       // WhatsApp
@@ -827,7 +1206,7 @@ export default function FullContactHistory({
       quotationCount: quote,
       invoiceCount: inv,
       meetingCount: meet,
-      followUpCount: fu,
+      followUpCount: fuDistinctSet.size,
       totalCalls: calls,
     };
   }, [dedupedHistory]);
@@ -1368,7 +1747,9 @@ export default function FullContactHistory({
               {/* Items in this Day */}
               <View style={{ gap: 8 }}>
                 {items.map((item, idx) => {
-                  const med = resolveAttemptMedium(item);
+                  const methodInfo = resolveAttemptMethod(item);
+                  const outputInfo = resolveAttemptOutput(item);
+                  const fuTypeInfo = resolveFollowUpType(item);
                   const { time } = formatTimestamp(item.timestamp);
                   const durStr = item.durationSeconds ? formatDuration(item.durationSeconds) : undefined;
                   const roleStr = String(item.byRole || '').toUpperCase();
@@ -1386,20 +1767,39 @@ export default function FullContactHistory({
                         },
                       ]}
                     >
-                      {/* Top Row: Medium Pill, Outcome / Title, Duration, Timestamp */}
+                      {/* Top Row: Method Pill ➔ Connected Output Pill, Duration, Timestamp */}
                       <View style={styles.timelineCardHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', flex: 1 }}>
+                          {/* 1. Outreach Method */}
                           <View
                             style={[
                               styles.mediumTagPill,
-                              { backgroundColor: med.bg, borderColor: med.border },
+                              { backgroundColor: methodInfo.bg, borderColor: methodInfo.border },
                             ]}
                           >
-                            <Text style={{ fontSize: 8 }}>{med.icon}</Text>
-                            <Text style={[styles.mediumTagText, { color: med.color }]}>
-                              {med.label}
+                            <Text style={{ fontSize: 9 }}>{methodInfo.icon}</Text>
+                            <Text style={[styles.mediumTagText, { color: methodInfo.color }]}>
+                              {methodInfo.label}
                             </Text>
                           </View>
+
+                          {/* 2. Connected to Output / Outcome */}
+                          {outputInfo && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#64748b' : '#94a3b8' }}>➔</Text>
+                              <View
+                                style={[
+                                  styles.outcomeTagPill,
+                                  { backgroundColor: outputInfo.bg, borderColor: outputInfo.border },
+                                ]}
+                              >
+                                <Text style={{ fontSize: 8 }}>{outputInfo.icon}</Text>
+                                <Text style={[styles.outcomeTagText, { color: outputInfo.color }]}>
+                                  {outputInfo.label}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
 
                           {durStr && (
                             <View style={[styles.durationPill, { backgroundColor: 'rgba(52,211,153,0.15)' }]}>
@@ -1431,20 +1831,39 @@ export default function FullContactHistory({
                         </Text>
                       </View>
 
-                      {/* Scheduled Follow-Up / Meeting banner if set */}
+                      {/* 3. Follow-up Connected to Output with Follow-up Type */}
                       {item.followUpDate && (
                         <View
                           style={[
-                            styles.scheduledBanner,
+                            styles.connectedFollowUpBox,
                             {
-                              backgroundColor: isDark ? 'rgba(56,189,248,0.12)' : 'rgba(2,132,199,0.08)',
-                              borderColor: isDark ? 'rgba(56,189,248,0.35)' : 'rgba(2,132,199,0.25)',
+                              backgroundColor: isDark ? 'rgba(56,189,248,0.08)' : 'rgba(2,132,199,0.06)',
+                              borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(2,132,199,0.22)',
                             },
                           ]}
                         >
-                          <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' }}>
-                            🕒 Scheduled Follow-up: {item.followUpDate} {item.followUpTime ? `@ ${item.followUpTime}` : ''}
-                          </Text>
+                          <View style={styles.connectedFollowUpTop}>
+                            <Text style={[styles.connectedFollowUpHeading, { color: isDark ? '#38bdf8' : '#0284c7' }]}>
+                              🔗 Follow-up Connected to {outputInfo?.label || methodInfo.label}:
+                            </Text>
+                            <View style={[styles.fuTypePill, { backgroundColor: fuTypeInfo.bg, borderColor: fuTypeInfo.border }]}>
+                              <Text style={{ fontSize: 8 }}>{fuTypeInfo.icon}</Text>
+                              <Text style={[styles.fuTypePillText, { color: fuTypeInfo.color }]}>
+                                {fuTypeInfo.label}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.connectedFollowUpScheduleRow}>
+                            <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#f1f5f9' : '#0f172a' }}>
+                              📅 Scheduled: {item.followUpDate} {item.followUpTime ? `@ ${item.followUpTime}` : ''}
+                            </Text>
+                            {item.scheduledType === 'MEETING' && (
+                              <View style={styles.meetingTagPill}>
+                                <Text style={styles.meetingTagText}>🏢 In-Person / Demo</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
                       )}
 
@@ -1816,6 +2235,74 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 8,
     fontWeight: '700',
+  },
+
+  outcomeTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+  },
+  outcomeTagText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  connectedFollowUpBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginTop: 6,
+    gap: 4,
+  },
+  connectedFollowUpTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  connectedFollowUpHeading: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  fuTypePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  fuTypePillText: {
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  connectedFollowUpScheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  meetingTagPill: {
+    backgroundColor: 'rgba(168,85,247,0.15)',
+    borderColor: 'rgba(168,85,247,0.3)',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  meetingTagText: {
+    fontSize: 7.5,
+    fontWeight: '800',
+    color: '#c084fc',
   },
 
   scheduledBanner: {

@@ -225,12 +225,23 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         (fetchedLead as any).activities.forEach(addRawAct);
       }
 
-      // 2. Synthesize follow-up tasks from fetchedLead.tasks if present
+      // 2. Synthesize follow-up tasks from fetchedLead.tasks only if not already represented in activitiesRes
       if (fetchedLead && Array.isArray((fetchedLead as any).tasks)) {
         (fetchedLead as any).tasks.forEach((t: any) => {
           if (!t) return;
           const taskId = `task_${t.id}`;
           if (seenActIds.has(taskId)) return;
+
+          // Check if any existing activity already covers this task
+          const isCoveredByActivity = allRawActivities.some((act: any) => {
+            const meta = act.metadata || {};
+            if (meta.followUpId && (meta.followUpId === t.id || meta.followUpId === String(t.id))) return true;
+            if (meta.followUpDate && t.scheduledDate && meta.followUpDate === t.scheduledDate) return true;
+            return false;
+          });
+
+          if (isCoveredByActivity) return;
+
           seenActIds.add(taskId);
           allRawActivities.push({
             id: taskId,
@@ -238,7 +249,10 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             createdAt: t.createdAt || t.dueAt || new Date().toISOString(),
             description: t.purpose || t.title || t.description || 'Follow-up Scheduled',
             metadata: {
+              followUpId: t.id,
               dueAt: t.dueAt,
+              followUpType: t.followUpType || t.channel || 'CALL',
+              scheduledType: t.followUpType || t.channel || 'CALL',
               followUpDate: t.scheduledDate || (t.dueAt ? new Date(t.dueAt).toISOString().split('T')[0] : undefined),
               followUpTime: t.scheduledTime || (t.dueAt ? new Date(t.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined),
               title: t.title,
@@ -358,6 +372,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             id: String(a.id || `act-${Math.random()}`),
             type,
             outcome,
+            scheduledType: meta.scheduledType || meta.followUpType || a.scheduledType || (isMeeting ? 'MEETING' : undefined),
             by: actorName,
             byRole: actorRole,
             timestamp: a.createdAt || new Date().toISOString(),
@@ -822,7 +837,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         productInterest: callProductInterest,
         followUpDate: data.scheduledDate,
         followUpTime: data.scheduledTime,
-        scheduledType: data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL',
+        scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
       };
 
       attemptsToPrepend.push(callAttempt);
@@ -845,6 +860,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         productInterest: prodInterestString,
         followUpDate: data.scheduledDate,
         followUpTime: data.scheduledTime,
+        scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'WHATSAPP'),
         sentMessage: data.sentMessage,
       };
 
@@ -974,6 +990,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           sentMessage: data.sentMessage,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          followUpType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'WHATSAPP'),
+          scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'WHATSAPP'),
+          hasExternalFollowUpSync: true,
           userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
@@ -998,6 +1017,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           productInterest: undefined,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          followUpType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+          scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+          hasExternalFollowUpSync: true,
           userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
@@ -1021,6 +1043,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           productInterest: prodInterestString,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          followUpType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+          scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+          hasExternalFollowUpSync: true,
           userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,
@@ -1046,6 +1071,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           sentMessage: data.sentMessage,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,
+          followUpType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'WHATSAPP'),
+          scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'WHATSAPP'),
+          hasExternalFollowUpSync: true,
           userId: currentUser?.id,
           by: enrichedData.callerName,
           byRole: enrichedData.callerRole,

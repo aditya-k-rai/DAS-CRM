@@ -190,7 +190,7 @@ export class ActivitiesService {
             where: { id: activity.id },
             data: { metadata: mergedMetadata },
           }).catch(() => {});
-        } else {
+        } else if (!mergedMetadata.hasExternalFollowUpSync) {
           const lead = await this.prisma.lead.findUnique({
             where: { id: validLeadId },
             select: { firstName: true, lastName: true, phone: true },
