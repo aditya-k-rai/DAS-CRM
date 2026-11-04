@@ -59,6 +59,10 @@ export interface LeadItem {
   // AI Lead Score
   aiScore?: AIScoreData;
 
+  // Timeline & Call Activities
+  activities?: any[];
+  tasks?: any[];
+
   // Offline Sync & Conflict Resolution Fields
   _synced?: boolean;
   _isOfflineDraft?: boolean;
@@ -485,6 +489,8 @@ class ApiService {
             rawCreatedAt: item.createdAt,
             aiScore: item.aiScore,
             customFields: item.customFields,
+            activities: Array.isArray(item.activities) ? item.activities : [],
+            tasks: Array.isArray(item.tasks) ? item.tasks : [],
             _synced: true,
             _isOfflineDraft: false,
             _updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
@@ -1528,19 +1534,29 @@ class ApiService {
   async getLeadActivities(token: string | null, leadId: string): Promise<any[]> {
     if (!leadId) return [];
     try {
-      const activeBase = getApiBase();
-      const res = await fetch(`${activeBase}/activities/lead/${leadId}`, {
+      let authToken = token;
+      if (!authToken) {
+        try {
+          authToken = await AsyncStorage.getItem('das_crm_token');
+        } catch (_) {}
+      }
+      const res = await fetchWithFailover(`/activities/lead/${encodeURIComponent(leadId)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
       });
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
-        return Array.isArray(data) ? data : data.activities || data.data || [];
+        const list = Array.isArray(data)
+          ? data
+          : data?.items || data?.activities || data?.data || [];
+        return Array.isArray(list) ? list : [];
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[apiService] getLeadActivities error:', e);
+    }
     return [];
   }
 

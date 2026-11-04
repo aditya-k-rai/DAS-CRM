@@ -192,7 +192,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     if (!leadId) return;
     setIsSyncing(true);
     try {
-      const [fetchedLead, activities] = await Promise.all([
+      const [fetchedLead, activitiesRes] = await Promise.all([
         apiService.getLeadById(token, leadId),
         apiService.getLeadActivities(token, leadId),
       ]);
@@ -208,61 +208,54 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         });
       }
 
-      if (Array.isArray(activities) && activities.length > 0) {
-        const mapped: CallOutcomeData[] = activities.map((a: any) => {
-          const actType = (a.type || a.activityType || '').toUpperCase();
-          const meta = typeof a.metadata === 'object' && a.metadata !== null ? a.metadata : {};
-          const isCall = actType.includes('CALL');
-          const isWa = actType.includes('WHATSAPP') || actType.includes('WA') || meta.type === 'WHATSAPP_DIRECT';
+      // 1. Gather all activities from both getLeadActivities and fetchedLead.activities
+      const allRawActivities: any[] = [];
+      const seenActIds = new Set<string>();
 
-          let outcome: 'PICKED_UP' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCHED_OFF' | 'WHATSAPP_CHAT' = 'PICKED_UP';
-          if (isWa) outcome = 'WHATSAPP_CHAT';
-          else if (a.outcome === 'BUSY' || meta.outcome === 'BUSY') outcome = 'BUSY';
-          else if (a.outcome === 'NOT_RESPONDING' || meta.outcome === 'NOT_RESPONDING') outcome = 'NOT_RESPONDING';
-          else if (a.outcome === 'SWITCHED_OFF' || a.outcome === 'SWITCH_OFF' || meta.outcome === 'SWITCHED_OFF') outcome = 'SWITCHED_OFF';
+      const addRawAct = (a: any) => {
+        if (!a) return;
+        const id = a.id ? String(a.id) : `${a.createdAt}_${a.type}_${a.description}`;
+        if (seenActIds.has(id)) return;
+        seenActIds.add(id);
+        allRawActivities.push(a);
+      };
 
-          const createdDate = a.createdAt ? new Date(a.createdAt) : new Date();
-          const durSecs = a.durationSeconds || meta.durationSeconds || (isCall ? 90 : 0);
-          const durStr = durSecs > 0 ? `${Math.floor(durSecs / 60)}m ${durSecs % 60}s` : undefined;
+      if (Array.isArray(activitiesRes)) activitiesRes.forEach(addRawAct);
+      if (fetchedLead && Array.isArray((fetchedLead as any).activities)) {
+        (fetchedLead as any).activities.forEach(addRawAct);
+      }
 
-          const actorName = a.user
-            ? `${a.user.firstName || ''} ${a.user.lastName || ''}`.trim()
-            : a.performedBy || a.userName || meta.by || leadAssignedRep || 'Sales Rep';
-
-          const actorRole = a.user?.role?.name || a.user?.role || a.userRole || meta.byRole || 'SALES_EXEC';
-
-          let subOption: 'TALKED' | 'CALL_LATER' | 'WILL_VISIT' | 'CATALOGUE_SHARED' | 'INTERESTED' | 'WA_SENT' | 'WA_RESPONDED' = isWa ? 'WA_SENT' : 'TALKED';
-          if (a.subject === 'CATALOGUE_SHARED' || meta.subOption === 'CATALOGUE_SHARED') subOption = 'CATALOGUE_SHARED';
-          else if (a.subject === 'INTERESTED' || meta.subOption === 'INTERESTED' || meta.productInterest) subOption = 'INTERESTED';
-          else if (a.subject === 'WILL_VISIT' || meta.subOption === 'WILL_VISIT') subOption = 'WILL_VISIT';
-          else if (a.subject === 'CALL_LATER' || meta.subOption === 'CALL_LATER') subOption = 'CALL_LATER';
-
-          const productInterest = meta.productInterest || a.productInterest || (subOption === 'INTERESTED' && meta.requirement ? meta.requirement : undefined);
-          const isWaShared = isWa || Boolean(meta.isWaShared || meta.channel === 'WHATSAPP_DIRECT');
-
-          return {
-            leadId,
-            leadName: fetchedLead?.name || leadName,
-            phone: fetchedLead?.phone || leadPhone,
-            outcome,
-            subOption,
-            notes: a.notes || a.description || meta.notes || (isWa ? 'WhatsApp communication logged' : 'Call completed'),
-            durationStr: durStr,
-            callerName: actorName,
-            callerRole: actorRole,
-            dateLabel: createdDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-            timestamp: createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            scheduledDate: meta.followUpDate || a.scheduledDate,
-            scheduledTime: meta.followUpTime || a.scheduledTime,
-            isWaShared,
-            sentMessage: meta.sentMessage || a.sentMessage,
-          };
+      // 2. Synthesize follow-up tasks from fetchedLead.tasks if present
+      if (fetchedLead && Array.isArray((fetchedLead as any).tasks)) {
+        (fetchedLead as any).tasks.forEach((t: any) => {
+          if (!t) return;
+          const taskId = `task_${t.id}`;
+          if (seenActIds.has(taskId)) return;
+          seenActIds.add(taskId);
+          allRawActivities.push({
+            id: taskId,
+            type: 'TASK',
+            createdAt: t.createdAt || t.dueAt || new Date().toISOString(),
+            description: t.purpose || t.title || t.description || 'Follow-up Scheduled',
+            metadata: {
+              dueAt: t.dueAt,
+              followUpDate: t.scheduledDate || (t.dueAt ? new Date(t.dueAt).toISOString().split('T')[0] : undefined),
+              followUpTime: t.scheduledTime || (t.dueAt ? new Date(t.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined),
+              title: t.title,
+              purpose: t.purpose,
+              priority: t.priority,
+              isCompleted: t.isCompleted,
+            },
+            user: t.assignee || t.createdBy,
+          });
         });
-        setRecentOutcomes(mapped);
+      }
 
-        // Map server activities into full ContactAttempt structure matching web
+      if (allRawActivities.length > 0) {
+        const mapped: CallOutcomeData[] = [];
         const mappedAttempts: ContactAttempt[] = [];
-        for (const a of activities) {
+
+        for (const a of allRawActivities) {
           const actType = (a.type || a.activityType || '').toUpperCase();
           const meta = typeof a.metadata === 'object' && a.metadata !== null ? a.metadata : {};
           const isCall = actType.includes('CALL');
@@ -271,6 +264,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           const isMeeting = actType.includes('MEETING') || meta.followUpType === 'MEETING';
           const isInvoice = actType.includes('INVOICE') || meta.docType === 'INVOICE';
           const isQuote = actType.includes('QUOTATION') || meta.docType === 'QUOTATION';
+          const isTask = actType === 'TASK' || actType === 'FOLLOW_UP' || actType === 'FOLLOWUP' || (a.description && a.description.toLowerCase().includes('follow-up'));
+          const isStatusChange = actType === 'STATUS_CHANGE';
+          const isSystem = actType === 'SYSTEM';
 
           const actorName = a.user
             ? `${a.user.firstName || ''} ${a.user.lastName || ''}`.trim()
@@ -278,49 +274,44 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
           const actorRole = a.user?.role?.name || a.user?.role || a.userRole || meta.byRole || 'SALES_EXEC';
 
-          // ⚡ If an activity was recorded as WhatsApp during a phone call (or has call duration / isWaShared)
+          const createdDate = a.createdAt ? new Date(a.createdAt) : new Date();
           const durSecs = a.durationSeconds || meta.durationSeconds || (isCall ? 90 : 0);
-          const isCombinedCallAndWa = isWa && (Boolean(meta.isWaShared) || durSecs > 0 || (a.notes && a.notes.includes('Call disposition')));
+          const durStr = durSecs > 0 ? `${Math.floor(durSecs / 60)}m ${durSecs % 60}s` : undefined;
 
-          if (isCombinedCallAndWa) {
-            const baseTs = a.createdAt ? new Date(a.createdAt).getTime() : Date.now();
-            const callTs = new Date(baseTs + 1000).toISOString();
-            const waTs = new Date(baseTs).toISOString();
+          // Process recentOutcomes list
+          if (isCall || isWa || isMeeting || isTask) {
+            let callOutcome: 'PICKED_UP' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCHED_OFF' | 'WHATSAPP_CHAT' = 'PICKED_UP';
+            if (isWa) callOutcome = 'WHATSAPP_CHAT';
+            else if (a.outcome === 'BUSY' || meta.outcome === 'BUSY') callOutcome = 'BUSY';
+            else if (a.outcome === 'NOT_RESPONDING' || meta.outcome === 'NOT_RESPONDING') callOutcome = 'NOT_RESPONDING';
+            else if (a.outcome === 'SWITCHED_OFF' || a.outcome === 'SWITCH_OFF' || meta.outcome === 'SWITCHED_OFF') callOutcome = 'SWITCHED_OFF';
 
-            // 1. Call attempt (he talked)
-            mappedAttempts.push({
-              id: `${a.id || Math.random()}-call`,
-              type: 'CALL_OUT',
-              outcome: 'TALKED',
-              by: actorName,
-              byRole: actorRole,
-              timestamp: callTs,
-              durationSeconds: durSecs > 0 ? durSecs : 120,
-              notes: a.notes || a.description || meta.notes || (meta.productInterest ? `Talked with client: Discussed ${meta.productInterest}` : 'Call completed'),
-              productInterest: undefined,
-              followUpDate: meta.followUpDate || a.scheduledDate,
-              followUpTime: meta.followUpTime || a.scheduledTime,
-            });
+            let subOption: 'TALKED' | 'CALL_LATER' | 'WILL_VISIT' | 'CATALOGUE_SHARED' | 'INTERESTED' | 'WA_SENT' | 'WA_RESPONDED' = isWa ? 'WA_SENT' : 'TALKED';
+            if (a.subject === 'CATALOGUE_SHARED' || meta.subOption === 'CATALOGUE_SHARED') subOption = 'CATALOGUE_SHARED';
+            else if (a.subject === 'INTERESTED' || meta.subOption === 'INTERESTED' || meta.productInterest) subOption = 'INTERESTED';
+            else if (a.subject === 'WILL_VISIT' || meta.subOption === 'WILL_VISIT') subOption = 'WILL_VISIT';
+            else if (a.subject === 'CALL_LATER' || meta.subOption === 'CALL_LATER') subOption = 'CALL_LATER';
 
-            // 2. WhatsApp attempt (he sent WhatsApp)
-            mappedAttempts.push({
-              id: `${a.id || Math.random()}-wa`,
-              type: meta.channel === 'WA_CLOUD' || actType.includes('CLOUD') ? 'WHATSAPP_CLOUD' : 'WHATSAPP_DIRECT',
-              sharingMedium: 'WHATSAPP_DIRECT',
-              outcome: 'WA_SENT',
-              by: actorName,
-              byRole: actorRole,
-              timestamp: waTs,
-              durationSeconds: 0,
-              notes: meta.productInterest ? `Product details shared via WhatsApp: ${meta.productInterest}` : (a.notes || 'WhatsApp Direct message sent'),
-              productInterest: meta.productInterest || a.productInterest,
+            mapped.push({
+              leadId,
+              leadName: fetchedLead?.name || leadName,
+              phone: fetchedLead?.phone || leadPhone,
+              outcome: callOutcome,
+              subOption,
+              notes: a.notes || a.description || meta.notes || (isWa ? 'WhatsApp communication logged' : 'Call completed'),
+              durationStr: durStr,
+              callerName: actorName,
+              callerRole: actorRole,
+              dateLabel: createdDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+              timestamp: createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              scheduledDate: meta.followUpDate || a.scheduledDate,
+              scheduledTime: meta.followUpTime || a.scheduledTime,
+              isWaShared: isWa || Boolean(meta.isWaShared || meta.channel === 'WHATSAPP_DIRECT'),
               sentMessage: meta.sentMessage || a.sentMessage,
-              followUpDate: meta.followUpDate || a.scheduledDate,
-              followUpTime: meta.followUpTime || a.scheduledTime,
             });
-            continue;
           }
 
+          // Process full contact history attempts
           let type: ContactType = 'CALL_OUT';
           let outcome: ContactOutcome = 'TALKED';
 
@@ -339,6 +330,11 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           } else if (isMeeting) {
             type = 'FOLLOWUP_SCHEDULED';
             outcome = 'MEETING_SCHEDULED';
+          } else if (isTask) {
+            type = 'FOLLOWUP_SCHEDULED';
+            outcome = a.isCompleted || meta.isCompleted ? 'FOLLOW_UP_COMPLETED' : 'FOLLOW_UP_SCHEDULED';
+          } else if (isStatusChange || isSystem) {
+            continue; // Skip internal system/status change logs from contact attempts
           } else if (isCall) {
             if (a.outcome === 'BUSY' || meta.outcome === 'BUSY') {
               type = 'CALL_BUSY';
@@ -355,6 +351,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             }
           }
 
+          const fuDate = meta.followUpDate || a.scheduledDate || (meta.dueAt ? new Date(meta.dueAt).toISOString().split('T')[0] : undefined);
+          const fuTime = meta.followUpTime || a.scheduledTime || (meta.dueAt ? new Date(meta.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined);
+
           mappedAttempts.push({
             id: String(a.id || `act-${Math.random()}`),
             type,
@@ -365,8 +364,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             durationSeconds: durSecs,
             notes: a.notes || a.description || meta.notes || '',
             productInterest: meta.productInterest || a.productInterest,
-            followUpDate: meta.followUpDate || a.scheduledDate,
-            followUpTime: meta.followUpTime || a.scheduledTime,
+            followUpDate: fuDate,
+            followUpTime: fuTime,
             sentMessage: meta.sentMessage || a.sentMessage,
             docNo: meta.docNo || meta.invoiceNo || meta.quoteNumber,
             docType: meta.docType || (isInvoice ? 'INVOICE' : isQuote ? 'QUOTATION' : undefined),
@@ -375,14 +374,54 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           });
         }
 
+        setRecentOutcomes(mapped);
+
         const dedupedMapped = deduplicateContactAttempts(mappedAttempts).filter((item: any) => {
           const note = String(item?.notes || item?.sentMessage || '');
           if (note.includes('This is Test Discription') || note.includes('Old Jacket 1 (Qty: 1 · ₹10,499')) return false;
           if (note.includes('Mr. Ravi Gupta') && !(leadName || '').toLowerCase().includes('ravi')) return false;
           return true;
         });
+
         setContactHistory(dedupedMapped);
         AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(dedupedMapped)).catch(() => {});
+
+        // Compute and sync telemetry stats
+        let totalTalkTimeSeconds = 0;
+        let outgoingCount = 0;
+        let incomingCount = 0;
+        let lastCalledAt = 'Never';
+        let lastDurationStr = '0s';
+        let lastFollowupAt = 'Never';
+
+        dedupedMapped.forEach(att => {
+          const isCallAtt = String(att.type || '').includes('CALL');
+          if (isCallAtt) {
+            outgoingCount++;
+            const dSec = att.durationSeconds || 0;
+            totalTalkTimeSeconds += dSec;
+            if (att.timestamp && lastCalledAt === 'Never') {
+              const d = new Date(att.timestamp);
+              lastCalledAt = isNaN(d.getTime()) ? String(att.timestamp) : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+              if (dSec > 0) {
+                lastDurationStr = `${Math.floor(dSec / 60)}m ${dSec % 60}s`;
+              }
+            }
+          }
+          if (att.followUpDate && lastFollowupAt === 'Never') {
+            lastFollowupAt = `${att.followUpDate} ${att.followUpTime || ''}`.trim();
+          }
+        });
+
+        setTelemetry(prev => ({
+          ...prev,
+          totalTalkTimeSeconds,
+          outgoingCount,
+          incomingCount,
+          lastCalledAt,
+          lastDurationStr,
+          lastFollowupAt,
+        }));
       }
     } catch (e) {
       console.warn('Sync warning:', e);

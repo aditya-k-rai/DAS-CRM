@@ -257,10 +257,60 @@ export class ActivitiesService {
       limit?: number;
     },
   ) {
-    const { leadId, contactId, dealId, page = 1, limit = 20 } = opts;
+    const { leadId, contactId, dealId, page = 1, limit = 50 } = opts;
+
+    let leadIds: string[] = [];
+    if (leadId) {
+      leadIds.push(leadId);
+      try {
+        const targetLead = await this.prisma.lead.findUnique({
+          where: { id: leadId },
+          select: { id: true, phone: true },
+        });
+        if (targetLead?.phone) {
+          const raw = targetLead.phone;
+          const digits = raw.replace(/[^0-9]/g, '');
+          const last10 = digits.slice(-10);
+          const chunk1 = last10.length >= 5 ? last10.slice(0, 5) : '';
+          const chunk2 = last10.length >= 10 ? last10.slice(5) : '';
+
+          const orPhoneConditions: any[] = [
+            { phone: { contains: raw } },
+          ];
+          if (last10.length >= 7) {
+            orPhoneConditions.push({ phone: { contains: last10 } });
+          }
+          if (chunk1 && chunk2) {
+            orPhoneConditions.push({
+              AND: [
+                { phone: { contains: chunk1 } },
+                { phone: { contains: chunk2 } },
+              ],
+            });
+          }
+
+          const duplicates = await this.prisma.lead.findMany({
+            where: {
+              organizationId,
+              OR: orPhoneConditions,
+            },
+            select: { id: true },
+          });
+
+          duplicates.forEach((d) => {
+            if (!leadIds.includes(d.id)) leadIds.push(d.id);
+          });
+        }
+      } catch (_) {}
+    }
+
     const where: any = {
       organizationId,
-      ...(leadId && { leadId }),
+      ...(leadIds.length > 1
+        ? { leadId: { in: leadIds } }
+        : leadIds.length === 1
+        ? { leadId: leadIds[0] }
+        : {}),
       ...(contactId && { contactId }),
       ...(dealId && { dealId }),
     };

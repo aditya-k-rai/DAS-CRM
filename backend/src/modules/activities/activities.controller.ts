@@ -53,17 +53,26 @@ export class ActivitiesController {
 
   @Get('lead/:leadId')
   @ApiOperation({ summary: 'Get all contact activities and timeline for a lead' })
-  getLeadTimeline(
+  async getLeadTimeline(
     @CurrentUser() user: any,
     @Param('leadId') leadId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.activitiesService.getTimeline(user.organizationId, {
+    const res = await this.activitiesService.getTimeline(user.organizationId, {
       leadId,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
     });
+    return {
+      success: true,
+      total: res.total,
+      page: res.page,
+      limit: res.limit,
+      items: res.items,
+      activities: res.items,
+      data: res.items,
+    };
   }
 
   @Get()
