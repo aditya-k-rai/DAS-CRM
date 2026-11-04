@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
 import { useTheme, Theme } from '../context/ThemeContext';
 
 interface ThemeToggleProps {
@@ -8,17 +8,104 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ style, compact = false }: ThemeToggleProps) {
-  const { theme, setTheme, colors, isDark } = useTheme();
+  const { theme, setTheme, toggleTheme, colors, isDark } = useTheme();
 
-  const options: Array<{ value: Theme; label: string; icon: string }> = [
-    { value: 'light', label: 'Light', icon: '☀️' },
-    { value: 'dark', label: 'Dark', icon: '🌙' },
-  ];
+  // 0 = Light (☀️), 1 = Dark (🌙)
+  const thumbAnim = useRef(new Animated.Value(isDark ? 1 : 0)).current;
 
+  useEffect(() => {
+    Animated.spring(thumbAnim, {
+      toValue: isDark ? 1 : 0,
+      tension: 70,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [isDark, thumbAnim]);
+
+  if (compact) {
+    // Smooth sliding pill switch with prominent Sun (☀️) and Moon (🌙)
+    const translateX = thumbAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 34],
+    });
+
+    const sunScale = thumbAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1.15, 0.82],
+    });
+
+    const sunOpacity = thumbAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0.42],
+    });
+
+    const moonScale = thumbAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.82, 1.15],
+    });
+
+    const moonOpacity = thumbAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.42, 1],
+    });
+
+    return (
+      <View
+        style={[
+          styles.compactTrack,
+          {
+            backgroundColor: isDark ? '#0f172a' : '#e2e8f0',
+            borderColor: isDark ? '#334155' : '#cbd5e1',
+          },
+          style,
+        ]}
+      >
+        {/* Animated Sliding Thumb */}
+        <Animated.View
+          style={[
+            styles.compactThumb,
+            {
+              backgroundColor: isDark ? '#4f46e5' : '#ffffff',
+              borderColor: isDark ? '#6366f1' : '#cbd5e1',
+              transform: [{ translateX }],
+            },
+          ]}
+        />
+
+        {/* Sun (Light) Touchable Zone */}
+        <TouchableOpacity
+          onPress={() => setTheme('light')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Switch to Light mode (☀️)"
+          style={styles.compactSlot}
+        >
+          <Animated.View style={{ transform: [{ scale: sunScale }], opacity: sunOpacity }}>
+            <Text style={styles.compactIcon}>☀️</Text>
+          </Animated.View>
+        </TouchableOpacity>
+
+        {/* Moon (Dark) Touchable Zone */}
+        <TouchableOpacity
+          onPress={() => setTheme('dark')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Switch to Dark mode (🌙)"
+          style={styles.compactSlot}
+        >
+          <Animated.View style={{ transform: [{ scale: moonScale }], opacity: moonOpacity }}>
+            <Text style={styles.compactIcon}>🌙</Text>
+          </Animated.View>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Expanded segment mode for full-width cards or settings panels
   return (
     <View
       style={[
-        styles.container,
+        styles.expandedContainer,
         {
           backgroundColor: colors.cardBgElevated,
           borderColor: colors.border,
@@ -26,80 +113,128 @@ export function ThemeToggle({ style, compact = false }: ThemeToggleProps) {
         style,
       ]}
     >
-      {options.map((opt) => {
-        const isActive = theme === opt.value;
-        const activeColor = colors.primary;
-        const inactiveColor = colors.textSecondary;
+      <TouchableOpacity
+        onPress={() => setTheme('light')}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Theme option: Light Mode"
+        style={[
+          styles.expandedButton,
+          {
+            backgroundColor: !isDark ? colors.primary : 'transparent',
+            borderColor: !isDark ? colors.primary : 'transparent',
+          },
+        ]}
+      >
+        <Text style={styles.expandedIcon}>☀️</Text>
+        <Text
+          style={[
+            styles.expandedLabel,
+            {
+              color: !isDark ? '#ffffff' : colors.textSecondary,
+              fontWeight: !isDark ? '800' : '600',
+            },
+          ]}
+        >
+          Light
+        </Text>
+      </TouchableOpacity>
 
-        return (
-          <TouchableOpacity
-            key={opt.value}
-            onPress={() => setTheme(opt.value)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={`Theme option: ${opt.label}`}
-            style={[
-              styles.button,
-              compact && styles.buttonCompact,
-              {
-                backgroundColor: isActive ? activeColor : 'transparent',
-              },
-            ]}
-          >
-            <Text style={[styles.icon, compact && styles.iconCompact]}>{opt.icon}</Text>
-            {!compact && (
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: isActive ? '#ffffff' : inactiveColor,
-                    fontWeight: isActive ? '800' : '600',
-                  },
-                ]}
-              >
-                {opt.label}
-              </Text>
-            )}
-          </TouchableOpacity>
-        );
-      })}
+      <TouchableOpacity
+        onPress={() => setTheme('dark')}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Theme option: Dark Mode"
+        style={[
+          styles.expandedButton,
+          {
+            backgroundColor: isDark ? colors.primary : 'transparent',
+            borderColor: isDark ? colors.primary : 'transparent',
+          },
+        ]}
+      >
+        <Text style={styles.expandedIcon}>🌙</Text>
+        <Text
+          style={[
+            styles.expandedLabel,
+            {
+              color: isDark ? '#ffffff' : colors.textSecondary,
+              fontWeight: isDark ? '800' : '600',
+            },
+          ]}
+        >
+          Dark
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  // Compact switch styles (Header & quick toggles)
+  compactTrack: {
+    width: 72,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  compactThumb: {
+    position: 'absolute',
+    top: 1.5,
+    left: 2,
+    width: 32,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 2.5,
+    elevation: 3,
+  },
+  compactSlot: {
+    width: 33,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  compactIcon: {
+    fontSize: 15,
+  },
+
+  // Expanded segmented control styles
+  expandedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 3,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 3,
-    minHeight: 38,
+    gap: 4,
+    minHeight: 40,
   },
-  button: {
+  expandedButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 9,
-    gap: 5,
+    borderWidth: 1,
+    gap: 6,
   },
-  buttonCompact: {
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    gap: 0,
+  expandedIcon: {
+    fontSize: 15,
   },
-  icon: {
-    fontSize: 13,
-  },
-  iconCompact: {
-    fontSize: 14,
-  },
-  label: {
-    fontSize: 11,
-    letterSpacing: 0.2,
+  expandedLabel: {
+    fontSize: 12,
+    letterSpacing: 0.3,
   },
 });

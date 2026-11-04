@@ -108,8 +108,8 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
   const backBannerBg = isDark ? '#0f172a' : '#ffffff';
 
   const THEME_OPTIONS: { key: Theme; label: string; subLabel: string; icon: string; badge?: string }[] = [
-    { key: 'light', label: 'Light Mode', subLabel: 'Clean high-contrast daytime interface', icon: '☀️' },
-    { key: 'dark', label: 'Dark Mode', subLabel: 'OLED-optimized low-glare nighttime interface', icon: '🌙', badge: 'DEFAULT' },
+    { key: 'light', label: 'Light Mode', subLabel: 'Clean high-contrast daytime interface', icon: '☀️', badge: 'DEFAULT' },
+    { key: 'dark', label: 'Dark Mode', subLabel: 'OLED-optimized low-glare nighttime interface', icon: '🌙' },
   ];
 
   const LANGUAGE_OPTIONS: { key: AppLanguage; label: string; subLabel: string; flag: string; badge?: string }[] = [
@@ -219,7 +219,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
         {/* 🎨 THEME & APPEARANCE (SYSTEM SYNC DEFAULT) */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <Text style={[styles.sectionTitle, { color: titleColor }]}>Theme & Appearance</Text>
-          <Text style={[styles.sectionSub, { color: subColor }]}>System Sync by default or choose manual preference</Text>
+          <Text style={[styles.sectionSub, { color: subColor }]}>Light Mode is default with smooth Sun & Moon transition</Text>
         </View>
 
         <View style={styles.languageCardsContainer}>

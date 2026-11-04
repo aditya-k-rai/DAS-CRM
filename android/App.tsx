@@ -289,7 +289,7 @@ function MainTabNavigator({
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {/* ☀️ / 🌙 / ⚙️ 3 Explicit Theme Buttons: Light, Dark, System Sync */}
-          <ThemeToggle compact style={{ height: 36, minHeight: 36 }} />
+          <ThemeToggle compact />
 
           {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
           {!isUnassigned && (
@@ -689,7 +689,7 @@ function RootAppContent() {
 
   if (!isHydrated) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: colors?.bg || '#090d16' }]}>
+      <View style={[styles.splashContainer, { backgroundColor: colors?.bg || '#f8fafc' }]}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <View style={styles.splashLogoBox}>
           <Text style={styles.splashLogoText}>DAS</Text>
@@ -700,7 +700,7 @@ function RootAppContent() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
+    <View style={{ flex: 1, backgroundColor: colors?.bg || '#f8fafc' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* Floating Backend Refreshed & Active Pop Notification */}
       <BackendActiveToast />

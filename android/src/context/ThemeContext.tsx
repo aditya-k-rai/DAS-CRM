@@ -1,8 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, UIManager, LayoutAnimation } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  try {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  } catch {}
+}
 
 export type Theme = 'dark' | 'light';
 export type ResolvedTheme = 'dark' | 'light';
@@ -96,14 +102,16 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = 'das_crm_theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
+  // Default to light mode for Android
+  const [theme, setThemeState] = useState<Theme>('light');
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const loadTheme = async () => {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
-        const loadedTheme: Theme = saved === 'light' ? 'light' : 'dark';
+        // Default to 'light' unless user explicitly previously saved 'dark'
+        const loadedTheme: Theme = saved === 'dark' ? 'dark' : 'light';
         setThemeState(loadedTheme);
       } catch (error) {
         console.warn('Failed to load theme preference:', error);
@@ -117,9 +125,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback(async (newTheme: Theme) => {
     try {
-      const validated: Theme = newTheme === 'light' ? 'light' : 'dark';
-      await AsyncStorage.setItem(STORAGE_KEY, validated);
+      const validated: Theme = newTheme === 'dark' ? 'dark' : 'light';
+      try {
+        if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+          UIManager.setLayoutAnimationEnabledExperimental(true);
+        }
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      } catch {}
       setThemeState(validated);
+      await AsyncStorage.setItem(STORAGE_KEY, validated);
     } catch (error) {
       console.warn('Failed to save theme preference:', error);
     }
@@ -143,10 +157,10 @@ export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
   if (!context) {
     return {
-      theme: 'dark',
-      resolvedTheme: 'dark',
-      isDark: true,
-      colors: DARK_THEME,
+      theme: 'light',
+      resolvedTheme: 'light',
+      isDark: false,
+      colors: LIGHT_THEME,
       setTheme: () => {},
       toggleTheme: () => {},
     };
