@@ -744,6 +744,14 @@ class FollowUpSyncEngine {
       const repName = (t.assignedRepName || '').toLowerCase().trim();
       const repId = String(t.assignedRepId || '').trim();
 
+      // Sales Executive rule: STRICT isolation. Can ONLY see their own follow-ups, never other reps' follow-ups
+      if (isSalesExec) {
+        const matchesName = uName && repName ? (repName.includes(uName) || uName.includes(repName)) : false;
+        const matchesId = uId && repId ? uId === repId : false;
+        const matchesEmail = uEmail && t.leadEmail ? t.leadEmail.toLowerCase() === uEmail : false;
+        return matchesName || matchesId || matchesEmail;
+      }
+
       // Explicit rep filter from chips
       if (selectedRep !== 'ALL') {
         if (selectedRep === 'MY_TASKS' || selectedRep === 'ME') {

@@ -1413,10 +1413,46 @@ export default function FollowUpsModule() {
     setShowCreateModal(true);
   };
 
-  // Filter list based on selected quick chip & search query
+  const currentRole = (currentUser?.role || '').toUpperCase();
+  const isSalesExec = !currentRole.includes('ADMIN') && !currentRole.includes('MANAGER') && !currentRole.includes('SUPER') && !currentRole.includes('LEADER') && !currentRole.includes('TL') && !currentRole.includes('HR');
+  const currentUserId = currentUser?.id;
+  const currentUserName = (currentUser?.name || '').toLowerCase().trim();
+  const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
+
+  // Filter list based on selected quick chip & search query & strict sales rep scoping
   const filterList = (items: any[]) => {
     if (!items || !Array.isArray(items)) return [];
     let result = items;
+
+    // Strict sales rep isolation: a sales rep can ONLY see their own follow-ups, never other reps' follow-ups
+    if (isSalesExec) {
+      result = result.filter((i) => {
+        if (!i) return false;
+        const assigneeId = i.assigneeId || i.assignee?.id;
+        const createdById = i.createdById || i.createdBy?.id;
+        const leadOwnerId = i.lead?.ownerId || i.lead?.owner?.id;
+
+        if (currentUserId && (assigneeId === currentUserId || createdById === currentUserId || leadOwnerId === currentUserId)) {
+          return true;
+        }
+
+        const assigneeName = (i.assignee?.name || i.assignedRepName || '').toLowerCase().trim();
+        const leadOwnerName = (i.lead?.owner?.name || '').toLowerCase().trim();
+        const creatorName = (i.createdByName || i.createdBy?.name || '').toLowerCase().trim();
+
+        if (currentUserName && currentUserName !== 'sales rep' && currentUserName !== 'user') {
+          if (assigneeName && (assigneeName.includes(currentUserName) || currentUserName.includes(assigneeName))) return true;
+          if (leadOwnerName && (leadOwnerName.includes(currentUserName) || currentUserName.includes(leadOwnerName))) return true;
+          if (creatorName && (creatorName.includes(currentUserName) || currentUserName.includes(creatorName))) return true;
+        }
+
+        const leadEmail = (i.lead?.email || i.leadEmail || '').toLowerCase().trim();
+        if (currentUserEmail && leadEmail === currentUserEmail) return true;
+
+        return false;
+      });
+    }
+
     if (selectedTypeFilter === 'HIGH_PRIORITY') {
       result = result.filter(i => (i.priority || '').toUpperCase() === 'HIGH');
     } else if (selectedTypeFilter === 'MEETING') {
@@ -1480,11 +1516,11 @@ export default function FollowUpsModule() {
     return result;
   };
 
-  const filteredAllData = useMemo(() => filterList(allData), [allData, selectedTypeFilter, searchQuery]);
-  const filteredDueNow = useMemo(() => filterList(todayData.dueNow), [todayData.dueNow, selectedTypeFilter, searchQuery]);
-  const filteredUpcomingToday = useMemo(() => filterList(todayData.upcomingToday), [todayData.upcomingToday, selectedTypeFilter, searchQuery]);
-  const filteredCompletedToday = useMemo(() => filterList(todayData.completedToday), [todayData.completedToday, selectedTypeFilter, searchQuery]);
-  const filteredMissedToday = useMemo(() => filterList(todayData.missedToday), [todayData.missedToday, selectedTypeFilter, searchQuery]);
+  const filteredAllData = useMemo(() => filterList(allData), [allData, selectedTypeFilter, searchQuery, isSalesExec, currentUserId, currentUserName]);
+  const filteredDueNow = useMemo(() => filterList(todayData.dueNow), [todayData.dueNow, selectedTypeFilter, searchQuery, isSalesExec, currentUserId, currentUserName]);
+  const filteredUpcomingToday = useMemo(() => filterList(todayData.upcomingToday), [todayData.upcomingToday, selectedTypeFilter, searchQuery, isSalesExec, currentUserId, currentUserName]);
+  const filteredCompletedToday = useMemo(() => filterList(todayData.completedToday), [todayData.completedToday, selectedTypeFilter, searchQuery, isSalesExec, currentUserId, currentUserName]);
+  const filteredMissedToday = useMemo(() => filterList(todayData.missedToday), [todayData.missedToday, selectedTypeFilter, searchQuery, isSalesExec, currentUserId, currentUserName]);
 
   const hasAnyTodayItems = filteredDueNow.length > 0 || filteredUpcomingToday.length > 0 || filteredCompletedToday.length > 0 || filteredMissedToday.length > 0;
 

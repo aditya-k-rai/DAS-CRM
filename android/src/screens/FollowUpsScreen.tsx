@@ -762,33 +762,16 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
         {/* ── Workspace Scoping & Rep Selector Bar ──────────────────────────── */}
         {isSalesExec ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, paddingVertical: 2 }}>
-            <TouchableOpacity
+            <View
               style={[
                 styles.repChip,
-                selectedRepFilter !== 'ALL' && { backgroundColor: colors.primary, borderColor: colors.primary },
-                selectedRepFilter === 'ALL' && { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
+                { backgroundColor: colors.primary, borderColor: colors.primary },
               ]}
-              onPress={() => setSelectedRepFilter(currentUser?.name || 'Me')}
-              activeOpacity={0.75}
             >
-              <Text style={[styles.repChipText, { color: selectedRepFilter !== 'ALL' ? '#ffffff' : colors.textMuted }]}>
-                👤 My Tasks ({currentUser?.name?.split(' ')?.[0] || 'My Queue'})
+              <Text style={[styles.repChipText, { color: '#ffffff', fontWeight: '800' }]}>
+                👤 My Follow-ups ({currentUser?.name?.split(' ')?.[0] || 'My Queue'})
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.repChip,
-                selectedRepFilter === 'ALL' && { backgroundColor: '#7c3aed', borderColor: '#a855f7' },
-                selectedRepFilter !== 'ALL' && { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
-              ]}
-              onPress={() => setSelectedRepFilter('ALL')}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.repChipText, { color: selectedRepFilter === 'ALL' ? '#ffffff' : colors.textMuted }]}>
-                👥 All Company Outreach
-              </Text>
-            </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollBarRow} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>

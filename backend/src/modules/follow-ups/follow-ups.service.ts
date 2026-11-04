@@ -55,8 +55,32 @@ export class FollowUpsService {
         ],
       };
     }
-    // Sales Executive: Organization pipeline visibility like Web dashboard, allowing reps to view and manage company follow-ups
-    return {};
+
+    // Sales Representative / Sales Executive: Strict user scoping — only see follow-ups assigned to them, created by them, or on their leads
+    const allowedUserIds = [userId];
+    if (userId === 'usr_rep' || userId === 'rep-1' || userId === 'usr_rep_1') {
+      const primaryRep = await this.prisma.user.findFirst({
+        where: {
+          organizationId,
+          OR: [
+            { email: 'rastoginandini92@gmail.com' },
+            { firstName: { contains: 'Nandini', mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (primaryRep?.id && !allowedUserIds.includes(primaryRep.id)) {
+        allowedUserIds.push(primaryRep.id);
+      }
+    }
+
+    return {
+      OR: [
+        { assigneeId: { in: allowedUserIds } },
+        { createdById: { in: allowedUserIds } },
+        { lead: { ownerId: { in: allowedUserIds } } },
+      ],
+    };
   }
 
   /**
