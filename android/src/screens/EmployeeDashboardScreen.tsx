@@ -35,7 +35,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { apiService, Lead } from '../services/apiService';
-import { callSyncEngine } from '../services/callSyncEngine';
+import { callSyncEngine, CallTelemetryRecord } from '../services/callSyncEngine';
 import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 import PostCallOutcomeModal from '../components/PostCallOutcomeModal';
 import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '../components/RepDrilldownModal';
@@ -152,6 +152,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>([]);
   const [followUpFilter, setFollowUpFilter] = useState<'ALL' | 'DUE' | 'OVERDUE' | 'COMPLETED'>('ALL');
 
+  // Real Quotations, Ingested Activities & Live Call Logs (Database as Source of Truth)
+  const [rawQuotations, setRawQuotations] = useState<any[]>([]);
+  const [rawActivities, setRawActivities] = useState<any[]>([]);
+  const [todayCallLogs, setTodayCallLogs] = useState<CallTelemetryRecord[]>([]);
+
   // Dynamic Goals & Quotas Configuration
   const [dailyCallsTarget, setDailyCallsTarget] = useState<number>(40);
   const [monthlyRevTarget, setMonthlyRevTarget] = useState<number>(500000);
@@ -177,10 +182,13 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     try {
       setLoading(true);
       const token = useAuthStore.getState().token;
-      let [items, prods, tasks] = await Promise.all([
+      let [items, prods, tasks, todayLogs, quotesData, activitiesData] = await Promise.all([
         apiService.getLeads(token),
         productCatalogService.getProducts(),
         followUpSyncEngine.loadAllFollowUps(token, currentUser, []),
+        callSyncEngine.getTodayRawLogs(),
+        apiService.getQuotations(token).catch(() => []),
+        apiService.getActivities(token, 200).catch(() => []),
       ]);
       if (!Array.isArray(items) || items.length < ENTERPRISE_SEED_LEADS.length) {
         const itemIds = new Set((items || []).map((i) => i.id));
@@ -195,6 +203,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         setLiveProducts(prods);
       }
       setRawFollowUps(tasks);
+      const safeLogs = Array.isArray(todayLogs) ? todayLogs : [];
+      setTodayCallLogs(safeLogs);
+      setTodayCallsCount(safeLogs.length);
+      setRawQuotations(Array.isArray(quotesData) ? quotesData : ((quotesData as any)?.data || []));
+      setRawActivities(Array.isArray(activitiesData) ? activitiesData : ((activitiesData as any)?.activities || (activitiesData as any)?.items || []));
 
       // Load goals configuration
       try {
@@ -204,12 +217,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           if (cfg.dailyCalls) setDailyCallsTarget(Number(cfg.dailyCalls) || 40);
           if (cfg.monthlyRev) setMonthlyRevTarget(Number(cfg.monthlyRev) || 500000);
         }
-      } catch (_) {}
-
-      // Load today's call logs
-      try {
-        const todayLogs = await callSyncEngine.getTodayRawLogs();
-        setTodayCallsCount(Array.isArray(todayLogs) ? todayLogs.length : 0);
       } catch (_) {}
     } catch (err) {
       console.warn('Dashboard sync error:', err);
@@ -436,97 +443,74 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const pipelineValue = useMemo(() => {
     return scopedLeads.reduce((sum, l) => {
       const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
-      return sum + (val || 25000);
+      return sum + val;
     }, 0);
   }, [scopedLeads]);
 
-  // Generate real activities for Drilldown Modal
+  // Generate activities strictly from real database records and local telemetry
   const performanceRepData: PerformanceRepData = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const activitiesList: DrilldownActivityItem[] = [];
 
-    scopedLeads.forEach((l, idx) => {
-      const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Valued Lead';
-      const phone = l.phone || '9876543210';
-      const company = l.company || l.organization || 'Corporate Client';
-      const isFresh = (l.status || '').toLowerCase() === 'new' || idx % 2 === 0;
+    const targetRep = isSupervisor ? selectedRep : (currentUser?.name || 'Me');
+    const scopedTasks = followUpSyncEngine.filterTasksForUser(rawFollowUps, currentUser, targetRep);
 
-      // Call activity
+    // 1. Real Outgoing Calls from native dialer & call telemetry engine
+    todayCallLogs.forEach((log) => {
+      const matchedLead = scopedLeads.find(
+        (l) => String(l.id) === String(log.leadId) || (l.phone && log.phone && l.phone.replace(/[^\d]/g, '').includes(log.phone.replace(/[^\d]/g, '')))
+      );
+      const isFresh = (matchedLead?.status || '').toLowerCase() === 'new' || (matchedLead?.status || '').toLowerCase() === 'new lead';
       activitiesList.push({
-        id: `act-call-${l.id || idx}`,
-        leadId: String(l.id),
-        leadName,
-        leadPhone: phone,
-        leadCompany: company,
-        leadStatus: l.status || 'New',
+        id: log.id,
+        leadId: log.leadId,
+        leadName: log.leadName || matchedLead?.name || 'Lead Contact',
+        leadPhone: log.phone,
+        leadCompany: matchedLead?.company || matchedLead?.organization || '—',
+        leadStatus: matchedLead?.status || 'Contacted',
         category: 'CALL',
         callSubtype: isFresh ? 'FRESH' : 'FOLLOWUP',
-        title: isFresh ? `Initial Discovery Call with ${leadName}` : `Follow-up Requirement Discussion`,
-        notes: isFresh ? 'Discussed system capacity and commercial rooftop space.' : 'Sent updated quotation and schedule site inspection.',
-        outcome: idx % 3 === 0 ? 'Interested · Quote Requested' : idx % 3 === 1 ? 'Connected · Followup set' : 'Voicemail / Busy',
-        timestamp: new Date(Date.now() - idx * 3600000).toISOString(),
-        dateKey: todayStr,
+        title: `📞 Outgoing Call (${log.connectionStatus})`,
+        notes: `Call duration: ${callSyncEngine.formatDuration(log.durationSeconds)}`,
+        outcome: log.connectionStatus,
+        timestamp: log.timestamp,
+        dateKey: log.dateStr,
       });
-
-      // WhatsApp activity
-      if (idx % 2 === 0) {
-        activitiesList.push({
-          id: `act-wa-${l.id || idx}`,
-          leadId: String(l.id),
-          leadName,
-          leadPhone: phone,
-          leadCompany: company,
-          leadStatus: l.status || 'Contacted',
-          category: 'WHATSAPP',
-          title: `Product Pitch sent to ${leadName}`,
-          notes: 'Shared PDF catalogue and commercial specs via direct WhatsApp outreach.',
-          timestamp: new Date(Date.now() - idx * 4200000).toISOString(),
-          dateKey: todayStr,
-        });
-      }
-
-      // Products Pitch activity
-      if (idx % 3 === 0) {
-        activitiesList.push({
-          id: `act-prod-${l.id || idx}`,
-          leadId: String(l.id),
-          leadName,
-          leadPhone: phone,
-          leadCompany: company,
-          leadStatus: l.status || 'Qualified',
-          category: 'PRODUCT',
-          title: `Solar Solution Catalogue Pitched`,
-          products: ['Premium Solar Panel 400W', 'Solar Inverter 5kW'],
-          productCount: 2,
-          notes: 'Client reviewed 5kW hybrid package specifications.',
-          timestamp: new Date(Date.now() - idx * 5400000).toISOString(),
-          dateKey: todayStr,
-        });
-      }
-
-      // Quotes activity
-      if ((l.status || '').toLowerCase().includes('proposal') || (l.status || '').toLowerCase().includes('won') || idx === 0) {
-        activitiesList.push({
-          id: `act-qt-${l.id || idx}`,
-          leadId: String(l.id),
-          leadName,
-          leadPhone: phone,
-          leadCompany: company,
-          leadStatus: l.status || 'Proposal',
-          category: 'QUOTE',
-          title: `Quotation QT-2026-${1000 + idx}`,
-          quoteNo: `QT-2026-${1000 + idx}`,
-          quoteAmount: idx === 0 ? 125000 : 78000,
-          notes: 'Commercial quotation for rooftop solar generation setup.',
-          timestamp: new Date(Date.now() - idx * 7200000).toISOString(),
-          dateKey: todayStr,
-        });
-      }
     });
 
-    // Also include real follow-up activities
-    rawFollowUps.forEach((fu, fIdx) => {
+    // 2. Real Ingested Activities from database (/activities)
+    rawActivities.forEach((act) => {
+      const actType = (act.type || act.activityType || '').toUpperCase();
+      const isCall = actType.includes('CALL') || actType.includes('PHONE');
+      const isWA = actType.includes('WHATSAPP') || actType.includes('WA_') || actType.includes('EMAIL');
+      const isProd = !!act.productId || !!act.productInterest || (act.products && act.products.length > 0);
+      const isQuote = !!act.quotationId || !!act.docNo || actType.includes('QUOTE');
+
+      const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isWA ? 'WHATSAPP' : 'CALL';
+      const actDate = (act.createdAt || act.timestamp || '').slice(0, 10) || todayStr;
+      const matchedLead = scopedLeads.find((l) => String(l.id) === String(act.leadId));
+
+      activitiesList.push({
+        id: act.id,
+        leadId: act.leadId || '',
+        leadName: act.leadName || (act.lead ? `${act.lead.firstName || ''} ${act.lead.lastName || ''}`.trim() : matchedLead?.name) || 'Lead Contact',
+        leadPhone: act.leadPhone || act.lead?.phone || matchedLead?.phone || '—',
+        leadCompany: act.leadCompany || act.lead?.company || matchedLead?.company || '—',
+        leadStatus: matchedLead?.status || act.lead?.status?.name || 'Contacted',
+        category: cat,
+        callSubtype: act.callSubtype || (cat === 'CALL' ? 'FOLLOWUP' : undefined),
+        title: act.title || act.description || (cat === 'CALL' ? '📞 Logged Phone Call' : cat === 'WHATSAPP' ? '💬 Direct WhatsApp Message' : cat === 'PRODUCT' ? '📦 Product Pitch' : '📄 Quotation'),
+        notes: act.notes || act.description,
+        outcome: act.outcome || act.status,
+        timestamp: act.createdAt || act.timestamp || todayStr,
+        dateKey: actDate,
+      });
+    });
+
+    // 3. Real Scheduled & Completed Follow-ups from database (/tasks)
+    scopedTasks.forEach((fu, fIdx) => {
       const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : todayStr);
+      const isCompleted = Boolean(fu.isCompleted || fu.status === 'COMPLETED');
       activitiesList.push({
         id: fu.id || `fu-act-${fIdx}`,
         leadId: fu.leadId || '',
@@ -537,10 +521,39 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         callSubtype: 'FOLLOWUP',
         title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
         notes: fu.outcomeNote || undefined,
-        outcome: fu.isCompleted ? 'COMPLETED' : 'SCHEDULED',
+        outcome: isCompleted ? 'COMPLETED' : 'SCHEDULED',
         timestamp: fu.dueAt || fuDate,
         dateKey: fuDate,
       });
+    });
+
+    // 4. Real Commercial Quotations from database (/quotations)
+    rawQuotations.forEach((q: any) => {
+      const qDate = (q.createdAt || '').slice(0, 10) || todayStr;
+      const amt = Number(q.totalAmount || q.amount) || 0;
+      activitiesList.push({
+        id: q.id,
+        leadId: String(q.leadId || ''),
+        leadName: q.clientName || q.partyName || 'Commercial Client',
+        leadPhone: q.clientPhone || q.partyPhone || '—',
+        leadCompany: q.clientCompany || q.companyName || 'Corporate Client',
+        category: 'QUOTE',
+        title: `📄 Commercial Quotation ${q.docNo || q.quoteNumber || ''}`,
+        notes: q.notes || `Quotation generated for ₹${amt.toLocaleString('en-IN')}`,
+        timestamp: q.createdAt || todayStr,
+        dateKey: qDate,
+        quoteAmount: amt,
+        quoteNo: q.docNo || q.quoteNumber,
+      });
+    });
+
+    // Deduplicate activities by id
+    const seenIds = new Set<string>();
+    const uniqueActivities = activitiesList.filter((a) => {
+      if (!a.id) return true;
+      if (seenIds.has(a.id)) return false;
+      seenIds.add(a.id);
+      return true;
     });
 
     return {
@@ -555,11 +568,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       dailyWhatsappTarget: 25,
       monthlyRevenueTarget: monthlyRevTarget,
       monthlyMeetingsTarget: 10,
-      activitiesList,
+      activitiesList: uniqueActivities,
     };
-  }, [scopedLeads, rawFollowUps, selectedRep, currentUser, dailyCallsTarget, monthlyRevTarget]);
+  }, [scopedLeads, rawFollowUps, rawQuotations, rawActivities, todayCallLogs, selectedRep, currentUser, dailyCallsTarget, monthlyRevTarget, isSupervisor]);
 
-  // Derived follow-ups and meetings from real followUpSyncEngine tasks (with fallback to leads)
+  // Derived follow-ups and meetings from real database tasks (followUpSyncEngine)
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     const targetRep = isSupervisor ? selectedRep : (currentUser?.name || 'Me');
@@ -610,66 +623,42 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         });
         setMeetings(meets);
       } else {
-        const meets: SyncedMeeting[] = scopedLeads.slice(0, 2).map((l, idx) => ({
-          id: `mt-${l.id || idx}`,
-          leadId: String(l.id),
-          leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
-          company: l.company || l.organization || 'Corporate Client',
-          phone: l.phone || '9876543210',
-          title: idx === 0 ? 'Product Demo & Solution Walkthrough' : 'Commercial SLA Terms Negotiation',
-          time: idx === 0 ? '11:00 AM' : '03:30 PM',
-          date: 'Today',
-          platform: idx === 0 ? 'Google Meet' : 'Zoom',
-          meetUrl: idx === 0 ? 'https://meet.google.com/das-crm-demo' : undefined,
-          isCompleted: false,
-        }));
-        setMeetings(meets);
+        setMeetings([]);
       }
     } else {
-      const mapped: SyncedFollowUp[] = scopedLeads.slice(0, 6).map((l, idx) => ({
-        id: `fu-${l.id || idx}`,
-        leadId: String(l.id),
-        leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
-        company: l.company || l.organization || 'Direct Buyer',
-        phone: l.phone || '9876543210',
-        dueTime: idx === 0 ? '11:30 AM' : idx === 1 ? '02:00 PM' : '04:30 PM',
-        dueDate: idx === 2 ? 'Yesterday' : today,
-        objective: idx === 0 ? 'Review proposal pricing & terms' : idx === 1 ? 'Schedule on-site technical inspection' : 'Send updated contract terms',
-        priority: idx === 0 ? 'HIGH' : idx === 1 ? 'MEDIUM' : 'LOW',
-        isCompleted: false,
-        isOverdue: false,
-      }));
-      setFollowUps(mapped);
-
-      const meets: SyncedMeeting[] = scopedLeads.slice(0, 2).map((l, idx) => ({
-        id: `mt-${l.id || idx}`,
-        leadId: String(l.id),
-        leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`,
-        company: l.company || l.organization || 'Corporate Client',
-        phone: l.phone || '9876543210',
-        title: idx === 0 ? 'Product Demo & Solution Walkthrough' : 'Commercial SLA Terms Negotiation',
-        time: idx === 0 ? '11:00 AM' : '03:30 PM',
-        date: 'Today',
-        platform: idx === 0 ? 'Google Meet' : 'Zoom',
-        meetUrl: idx === 0 ? 'https://meet.google.com/das-crm-demo' : undefined,
-        isCompleted: false,
-      }));
-      setMeetings(meets);
+      setFollowUps([]);
+      setMeetings([]);
     }
 
-    const opps: SyncedOpportunity[] = scopedLeads.slice(0, 4).map((l, idx) => ({
-      id: `opp-${l.id || idx}`,
-      leadId: String(l.id),
-      leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Enterprise Account`,
-      company: l.company || 'Green Energy Corp',
-      phone: l.phone || '9876543210',
-      dealTitle: idx === 0 ? '50kW Rooftop Solar Installation' : idx === 1 ? '10kW Hybrid System' : '3kW Residential Setup',
-      value: idx === 0 ? '₹4,50,000' : idx === 1 ? '₹1,20,000' : '₹45,000',
-      stage: idx === 0 ? 'Negotiation' : idx === 1 ? 'Proposal' : 'Qualified',
-      probability: idx === 0 ? 80 : idx === 1 ? 60 : 40,
-      expectedClose: '15 Oct 2026',
-      nextStep: idx === 0 ? 'Contract review with Director' : 'Send revised component list',
-    }));
+    // Build active opportunities strictly from real database leads in Qualified, Proposal, Negotiation, or Won stages
+    const qualifiedLeads = scopedLeads.filter((l) => {
+      const s = (l.status || '').toLowerCase();
+      return s.includes('qualif') || s.includes('proposal') || s.includes('negot') || s.includes('won');
+    });
+
+    const opps: SyncedOpportunity[] = qualifiedLeads.map((l) => {
+      const s = (l.status || '').toLowerCase();
+      const isWon = s.includes('won');
+      const isNeg = s.includes('negotiat');
+      const isProp = s.includes('proposal');
+      const prob = isWon ? 100 : isNeg ? 85 : isProp ? 65 : 45;
+      const leadVal = l.value ? (String(l.value).startsWith('₹') ? l.value : `₹${l.value}`) : '₹0';
+      const cleanTitle = l.requirement && l.requirement !== '—' ? l.requirement : 'Commercial Opportunity';
+
+      return {
+        id: `opp-${l.id}`,
+        leadId: String(l.id),
+        leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead',
+        company: l.company || l.organization || 'Corporate Account',
+        phone: l.phone || '—',
+        dealTitle: `${cleanTitle} (${l.company || 'Client'})`,
+        value: leadVal,
+        stage: l.status || 'Qualified',
+        probability: prob,
+        expectedClose: 'Current Cycle',
+        nextStep: isWon ? 'Won Deal · Onboarding in progress' : isNeg ? 'Finalizing commercial terms' : 'Submitted proposal for client review',
+      };
+    });
     setOpportunities(opps);
   }, [scopedLeads, rawFollowUps, selectedRep, currentUser, isSupervisor]);
 
@@ -1342,56 +1331,64 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
             </View>
 
             <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
-              {opportunities.map((opp) => (
-                <View
-                  key={opp.id}
-                  style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.oppTitle, { color: colors.text }]}>{opp.dealTitle}</Text>
-                      <Text style={[styles.oppSub, { color: colors.textMuted }]}>
-                        🏢 {opp.company} · Lead: {opp.leadName}
-                      </Text>
-                    </View>
-                    <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>{opp.value}</Text>
-                  </View>
-
-                  <View style={{ marginTop: 8 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <Text style={{ fontSize: 9, color: colors.textMuted, fontWeight: '700' }}>Stage: {opp.stage}</Text>
-                      <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>{opp.probability}% Win Probability</Text>
-                    </View>
-                    <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
-                      <View style={[styles.progressBarFill, { backgroundColor: '#6366f1', width: `${opp.probability}%` }]} />
-                    </View>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-                    <Text style={{ fontSize: 9, color: colors.textMuted }}>📌 Next: {opp.nextStep}</Text>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <TouchableOpacity
-                        style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
-                        onPress={() => handleDial({ id: opp.leadId, name: opp.leadName, phone: opp.phone })}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.smallIconBtn, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
-                        onPress={() => handleWhatsApp(opp.phone, opp.leadName)}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#25D366' }}>💬 WA</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.smallIconBtn, { backgroundColor: 'rgba(168,85,247,0.15)' }]}
-                        onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#c084fc' }}>💼 View Deal</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+              {opportunities.length === 0 ? (
+                <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 14 }]}>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
+                    No active opportunities. Leads in Qualified, Proposal, or Negotiation stages will appear here.
+                  </Text>
                 </View>
-              ))}
+              ) : (
+                opportunities.map((opp) => (
+                  <View
+                    key={opp.id}
+                    style={[styles.oppCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.oppTitle, { color: colors.text }]}>{opp.dealTitle}</Text>
+                        <Text style={[styles.oppSub, { color: colors.textMuted }]}>
+                          🏢 {opp.company} · Lead: {opp.leadName}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>{opp.value}</Text>
+                    </View>
+
+                    <View style={{ marginTop: 8 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <Text style={{ fontSize: 9, color: colors.textMuted, fontWeight: '700' }}>Stage: {opp.stage}</Text>
+                        <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>{opp.probability}% Win Probability</Text>
+                      </View>
+                      <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                        <View style={[styles.progressBarFill, { backgroundColor: '#6366f1', width: `${opp.probability}%` }]} />
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                      <Text style={{ fontSize: 9, color: colors.textMuted }}>📌 Next: {opp.nextStep}</Text>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.smallIconBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                          onPress={() => handleDial({ id: opp.leadId, name: opp.leadName, phone: opp.phone })}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>📞 Call</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.smallIconBtn, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
+                          onPress={() => handleWhatsApp(opp.phone, opp.leadName)}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#25D366' }}>💬 WA</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.smallIconBtn, { backgroundColor: 'rgba(168,85,247,0.15)' }]}
+                          onPress={() => navigation?.navigate('Menu', { initialModule: 'DEALS' })}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#c084fc' }}>💼 View Deal</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
             </View>
           </>
         )}

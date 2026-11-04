@@ -27,6 +27,7 @@ import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { apiService, Lead, Employee } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
+import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
@@ -60,6 +61,7 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
   const [refreshing, setRefreshing] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [tasks, setTasks] = useState<FollowUpTask[]>([]);
 
   const [meetingFilter, setMeetingFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('TODAY');
   const [selectedMeeting, setSelectedMeeting] = useState<ManagerMeetingItem | null>(null);
@@ -68,12 +70,14 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
     try {
       setLoading(true);
       const token = useAuthStore.getState().token;
-      const [lRes, eRes] = await Promise.all([
+      const [lRes, eRes, fuRes] = await Promise.all([
         apiService.getLeads(token),
         apiService.getEmployees(token),
+        followUpSyncEngine.loadAllFollowUps(token, null, []).catch(() => []),
       ]);
       if (Array.isArray(lRes)) setLeads(lRes);
       if (eRes && eRes.success && Array.isArray(eRes.employees)) setEmployees(eRes.employees);
+      if (Array.isArray(fuRes)) setTasks(fuRes);
     } catch (e) {
       console.warn('Manager sync error:', e);
     } finally {
@@ -105,7 +109,7 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
       .filter((l) => (l.status || '').toLowerCase().includes('won') || (l.status || '').toLowerCase().includes('convert'))
       .reduce((sum, l) => {
         const val = typeof l.value === 'number' ? l.value : parseFloat(String(l.value || '0').replace(/[^0-9.]/g, '')) || 0;
-        return sum + (val || 45000);
+        return sum + val;
       }, 0);
   }, [leads]);
 
@@ -116,29 +120,31 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
     return `${((wonCount / leads.length) * 100).toFixed(1)}%`;
   }, [leads]);
 
-  // Dynamic scheduled meetings from leads
+  // Dynamic scheduled meetings strictly from real database follow-up tasks
   const managerMeetings: ManagerMeetingItem[] = useMemo(() => {
-    const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    return leads.slice(0, 5).map((l, idx) => {
-      const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${idx + 1}`;
-      const isToday = idx % 2 === 0;
+    const todayIso = new Date().toISOString().split('T')[0];
+    const meetingTasks = tasks.filter((t) => t.channel === 'MEETING' || (t as any).taskType === 'MEETING');
+    return meetingTasks.map((t) => {
+      const taskDate = t.scheduledDate || (t.dueAt ? t.dueAt.slice(0, 10) : todayIso);
+      const isToday = taskDate === todayIso;
+      const matchedLead = leads.find((l) => String(l.id) === String(t.leadId));
       return {
-        id: `mgr-mtg-${l.id || idx}`,
-        leadId: String(l.id),
-        leadName: name,
-        company: l.company || l.organization || 'Enterprise Buyer',
-        phone: l.phone || '9876543210',
-        email: l.email || 'client@company.com',
-        value: typeof l.value === 'number' ? `₹${Number(l.value).toLocaleString('en-IN')}` : String(l.value || '₹1,20,000'),
-        assignedAgent: l.owner || 'Nandini Rastogi',
+        id: t.id,
+        leadId: t.leadId || '',
+        leadName: t.leadName || matchedLead?.name || 'Contact',
+        company: t.leadCompany || matchedLead?.company || matchedLead?.organization || 'Enterprise Buyer',
+        phone: t.leadPhone || matchedLead?.phone || '—',
+        email: t.leadEmail || matchedLead?.email || '—',
+        value: matchedLead?.value ? (String(matchedLead.value).startsWith('₹') ? matchedLead.value : `₹${matchedLead.value}`) : '—',
+        assignedAgent: t.assignedRepName || matchedLead?.owner || 'Sales Executive',
         agentRole: 'Sales Executive',
-        meetingPurpose: idx === 0 ? 'Commercial Proposal Review & Negotiation' : 'Technical Rooftop Solar System Inspection',
-        scheduledTimeStr: isToday ? `Today, ${idx === 0 ? '11:30 AM' : '03:00 PM'}` : `Tomorrow, 02:00 PM`,
+        meetingPurpose: t.purpose || 'Client Discussion & Meeting',
+        scheduledTimeStr: isToday ? `Today, ${t.scheduledTime || '11:00 AM'}` : `${taskDate}, ${t.scheduledTime || '02:00 PM'}`,
         isToday,
-        status: idx === 0 ? 'CONFIRMED' : 'SCHEDULED',
+        status: t.isCompleted ? 'CONFIRMED' : 'SCHEDULED',
       };
     });
-  }, [leads]);
+  }, [tasks, leads]);
 
   const filteredMeetings = useMemo(() => {
     return managerMeetings.filter((m) => {

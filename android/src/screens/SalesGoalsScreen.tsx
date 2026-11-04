@@ -648,26 +648,6 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         });
       });
 
-      // If rep has leads but few activities, add real lead discovery cards
-      if (activitiesList.length < 5 && repLeads.length > 0) {
-        repLeads.slice(0, 8).forEach((l, lIdx) => {
-          const isFresh = lIdx % 2 === 0;
-          const leadDate = (l.rawCreatedAt || '').slice(0, 10) || selectedDate;
-          activitiesList.push({
-            id: `lead-act-${rep.id}-${l.id || lIdx}`,
-            leadId: String(l.id || lIdx),
-            leadName: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Client #${lIdx + 1}`,
-            leadPhone: l.phone || '9876543210',
-            leadCompany: l.company || l.organization || 'Enterprise Account',
-            category: isFresh ? 'CALL' : 'WHATSAPP',
-            callSubtype: isFresh ? 'FRESH' : 'FOLLOWUP',
-            title: isFresh ? '🌱 Fresh Ingestion Discovery Call' : '💬 Product Brochure Sent via WhatsApp',
-            timestamp: l.rawCreatedAt || 'Recent',
-            dateKey: leadDate,
-          });
-        });
-      }
-
       const callsAchieved = isMonthView ? monthlyCallsTotal : dateCallsTotal;
       const callsTarget = isMonthView ? dailyCalls * 22 : dailyCalls;
       const callsCompletionPct = callsTarget > 0 ? Math.min(200, Math.round((callsAchieved / callsTarget) * 100)) : 100;

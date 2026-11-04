@@ -76,6 +76,8 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
   const [rawLeads, setRawLeads] = useState<Lead[]>([]);
   const [rawEmployees, setRawEmployees] = useState<Employee[]>([]);
   const [rawFollowUps, setRawFollowUps] = useState<FollowUpTask[]>([]);
+  const [rawQuotations, setRawQuotations] = useState<any[]>([]);
+  const [rawActivities, setRawActivities] = useState<any[]>([]);
 
   // Active Stage Filter
   const [activeStageFilter, setActiveStageFilter] = useState<string>('All Leads');
@@ -95,10 +97,12 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
   const syncData = useCallback(async () => {
     try {
       setLoading(true);
-      const [leadsRes, empsRes, fuRes] = await Promise.all([
+      const [leadsRes, empsRes, fuRes, quotesRes, actRes] = await Promise.all([
         apiService.getLeads(token).catch(() => []),
         apiService.getEmployees(token).catch(() => ({ success: false, employees: [] })),
         followUpSyncEngine.loadAllFollowUps(token, currentUser, []).catch(() => []),
+        apiService.getQuotations(token).catch(() => []),
+        apiService.getActivities(token, 200).catch(() => []),
       ]);
 
       if (Array.isArray(leadsRes)) {
@@ -110,6 +114,8 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       if (Array.isArray(fuRes)) {
         setRawFollowUps(fuRes);
       }
+      setRawQuotations(Array.isArray(quotesRes) ? quotesRes : ((quotesRes as any)?.data || []));
+      setRawActivities(Array.isArray(actRes) ? actRes : ((actRes as any)?.activities || (actRes as any)?.items || []));
     } catch (err) {
       console.warn('TL dashboard sync error:', err);
     } finally {
@@ -362,62 +368,102 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       return true;
     });
 
+    const mLower = member.name.toLowerCase();
+    const mFirst = mLower.split(' ')[0] || '';
+
     const activitiesList: DrilldownActivityItem[] = [];
-    memberLeads.forEach((l, idx) => {
-      const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Client';
-      const phone = l.phone || '9876543210';
-      const company = l.company || l.organization || 'Corporate Client';
-      const isFresh = (l.status || '').toLowerCase() === 'new' || idx % 2 === 0;
+
+    // 1. Real Scheduled & Completed Tasks for this member from database
+    const memberTasks = rawFollowUps.filter((fu) => {
+      const rep = (fu.assignedRepName || '').toLowerCase();
+      const repId = fu.assignedRepId || '';
+      return repId === member.id || rep.includes(mLower) || (mFirst.length >= 3 && rep.includes(mFirst));
+    });
+
+    memberTasks.forEach((fu, fIdx) => {
+      const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : todayStr);
+      const isCompleted = Boolean(fu.isCompleted || fu.status === 'COMPLETED');
+      activitiesList.push({
+        id: fu.id || `fu-act-${fIdx}`,
+        leadId: fu.leadId || '',
+        leadName: fu.leadName || 'Client Prospect',
+        leadPhone: fu.leadPhone || '—',
+        leadCompany: fu.leadCompany || 'Corporate Account',
+        category: fu.channel === 'WHATSAPP' ? 'WHATSAPP' : 'CALL',
+        callSubtype: 'FOLLOWUP',
+        title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
+        notes: fu.outcomeNote || undefined,
+        outcome: isCompleted ? 'COMPLETED' : 'SCHEDULED',
+        timestamp: fu.dueAt || fuDate,
+        dateKey: fuDate,
+      });
+    });
+
+    // 2. Real Ingested Activities for this member from database
+    rawActivities.forEach((act) => {
+      const actUser = (act.userId || act.createdById || '').toLowerCase();
+      const actRep = (act.user?.name || act.assignedRep || '').toLowerCase();
+      const isMember = actUser === member.id || actRep.includes(mLower) || (mFirst.length >= 3 && actRep.includes(mFirst));
+      if (!isMember) return;
+
+      const actType = (act.type || act.activityType || '').toUpperCase();
+      const isCall = actType.includes('CALL') || actType.includes('PHONE');
+      const isWA = actType.includes('WHATSAPP') || actType.includes('WA_') || actType.includes('EMAIL');
+      const isProd = !!act.productId || !!act.productInterest || (act.products && act.products.length > 0);
+      const isQuote = !!act.quotationId || !!act.docNo || actType.includes('QUOTE');
+
+      const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isWA ? 'WHATSAPP' : 'CALL';
+      const actDate = (act.createdAt || act.timestamp || '').slice(0, 10) || todayStr;
 
       activitiesList.push({
-        id: `act-call-${l.id || idx}`,
-        leadId: String(l.id),
-        leadName,
-        leadPhone: phone,
-        leadCompany: company,
-        leadStatus: l.status || 'New',
-        category: 'CALL',
-        callSubtype: isFresh ? 'FRESH' : 'FOLLOWUP',
-        title: isFresh ? `Initial Call with ${leadName}` : `Follow-up Requirement Call`,
-        notes: isFresh ? 'Assigned by Team Leader. First contact attempt initiated.' : 'Reviewed solar package configuration.',
-        outcome: idx % 2 === 0 ? 'Connected · Followup set' : 'Voicemail / Callback',
-        timestamp: new Date(Date.now() - idx * 3600000).toISOString(),
-        dateKey: todayStr,
+        id: act.id,
+        leadId: act.leadId || '',
+        leadName: act.leadName || (act.lead ? `${act.lead.firstName || ''} ${act.lead.lastName || ''}`.trim() : 'Lead Contact'),
+        leadPhone: act.leadPhone || act.lead?.phone || '—',
+        leadCompany: act.leadCompany || act.lead?.company || '—',
+        leadStatus: act.lead?.status?.name || 'Contacted',
+        category: cat,
+        callSubtype: act.callSubtype || (cat === 'CALL' ? 'FOLLOWUP' : undefined),
+        title: act.title || act.description || (cat === 'CALL' ? '📞 Logged Call' : cat === 'WHATSAPP' ? '💬 Direct WhatsApp' : cat === 'PRODUCT' ? '📦 Product Pitch' : '📄 Quotation'),
+        notes: act.notes || act.description,
+        outcome: act.outcome || act.status,
+        timestamp: act.createdAt || todayStr,
+        dateKey: actDate,
       });
+    });
 
-      if (idx % 2 === 0) {
-        activitiesList.push({
-          id: `act-wa-${l.id || idx}`,
-          leadId: String(l.id),
-          leadName,
-          leadPhone: phone,
-          leadCompany: company,
-          leadStatus: l.status || 'Contacted',
-          category: 'WHATSAPP',
-          title: `Brochure sent to ${leadName}`,
-          notes: 'Shared PDF specifications and warranty details via direct WhatsApp outreach.',
-          timestamp: new Date(Date.now() - idx * 4200000).toISOString(),
-          dateKey: todayStr,
-        });
-      }
+    // 3. Real Quotations for this member from database
+    rawQuotations.forEach((q: any) => {
+      const qUser = (q.createdById || q.userId || '').toLowerCase();
+      const qRep = (q.salesRepName || q.creator?.name || '').toLowerCase();
+      const isMember = qUser === member.id || qRep.includes(mLower) || (mFirst.length >= 3 && qRep.includes(mFirst));
+      if (!isMember) return;
 
-      if ((l.status || '').toLowerCase().includes('prop') || (l.status || '').toLowerCase().includes('won')) {
-        activitiesList.push({
-          id: `act-qt-${l.id || idx}`,
-          leadId: String(l.id),
-          leadName,
-          leadPhone: phone,
-          leadCompany: company,
-          leadStatus: l.status || 'Proposal',
-          category: 'QUOTE',
-          title: `Quotation QT-2026-${1000 + idx}`,
-          quoteNo: `QT-2026-${1000 + idx}`,
-          quoteAmount: 125000,
-          notes: 'Commercial quotation for rooftop solar installation.',
-          timestamp: new Date(Date.now() - idx * 7200000).toISOString(),
-          dateKey: todayStr,
-        });
-      }
+      const qDate = (q.createdAt || '').slice(0, 10) || todayStr;
+      const amt = Number(q.totalAmount || q.amount) || 0;
+      activitiesList.push({
+        id: q.id,
+        leadId: String(q.leadId || ''),
+        leadName: q.clientName || q.partyName || 'Client',
+        leadPhone: q.clientPhone || q.partyPhone || '—',
+        leadCompany: q.clientCompany || q.companyName || 'Corporate Client',
+        category: 'QUOTE',
+        title: `📄 Commercial Quotation ${q.docNo || q.quoteNumber || ''}`,
+        notes: q.notes || `Quotation generated for ₹${amt.toLocaleString('en-IN')}`,
+        timestamp: q.createdAt || todayStr,
+        dateKey: qDate,
+        quoteAmount: amt,
+        quoteNo: q.docNo || q.quoteNumber,
+      });
+    });
+
+    // Deduplicate activities by id
+    const seenIds = new Set<string>();
+    const uniqueActivities = activitiesList.filter((a) => {
+      if (!a.id) return true;
+      if (seenIds.has(a.id)) return false;
+      seenIds.add(a.id);
+      return true;
     });
 
     setSelectedDrilldownRep({
@@ -432,7 +478,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       dailyWhatsappTarget: 15,
       monthlyRevenueTarget: 300000,
       monthlyMeetingsTarget: 10,
-      activitiesList,
+      activitiesList: uniqueActivities,
     });
     setDrilldownModalOpen(true);
   };
