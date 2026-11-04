@@ -68,6 +68,43 @@ export class ActivitiesService {
       } catch (_) {}
     }
 
+    // Guard: reject corrupted or phantom test reconciliation payloads
+    if (
+      dto.notes?.includes('This is Test Discription') ||
+      dto.notes?.includes('Old Jacket 1 (Qty: 1 · ₹10,499') ||
+      ((mergedMetadata.reconciledFromLocal || mergedMetadata.reconciledFromDevice) && !validLeadId)
+    ) {
+      return { id: 'ignored_phantom', type: typeEnum, description: dto.notes, createdAt: new Date() };
+    }
+
+    // Deduplication check: prevent duplicate activity spamming within 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const existingActivity = await this.prisma.activity.findFirst({
+      where: {
+        organizationId,
+        userId,
+        type: typeEnum,
+        leadId: validLeadId,
+        description: dto.notes,
+        createdAt: { gte: fiveMinutesAgo },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (existingActivity) {
+      return existingActivity;
+    }
+
     const activity = await this.prisma.activity.create({
       data: {
         organizationId,

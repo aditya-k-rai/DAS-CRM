@@ -808,7 +808,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((a: any) => a && !String(a.id || '').startsWith('task-call-'));
+            return parsed.filter((a: any) => {
+              if (!a || String(a.id || '').startsWith('task-call-')) return false;
+              const note = String(a.notes || a.sentMessage || '');
+              if (note.includes('This is Test Discription') || note.includes('Old Jacket 1 (Qty: 1 · ₹10,499')) return false;
+              return true;
+            });
           }
         }
       } catch (_) {}

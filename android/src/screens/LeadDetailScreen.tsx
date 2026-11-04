@@ -142,7 +142,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([]);
   const [contactHistory, setContactHistory] = useState<ContactAttempt[]>([]);
 
-  // 💾 Hydrate cached contact history on lead load
+  // 💾 Hydrate cached contact history on lead load (with automatic corrupt cache sanitation)
   useEffect(() => {
     if (!leadId) return;
     AsyncStorage.getItem(`das_crm_contact_history_${leadId}`)
@@ -151,13 +151,22 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           try {
             const parsed = JSON.parse(cached);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setContactHistory(parsed);
+              const clean = parsed.filter((item: any) => {
+                const note = String(item?.notes || item?.sentMessage || '');
+                if (note.includes('This is Test Discription') || note.includes('Old Jacket 1 (Qty: 1 · ₹10,499')) return false;
+                if (note.includes('Mr. Ravi Gupta') && !(leadName || '').toLowerCase().includes('ravi')) return false;
+                return true;
+              });
+              if (clean.length !== parsed.length) {
+                AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(clean)).catch(() => {});
+              }
+              setContactHistory(clean);
             }
           } catch (_) {}
         }
       })
       .catch(() => {});
-  }, [leadId]);
+  }, [leadId, leadName]);
 
   // ⚡ Immediately hydrate full lead details from cache if phone is empty on mount
   useEffect(() => {
@@ -366,7 +375,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           });
         }
 
-        const dedupedMapped = deduplicateContactAttempts(mappedAttempts);
+        const dedupedMapped = deduplicateContactAttempts(mappedAttempts).filter((item: any) => {
+          const note = String(item?.notes || item?.sentMessage || '');
+          if (note.includes('This is Test Discription') || note.includes('Old Jacket 1 (Qty: 1 · ₹10,499')) return false;
+          if (note.includes('Mr. Ravi Gupta') && !(leadName || '').toLowerCase().includes('ravi')) return false;
+          return true;
+        });
         setContactHistory(dedupedMapped);
         AsyncStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(dedupedMapped)).catch(() => {});
       }

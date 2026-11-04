@@ -163,6 +163,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           const pairs = await Promise.all(
             contactKeys.map(async (k: string) => [k, await AsyncStorage.getItem(k)] as [string, string | null])
           );
+          // 3. Populate clean contact history map from local AsyncStorage
           const historyMap = new Map<string, any[]>();
           pairs.forEach(([k, v]: [string, string | null]) => {
             if (v) {
@@ -170,56 +171,20 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
                 const parsed = JSON.parse(v);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   const leadId = k.replace('das_crm_contact_history_', '');
-                  historyMap.set(leadId, parsed);
+                  if (!leadId || leadId === 'undefined' || leadId === 'null') return;
+                  // Filter out corrupt test descriptions
+                  const cleanAttempts = parsed.filter((att: any) => {
+                    const note = String(att?.notes || att?.sentMessage || '').toLowerCase();
+                    return !note.includes('this is test discription') && !note.includes('old jacket 1 (qty: 1 · ₹10,499');
+                  });
+                  if (cleanAttempts.length > 0) {
+                    historyMap.set(leadId, cleanAttempts);
+                  }
                 }
               } catch (_) {}
             }
           });
           setContactHistoriesMap(historyMap);
-
-          // 3b. Auto-reconcile local offline contact histories to server /activities
-          const sActs = Array.isArray(actRes) ? actRes : ((actRes as any)?.items || []);
-          const serverSigs = new Set<string>();
-          sActs.forEach((a: any) => {
-            const lId = String(a.leadId || '');
-            const cType = String(a.type || a.metadata?.channel || a.metadata?.type || '').toUpperCase();
-            const tMin = a.createdAt ? String(a.createdAt).slice(0, 16) : '';
-            serverSigs.add(`${lId}_${cType}_${tMin}`);
-            if (a.id) serverSigs.add(String(a.id));
-          });
-
-          for (const [leadId, attempts] of historyMap.entries()) {
-            if (!leadId || leadId.startsWith('lead-local-') || !Array.isArray(attempts)) continue;
-            for (const att of attempts) {
-              if (!att || String(att.id || '').startsWith('act_')) continue;
-              const attType = String(att.type || att.sharingMedium || '').toUpperCase();
-              const tMin = att.timestamp ? String(att.timestamp).slice(0, 16) : '';
-              const sig = `${leadId}_${attType}_${tMin}`;
-              if (!serverSigs.has(sig)) {
-                serverSigs.add(sig);
-                const isCall = attType.includes('CALL') || attType.includes('PHONE');
-                const isWA = attType.includes('WA') || attType.includes('WHATSAPP');
-                const isMeeting = attType.includes('MEETING') || att.scheduledType === 'MEETING';
-                apiService.logLeadActivity(token, {
-                  activityType: isCall ? 'CALL' : (isMeeting ? 'MEETING' : 'NOTE'),
-                  leadId,
-                  notes: att.notes || (isWA ? 'Direct WhatsApp Outreach' : 'Contact attempt logged'),
-                  outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
-                  metadata: {
-                    channel: isWA ? 'WHATSAPP_DIRECT' : (isCall ? 'CALL' : 'DIRECT'),
-                    type: att.type || (isWA ? 'WHATSAPP_DIRECT' : 'NOTE'),
-                    outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
-                    by: att.by || currentUser?.name || 'Sales Rep',
-                    byRole: att.byRole || currentUser?.role || 'SALES_EXEC',
-                    durationSeconds: att.durationSeconds || 0,
-                    followUpDate: att.followUpDate,
-                    followUpTime: att.followUpTime,
-                    reconciledFromDevice: true,
-                  },
-                }).catch(() => {});
-              }
-            }
-          }
         }
       } catch (e) {
         console.warn('[SalesGoalsScreen] Error loading contact histories:', e);
@@ -387,9 +352,13 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
 
         if (!isUserMatch) return;
 
-        const aType = String(act.type || '').toUpperCase();
+        // Ignore phantom/reconciled entries
+        if (act.metadata?.reconciledFromLocal || act.metadata?.reconciledFromDevice) return;
         const aDesc = String(act.description || act.notes || '');
         const aDescLower = aDesc.toLowerCase();
+        if (aDescLower.includes('this is test discription') || aDescLower.includes('old jacket 1 (qty: 1 · ₹10,499')) return;
+
+        const aType = String(act.type || '').toUpperCase();
         const aChannel = String(act.metadata?.channel || act.metadata?.type || '').toUpperCase();
         const aOutcome = String(act.metadata?.outcome || act.outcome || '').toUpperCase();
 
@@ -433,6 +402,9 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       repLeads.forEach(l => {
         const hist = contactHistoriesMap.get(String(l.id)) || [];
         hist.forEach(att => {
+          const notesLower = String(att?.notes || att?.sentMessage || '').toLowerCase();
+          if (notesLower.includes('this is test discription') || notesLower.includes('old jacket 1 (qty: 1 · ₹10,499')) return;
+
           const aType = String(att.type || att.sharingMedium || '').toUpperCase();
           const tMin = String(att.timestamp || '').slice(0, 16);
           const aId = att.id || `${l.id}_${att.timestamp || ''}_${att.type || ''}`;
@@ -455,6 +427,9 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       // Also scan attempts from contactHistoriesMap by author
       contactHistoriesMap.forEach((attempts, lId) => {
         attempts.forEach(att => {
+          const notesLower = String(att?.notes || att?.sentMessage || '').toLowerCase();
+          if (notesLower.includes('this is test discription') || notesLower.includes('old jacket 1 (qty: 1 · ₹10,499')) return;
+
           const byStr = (att.by || '').toLowerCase().trim();
           if (byStr && (byStr === repNameLower || byStr.includes(repNameLower))) {
             const aType = String(att.type || att.sharingMedium || '').toUpperCase();

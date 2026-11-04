@@ -191,7 +191,8 @@ export function toDateKey(dateInput?: string | Date | null): string {
 }
 
 /**
- * Scan local storage for contact history attempts saved per lead
+ * Scan local storage for contact history attempts saved per lead,
+ * filtering out any orphaned or corrupt test records.
  */
 export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[] {
   if (typeof window === 'undefined') return [];
@@ -203,6 +204,10 @@ export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[]
       const key = localStorage.key(i);
       if (key && key.startsWith('das_crm_contact_history_')) {
         const leadId = key.replace('das_crm_contact_history_', '');
+        if (!leadId || leadId === 'undefined' || leadId === 'null' || leadId === '[object Object]') {
+          continue;
+        }
+
         const raw = localStorage.getItem(key);
         if (raw) {
           try {
@@ -211,15 +216,20 @@ export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[]
               const uniqueAttempts: any[] = [];
               for (const att of parsed) {
                 if (!att) continue;
+                const noteSnippet = String(att.notes || att.sentMessage || '');
+                if (noteSnippet.includes('This is Test Discription') || noteSnippet.includes('Old Jacket 1 (Qty: 1 · ₹10,499')) {
+                  continue;
+                }
+
                 const cleanId = att.id ? String(att.id).replace(/^(att_|act_)/, '') : '';
                 const timeStr = String(att.timestamp || att.time || att.createdAt || '').slice(0, 16);
                 const attType = String(att.type || att.sharingMedium || '').toUpperCase();
-                const notesSnippet = String(att.notes || att.sentMessage || '').slice(0, 30).toLowerCase();
+                const notesPart = noteSnippet.slice(0, 30).toLowerCase();
 
                 // Build cross-key deduplication signature
                 const sig = cleanId && !cleanId.startsWith('attempt_') && !cleanId.startsWith('rand_')
                   ? `id_${cleanId}`
-                  : `${leadId}_${attType}_${timeStr}_${notesSnippet}`;
+                  : `${leadId}_${attType}_${timeStr}_${notesPart}`;
 
                 if (globalSeenAttemptSignatures.has(sig)) continue;
                 globalSeenAttemptSignatures.add(sig);
@@ -239,80 +249,53 @@ export function getLocalContactAttempts(): { leadId: string; attempts: any[] }[]
 }
 
 /**
- * Auto-reconciles any locally saved contact attempts (e.g. offline WhatsApp / Call shares)
- * to PostgreSQL /activities if they haven't been persisted to the server.
+ * Sanitizes contaminated local storage caches across client tabs.
  */
-export async function reconcileUnsyncedLocalAttempts(serverActivities: any[]) {
+export function sanitizeClientLocalStorage(): void {
   if (typeof window === 'undefined') return;
-  const localItems = getLocalContactAttempts();
-  if (!localItems || localItems.length === 0) return;
-
-  const serverSigs = new Set<string>();
-  serverActivities.forEach(a => {
-    const lId = String(a.leadId || '');
-    const cType = String(a.type || a.metadata?.channel || a.metadata?.type || '').toUpperCase();
-    const tMin = a.createdAt ? String(a.createdAt).slice(0, 16) : '';
-    const notePart = (a.description || a.notes || '').slice(0, 30).trim().toLowerCase();
-    serverSigs.add(`${lId}_${cType}_${tMin}`);
-    if (notePart) serverSigs.add(`${lId}_${notePart}`);
-    if (a.id) serverSigs.add(String(a.id));
-  });
-
-  for (const { leadId, attempts } of localItems) {
-    if (!leadId || leadId === '1' || leadId.startsWith('lead_')) continue;
-
-    for (const att of attempts) {
-      if (!att) continue;
-      const attId = String(att.id || '');
-      if (attId.startsWith('act_')) continue;
-
-      const attType = String(att.type || att.sharingMedium || '').toUpperCase();
-      const tMin = att.timestamp ? String(att.timestamp).slice(0, 16) : '';
-      const notePart = (att.notes || att.sentMessage || '').slice(0, 30).trim().toLowerCase();
-
-      const sig1 = `${leadId}_${attType}_${tMin}`;
-      const sig2 = `${leadId}_${notePart}`;
-      if (serverSigs.has(sig1) || (notePart && serverSigs.has(sig2)) || (attId && serverSigs.has(attId))) {
-        continue;
-      }
-
-      // Found an unsynced local attempt — sync to /activities
-      try {
-        const isWA = attType.includes('WA') || attType.includes('WHATSAPP');
-        const isCall = attType.includes('CALL') || attType.includes('PHONE');
-        const isMeeting = attType.includes('MEETING') || att.scheduledType === 'MEETING';
-
-        await apiFetch('/activities', {
-          method: 'POST',
-          body: JSON.stringify({
-            activityType: isCall ? 'CALL' : (isMeeting ? 'MEETING' : 'NOTE'),
-            leadId,
-            notes: att.notes || (isWA ? 'Direct WhatsApp Outreach' : 'Contact attempt logged'),
-            outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
-            metadata: {
-              channel: isWA ? 'WHATSAPP_DIRECT' : (isCall ? 'CALL' : 'DIRECT'),
-              type: att.type || (isWA ? 'WHATSAPP_DIRECT' : 'NOTE'),
-              outcome: att.outcome || (isWA ? 'WA_SENT' : 'CONTACTED'),
-              productInterest: att.productInterest,
-              products: att.products || att.metadata?.products,
-              by: att.by || 'Sales Rep',
-              byRole: att.byRole || 'SALES_EXEC',
-              sentMessage: att.sentMessage,
-              durationSeconds: att.durationSeconds || 0,
-              followUpDate: att.followUpDate,
-              followUpTime: att.followUpTime,
-              reconciledFromLocal: true,
-            },
-          }),
-        });
-
-        serverSigs.add(sig1);
-        if (notePart) serverSigs.add(sig2);
-      } catch (err) {
-        console.warn('[goalMetricsEngine] Auto-reconciliation notice:', err);
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key === 'das_crm_contact_history_undefined' || key === 'das_crm_contact_history_null' || key === 'das_crm_contact_history_[object Object]') {
+        keysToRemove.push(key);
+      } else if (key.startsWith('das_crm_contact_history_')) {
+        const raw = localStorage.getItem(key);
+        if (raw && (raw.includes('This is Test Discription') || raw.includes('Old Jacket 1 (Qty: 1 · ₹10,499'))) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const cleaned = parsed.filter((item: any) => {
+                const note = String(item?.notes || item?.sentMessage || '');
+                return !note.includes('This is Test Discription') && !note.includes('Old Jacket 1 (Qty: 1 · ₹10,499');
+              });
+              if (cleaned.length === 0) {
+                keysToRemove.push(key);
+              } else {
+                localStorage.setItem(key, JSON.stringify(cleaned));
+              }
+            }
+          } catch (_) {
+            keysToRemove.push(key);
+          }
+        }
       }
     }
-  }
+    keysToRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch (_) {}
+    });
+  } catch (_) {}
+}
+
+/**
+ * Neutralized auto-reconciler: strictly read-only and idempotent.
+ * Does not auto-create activities in PostgreSQL in background loops.
+ */
+export async function reconcileUnsyncedLocalAttempts(_serverActivities: any[]): Promise<void> {
+  // Purposely disabled: Background data loaders must never mutate PostgreSQL
+  // Activities are solely logged when reps perform explicit actions in UI.
+  sanitizeClientLocalStorage();
 }
 
 /**
@@ -407,11 +390,9 @@ export async function fetchUnifiedCRMData() {
   // Goals config
   const goalsPayload = results[4].status === 'fulfilled' ? results[4].value : null;
 
-  // Auto-reconcile any local unsynced contact attempts to backend /activities in background
-  if (typeof window !== 'undefined' && rawActivities.length > 0) {
-    try {
-      reconcileUnsyncedLocalAttempts(rawActivities).catch(() => {});
-    } catch (_) {}
+  // Sanitize contaminated local storage on client load (read-only, no PostgreSQL mutations)
+  if (typeof window !== 'undefined') {
+    sanitizeClientLocalStorage();
   }
 
   return {
@@ -631,6 +612,10 @@ export function calculatePerformanceRecords({
   activities.forEach(act => {
     const rawType = String(act.type || '').toUpperCase();
     const rawDesc = String(act.description || act.notes || '').trim();
+    // Strictly ignore synthetic/orphaned or reconciled phantom activities
+    if (act.metadata?.reconciledFromLocal || act.metadata?.reconciledFromDevice) return;
+    if (rawDesc.includes('This is Test Discription') || rawDesc.includes('Old Jacket 1 (Qty: 1 · ₹10,499')) return;
+
     const rawChannel = String(act.metadata?.channel || '').toUpperCase();
     const rawOutcome = String(act.metadata?.outcome || act.outcome || '').toUpperCase();
 
