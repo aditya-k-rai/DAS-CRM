@@ -402,8 +402,8 @@ class FollowUpSyncEngine {
       ...currentTasks.filter(
         (t) =>
           !(
-            t.leadId === newTask.leadId &&
-            t.dueAt === newTask.dueAt &&
+            (t.leadId === newTask.leadId || (t.leadPhone && newTask.leadPhone && t.leadPhone === newTask.leadPhone)) &&
+            (t.dueAt === newTask.dueAt || Math.abs(new Date(t.dueAt).getTime() - new Date(newTask.dueAt).getTime()) <= 30 * 60 * 1000) &&
             !t.isCompleted
           )
       ),
@@ -694,16 +694,35 @@ class FollowUpSyncEngine {
     );
 
     // Sort by dueAt ascending (soonest due first)
-    mergedList.sort((a, b) => {
+    // Deduplicate active tasks: Ensure only 1 active follow-up exists per (lead + scheduled slot)
+    const deduplicatedList: FollowUpTask[] = [];
+    const seenActiveSlots = new Set<string>();
+
+    for (const task of mergedList) {
+      if (!task.isCompleted && task.status !== 'COMPLETED' && task.status !== 'CANCELLED') {
+        const leadKey = task.leadId || task.leadPhone || task.leadName;
+        const timeVal = new Date(task.dueAt).getTime();
+        const bucket = !isNaN(timeVal) ? Math.floor(timeVal / (15 * 60 * 1000)) : task.scheduledDate;
+        const slotKey = `${leadKey}_${task.scheduledDate || ''}_${bucket}`;
+
+        if (seenActiveSlots.has(slotKey)) {
+          continue; // Skip duplicate active task for the same lead and same time slot
+        }
+        seenActiveSlots.add(slotKey);
+      }
+      deduplicatedList.push(task);
+    }
+
+    deduplicatedList.sort((a, b) => {
       const timeA = new Date(a.dueAt).getTime();
       const timeB = new Date(b.dueAt).getTime();
       return timeA - timeB;
     });
 
     // Save consolidated clean list to storage
-    await this.persistTasks(mergedList);
+    await this.persistTasks(deduplicatedList);
 
-    return mergedList;
+    return deduplicatedList;
   }
 
   /**

@@ -180,7 +180,22 @@ export const FollowUpsScreen: React.FC<Props> = ({ onClose, onNavigateToLead, na
   // ─── Scoped Tasks for Current Viewer / Rep ───────────────────────────────────
 
   const scopedTasks = useMemo(() => {
-    return followUpSyncEngine.filterTasksForUser(tasks, currentUser, selectedRepFilter);
+    const rawScoped = followUpSyncEngine.filterTasksForUser(tasks, currentUser, selectedRepFilter);
+    // Safety deduplication: ensure only 1 active follow-up per (lead + scheduled slot)
+    const deduplicated: typeof rawScoped = [];
+    const seenActiveSlots = new Set<string>();
+    for (const t of rawScoped) {
+      if (!t.isCompleted && t.status !== 'COMPLETED' && t.status !== 'CANCELLED') {
+        const leadKey = t.leadId || t.leadPhone || t.leadName;
+        const timeVal = new Date(t.dueAt).getTime();
+        const bucket = !isNaN(timeVal) ? Math.floor(timeVal / (15 * 60 * 1000)) : t.scheduledDate;
+        const slotKey = `${leadKey}_${t.scheduledDate || ''}_${bucket}`;
+        if (seenActiveSlots.has(slotKey)) continue;
+        seenActiveSlots.add(slotKey);
+      }
+      deduplicated.push(t);
+    }
+    return deduplicated;
   }, [tasks, currentUser, selectedRepFilter]);
 
   // ─── Telemetry Summary Metrics (Web Parity: Calculated from Scoped View) ────

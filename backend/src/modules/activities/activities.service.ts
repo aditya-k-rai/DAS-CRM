@@ -101,7 +101,7 @@ export class ActivitiesService {
 
     // ⚡ Automatic Two-Way Synchronization to CRM Follow-up Pipeline
     const followUpDateStr = mergedMetadata.followUpDate || (dto.nextActionDate ? new Date(dto.nextActionDate).toISOString().slice(0, 10) : undefined);
-    if (followUpDateStr && validLeadId) {
+    if (followUpDateStr && validLeadId && !mergedMetadata.followUpId) {
       try {
         const timeStr = mergedMetadata.followUpTime || '10:00 AM';
         const isMeeting = dto.activityType === 'MEETING' || mergedMetadata.scheduledType === 'MEETING' || dto.outcome === 'MEETING_SCHEDULED';
@@ -138,6 +138,7 @@ export class ActivitiesService {
           where: {
             organizationId,
             leadId: validLeadId,
+            isCompleted: false,
             dueAt: {
               gte: new Date(dueAt.getTime() - 2 * 60 * 60 * 1000),
               lte: new Date(dueAt.getTime() + 2 * 60 * 60 * 1000),
@@ -145,7 +146,14 @@ export class ActivitiesService {
           },
         });
 
-        if (!existingTask) {
+        if (existingTask) {
+          // Task already exists, link activity to it without creating duplicate
+          mergedMetadata.followUpId = existingTask.id;
+          await this.prisma.activity.update({
+            where: { id: activity.id },
+            data: { metadata: mergedMetadata },
+          }).catch(() => {});
+        } else {
           const lead = await this.prisma.lead.findUnique({
             where: { id: validLeadId },
             select: { firstName: true, lastName: true, phone: true },

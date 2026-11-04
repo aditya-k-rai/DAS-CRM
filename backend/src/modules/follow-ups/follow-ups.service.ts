@@ -85,7 +85,7 @@ export class FollowUpsService {
       const activities = await this.prisma.activity.findMany({
         where: {
           organizationId,
-          type: { in: ['CALL', 'MEETING', 'NOTE', 'TASK'] },
+          type: { in: ['CALL', 'MEETING', 'NOTE'] },
         },
         include: { lead: true, user: true },
         orderBy: { createdAt: 'desc' },
@@ -108,6 +108,7 @@ export class FollowUpsService {
       let createdCount = 0;
       for (const act of activities) {
         const meta = (act.metadata || {}) as Record<string, any>;
+        if (meta.followUpId) continue; // Task already created or linked
         const fDate = meta.followUpDate || (meta.nextActionDate ? String(meta.nextActionDate).slice(0, 10) : null);
         if (!fDate || !act.leadId) continue;
 
@@ -416,9 +417,26 @@ export class FollowUpsService {
       computedStatus: this.computeStatus(item),
     }));
 
+    // In-memory deduplication safety filter for identical uncompleted follow-ups
+    const deduplicatedItems: typeof enriched = [];
+    const seenActiveKeys = new Set<string>();
+
+    for (const item of enriched) {
+      if (!item.isCompleted && item.status !== 'COMPLETED' && item.status !== 'CANCELLED') {
+        const leadKey = item.leadId || (item as any).lead?.phone || item.title;
+        const dueKey = item.dueAt ? Math.floor(new Date(item.dueAt).getTime() / (15 * 60 * 1000)) : 'nodue';
+        const uniqueKey = `${leadKey}_${dueKey}`;
+        if (seenActiveKeys.has(uniqueKey)) {
+          continue; // Skip duplicate uncompleted task for the same lead at the same time window
+        }
+        seenActiveKeys.add(uniqueKey);
+      }
+      deduplicatedItems.push(item);
+    }
+
     return {
-      data: enriched,
-      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+      data: deduplicatedItems,
+      meta: { total: deduplicatedItems.length, page: pageNum, limit: limitNum, totalPages: Math.ceil(deduplicatedItems.length / limitNum) },
     };
   }
 
@@ -544,6 +562,39 @@ export class FollowUpsService {
     }
 
     const assigneeId = dto.assigneeId || userId;
+
+    // ⚡ Idempotency / Deduplication: If an active follow-up for this lead at this time already exists, update and reuse it
+    if (validLeadId) {
+      const existingTask = await this.prisma.task.findFirst({
+        where: {
+          organizationId,
+          leadId: validLeadId,
+          isCompleted: false,
+          dueAt: {
+            gte: new Date(dueAt.getTime() - 30 * 60 * 1000),
+            lte: new Date(dueAt.getTime() + 30 * 60 * 1000),
+          },
+        },
+        include: this.includeRelations(),
+      });
+
+      if (existingTask) {
+        const updated = await this.prisma.task.update({
+          where: { id: existingTask.id },
+          data: {
+            title: dto.title.trim() || existingTask.title,
+            description: dto.notes || existingTask.description,
+            purpose: dto.purpose || dto.notes || existingTask.purpose,
+            priority,
+            reminderAt: reminderAt ?? existingTask.reminderAt,
+            assigneeId,
+            followUpType,
+          },
+          include: this.includeRelations(),
+        });
+        return { ...updated, computedStatus: 'PENDING' };
+      }
+    }
 
     const followUp = await this.prisma.task.create({
       data: {
