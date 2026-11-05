@@ -518,10 +518,16 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [editRequirement, setEditRequirement] = useState(leadRequirement === '—' ? '' : leadRequirement);
   const [editCity, setEditCity] = useState(leadCity === '—' ? '' : leadCity);
 
-  // Dynamic Status Picker Modal State
+  // Dynamic Status Picker Modal State with Medium & Reason tracking
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [availableStatuses, setAvailableStatuses] = useState<LeadStatusItem[]>(DEFAULT_ANDROID_STATUSES);
   const [selectedStatusChoice, setSelectedStatusChoice] = useState<string>('NEW LEAD');
+  const [statusMedium, setStatusMedium] = useState<'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING' | 'MANUAL'>('CALL');
+  const [statusReason, setStatusReason] = useState<'TALKED' | 'RESCHEDULE' | 'INTERESTED' | 'PROPOSAL_REQ' | 'NEGOTIATION' | 'WON' | 'LOST' | 'NOT_RESPONDING'>('TALKED');
+  const [statusRescheduleDate, setStatusRescheduleDate] = useState<string>('');
+  const [statusRescheduleIsoDate, setStatusRescheduleIsoDate] = useState<string>('');
+  const [statusRescheduleTime, setStatusRescheduleTime] = useState<string>('10:30 AM');
+  const [statusProductInterest, setStatusProductInterest] = useState<string>('');
   const [statusNotes, setStatusNotes] = useState<string>('');
 
   // 💳 Payment Status Modal
@@ -1644,7 +1650,23 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                 gap: 5,
               }}
               onPress={() => {
-                setSelectedStatusChoice(leadStatusState || lead?.status || 'NEW LEAD');
+                const currentSt = leadStatusState || lead?.status || 'NEW LEAD';
+                setSelectedStatusChoice(currentSt);
+                setStatusMedium('CALL');
+                setStatusReason(
+                  currentSt.includes('MEETING') ? 'RESCHEDULE' :
+                  currentSt.includes('QUALIFIED') || currentSt.includes('NEGOTIATION') ? 'INTERESTED' :
+                  currentSt.includes('WON') ? 'WON' :
+                  currentSt.includes('LOST') ? 'LOST' : 'TALKED'
+                );
+                const tom = new Date();
+                tom.setDate(tom.getDate() + 1);
+                const tomIso = tom.toISOString().split('T')[0];
+                const tomFormatted = `${tom.toLocaleString('en-US', { weekday: 'short' })}, ${tom.getDate()} ${tom.toLocaleString('en-US', { month: 'short' })}`;
+                setStatusRescheduleDate(tomFormatted);
+                setStatusRescheduleIsoDate(tomIso);
+                setStatusRescheduleTime('10:30 AM');
+                setStatusProductInterest(leadRequirement && leadRequirement !== '—' ? leadRequirement : '');
                 setStatusNotes('');
                 setStatusPickerOpen(true);
               }}
@@ -2256,15 +2278,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 📝 UPDATE LEAD STATUS & STAGE MODAL (WEB PARITY)                            */}
+      {/* 📝 UPDATE LEAD STATUS & STAGE MODAL WITH MEDIUM, REASON & RESCHEDULE ENGINE */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={statusPickerOpen} transparent animationType="fade" onRequestClose={() => setStatusPickerOpen(false)}>
-        <View style={[styles.waModalOverlay, { backgroundColor: 'rgba(0,0,0,0.75)' }]}>
-          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border, maxWidth: 390, width: '92%', borderRadius: 20 }]}>
+        <View style={[styles.waModalOverlay, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
+          <View style={[styles.waModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border, maxWidth: 410, width: '94%', maxHeight: '88%', borderRadius: 20, padding: 0, overflow: 'hidden' }]}>
             {/* Header */}
-            <View style={[styles.waModalHeaderRow, { borderBottomColor: colors.border, paddingBottom: 12 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.waModalTitle, { color: colors.text, fontSize: 15 }]}>📝 Update Lead Stage & Status</Text>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>📝 Update Lead Stage & Status</Text>
                 <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>
                   Current: <Text style={{ color: statusColor, fontWeight: '800' }}>{leadStatusState || lead?.status || 'NEW LEAD'}</Text>
                 </Text>
@@ -2274,80 +2296,303 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               </TouchableOpacity>
             </View>
 
-            {/* Status list with Web parity badges & descriptions */}
-            <ScrollView style={{ maxHeight: 290 }} showsVerticalScrollIndicator={false}>
-              <View style={{ gap: 6, paddingVertical: 8 }}>
-                {availableStatuses.map(st => {
-                  const isSelected = (selectedStatusChoice || leadStatusState || '').trim().toUpperCase() === st.name.trim().toUpperCase();
-                  return (
-                    <TouchableOpacity
-                      key={st.id || st.name}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
-                        borderWidth: isSelected ? 1.5 : 1,
-                        borderColor: isSelected ? st.color : colors.border,
-                        backgroundColor: isSelected ? (st.color + '18') : (colors.cardBgElevated || 'transparent'),
-                      }}
-                      onPress={() => setSelectedStatusChoice(st.name)}
-                      activeOpacity={0.75}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                        <Text style={{ fontSize: 16 }}>{st.icon || '🏷️'}</Text>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
-                            <Text style={{ fontSize: 12, fontWeight: '800', color: isSelected ? st.color : colors.text }}>
-                              {st.name}
+            <ScrollView style={{ paddingHorizontal: 16 }} showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingVertical: 12, gap: 12 }}>
+              {/* 1. SELECT TARGET STATUS */}
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 6 }}>
+                  Select Target Stage *
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
+                  <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 4 }}>
+                    {availableStatuses.map(st => {
+                      const isSelected = (selectedStatusChoice || leadStatusState || '').trim().toUpperCase() === st.name.trim().toUpperCase();
+                      return (
+                        <TouchableOpacity
+                          key={st.id || st.name}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            paddingVertical: 7,
+                            paddingHorizontal: 10,
+                            borderRadius: 10,
+                            borderWidth: isSelected ? 1.5 : 1,
+                            borderColor: isSelected ? st.color : colors.border,
+                            backgroundColor: isSelected ? (st.color + '22') : (colors.cardBgElevated || 'transparent'),
+                          }}
+                          onPress={() => {
+                            setSelectedStatusChoice(st.name);
+                            if (st.name.includes('MEETING')) {
+                              setStatusReason('RESCHEDULE');
+                              setStatusMedium('MEETING');
+                            } else if (st.name.includes('QUALIFIED') || st.name.includes('NEGOTIATION')) {
+                              setStatusReason('INTERESTED');
+                            } else if (st.name.includes('WON')) {
+                              setStatusReason('WON');
+                            } else if (st.name.includes('LOST')) {
+                              setStatusReason('LOST');
+                            }
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={{ fontSize: 12 }}>{st.icon || '🏷️'}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: isSelected ? st.color : colors.text }}>
+                            {st.name}
+                          </Text>
+                          {isSelected && <Text style={{ color: st.color, fontSize: 11, fontWeight: '900' }}>✓</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* 2. CONNECTION MEDIUM */}
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 6 }}>
+                  📡 Connection Medium (How did you connect?) *
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {[
+                    { key: 'CALL', label: 'Phone Call', icon: '📞', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+                    { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
+                    { key: 'EMAIL', label: 'Email', icon: '📧', color: '#818cf8', bg: 'rgba(129,140,248,0.15)' },
+                    { key: 'MEETING', label: 'Meeting', icon: '🏢', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' },
+                    { key: 'MANUAL', label: 'Direct Update', icon: '⚡', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+                  ].map(m => {
+                    const isSelected = statusMedium === m.key;
+                    return (
+                      <TouchableOpacity
+                        key={m.key}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 5,
+                          paddingVertical: 6,
+                          paddingHorizontal: 9,
+                          borderRadius: 8,
+                          borderWidth: isSelected ? 1.5 : 1,
+                          borderColor: isSelected ? m.color : colors.border,
+                          backgroundColor: isSelected ? m.bg : colors.cardBgElevated,
+                        }}
+                        onPress={() => setStatusMedium(m.key as any)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 12 }}>{m.icon}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: isSelected ? '800' : '600', color: isSelected ? (isDark ? '#ffffff' : m.color) : colors.text }}>
+                          {m.label}
+                        </Text>
+                        {isSelected && <Text style={{ fontSize: 10, fontWeight: '900', color: m.color }}>✓</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* 3. INTERACTION FEEDBACK / OUTCOME REASON */}
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 6 }}>
+                  🎯 Interaction Feedback / Reason *
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {[
+                    { key: 'TALKED', label: 'Connected & Talked', icon: '💬', color: '#10b981' },
+                    { key: 'RESCHEDULE', label: 'Reschedule / Callback', icon: '🔄', color: '#38bdf8' },
+                    { key: 'INTERESTED', label: 'Interested in Product', icon: '📦', color: '#f59e0b' },
+                    { key: 'PROPOSAL_REQ', label: 'Quotation Requested', icon: '📄', color: '#818cf8' },
+                    { key: 'NEGOTIATION', label: 'In Negotiation', icon: '🤝', color: '#ec4899' },
+                    { key: 'WON', label: 'Deal Won', icon: '🎉', color: '#16a34a' },
+                    { key: 'LOST', label: 'Not Interested / Lost', icon: '❌', color: '#ef4444' },
+                    { key: 'NOT_RESPONDING', label: 'No Answer / Missed', icon: '🔕', color: '#94a3b8' },
+                  ].map(r => {
+                    const isSelected = statusReason === r.key;
+                    return (
+                      <TouchableOpacity
+                        key={r.key}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 5,
+                          paddingVertical: 6,
+                          paddingHorizontal: 9,
+                          borderRadius: 8,
+                          borderWidth: isSelected ? 1.5 : 1,
+                          borderColor: isSelected ? r.color : colors.border,
+                          backgroundColor: isSelected ? (r.color + '20') : colors.cardBgElevated,
+                        }}
+                        onPress={() => setStatusReason(r.key as any)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 11 }}>{r.icon}</Text>
+                        <Text style={{ fontSize: 10.5, fontWeight: isSelected ? '800' : '600', color: isSelected ? (isDark ? '#ffffff' : r.color) : colors.text }}>
+                          {r.label}
+                        </Text>
+                        {isSelected && <Text style={{ fontSize: 10, fontWeight: '900', color: r.color }}>✓</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* 4A. RESCHEDULE OPTIONS (IF RESCHEDULE SELECTED) */}
+              {statusReason === 'RESCHEDULE' && (
+                <View style={{ backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : 'rgba(2,132,199,0.06)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(2,132,199,0.25)', borderRadius: 12, padding: 10, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#38bdf8' : '#0284c7', textTransform: 'uppercase' }}>
+                      ⏰ Follow-up Scheduling Date & Time:
+                    </Text>
+                    <View style={{ backgroundColor: 'rgba(56,189,248,0.2)', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 8.5, fontWeight: '800', color: isDark ? '#38bdf8' : '#0284c7' }}>Auto-Synced</Text>
+                    </View>
+                  </View>
+
+                  {/* Quick Preset Dates */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 4 }}>
+                      {[
+                        { label: 'Today', offset: 0 },
+                        { label: 'Tomorrow', offset: 1 },
+                        { label: 'In 2 Days', offset: 2 },
+                        { label: 'In 3 Days', offset: 3 },
+                        { label: 'In 1 Week', offset: 7 },
+                      ].map(dItem => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + dItem.offset);
+                        const iso = d.toISOString().split('T')[0];
+                        const formatted = `${d.toLocaleString('en-US', { weekday: 'short' })}, ${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })}`;
+                        const isChosen = statusRescheduleIsoDate === iso;
+                        return (
+                          <TouchableOpacity
+                            key={dItem.label}
+                            style={{
+                              paddingVertical: 5,
+                              paddingHorizontal: 8,
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: isChosen ? '#38bdf8' : colors.border,
+                              backgroundColor: isChosen ? '#38bdf8' : colors.cardBgElevated,
+                            }}
+                            onPress={() => {
+                              setStatusRescheduleDate(formatted);
+                              setStatusRescheduleIsoDate(iso);
+                            }}
+                          >
+                            <Text style={{ fontSize: 9.5, fontWeight: '700', color: isChosen ? '#ffffff' : colors.text }}>
+                              ⚡ {dItem.label} ({d.getDate()} {d.toLocaleString('en-US', { month: 'short' })})
                             </Text>
-                          </View>
-                          {st.desc ? (
-                            <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }} numberOfLines={1}>
-                              {st.desc}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+
+                  {/* Time Slots */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                    {['09:30 AM', '10:30 AM', '12:00 PM', '03:00 PM', '05:00 PM', '07:00 PM'].map(tSlot => {
+                      const isChosen = statusRescheduleTime === tSlot;
+                      return (
+                        <TouchableOpacity
+                          key={tSlot}
+                          style={{
+                            paddingVertical: 4,
+                            paddingHorizontal: 7,
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: isChosen ? '#38bdf8' : colors.border,
+                            backgroundColor: isChosen ? 'rgba(56,189,248,0.25)' : colors.cardBgElevated,
+                          }}
+                          onPress={() => setStatusRescheduleTime(tSlot)}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: isChosen ? '900' : '600', color: isChosen ? '#38bdf8' : colors.textSecondary }}>
+                            {tSlot}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* 4B. PRODUCT OF INTEREST (IF INTERESTED SELECTED) */}
+              {statusReason === 'INTERESTED' && (
+                <View style={{ backgroundColor: isDark ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.06)', borderWidth: 1, borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.25)', borderRadius: 12, padding: 10, gap: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#fbbf24' : '#b45309', textTransform: 'uppercase' }}>
+                    📦 Product of Interest / Requirement:
+                  </Text>
+                  <TextInput
+                    style={{
+                      backgroundColor: colors.cardBgElevated,
+                      borderColor: colors.border,
+                      borderWidth: 1,
+                      borderRadius: 8,
+                      paddingHorizontal: 8,
+                      paddingVertical: 6,
+                      fontSize: 11,
+                      color: colors.text,
+                    }}
+                    placeholder="e.g. 3BHK Modular Kitchen, Luxury Sofa, Interior Design..."
+                    placeholderTextColor={colors.textMuted}
+                    value={statusProductInterest}
+                    onChangeText={setStatusProductInterest}
+                  />
+
+                  {/* Quick Product Chips from liveProducts */}
+                  {liveProducts && liveProducts.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -2 }}>
+                      <View style={{ flexDirection: 'row', gap: 4, paddingHorizontal: 2 }}>
+                        {liveProducts.slice(0, 5).map(lp => (
+                          <TouchableOpacity
+                            key={lp.id}
+                            style={{
+                              backgroundColor: colors.cardBgElevated,
+                              borderColor: colors.border,
+                              borderWidth: 1,
+                              borderRadius: 6,
+                              paddingHorizontal: 6,
+                              paddingVertical: 3,
+                            }}
+                            onPress={() => setStatusProductInterest(lp.name)}
+                          >
+                            <Text style={{ fontSize: 8.5, color: colors.textSecondary, fontWeight: '700' }}>
+                              + {lp.name}
                             </Text>
-                          ) : null}
-                        </View>
+                          </TouchableOpacity>
+                        ))}
                       </View>
-                      {isSelected && (
-                        <View style={{ backgroundColor: st.color, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>✓</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+
+              {/* 5. DISCUSSION REMARKS / NOTES */}
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>
+                  📝 Remarks / Note (Required with Reason) *
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: colors.cardBgElevated,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    fontSize: 11.5,
+                    color: colors.text,
+                    textAlignVertical: 'top',
+                    minHeight: 60,
+                  }}
+                  multiline
+                  placeholder="Enter remarks, customer discussion points, or reason..."
+                  placeholderTextColor={colors.textMuted}
+                  value={statusNotes}
+                  onChangeText={setStatusNotes}
+                />
               </View>
             </ScrollView>
 
-            {/* Status Notes Input */}
-            <View style={{ marginTop: 8, marginBottom: 12 }}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>
-                Status Remarks / Notes (Optional)
-              </Text>
-              <TextInput
-                style={{
-                  backgroundColor: colors.cardBgElevated,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                  fontSize: 12,
-                  color: colors.text,
-                }}
-                placeholder="Enter remarks or status reason..."
-                placeholderTextColor={colors.textMuted}
-                value={statusNotes}
-                onChangeText={setStatusNotes}
-              />
-            </View>
-
-            {/* Modal Actions */}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            {/* Modal Bottom Actions */}
+            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
               <TouchableOpacity
                 onPress={() => setStatusPickerOpen(false)}
                 style={{
@@ -2368,26 +2613,102 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   const targetStatus = selectedStatusChoice || leadStatusState || 'NEW LEAD';
                   setStatusPickerOpen(false);
                   const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
                   setLeadStatusState(targetStatus);
+
+                  const mediumLabel =
+                    statusMedium === 'CALL' ? '📞 Phone Call' :
+                    statusMedium === 'WHATSAPP' ? '💬 WhatsApp' :
+                    statusMedium === 'EMAIL' ? '📧 Email' :
+                    statusMedium === 'MEETING' ? '🏢 Meeting' :
+                    '⚡ Manual Update';
+
+                  const reasonLabel =
+                    statusReason === 'RESCHEDULE' ? 'Rescheduled Callback' :
+                    statusReason === 'INTERESTED' ? `Interested in Product: ${statusProductInterest || 'Product portfolio'}` :
+                    statusReason === 'PROPOSAL_REQ' ? 'Quotation / Proposal Requested' :
+                    statusReason === 'NEGOTIATION' ? 'In Negotiation' :
+                    statusReason === 'WON' ? 'Deal Won' :
+                    statusReason === 'LOST' ? 'Lead Lost' :
+                    statusReason === 'NOT_RESPONDING' ? 'No Answer / Not Responding' :
+                    'Talked & Connected';
+
                   setLastStatusUpdate({
                     status: targetStatus,
-                    medium: 'Manual Update',
+                    medium: mediumLabel,
                     time: timeString,
                   });
+
                   apiService.updateLeadStatus(token, leadId, targetStatus);
-                  handleSaveCallOutcome({
-                    leadId,
-                    leadName,
-                    phone: leadPhone,
-                    outcome: 'PICKED_UP',
-                    subOption: 'TALKED',
-                    notes: statusNotes.trim() ? `Lead status updated to ${targetStatus}: ${statusNotes.trim()}` : `Lead status updated to ${targetStatus}`,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  });
+
+                  const fullNotes = statusNotes.trim()
+                    ? statusNotes.trim()
+                    : `Lead stage updated to ${targetStatus} via ${mediumLabel} (${reasonLabel})`;
+
+                  if (statusMedium !== 'MANUAL') {
+                    const isCall = statusMedium === 'CALL';
+                    const isWa = statusMedium === 'WHATSAPP';
+                    const isEmail = statusMedium === 'EMAIL';
+                    const isMeeting = statusMedium === 'MEETING';
+
+                    let callOutcome: 'PICKED_UP' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCHED_OFF' | 'WHATSAPP_CHAT' = 'PICKED_UP';
+                    if (isWa) {
+                      callOutcome = 'WHATSAPP_CHAT';
+                    } else if (statusReason === 'NOT_RESPONDING') {
+                      callOutcome = 'NOT_RESPONDING';
+                    }
+
+                    let subOption: 'TALKED' | 'CALL_LATER' | 'WILL_VISIT' | 'CATALOGUE_SHARED' | 'INTERESTED' | 'WA_SENT' | 'WA_RESPONDED' = 'TALKED';
+                    if (statusReason === 'RESCHEDULE') {
+                      subOption = 'CALL_LATER';
+                    } else if (statusReason === 'INTERESTED') {
+                      subOption = 'INTERESTED';
+                    } else if (isMeeting) {
+                      subOption = 'WILL_VISIT';
+                    } else if (isWa) {
+                      subOption = 'WA_SENT';
+                    }
+
+                    const schedDate = statusReason === 'RESCHEDULE' ? (statusRescheduleIsoDate || statusRescheduleDate) : undefined;
+                    const schedTime = statusReason === 'RESCHEDULE' ? statusRescheduleTime : undefined;
+                    const schedType = isMeeting ? 'MEETING' : isWa ? 'WHATSAPP' : isEmail ? 'EMAIL' : 'CALL';
+
+                    handleSaveCallOutcome({
+                      leadId,
+                      leadName,
+                      phone: leadPhone,
+                      outcome: callOutcome,
+                      subOption,
+                      targetStage: targetStatus,
+                      scheduledDate: schedDate,
+                      scheduledTime: schedTime,
+                      scheduledType: schedType,
+                      customProduct: statusReason === 'INTERESTED' ? (statusProductInterest.trim() || undefined) : undefined,
+                      productInterest: statusReason === 'INTERESTED' ? (statusProductInterest.trim() || undefined) : undefined,
+                      notes: fullNotes,
+                      durationStr: isCall ? '1m 30s' : undefined,
+                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    });
+                  } else {
+                    // Pure Manual Status Change
+                    apiService.logLeadActivity(token, {
+                      activityType: 'STATUS_CHANGE',
+                      leadId,
+                      userId: currentUser?.id,
+                      notes: fullNotes,
+                      subject: `Status: ${targetStatus}`,
+                      metadata: {
+                        status: targetStatus,
+                        medium: 'Manual Update',
+                        notes: fullNotes,
+                      },
+                    }).catch(() => {});
+                  }
+
                   setToastConfig({
                     id: String(Date.now()),
-                    title: 'Status Updated',
-                    message: `Lead status updated to ${targetStatus}.`,
+                    title: '⚡ Status & Activity Synced',
+                    message: `Lead updated to ${targetStatus} via ${mediumLabel}.`,
                     type: 'SUCCESS',
                   });
                 }}
@@ -2397,6 +2718,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   borderRadius: 12,
                   backgroundColor: '#e11d48',
                   alignItems: 'center',
+                  justifyContent: 'center',
                 }}
                 activeOpacity={0.8}
               >

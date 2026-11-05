@@ -76,6 +76,7 @@ export interface CallOutcomeData {
   enablePreAlert5Min?: boolean;
   selectedProduct?: ProductItem | null;
   customProduct?: string;
+  productInterest?: string;
   productQuantity?: number;
   productTotalPrice?: number;
   baseTotalPrice?: number;
