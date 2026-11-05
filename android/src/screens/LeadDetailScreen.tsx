@@ -527,6 +527,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const [statusRescheduleDate, setStatusRescheduleDate] = useState<string>('');
   const [statusRescheduleIsoDate, setStatusRescheduleIsoDate] = useState<string>('');
   const [statusRescheduleTime, setStatusRescheduleTime] = useState<string>('10:30 AM');
+  const [statusRescheduleChannel, setStatusRescheduleChannel] = useState<'CALL' | 'WHATSAPP' | 'MEETING' | 'EMAIL'>('CALL');
   const [statusProductInterest, setStatusProductInterest] = useState<string>('');
   const [statusNotes, setStatusNotes] = useState<string>('');
 
@@ -1666,6 +1667,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                 setStatusRescheduleDate(tomFormatted);
                 setStatusRescheduleIsoDate(tomIso);
                 setStatusRescheduleTime('10:30 AM');
+                setStatusRescheduleChannel(currentSt.includes('MEETING') ? 'MEETING' : 'CALL');
                 setStatusProductInterest(leadRequirement && leadRequirement !== '—' ? leadRequirement : '');
                 setStatusNotes('');
                 setStatusPickerOpen(true);
@@ -2510,6 +2512,47 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                       );
                     })}
                   </View>
+
+                  {/* Single Unified Follow-up Channel Selector */}
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={{ fontSize: 9, color: colors.textMuted, fontWeight: '700', marginBottom: 4 }}>
+                      Follow-up Channel / Type:
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                      {[
+                        { key: 'CALL', label: 'Call Callback', icon: '📞' },
+                        { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
+                        { key: 'MEETING', label: 'Meeting', icon: '🏢' },
+                        { key: 'EMAIL', label: 'Email', icon: '📧' },
+                      ].map(ch => {
+                        const isChSelected = statusRescheduleChannel === ch.key;
+                        return (
+                          <TouchableOpacity
+                            key={ch.key}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 4,
+                              paddingHorizontal: 8,
+                              paddingVertical: 5,
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: isChSelected ? '#38bdf8' : colors.border,
+                              backgroundColor: isChSelected ? 'rgba(56,189,248,0.2)' : colors.cardBgElevated,
+                            }}
+                            onPress={() => setStatusRescheduleChannel(ch.key as any)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
+                            <Text style={{ fontSize: 9.5, fontWeight: isChSelected ? '800' : '600', color: isChSelected ? (isDark ? '#ffffff' : '#0284c7') : colors.textSecondary }}>
+                              {ch.label}
+                            </Text>
+                            {isChSelected && <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '900' }}>✓</Text>}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
                 </View>
               )}
 
@@ -2671,7 +2714,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
                     const schedDate = statusReason === 'RESCHEDULE' ? (statusRescheduleIsoDate || statusRescheduleDate) : undefined;
                     const schedTime = statusReason === 'RESCHEDULE' ? statusRescheduleTime : undefined;
-                    const schedType = isMeeting ? 'MEETING' : isWa ? 'WHATSAPP' : isEmail ? 'EMAIL' : 'CALL';
+                    const schedType = statusReason === 'RESCHEDULE'
+                      ? statusRescheduleChannel
+                      : (isMeeting ? 'MEETING' : isWa ? 'WHATSAPP' : isEmail ? 'EMAIL' : 'CALL');
 
                     handleSaveCallOutcome({
                       leadId,

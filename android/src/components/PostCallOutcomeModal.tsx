@@ -135,6 +135,13 @@ const DEFAULT_TIME_SLOTS = [
   '06:30 PM',
 ];
 
+export const FOLLOW_UP_CHANNEL_OPTIONS: Array<{ key: 'CALL' | 'WHATSAPP' | 'MEETING' | 'EMAIL'; label: string; icon: string }> = [
+  { key: 'CALL', label: 'Call Callback', icon: '📞' },
+  { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
+  { key: 'MEETING', label: 'Meeting', icon: '🏢' },
+  { key: 'EMAIL', label: 'Email', icon: '📧' },
+];
+
 export default function PostCallOutcomeModal({
   visible,
   leadId,
@@ -364,6 +371,37 @@ export default function PostCallOutcomeModal({
     setSelectedQuoteInvoice(null);
     setNotes('');
   };
+
+  // Render single, unified Follow-up Channel / Type selector
+  const renderFollowUpChannelSelector = (label: string = 'Follow-up Channel / Type:') => (
+    <View style={{ marginTop: 8 }}>
+      <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
+        {label}
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+        {FOLLOW_UP_CHANNEL_OPTIONS.map((ch) => {
+          const isSelected = followUpChannel === ch.key;
+          return (
+            <TouchableOpacity
+              key={ch.key}
+              style={[
+                styles.channelChip,
+                isSelected && styles.channelChipActive,
+              ]}
+              onPress={() => setFollowUpChannel(ch.key)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
+              <Text style={[styles.channelChipText, isSelected && { color: '#ffffff', fontWeight: '800' }]}>
+                {ch.label}
+              </Text>
+              {isSelected && <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '900' }}>✓</Text>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
 
   // Generate localized WhatsApp product share message
   const generateProductWhatsAppMessage = (customNote?: string, lang: 'EN' | 'HI' | 'HINGLISH' = 'EN') => {
@@ -672,6 +710,11 @@ export default function PostCallOutcomeModal({
                         style={[styles.subOptionBtn, isSelected && styles.subOptionBtnActive]}
                         onPress={() => {
                           setTalkedSubOption(sub.key as any);
+                          if (sub.key === 'SAID_WILL_VISIT') {
+                            setFollowUpChannel('MEETING');
+                          } else if (sub.key === 'CALL_LATER') {
+                            setFollowUpChannel('CALL');
+                          }
                           if (sub.key === 'QUOTE_INVOICE_SHARED') {
                             setShowQuoteSelector(true);
                           }
@@ -983,6 +1026,9 @@ export default function PostCallOutcomeModal({
                         ))}
                       </View>
 
+                      {/* Single Unified Follow-up Channel Selector */}
+                      {renderFollowUpChannelSelector('Follow-up Channel / Type:')}
+
                       {/* 5-Min Pre-Alert Notification */}
                       <TouchableOpacity
                         style={[styles.checkboxRow, { marginTop: 8 }]}
@@ -1040,6 +1086,9 @@ export default function PostCallOutcomeModal({
                         </TouchableOpacity>
                       ))}
                     </View>
+
+                    {/* Single Unified Follow-up Channel Selector */}
+                    {renderFollowUpChannelSelector('Follow-up Channel / Type:')}
 
                     <TouchableOpacity
                       style={[styles.checkboxRow, { marginTop: 8 }]}
@@ -1110,6 +1159,9 @@ export default function PostCallOutcomeModal({
                         </TouchableOpacity>
                       ))}
                     </View>
+
+                    {/* Single Unified Follow-up Channel Selector */}
+                    {renderFollowUpChannelSelector('Follow-up Channel / Type:')}
 
                     <TouchableOpacity
                       style={[styles.checkboxRow, { marginTop: 8 }]}
@@ -1271,66 +1323,8 @@ export default function PostCallOutcomeModal({
                   ))}
                 </View>
 
-                {/* Follow-up Channel Selector */}
-                <View style={{ marginTop: 8 }}>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
-                    Follow-up Channel / Type:
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {[
-                      { key: 'CALL', label: 'Call Callback', icon: '📞' },
-                      { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
-                      { key: 'MEETING', label: 'Meeting', icon: '🏢' },
-                      { key: 'EMAIL', label: 'Email', icon: '📧' },
-                    ].map(ch => (
-                      <TouchableOpacity
-                        key={ch.key}
-                        style={[
-                          styles.channelChip,
-                          followUpChannel === ch.key && styles.channelChipActive,
-                        ]}
-                        onPress={() => setFollowUpChannel(ch.key as any)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
-                        <Text style={[styles.channelChipText, followUpChannel === ch.key && { color: '#ffffff', fontWeight: '800' }]}>
-                          {ch.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Pre-Alert 5-Min Notification */}
-                {/* Follow-up Channel Selector */}
-                <View style={{ marginTop: 8 }}>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
-                    Callback Channel / Type:
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {[
-                      { key: 'CALL', label: 'Call Callback', icon: '📞' },
-                      { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
-                      { key: 'MEETING', label: 'Meeting', icon: '🏢' },
-                      { key: 'EMAIL', label: 'Email', icon: '📧' },
-                    ].map(ch => (
-                      <TouchableOpacity
-                        key={ch.key}
-                        style={[
-                          styles.channelChip,
-                          followUpChannel === ch.key && styles.channelChipActive,
-                        ]}
-                        onPress={() => setFollowUpChannel(ch.key as any)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
-                        <Text style={[styles.channelChipText, followUpChannel === ch.key && { color: '#ffffff', fontWeight: '800' }]}>
-                          {ch.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                {/* Single Unified Follow-up Channel Selector */}
+                {renderFollowUpChannelSelector('Follow-up Channel / Type:')}
 
                 <TouchableOpacity
                   style={[styles.checkboxRow, { marginTop: 8 }]}
@@ -1437,35 +1431,8 @@ export default function PostCallOutcomeModal({
                   </View>
                 )}
 
-                {/* Follow-up Channel Selector */}
-                <View style={{ marginTop: 8 }}>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>
-                    Callback Channel / Type:
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {[
-                      { key: 'CALL', label: 'Call Callback', icon: '📞' },
-                      { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
-                      { key: 'MEETING', label: 'Meeting', icon: '🏢' },
-                      { key: 'EMAIL', label: 'Email', icon: '📧' },
-                    ].map(ch => (
-                      <TouchableOpacity
-                        key={ch.key}
-                        style={[
-                          styles.channelChip,
-                          followUpChannel === ch.key && styles.channelChipActive,
-                        ]}
-                        onPress={() => setFollowUpChannel(ch.key as any)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={{ fontSize: 10 }}>{ch.icon}</Text>
-                        <Text style={[styles.channelChipText, followUpChannel === ch.key && { color: '#ffffff', fontWeight: '800' }]}>
-                          {ch.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                {/* Single Unified Follow-up Channel Selector */}
+                {renderFollowUpChannelSelector('Follow-up Channel / Type:')}
 
                 <TouchableOpacity
                   style={[styles.checkboxRow, { marginTop: 8 }]}
@@ -1503,7 +1470,14 @@ export default function PostCallOutcomeModal({
                       <TouchableOpacity
                         key={sub.key}
                         style={[styles.subOptionBtn, isSelected && styles.subOptionBtnActive]}
-                        onPress={() => setWaChatSubOption(sub.key as any)}
+                        onPress={() => {
+                          setWaChatSubOption(sub.key as any);
+                          if (sub.key === 'WILL_VISIT') {
+                            setFollowUpChannel('MEETING');
+                          } else if (sub.key === 'CHAT_LATER') {
+                            setFollowUpChannel('WHATSAPP');
+                          }
+                        }}
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.subOptionText, isSelected && styles.subOptionTextActive]}>
@@ -1513,6 +1487,65 @@ export default function PostCallOutcomeModal({
                     );
                   })}
                 </View>
+
+                {/* Scheduling under WhatsApp Chat */}
+                {(waChatSubOption === 'CHAT_LATER' || waChatSubOption === 'WILL_VISIT') && (
+                  <View style={{ marginTop: 10, padding: 8, backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8', textTransform: 'uppercase', marginBottom: 4 }}>
+                      ⏰ Schedule Follow-up (Next 15 Days):
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                      {next15Days.map((dObj) => (
+                        <TouchableOpacity
+                          key={dObj.isoDate}
+                          style={[styles.dateChip, scheduledDate === dObj.formatted && styles.dateChipActive]}
+                          onPress={() => {
+                            setScheduledDate(dObj.formatted);
+                            setScheduledIsoDate(dObj.isoDate);
+                          }}
+                        >
+                          <Text style={[styles.dateChipSub, scheduledDate === dObj.formatted && { color: '#ffffff' }]}>
+                            {dObj.offset === 0 ? 'TODAY' : dObj.dayOfWeek}
+                          </Text>
+                          <Text style={[styles.dateChipNum, scheduledDate === dObj.formatted && { color: '#ffffff' }]}>
+                            {dObj.dayNum}
+                          </Text>
+                          <Text style={[styles.dateChipMonth, scheduledDate === dObj.formatted && { color: '#ffffff' }]}>
+                            {dObj.monthName}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                      {DEFAULT_TIME_SLOTS.map((slot) => (
+                        <TouchableOpacity
+                          key={slot}
+                          style={[styles.timeChip, scheduledTime === slot && styles.timeChipActive]}
+                          onPress={() => setScheduledTime(slot)}
+                        >
+                          <Text style={[styles.timeChipText, scheduledTime === slot && { color: '#ffffff', fontWeight: '900' }]}>
+                            {slot}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Single Unified Follow-up Channel Selector */}
+                    {renderFollowUpChannelSelector('Follow-up Channel / Type:')}
+
+                    <TouchableOpacity
+                      style={[styles.checkboxRow, { marginTop: 8 }]}
+                      onPress={() => setEnablePreAlert5Min(!enablePreAlert5Min)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.checkbox, enablePreAlert5Min && styles.checkboxActive]}>
+                        {enablePreAlert5Min && <Text style={styles.checkboxCheck}>✓</Text>}
+                      </View>
+                      <Text style={styles.checkboxLabel}>🔔 Pre-alert notification (5 mins before scheduled time)</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
 
