@@ -675,7 +675,7 @@ class FollowUpSyncEngine {
       }
     });
 
-    if (taskMap.size === 0) {
+    if (!serverSuccess && !token && taskMap.size === 0) {
       ENTERPRISE_SEED_TASKS.forEach((st) => {
         taskMap.set(st.id, st);
       });

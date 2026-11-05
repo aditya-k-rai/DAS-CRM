@@ -30,6 +30,7 @@ import { useAuthStore } from '../store/authStore';
 import { apiService, Lead, Employee } from '../services/apiService';
 import { RepDrilldownModal, PerformanceRecord, DrilldownActivityItem } from '../components/RepDrilldownModal';
 import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
+import { toDateKey } from '../services/dateUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GOALS_CONFIG_KEY = '@das_crm_goals_config';
@@ -52,15 +53,13 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
   const [contactHistoriesMap, setContactHistoriesMap] = useState<Map<string, any[]>>(new Map());
   const [serverActivities, setServerActivities] = useState<any[]>([]);
 
-  // Dynamic Date / Month definitions
+  // Dynamic Date / Month definitions in local client timezone (1:1 parity with Web)
   const todayDateStr = useMemo(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return toDateKey(new Date());
   }, []);
 
   const currentMonthStr = useMemo(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return toDateKey(new Date()).slice(0, 7);
   }, []);
 
   const currentMonthName = useMemo(() => {
@@ -287,7 +286,6 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         const lOwnerId = String((l as any).ownerId || (l as any).assignedTo || '');
         if (lOwnerId && (lOwnerId === repIdStr || lOwnerId === repEmailLower)) return true;
         if (owner && (owner === repNameLower || owner.includes(repNameLower) || repNameLower.includes(owner))) return true;
-        if (repList.length === 1 && (!owner || owner === 'unassigned')) return true;
         return false;
       });
 
@@ -316,21 +314,23 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         return sum + val;
       }, 0);
 
-      // 2. Real Matched Follow-ups
+      // 2. Real Matched Follow-ups strictly for this representative
       const repFollowUps = followUps.filter((f) => {
-        const fRep = (f.assignedRepName || f.assignedRepId || '').toLowerCase().trim();
+        const fRepId = String(f.assignedRepId || (f as any).userId || '');
+        const fRep = (f.assignedRepName || '').toLowerCase().trim();
+        if (fRepId && (fRepId === repIdStr || fRepId === repEmailLower)) return true;
         if (fRep && (fRep === repNameLower || fRep.includes(repNameLower) || repNameLower.includes(fRep))) return true;
-        if (repList.length === 1) return true;
         return false;
       });
 
-      // 3. Real Matched Quotations
+      // 3. Real Matched Quotations strictly for this representative
       const repQuotes = quotations.filter((q: any) => {
         const qCreator = (q.createdByName || q.createdBy || '').toLowerCase().trim();
+        const qCreatorId = String(q.createdById || q.userId || '');
         const qLeadId = String(q.leadId || '');
+        if (qCreatorId && (qCreatorId === repIdStr || qCreatorId === repEmailLower)) return true;
         if (qCreator && (qCreator === repNameLower || qCreator.includes(repNameLower) || repNameLower.includes(qCreator))) return true;
         if (qLeadId && repLeads.some(l => String(l.id) === qLeadId)) return true;
-        if (repList.length === 1) return true;
         return false;
       });
 
@@ -338,17 +338,17 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       const repAttempts: any[] = [];
       const seenAttemptIds = new Set<string>();
 
-      // 4a. Ingest Server Activities from PostgreSQL
+      // 4a. Ingest Server Activities from PostgreSQL strictly for this representative
       serverActivities.forEach((act) => {
         const actUserId = String(act.userId || act.user?.id || act.createdBy || '');
-        const actUserRole = String(act.user?.role || act.metadata?.byRole || '').toUpperCase();
+        const actUserEmail = String(act.user?.email || '').toLowerCase().trim();
         const actByName = String(
           (act.user ? `${act.user.firstName || ''} ${act.user.lastName || ''}`.trim() : (act.userName || act.metadata?.by || ''))
         ).toLowerCase().trim();
 
         const isUserMatch = (actUserId && (actUserId === repIdStr || actUserId === repEmailLower)) ||
-                            (actByName && (actByName === repNameLower || actByName.includes(repNameLower) || repNameLower.includes(actByName))) ||
-                            (repList.length === 1 && !actUserRole.includes('ADMIN'));
+                            (actUserEmail && actUserEmail === repEmailLower) ||
+                            (actByName && (actByName === repNameLower || actByName.includes(repNameLower) || repNameLower.includes(actByName)));
 
         if (!isUserMatch) return;
 
@@ -470,7 +470,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       let monthlyProductsShared = 0;
 
       repAttempts.forEach((att) => {
-        const attDate = (att.timestamp || '').slice(0, 10);
+        const attDate = toDateKey(att.timestamp || att.time || att.createdAt);
         const isSelectedDate = attDate === selectedDate;
         const isCurrentMonth = attDate.startsWith(selectedMonth);
 
@@ -509,13 +509,11 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         }
       });
 
-      // Factor in real follow-up tasks
+      // Factor in real completed follow-up tasks
       repFollowUps.forEach((fu) => {
-        const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : '');
-        const dueDate = new Date(fu.dueAt);
-        const isOverdue = !fu.isCompleted && !isNaN(dueDate.getTime()) && Date.now() > dueDate.getTime();
-        const isSelectedDate = fuDate === selectedDate || isOverdue;
-        const isCurrentMonth = fuDate.startsWith(selectedMonth) || isOverdue;
+        const fuDate = toDateKey(fu.scheduledDate || fu.dueAt);
+        const isSelectedDate = fuDate === selectedDate;
+        const isCurrentMonth = fuDate.startsWith(selectedMonth);
 
         if (fu.isCompleted) {
           if (isSelectedDate) {
@@ -527,7 +525,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             monthlyFollowupCalls++;
           }
         }
-        if (fu.channel === 'MEETING') {
+        if (fu.channel === 'MEETING' && fu.isCompleted) {
           if (isSelectedDate) dateMeetingsCount++;
           if (isCurrentMonth) monthlyMeetingsCount++;
         }
@@ -540,7 +538,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       let monthlyQuotesAmount = 0;
 
       repQuotes.forEach((q: any) => {
-        const qDate = (q.createdAt || q.date || q.docDate || '').slice(0, 10);
+        const qDate = toDateKey(q.createdAt || q.date || q.docDate || q.savedAt);
         const amount = typeof q.totalAmount === 'number' ? q.totalAmount : parseFloat(String(q.totalAmount || q.amount || '0').replace(/[^0-9.]/g, '')) || 0;
         if (qDate === selectedDate) {
           dateQuotesCount++;
@@ -563,9 +561,11 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         const isWA = aType.includes('WHATSAPP') || aType.includes('WA_');
         const isProd = !!att.productInterest || (att.products && att.products.length > 0);
         const isQuote = !!att.docNo || aType.includes('QUOTE');
+        const isMtg = aType.includes('MEETING') || aType.includes('VISIT') || aOutcome.includes('MEETING') || aNotes.toLowerCase().includes('meeting');
 
-        const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isWA ? 'WHATSAPP' : 'CALL';
+        const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' | 'MEETING' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isMtg ? 'MEETING' : isWA ? 'WHATSAPP' : 'CALL';
         const isFresh = att.callSubtype === 'FRESH' || aNotes.toLowerCase().includes('fresh');
+        const dateKey = toDateKey(att.timestamp || att.createdAt);
 
         activitiesList.push({
           id: att.id || `act-${rep.id}-${aIdx}`,
@@ -573,41 +573,44 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           leadName: att.leadName || 'Lead Contact',
           leadPhone: att.leadPhone || '9876543210',
           leadCompany: att.leadCompany || 'Enterprise Account',
-          category: cat,
+          category: cat as any,
           callSubtype: isFresh ? 'FRESH' : 'FOLLOWUP',
-          title: att.title || (cat === 'CALL' ? (isFresh ? '🌱 Fresh Ingestion Discovery Call' : '🔄 Scheduled Follow-up Discussion') : cat === 'WHATSAPP' ? '💬 Direct WhatsApp Sent' : cat === 'PRODUCT' ? '📦 Product Catalog Shared' : '📄 Commercial Proposal Generated'),
+          title: att.title || (cat === 'CALL' ? (isFresh ? '🌱 Fresh Ingestion Discovery Call' : '🔄 Scheduled Follow-up Discussion') : cat === 'WHATSAPP' ? '💬 Direct WhatsApp Sent' : cat === 'PRODUCT' ? '📦 Product Catalog Shared' : cat === 'MEETING' ? '🏢 Client Meeting / Visit' : '📄 Commercial Proposal Generated'),
           notes: aNotes || att.sentMessage || undefined,
           outcome: aOutcome || undefined,
           timestamp: att.timestamp || 'Today',
-          dateKey: (att.timestamp || '').slice(0, 10) || selectedDate,
+          dateKey,
           quoteAmount: att.docAmount,
           quoteNo: att.docNo,
           productCount: isProd ? 1 : undefined,
         });
       });
 
-      // Also add real follow-up tasks to activities list
+      // ONLY completed follow-up tasks are added to activitiesList (pending tasks remain in Follow-up section)
       repFollowUps.forEach((fu, fIdx) => {
-        const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : '');
+        if (!fu.isCompleted) return;
+        const fuDate = toDateKey(fu.scheduledDate || fu.dueAt);
+        const cat = fu.channel === 'WHATSAPP' ? 'WHATSAPP' : fu.channel === 'MEETING' ? 'MEETING' : 'CALL';
         activitiesList.push({
           id: fu.id || `fu-${rep.id}-${fIdx}`,
           leadId: fu.leadId || '',
           leadName: fu.leadName || 'Lead Contact',
           leadPhone: fu.leadPhone || '9876543210',
           leadCompany: fu.leadCompany || 'Enterprise Account',
-          category: fu.channel === 'WHATSAPP' ? 'WHATSAPP' : 'CALL',
+          category: cat as any,
           callSubtype: 'FOLLOWUP',
-          title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
+          title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Completed WhatsApp Follow-up' : fu.channel === 'MEETING' ? '🏢 Completed Client Meeting' : '📞 Completed Phone Follow-up'),
           notes: fu.outcomeNote || undefined,
-          outcome: fu.isCompleted ? 'COMPLETED' : 'SCHEDULED',
-          timestamp: fu.dueAt || fuDate || 'Scheduled',
-          dateKey: fuDate || selectedDate,
+          outcome: 'COMPLETED',
+          timestamp: fu.dueAt || fuDate || 'Completed',
+          dateKey: fuDate,
         });
       });
 
       // Also add quotes to activities list
       repQuotes.forEach((q: any, qIdx: number) => {
         const amount = typeof q.totalAmount === 'number' ? q.totalAmount : parseFloat(String(q.totalAmount || q.amount || '0').replace(/[^0-9.]/g, '')) || 0;
+        const qDate = toDateKey(q.createdAt || q.date || q.docDate || q.savedAt);
         activitiesList.push({
           id: q.id || `quote-${rep.id}-${qIdx}`,
           leadId: String(q.leadId || ''),
@@ -617,7 +620,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           category: 'QUOTE',
           title: `📄 Commercial Quotation ${q.docNo || q.quoteNumber || ''}`,
           timestamp: q.createdAt || 'Recent',
-          dateKey: (q.createdAt || '').slice(0, 10) || selectedDate,
+          dateKey: qDate,
           quoteAmount: amount,
           quoteNo: q.docNo || q.quoteNumber,
         });
@@ -770,12 +773,9 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             else if (act.category === 'QUOTE') {
               quotesCount++;
               quotesAmount += (act.quoteAmount || 0);
+            } else if (act.category === 'MEETING') {
+              meetingsCount++;
             }
-          }
-        });
-        (r.activitiesList || []).forEach((act) => {
-          if (act.dateKey === dateStr && act.title && act.title.toLowerCase().includes('meeting')) {
-            meetingsCount++;
           }
         });
       });

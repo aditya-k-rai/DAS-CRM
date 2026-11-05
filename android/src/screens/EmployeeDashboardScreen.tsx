@@ -44,6 +44,7 @@ import { productCatalogService, CatalogProductItem } from '../services/productCa
 import ProductImage from '../components/ProductImage';
 import { SalesGoalsScreen } from './SalesGoalsScreen';
 import { ENTERPRISE_SEED_LEADS, ENTERPRISE_SEED_TASKS } from '../data/enterpriseSeedData';
+import { toDateKey } from '../services/dateUtils';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -190,13 +191,11 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         apiService.getQuotations(token).catch(() => []),
         apiService.getActivities(token, 200).catch(() => []),
       ]);
-      if (!Array.isArray(items) || items.length < ENTERPRISE_SEED_LEADS.length) {
-        const itemIds = new Set((items || []).map((i) => i.id));
-        const missing = ENTERPRISE_SEED_LEADS.filter((s) => !itemIds.has(s.id));
-        items = [...(items || []), ...missing];
+      if (!Array.isArray(items)) {
+        items = [];
       }
-      if (!Array.isArray(tasks) || tasks.length === 0) {
-        tasks = ENTERPRISE_SEED_TASKS;
+      if (!Array.isArray(tasks)) {
+        tasks = [];
       }
       setRawLeads(items);
       if (Array.isArray(prods)) {
@@ -349,12 +348,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       }) === arr.indexOf(l);
     });
 
-    // For Sales Reps with no matched leads, fall back to showing all leads
-    // (the server already scopes data at the API level for their orgId)
-    if (isSalesRep && deduped.length === 0 && rawLeads.length > 0) {
-      return rawLeads;
-    }
-
+    // For Sales Reps: strict isolation, never leak other reps' leads
     return deduped;
   }, [rawLeads, selectedRep, currentUser, isSupervisor, isSalesRep]);
 
@@ -449,10 +443,14 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
   // Generate activities strictly from real database records and local telemetry
   const performanceRepData: PerformanceRepData = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toDateKey(new Date());
     const activitiesList: DrilldownActivityItem[] = [];
 
     const targetRep = isSupervisor ? selectedRep : (currentUser?.name || 'Me');
+    const targetRepName = (isSupervisor ? selectedRep : (currentUser?.name || '')).toLowerCase().trim();
+    const targetUserId = String(currentUser?.id || '');
+    const targetUserEmail = String(currentUser?.email || '').toLowerCase().trim();
+
     const scopedTasks = followUpSyncEngine.filterTasksForUser(rawFollowUps, currentUser, targetRep);
 
     // 1. Real Outgoing Calls from native dialer & call telemetry engine
@@ -461,6 +459,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         (l) => String(l.id) === String(log.leadId) || (l.phone && log.phone && l.phone.replace(/[^\d]/g, '').includes(log.phone.replace(/[^\d]/g, '')))
       );
       const isFresh = (matchedLead?.status || '').toLowerCase() === 'new' || (matchedLead?.status || '').toLowerCase() === 'new lead';
+      const logDate = log.dateStr ? toDateKey(log.dateStr) : toDateKey(log.timestamp) || todayStr;
       activitiesList.push({
         id: log.id,
         leadId: log.leadId,
@@ -474,12 +473,34 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         notes: `Call duration: ${callSyncEngine.formatDuration(log.durationSeconds)}`,
         outcome: log.connectionStatus,
         timestamp: log.timestamp,
-        dateKey: log.dateStr,
+        dateKey: logDate,
       });
     });
 
     // 2. Real Ingested Activities from database (/activities)
     rawActivities.forEach((act) => {
+      // Filter out test/phantom records
+      const descLower = (act.description || act.notes || act.title || '').toLowerCase();
+      if (descLower.includes('this is test discription') || descLower.includes('old jacket 1')) return;
+
+      const actUserId = String(act.userId || act.user?.id || act.createdById || '');
+      const actUserEmail = String(act.userEmail || act.user?.email || '').toLowerCase().trim();
+      const actByName = String(act.by || act.userName || act.user?.name || act.performerName || '').toLowerCase().trim();
+
+      if (!isSupervisor) {
+        // Sales Rep: strictly match current user
+        const matchesUser =
+          (targetUserId && actUserId === targetUserId) ||
+          (targetUserEmail && actUserEmail === targetUserEmail) ||
+          (targetRepName && (actByName === targetRepName || actByName.includes(targetRepName) || targetRepName.includes(actByName)));
+        if (!matchesUser) return;
+      } else if (selectedRep !== 'ALL') {
+        const matchesSelected =
+          (targetRepName && (actByName === targetRepName || actByName.includes(targetRepName) || targetRepName.includes(actByName))) ||
+          (targetRepName && actUserEmail.includes(targetRepName.split(' ')[0]));
+        if (!matchesSelected) return;
+      }
+
       const actType = (act.type || act.activityType || '').toUpperCase();
       const isCall = actType.includes('CALL') || actType.includes('PHONE');
       const isWA = actType.includes('WHATSAPP') || actType.includes('WA_') || actType.includes('EMAIL');
@@ -487,7 +508,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       const isQuote = !!act.quotationId || !!act.docNo || actType.includes('QUOTE');
 
       const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isWA ? 'WHATSAPP' : 'CALL';
-      const actDate = (act.createdAt || act.timestamp || '').slice(0, 10) || todayStr;
+      const actDate = toDateKey(act.createdAt || act.timestamp) || todayStr;
       const matchedLead = scopedLeads.find((l) => String(l.id) === String(act.leadId));
 
       activitiesList.push({
@@ -509,27 +530,43 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
     // 3. Real Scheduled & Completed Follow-ups from database (/tasks)
     scopedTasks.forEach((fu, fIdx) => {
-      const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : todayStr);
+      // ONLY include completed tasks in activitiesList! Scheduled pending tasks belong to the Follow-up queue, not completed calls or outreach!
       const isCompleted = Boolean(fu.isCompleted || fu.status === 'COMPLETED');
+      if (!isCompleted) return;
+
+      const fuDate = toDateKey(fu.completedAt || fu.scheduledDate || fu.dueAt) || todayStr;
+      const isMeeting = fu.channel === 'MEETING';
+      const isWA = fu.channel === 'WHATSAPP';
       activitiesList.push({
         id: fu.id || `fu-act-${fIdx}`,
         leadId: fu.leadId || '',
         leadName: fu.leadName || 'Client Prospect',
         leadPhone: fu.leadPhone || '—',
         leadCompany: fu.leadCompany || 'Corporate Account',
-        category: fu.channel === 'WHATSAPP' ? 'WHATSAPP' : 'CALL',
+        category: isMeeting ? 'CALL' : isWA ? 'WHATSAPP' : 'CALL',
         callSubtype: 'FOLLOWUP',
-        title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
+        title: fu.purpose || (isMeeting ? '📅 Completed In-Person / Virtual Meeting' : isWA ? '💬 Completed WhatsApp Follow-up' : '📞 Completed Phone Follow-up'),
         notes: fu.outcomeNote || undefined,
-        outcome: isCompleted ? 'COMPLETED' : 'SCHEDULED',
-        timestamp: fu.dueAt || fuDate,
+        outcome: 'COMPLETED',
+        timestamp: fu.completedAt || fu.dueAt || fuDate,
         dateKey: fuDate,
       });
     });
 
     // 4. Real Commercial Quotations from database (/quotations)
     rawQuotations.forEach((q: any) => {
-      const qDate = (q.createdAt || '').slice(0, 10) || todayStr;
+      const qCreatorId = String(q.createdById || q.userId || '');
+      const qCreatorName = String(q.createdByName || q.userName || '').toLowerCase().trim();
+      if (!isSupervisor) {
+        const matchesUser =
+          (targetUserId && qCreatorId === targetUserId) ||
+          (targetRepName && (qCreatorName === targetRepName || qCreatorName.includes(targetRepName)));
+        if (!matchesUser) return;
+      } else if (selectedRep !== 'ALL') {
+        if (targetRepName && qCreatorName !== targetRepName && !qCreatorName.includes(targetRepName)) return;
+      }
+
+      const qDate = toDateKey(q.createdAt) || todayStr;
       const amt = Number(q.totalAmount || q.amount) || 0;
       activitiesList.push({
         id: q.id,
@@ -571,6 +608,14 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
       activitiesList: uniqueActivities,
     };
   }, [scopedLeads, rawFollowUps, rawQuotations, rawActivities, todayCallLogs, selectedRep, currentUser, dailyCallsTarget, monthlyRevTarget, isSupervisor]);
+
+  const todayCallsDone = useMemo(() => {
+    const todayStr = toDateKey(new Date());
+    const countFromActivities = (performanceRepData?.activitiesList || []).filter(
+      (a) => a.category === 'CALL' && a.dateKey === todayStr
+    ).length;
+    return Math.max(todayCallsCount, countFromActivities);
+  }, [performanceRepData, todayCallsCount]);
 
   // Derived follow-ups and meetings from real database tasks (followUpSyncEngine)
   useEffect(() => {
@@ -1220,7 +1265,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     📞 Daily Calls Target
                   </Text>
                   <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#34d399', flexShrink: 0 }}>
-                    {todayCallsCount}/{dailyCallsTarget} ({Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%)
+                    {todayCallsDone}/{dailyCallsTarget} ({Math.min(100, Math.round((todayCallsDone / dailyCallsTarget) * 100))}%)
                   </Text>
                 </View>
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border, height: 8, borderRadius: 4 }]}>
@@ -1231,7 +1276,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                         backgroundColor: '#10b981',
                         height: 8,
                         borderRadius: 4,
-                        width: `${Math.min(100, Math.round((todayCallsCount / dailyCallsTarget) * 100))}%`,
+                        width: `${Math.min(100, Math.round((todayCallsDone / dailyCallsTarget) * 100))}%`,
                       },
                     ]}
                   />
@@ -1239,7 +1284,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5, gap: 6 }}>
                   <Text style={{ fontSize: 10, color: colors.textMuted, flexShrink: 1 }} numberOfLines={1}>Logged calls today</Text>
                   <Text style={{ fontSize: 10, fontWeight: '800', color: '#10b981', flexShrink: 1 }} numberOfLines={1}>
-                    {dailyCallsTarget - todayCallsCount > 0 ? `${dailyCallsTarget - todayCallsCount} remaining` : 'Target achieved! 🎯'}
+                    {dailyCallsTarget - todayCallsDone > 0 ? `${dailyCallsTarget - todayCallsDone} remaining` : 'Target achieved! 🎯'}
                   </Text>
                 </View>
               </View>

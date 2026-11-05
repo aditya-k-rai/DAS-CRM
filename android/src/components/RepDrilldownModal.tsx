@@ -27,6 +27,7 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { toDateKey } from '../services/dateUtils';
 
 export interface DrilldownActivityItem {
   id: string;
@@ -115,11 +116,14 @@ export function RepDrilldownModal({
   visible,
   onClose,
   rep,
-  selectedDate = new Date().toISOString().split('T')[0],
-  selectedMonth = new Date().toISOString().slice(0, 7),
+  selectedDate,
+  selectedMonth,
   onOpenLead,
 }: RepDrilldownModalProps) {
   const { colors, isDark } = useTheme();
+
+  const activeDate = selectedDate ? toDateKey(selectedDate) : toDateKey(new Date());
+  const activeMonth = selectedMonth || activeDate.slice(0, 7);
 
   // Active Category: 'CALLS' | 'WHATSAPP' | 'PRODUCTS' | 'QUOTES'
   const [activeCategory, setActiveCategory] = useState<'CALLS' | 'WHATSAPP' | 'PRODUCTS' | 'QUOTES'>('CALLS');
@@ -140,22 +144,25 @@ export function RepDrilldownModal({
 
   const timeframeActivities = useMemo(() => {
     const raw = allActivities.filter((item) => {
+      const itemKey = toDateKey(item.dateKey || item.timestamp);
       if (isMonth) {
-        return item.dateKey.startsWith(selectedMonth);
+        return itemKey.startsWith(activeMonth);
       } else {
-        return item.dateKey === selectedDate;
+        return itemKey === activeDate;
       }
     });
 
     const seen = new Set<string>();
     return raw.filter((item) => {
+      if (item.id && seen.has(item.id)) return false;
+      if (item.id) seen.add(item.id);
       const timeMinute = item.timestamp ? item.timestamp.slice(0, 16) : item.dateKey;
       const key = `${item.category}_${item.leadId}_${item.leadPhone}_${timeMinute}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [allActivities, isMonth, selectedMonth, selectedDate]);
+  }, [allActivities, isMonth, activeMonth, activeDate]);
 
   // Category counts
   const callsList = useMemo(
@@ -318,7 +325,7 @@ export function RepDrilldownModal({
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                📅 Today ({selectedDate})
+                📅 Today ({activeDate})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -333,7 +340,7 @@ export function RepDrilldownModal({
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                📆 Month ({selectedMonth})
+                📆 Month ({activeMonth})
               </Text>
             </TouchableOpacity>
           </View>

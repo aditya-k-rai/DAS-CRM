@@ -304,13 +304,7 @@ class ApiService {
     const rawCachedLeads: LeadItem[] = await offlineSyncEngine.getCachedLeads();
     let cachedLeads: LeadItem[] = (rawCachedLeads || []).filter((l) => !isMockLead(l));
 
-    // Auto-repair stale or truncated cache (e.g. if previous session cached only 50 leads instead of 256+)
-    if (!cachedLeads || cachedLeads.length < ENTERPRISE_SEED_LEADS.length) {
-      const existingIds = new Set((cachedLeads || []).map((l) => l.id));
-      const missingFromSeed = ENTERPRISE_SEED_LEADS.filter((s) => !existingIds.has(s.id));
-      cachedLeads = [...(cachedLeads || []), ...missingFromSeed];
-      offlineSyncEngine.saveCachedLeads(cachedLeads).catch(() => {});
-    }
+    // Respect database source of truth; never forcefully inject demo seed leads
 
     let authToken = token;
     if (!authToken) {
@@ -405,9 +399,7 @@ class ApiService {
       return cachedLeads;
     }
 
-    // Enterprise resilience: if cache is empty, seed from authoritative database records
-    await offlineSyncEngine.saveCachedLeads(ENTERPRISE_SEED_LEADS);
-    return ENTERPRISE_SEED_LEADS;
+    return [];
   }
 
   /** Fetch a single lead by ID with backend API lookup and cache fallback */

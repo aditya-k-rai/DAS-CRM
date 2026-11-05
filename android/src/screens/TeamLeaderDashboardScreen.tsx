@@ -35,6 +35,7 @@ import { apiService, Lead, Employee } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
 import RepDrilldownModal, { DrilldownActivityItem, PerformanceRepData } from '../components/RepDrilldownModal';
 import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
+import { toDateKey } from '../services/dateUtils';
 
 interface SquadMember {
   id: string;
@@ -353,7 +354,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
 
   // Trigger Drilldown for Member
   const handleOpenMemberDrilldown = (member: SquadMember) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toDateKey(new Date());
     const matchedLeads = rawLeads.filter((l) => {
       const owner = (l.owner || '').toLowerCase();
       const customRep = (l.customFields?.assignedRep || l.customFields?.owner || '').toLowerCase();
@@ -381,26 +382,35 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
     });
 
     memberTasks.forEach((fu, fIdx) => {
-      const fuDate = fu.scheduledDate || (fu.dueAt ? fu.dueAt.slice(0, 10) : todayStr);
+      // ONLY include completed follow-up tasks in activitiesList! Scheduled pending tasks belong to follow-up schedule queue.
       const isCompleted = Boolean(fu.isCompleted || fu.status === 'COMPLETED');
+      if (!isCompleted) return;
+
+      const fuDate = toDateKey(fu.completedAt || fu.scheduledDate || fu.dueAt) || todayStr;
+      const isMeeting = fu.channel === 'MEETING';
+      const isWA = fu.channel === 'WHATSAPP';
       activitiesList.push({
         id: fu.id || `fu-act-${fIdx}`,
         leadId: fu.leadId || '',
         leadName: fu.leadName || 'Client Prospect',
         leadPhone: fu.leadPhone || '—',
         leadCompany: fu.leadCompany || 'Corporate Account',
-        category: fu.channel === 'WHATSAPP' ? 'WHATSAPP' : 'CALL',
+        category: isMeeting ? 'CALL' : isWA ? 'WHATSAPP' : 'CALL',
         callSubtype: 'FOLLOWUP',
-        title: fu.purpose || (fu.channel === 'WHATSAPP' ? '💬 Scheduled WhatsApp Follow-up' : '📞 Scheduled Phone Follow-up'),
+        title: fu.purpose || (isMeeting ? '📅 Completed In-Person / Virtual Meeting' : isWA ? '💬 Completed WhatsApp Follow-up' : '📞 Completed Phone Follow-up'),
         notes: fu.outcomeNote || undefined,
-        outcome: isCompleted ? 'COMPLETED' : 'SCHEDULED',
-        timestamp: fu.dueAt || fuDate,
+        outcome: 'COMPLETED',
+        timestamp: fu.completedAt || fu.dueAt || fuDate,
         dateKey: fuDate,
       });
     });
 
     // 2. Real Ingested Activities for this member from database
     rawActivities.forEach((act) => {
+      // Filter out test/phantom records
+      const descLower = (act.description || act.notes || act.title || '').toLowerCase();
+      if (descLower.includes('this is test discription') || descLower.includes('old jacket 1')) return;
+
       const actUser = (act.userId || act.createdById || '').toLowerCase();
       const actRep = (act.user?.name || act.assignedRep || '').toLowerCase();
       const isMember = actUser === member.id || actRep.includes(mLower) || (mFirst.length >= 3 && actRep.includes(mFirst));
@@ -413,7 +423,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       const isQuote = !!act.quotationId || !!act.docNo || actType.includes('QUOTE');
 
       const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isWA ? 'WHATSAPP' : 'CALL';
-      const actDate = (act.createdAt || act.timestamp || '').slice(0, 10) || todayStr;
+      const actDate = toDateKey(act.createdAt || act.timestamp) || todayStr;
 
       activitiesList.push({
         id: act.id,
@@ -439,7 +449,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       const isMember = qUser === member.id || qRep.includes(mLower) || (mFirst.length >= 3 && qRep.includes(mFirst));
       if (!isMember) return;
 
-      const qDate = (q.createdAt || '').slice(0, 10) || todayStr;
+      const qDate = toDateKey(q.createdAt) || todayStr;
       const amt = Number(q.totalAmount || q.amount) || 0;
       activitiesList.push({
         id: q.id,
