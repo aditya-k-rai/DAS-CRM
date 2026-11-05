@@ -51,9 +51,9 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const CURRENT_LAN_API_URL = 'http://192.168.1.43:3001/api/v1';
-export const PREV_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
-export const ALT_LAN_API_URL = 'http://192.168.1.45:3001/api/v1';
+export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
+export const PREV_LAN_API_URL = 'http://10.29.18.95:3001/api/v1';
+export const ALT_LAN_API_URL = 'http://192.168.1.43:3001/api/v1';
 export const DEFAULT_CLOUD_API_URL = 'https://das-backend.onrender.com/api/v1';
 export const ALT_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
@@ -73,9 +73,12 @@ export function getCandidateApiUrls(): string[] {
 
   // 2. Active Host Machine Wi-Fi LAN IP (Instant connection on local network)
   candidates.push(CURRENT_LAN_API_URL);
-  candidates.push('http://192.168.1.43:3001/api/v1');
+  candidates.push('http://192.168.29.26:3001/api/v1');
   candidates.push(PREV_LAN_API_URL);
+  candidates.push('http://10.29.18.95:3001/api/v1');
   candidates.push(ALT_LAN_API_URL);
+  candidates.push('http://192.168.1.43:3001/api/v1');
+  candidates.push('http://192.168.1.45:3001/api/v1');
   candidates.push('http://192.168.1.34:3001/api/v1');
 
   // 3. Dynamic host IP from Expo Metro bundler

@@ -405,6 +405,153 @@ export function DailyCallAuditReportModal({
                 </Text>
               </View>
             )}
+
+            {/* 5. DIRECT WHATSAPP OUTREACH SECTION */}
+            <View style={[styles.leadSectionHeader, { marginTop: 18 }]}>
+              <Text style={[styles.leadSectionTitle, { color: colors.text }]}>
+                💬 DIRECT WHATSAPP OUTREACH ({reportData.leadWhatsAppMessages?.length || 0})
+              </Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>Manual WhatsApp interactions & brochures</Text>
+            </View>
+
+            {reportData.leadWhatsAppMessages && reportData.leadWhatsAppMessages.length > 0 ? (
+              reportData.leadWhatsAppMessages.map((wItem, wIdx) => (
+                <View
+                  key={`wa-item-${wIdx}`}
+                  style={[styles.leadCard, { backgroundColor: colors.cardBgElevated, borderColor: '#25D36640', borderLeftWidth: 4, borderLeftColor: '#25D366' }]}
+                >
+                  <View style={styles.leadCardHeader}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.leadIdx, { backgroundColor: '#25D36625', color: '#25D366' }]}>WA #{wIdx + 1}</Text>
+                        <Text style={[styles.leadNameText, { color: colors.text }]} numberOfLines={1}>
+                          {wItem.leadName}
+                        </Text>
+                      </View>
+                      <Text style={[styles.leadCompanyText, { color: colors.textMuted }]} numberOfLines={1}>
+                        🏢 {wItem.leadCompany} · ⏱️ {wItem.messageTime}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.statusTag, { backgroundColor: 'rgba(37,211,102,0.15)', borderColor: 'rgba(37,211,102,0.3)' }]}>
+                      <Text style={[styles.statusTagText, { color: '#25D366' }]}>{wItem.leadStatus}</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.leadContactRow, { borderColor: colors.border }]}>
+                    <Text style={[styles.phoneText, { color: colors.text }]}>{wItem.leadPhone}</Text>
+                    <TouchableOpacity
+                      style={[styles.miniActionBtn, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
+                      onPress={() => handleWhatsApp(wItem.leadPhone)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 10, color: '#25D366', fontWeight: '800' }}>💬 Open Chat</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.remarksBox, { backgroundColor: isDark ? 'rgba(37,211,102,0.08)' : '#f0fdf4', borderLeftColor: '#25D366' }]}>
+                    <Text style={[styles.remarksLbl, { color: '#16a34a' }]}>💬 Message Content / Dispatched Outreach:</Text>
+                    <Text style={[styles.remarksContent, { color: colors.text }]}>{wItem.messageText}</Text>
+                  </View>
+
+                  {wItem.productsShared ? (
+                    <View style={{ marginTop: 6, padding: 6, borderRadius: 6, backgroundColor: 'rgba(37,211,102,0.1)' }}>
+                      <Text style={{ fontSize: 9, color: '#16a34a', fontWeight: '700' }}>
+                        📦 Catalogues Attached: {wItem.productsShared}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))
+            ) : (
+              <View style={[styles.emptyStateBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingVertical: 14 }]}>
+                <Text style={{ fontSize: 10, color: colors.textMuted }}>No direct WhatsApp outreach logged on this date.</Text>
+              </View>
+            )}
+
+            {/* 6. SCHEDULED FOLLOW-UPS & CALLBACKS SECTION */}
+            <View style={[styles.leadSectionHeader, { marginTop: 18 }]}>
+              <Text style={[styles.leadSectionTitle, { color: colors.text }]}>
+                ⏰ SCHEDULED FOLLOW-UPS & CALLBACKS ({reportData.scheduledFollowUps?.length || 0})
+              </Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>Pending & completed prospect callbacks</Text>
+            </View>
+
+            {reportData.scheduledFollowUps && reportData.scheduledFollowUps.length > 0 ? (
+              reportData.scheduledFollowUps.map((fuItem, fuIdx) => (
+                <View
+                  key={`fu-item-${fuIdx}`}
+                  style={[styles.leadCard, { backgroundColor: colors.cardBgElevated, borderColor: '#8b5cf640', borderLeftWidth: 4, borderLeftColor: '#8b5cf6' }]}
+                >
+                  <View style={styles.leadCardHeader}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.leadIdx, { backgroundColor: '#8b5cf625', color: '#8b5cf6' }]}>FU #{fuIdx + 1}</Text>
+                        <Text style={[styles.leadNameText, { color: colors.text }]} numberOfLines={1}>
+                          {fuItem.leadName}
+                        </Text>
+                      </View>
+                      <Text style={[styles.leadCompanyText, { color: colors.textMuted }]} numberOfLines={1}>
+                        🏢 {fuItem.leadCompany}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.fuStatusBadge, fuItem.isCompleted ? { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.3)' } : { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+                      <Text style={[styles.fuStatusText, fuItem.isCompleted ? { color: '#10b981' } : { color: '#f59e0b' }]}>
+                        {fuItem.isCompleted ? '✓ Completed' : '⏳ Scheduled (Pending)'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.leadContactRow, { borderColor: colors.border }]}>
+                    <Text style={[styles.phoneText, { color: colors.text }]}>{fuItem.leadPhone}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        style={[styles.miniActionBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                        onPress={() => handleCall(fuItem.leadPhone)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '800' }}>📞 Call</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.miniActionBtn, { backgroundColor: 'rgba(37,211,102,0.15)' }]}
+                        onPress={() => handleWhatsApp(fuItem.leadPhone)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 10, color: '#25D366', fontWeight: '800' }}>💬 WhatsApp</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={[styles.followUpCard, { backgroundColor: isDark ? 'rgba(147,51,234,0.12)' : '#faf5ff', borderColor: isDark ? 'rgba(147,51,234,0.3)' : '#e9d5ff', marginTop: 8 }]}>
+                    <View style={styles.fuTopRow}>
+                      <Text style={[styles.fuChannelText, { color: '#a855f7' }]}>
+                        {fuItem.channel === 'WHATSAPP'
+                          ? '💬 WhatsApp Follow-up'
+                          : fuItem.channel === 'MEETING'
+                          ? '🤝 In-Person / Virtual Visit'
+                          : '📞 Phone Call Callback'}
+                      </Text>
+                      <Text style={{ fontSize: 9, color: colors.textMuted }}>
+                        Medium: {fuItem.channel}
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.fuScheduleText, { color: isDark ? '#e9d5ff' : '#581c87' }]}>
+                      🗓️ Scheduled for: <Text style={{ fontWeight: '800' }}>{fuItem.scheduledDate} at {fuItem.scheduledTime}</Text>
+                    </Text>
+
+                    <Text style={[styles.fuObjectiveText, { color: isDark ? '#d8b4fe' : '#6b21a8' }]}>
+                      🎯 Objective: {fuItem.purpose}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={[styles.emptyStateBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingVertical: 14 }]}>
+                <Text style={{ fontSize: 10, color: colors.textMuted }}>No follow-up callbacks or tasks scheduled for this date.</Text>
+              </View>
+            )}
           </ScrollView>
 
           {/* ── STICKY BOTTOM ACTION BAR ── */}

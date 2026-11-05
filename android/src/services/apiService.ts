@@ -718,6 +718,7 @@ class ApiService {
       payload,
       entityId: leadId,
     });
+    offlineSyncEngine.flushQueue().catch(() => {});
 
     return true;
   }
@@ -1590,6 +1591,7 @@ class ApiService {
         method: 'POST',
         payload: activityData,
       });
+      offlineSyncEngine.flushQueue().catch(() => {});
     } catch (_) {}
     return true;
   }

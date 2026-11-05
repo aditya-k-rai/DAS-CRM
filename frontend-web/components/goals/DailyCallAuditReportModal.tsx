@@ -428,6 +428,133 @@ export function DailyCallAuditReportModal({
                 </p>
               </div>
             )}
+
+            {/* ─── DIRECT WHATSAPP OUTREACH SECTION ──────────────────────── */}
+            <div className="flex items-center justify-between pt-6 border-t border-slate-800">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                💬 Direct WhatsApp Outreach ({reportData.leadWhatsAppMessages?.length || 0})
+              </h4>
+              <span className="text-xs text-slate-400">Manual direct chats & product brochures</span>
+            </div>
+
+            {reportData.leadWhatsAppMessages && reportData.leadWhatsAppMessages.length > 0 ? (
+              reportData.leadWhatsAppMessages.map((wItem, wIdx) => (
+                <div
+                  key={`wa-${wIdx}`}
+                  className="p-4 rounded-2xl bg-slate-950/60 border border-emerald-500/30 hover:border-emerald-500/50 transition-all space-y-2.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-black text-xs border border-emerald-500/30">
+                        WA #{wIdx + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-sm font-black text-white">{wItem.leadName}</h5>
+                          <span className="text-xs text-slate-400 font-mono">{wItem.leadPhone}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                          <Building2 size={12} className="text-slate-500" />
+                          <span>{wItem.leadCompany}</span>
+                          <span className="text-slate-500">·</span>
+                          <Clock size={12} className="text-slate-500" />
+                          <span>Sent at {wItem.messageTime}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href={`https://wa.me/${wItem.leadPhone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <MessageCircle size={13} />
+                      Open WhatsApp Chat
+                    </a>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20">
+                    <span className="text-[11px] font-bold text-emerald-400 block mb-1">
+                      💬 Outbound Message Dispatched:
+                    </span>
+                    <p className="text-xs text-slate-200 italic leading-relaxed">{wItem.messageText}</p>
+                  </div>
+
+                  {wItem.productsShared && (
+                    <div className="text-[11px] font-medium text-emerald-300 bg-emerald-950/30 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+                      📦 Attached Catalogues: <strong>{wItem.productsShared}</strong>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-6 bg-slate-950/30 border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
+                No direct WhatsApp outreach messages logged on this date.
+              </div>
+            )}
+
+            {/* ─── SCHEDULED FOLLOW-UPS & CALLBACKS SECTION ──────────────── */}
+            <div className="flex items-center justify-between pt-6 border-t border-slate-800">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-purple-500" />
+                ⏰ Scheduled Follow-ups & Callbacks ({reportData.scheduledFollowUps?.length || 0})
+              </h4>
+              <span className="text-xs text-slate-400">Scheduled prospect callbacks & visits</span>
+            </div>
+
+            {reportData.scheduledFollowUps && reportData.scheduledFollowUps.length > 0 ? (
+              reportData.scheduledFollowUps.map((fuItem, fuIdx) => (
+                <div
+                  key={`fu-${fuIdx}`}
+                  className="p-4 rounded-2xl bg-slate-950/60 border border-purple-500/30 hover:border-purple-500/50 transition-all space-y-2.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-black text-xs border border-purple-500/30">
+                        FU #{fuIdx + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-sm font-black text-white">{fuItem.leadName}</h5>
+                          <span className="text-xs text-slate-400 font-mono">{fuItem.leadPhone}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                          <Building2 size={12} className="text-slate-500" />
+                          <span>{fuItem.leadCompany}</span>
+                          <span className="text-slate-500">·</span>
+                          <span>Medium: <strong>{fuItem.channel}</strong></span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`text-xs px-2.5 py-1 rounded-lg font-bold border ${
+                        fuItem.isCompleted
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      {fuItem.isCompleted ? '✓ Completed' : '⏳ Scheduled (Pending)'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-500/20">
+                    <p className="text-xs text-purple-200">
+                      🗓️ Scheduled Date &amp; Time: <strong className="text-white">{fuItem.scheduledDate} at {fuItem.scheduledTime}</strong>
+                    </p>
+                    <p className="text-xs text-purple-300/90 mt-1">
+                      🎯 Objective: {fuItem.purpose}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-6 bg-slate-950/30 border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
+                No follow-up callbacks or tasks scheduled for this date.
+              </div>
+            )}
           </div>
         </div>
 

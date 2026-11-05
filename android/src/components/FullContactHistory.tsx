@@ -71,6 +71,11 @@ export interface ContactAttempt {
   sentMessage?: string;
   audioRecordingAvailable?: boolean;
 
+  // Fresh call vs Followup call categorization
+  callSubtype?: 'FRESH' | 'FOLLOWUP';
+  isFresh?: boolean;
+  isFreshCall?: boolean;
+
   // Quotation & Invoice tracking fields
   docNo?: string;
   docType?: string;

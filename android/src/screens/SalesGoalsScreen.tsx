@@ -30,6 +30,7 @@ import { useAuthStore } from '../store/authStore';
 import { apiService, Lead, Employee } from '../services/apiService';
 import { RepDrilldownModal, PerformanceRecord, DrilldownActivityItem } from '../components/RepDrilldownModal';
 import { DailyCallAuditReportModal } from '../components/DailyCallAuditReportModal';
+import LeadDetailScreen from './LeadDetailScreen';
 import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 import { toDateKey } from '../services/dateUtils';
 
@@ -74,6 +75,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
   const [searchQuery, setSearchQuery] = useState('');
   const [drilldownRep, setDrilldownRep] = useState<PerformanceRecord | null>(null);
   const [isAuditReportOpen, setIsAuditReportOpen] = useState<boolean>(false);
+  const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
 
   const handlePrevMonth = () => {
     const [y, m] = selectedMonth.split('-').map(Number);
@@ -471,6 +473,45 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
       let monthlyMeetingsCount = 0;
       let monthlyProductsShared = 0;
 
+      // Group all call attempts by lead to deterministically classify Fresh (1st contact across all time) vs Follow-up
+      const callsByLead = new Map<string, any[]>();
+      repAttempts.forEach((att) => {
+        const aType = (att.type || '').toUpperCase();
+        const aOutcome = (att.outcome || '').toUpperCase();
+        const aNotes = (att.notes || '').toLowerCase();
+        const isCall = aType.includes('CALL') || aType.includes('PHONE') || aOutcome.includes('CALL') || aNotes.includes('call');
+        if (isCall) {
+          const leadKey = String(att.leadId || att.leadPhone || att.leadName || 'general');
+          const list = callsByLead.get(leadKey) || [];
+          list.push(att);
+          callsByLead.set(leadKey, list);
+        }
+      });
+
+      callsByLead.forEach((attempts) => {
+        // Sort chronologically ascending
+        attempts.sort((a, b) => {
+          const tA = new Date(a.timestamp || a.time || a.createdAt || 0).getTime();
+          const tB = new Date(b.timestamp || b.time || b.createdAt || 0).getTime();
+          return tA - tB;
+        });
+
+        attempts.forEach((att, idx) => {
+          // Rule: Fresh calls are when contacted / called for the First time across all time.
+          // Followup calls are calls after previously called / contacted.
+          const isFirstCall = idx === 0;
+          if (att.callSubtype === 'FRESH' || att.isFresh === true || att.isFreshCall === true || isFirstCall) {
+            att.callSubtype = 'FRESH';
+            att.isFresh = true;
+            att.isFreshCall = true;
+          } else {
+            att.callSubtype = 'FOLLOWUP';
+            att.isFresh = false;
+            att.isFreshCall = false;
+          }
+        });
+      });
+
       repAttempts.forEach((att) => {
         const attDate = toDateKey(att.timestamp || att.time || att.createdAt);
         const isSelectedDate = attDate === selectedDate;
@@ -486,7 +527,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         const isProd = !!att.productInterest || (att.products && att.products.length > 0) || aNotes.includes('product') || aNotes.includes('catalog') || (att.productCount && att.productCount > 0);
         const prodInc = att.productCount || (att.products && att.products.length > 0 ? att.products.length : (isProd ? 1 : 0));
 
-        const isFresh = att.callSubtype === 'FRESH' || aNotes.includes('fresh') || aNotes.includes('discovery') || aNotes.includes('first call');
+        const isFresh = att.callSubtype === 'FRESH' || att.isFresh === true || att.isFreshCall === true;
 
         if (isSelectedDate) {
           if (isCall) {
@@ -566,18 +607,26 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         const isMtg = aType.includes('MEETING') || aType.includes('VISIT') || aOutcome.includes('MEETING') || aNotes.toLowerCase().includes('meeting');
 
         const cat: 'CALL' | 'WHATSAPP' | 'PRODUCT' | 'QUOTE' | 'MEETING' = isQuote ? 'QUOTE' : isProd ? 'PRODUCT' : isMtg ? 'MEETING' : isWA ? 'WHATSAPP' : 'CALL';
-        const isFresh = att.callSubtype === 'FRESH' || aNotes.toLowerCase().includes('fresh');
+        const isFresh = att.callSubtype === 'FRESH' || att.isFresh === true || att.isFreshCall === true;
         const dateKey = toDateKey(att.timestamp || att.createdAt);
+
+        // Find connected follow-up task scheduled for this lead
+        const matchedFU = repFollowUps.find((fu) => {
+          return String(fu.leadId) === String(att.leadId) || (fu.leadPhone && att.leadPhone && fu.leadPhone.replace(/\D/g, '') === att.leadPhone.replace(/\D/g, ''));
+        });
+
+        const matchedLead = leads.find(l => String(l.id) === String(att.leadId) || (l.phone && att.leadPhone && l.phone.replace(/\D/g, '') === att.leadPhone.replace(/\D/g, '')));
 
         activitiesList.push({
           id: att.id || `act-${rep.id}-${aIdx}`,
           leadId: att.leadId || '',
-          leadName: att.leadName || 'Lead Contact',
-          leadPhone: att.leadPhone || '9876543210',
-          leadCompany: att.leadCompany || 'Enterprise Account',
+          leadName: att.leadName || matchedLead?.name || 'Lead Contact',
+          leadPhone: att.leadPhone || matchedLead?.phone || '9876543210',
+          leadCompany: att.leadCompany || matchedLead?.company || 'Enterprise Account',
+          leadStatus: (matchedLead?.status as any)?.name || (matchedLead?.status as any) || att.leadStatus || 'Contacted',
           category: cat as any,
           callSubtype: isFresh ? 'FRESH' : 'FOLLOWUP',
-          title: att.title || (cat === 'CALL' ? (isFresh ? '🌱 Fresh Ingestion Discovery Call' : '🔄 Scheduled Follow-up Discussion') : cat === 'WHATSAPP' ? '💬 Direct WhatsApp Sent' : cat === 'PRODUCT' ? '📦 Product Catalog Shared' : cat === 'MEETING' ? '🏢 Client Meeting / Visit' : '📄 Commercial Proposal Generated'),
+          title: att.title || (cat === 'CALL' ? (isFresh ? '🌱 Fresh Call (1st Contact)' : '🔄 Follow-up Call') : cat === 'WHATSAPP' ? '💬 Direct WhatsApp Sent' : cat === 'PRODUCT' ? '📦 Product Catalog Shared' : cat === 'MEETING' ? '🏢 Client Meeting / Visit' : '📄 Commercial Proposal Generated'),
           notes: aNotes || att.sentMessage || undefined,
           outcome: aOutcome || undefined,
           timestamp: att.timestamp || 'Today',
@@ -585,6 +634,16 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           quoteAmount: att.docAmount,
           quoteNo: att.docNo,
           productCount: isProd ? 1 : undefined,
+          duration: att.duration || (att.durationSeconds ? `${Math.floor(att.durationSeconds / 60)}m ${att.durationSeconds % 60}s` : undefined),
+          durationSeconds: att.durationSeconds,
+          followUp: matchedFU ? {
+            channel: matchedFU.channel || 'CALL',
+            scheduledDate: matchedFU.scheduledDate || toDateKey(matchedFU.dueAt) || dateKey,
+            scheduledTime: matchedFU.scheduledTime || '10:30 AM',
+            purpose: matchedFU.purpose || matchedFU.outcomeNote || 'Callback with prospect',
+            isCompleted: Boolean(matchedFU.isCompleted || matchedFU.status === 'COMPLETED'),
+            status: matchedFU.status || (matchedFU.isCompleted ? 'COMPLETED' : 'PENDING'),
+          } : null,
         });
       });
 
@@ -1271,7 +1330,27 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           selectedMonth={selectedMonth}
           isMonthView={isMonthView}
           onToggleTimeframe={(isM: boolean) => setIsMonthView(isM)}
+          onOpenLead={(leadId: string) => {
+            setDrilldownRep(null);
+            const found = leads.find((l) => String(l.id) === String(leadId) || (l.phone && leadId && l.phone.includes(leadId)));
+            if (found) {
+              setSelectedLeadForDetail(found);
+            }
+          }}
         />
+      )}
+
+      {/* 👤 LEAD DETAIL SCREEN MODAL */}
+      {selectedLeadForDetail && (
+        <Modal visible={true} animationType="slide" onRequestClose={() => setSelectedLeadForDetail(null)}>
+          <LeadDetailScreen
+            lead={selectedLeadForDetail}
+            onBack={() => {
+              setSelectedLeadForDetail(null);
+              loadCRMData();
+            }}
+          />
+        </Modal>
       )}
 
       {/* 📄 DAILY CALL & ACTIVITY AUDIT REPORT MODAL (VIEW & PDF DOWNLOAD) */}

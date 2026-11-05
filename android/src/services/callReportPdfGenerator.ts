@@ -42,6 +42,32 @@ export interface DailyReportLeadCallItem {
   } | null;
 }
 
+export interface DailyReportWhatsAppItem {
+  leadId: string;
+  leadName: string;
+  leadPhone: string;
+  leadCompany: string;
+  leadStatus: string;
+  messageTime: string;
+  messageText: string;
+  channel: string;
+  productsShared?: string;
+}
+
+export interface DailyReportFollowUpItem {
+  leadId: string;
+  leadName: string;
+  leadPhone: string;
+  leadCompany: string;
+  leadStatus: string;
+  channel: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  purpose: string;
+  isCompleted: boolean;
+  status: string;
+}
+
 export interface DailyCallReportData {
   repName: string;
   repRole: string;
@@ -67,6 +93,8 @@ export interface DailyCallReportData {
 
   dispositionsBreakdown: { name: string; count: number; color: string }[];
   leadCalls: DailyReportLeadCallItem[];
+  leadWhatsAppMessages: DailyReportWhatsAppItem[];
+  scheduledFollowUps: DailyReportFollowUpItem[];
 }
 
 function formatDurationSeconds(sec: number): string {
@@ -125,7 +153,17 @@ export function buildDailyCallReportData(
   const dispMap = new Map<string, { count: number; color: string }>();
 
   const leadCalls: DailyReportLeadCallItem[] = calls.map((c) => {
-    const isFresh = c.callSubtype === 'FRESH' || (c.notes || '').toLowerCase().includes('fresh');
+    // Deterministic Fresh Call Rule:
+    // 1. Explicitly marked FRESH or isFresh === true
+    // 2. Or this is the first (earliest) call recorded for this lead across rep activities
+    const isLeadFirstCall = !rep.activitiesList?.some(
+      (other) =>
+        other.category === 'CALL' &&
+        other.id !== c.id &&
+        (String(other.leadId) === String(c.leadId) || (other.leadPhone && c.leadPhone && other.leadPhone.replace(/\D/g, '') === c.leadPhone.replace(/\D/g, ''))) &&
+        new Date(other.timestamp || 0).getTime() < new Date(c.timestamp || 0).getTime()
+    );
+    const isFresh = c.callSubtype === 'FRESH' || (c as any).isFresh === true || (c as any).isFreshCall === true || isLeadFirstCall || (c.notes || '').toLowerCase().includes('fresh');
     if (isFresh) freshCount++;
     else foCount++;
 
@@ -235,6 +273,74 @@ export function buildDailyCallReportData(
 
   const quotesAmt = quotes.reduce((s, q) => s + (q.quoteAmount || 0), 0);
 
+  // 1. Direct WhatsApp Outreach Messages
+  const leadWhatsAppMessages: DailyReportWhatsAppItem[] = whatsapp.map((w) => {
+    const matchedLead = leads.find(
+      (l) => String(l.id) === String(w.leadId) || (l.phone && w.leadPhone && l.phone.replace(/\D/g, '').includes(w.leadPhone.replace(/\D/g, '')))
+    );
+    let timeStr = '—';
+    try {
+      if (w.timestamp && w.timestamp.includes('T')) {
+        const d = new Date(w.timestamp);
+        if (!isNaN(d.getTime())) {
+          timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+      } else if (w.timestamp && w.timestamp.length >= 5) {
+        timeStr = w.timestamp;
+      }
+    } catch (_) {}
+
+    return {
+      leadId: w.leadId,
+      leadName: w.leadName || matchedLead?.name || 'Lead Contact',
+      leadPhone: w.leadPhone || matchedLead?.phone || '—',
+      leadCompany: w.leadCompany || matchedLead?.company || 'Enterprise Client',
+      leadStatus: w.leadStatus || matchedLead?.status || 'Contacted',
+      messageTime: timeStr,
+      messageText: w.notes || (w as any).sentMessage || (w as any).whatsappMessage || 'Direct WhatsApp outreach sent',
+      channel: 'Direct WhatsApp',
+      productsShared: w.products && w.products.length > 0 ? w.products.join(', ') : undefined,
+    };
+  });
+
+  // 2. Scheduled Follow-up tasks & Callbacks for this date
+  const repFollowUpsForDate = followUps.filter((fu) => {
+    const fuSchedDate = toDateKey(fu.scheduledDate || fu.dueAt);
+    const fuCreatedDate = toDateKey(fu.createdAt);
+    const isDateMatch = fuSchedDate === normDate || fuCreatedDate === normDate;
+    if (!isDateMatch) return false;
+    if (rep.userId && (fu.assignedRepId || (fu as any).assignedToId) && String(fu.assignedRepId || (fu as any).assignedToId) === String(rep.userId)) return true;
+    if (rep.userName && (fu.assignedRepName || (fu as any).assignedToName) && String(fu.assignedRepName || (fu as any).assignedToName).toLowerCase().includes(rep.userName.toLowerCase())) return true;
+    return true;
+  });
+
+  const scheduledFollowUps: DailyReportFollowUpItem[] = repFollowUpsForDate.map((fu) => {
+    const matchedLead = leads.find(
+      (l) => String(l.id) === String(fu.leadId) || (fu.leadPhone && l.phone && l.phone.replace(/\D/g, '').includes(fu.leadPhone.replace(/\D/g, '')))
+    );
+
+    let fuTimeStr = fu.scheduledTime || '';
+    if (!fuTimeStr && fu.dueAt) {
+      try {
+        fuTimeStr = new Date(fu.dueAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+      } catch (_) {}
+    }
+
+    return {
+      leadId: String(fu.leadId || ''),
+      leadName: fu.leadName || matchedLead?.name || 'Lead Contact',
+      leadPhone: fu.leadPhone || matchedLead?.phone || '—',
+      leadCompany: fu.leadCompany || matchedLead?.company || 'Enterprise Client',
+      leadStatus: matchedLead?.status || 'Contacted',
+      channel: fu.channel || 'CALL',
+      scheduledDate: fu.scheduledDate || toDateKey(fu.dueAt) || normDate,
+      scheduledTime: fuTimeStr || '10:30 AM',
+      purpose: fu.purpose || fu.outcomeNote || 'Scheduled client follow-up discussion',
+      isCompleted: Boolean(fu.isCompleted || fu.status === 'COMPLETED'),
+      status: fu.status || (fu.isCompleted ? 'COMPLETED' : 'PENDING'),
+    };
+  });
+
   return {
     repName: rep.userName || 'Sales Representative',
     repRole: rep.userRole || 'SALES_EXEC',
@@ -257,6 +363,8 @@ export function buildDailyCallReportData(
     quotesAmount: quotesAmt,
     dispositionsBreakdown,
     leadCalls,
+    leadWhatsAppMessages,
+    scheduledFollowUps,
   };
 }
 
@@ -354,6 +462,74 @@ export function generateDailyCallReportHtml(report: DailyCallReportData): string
       <div style="font-size: 28px; margin-bottom: 6px;">📞</div>
       <div style="font-size: 14px; font-weight: bold; color: #1e293b;">No Call Telemetry Logged for ${report.reportDateFormatted}</div>
       <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Zero call attempts or recorded disposition logs were found for this sales representative on the selected audit date.</div>
+    </div>
+  `;
+
+  const whatsAppCardsHtml = report.leadWhatsAppMessages && report.leadWhatsAppMessages.length > 0
+    ? report.leadWhatsAppMessages
+        .map((item, idx) => `
+        <div class="lead-card" style="border-left: 3px solid #25D366;">
+          <div class="lead-top-row">
+            <div class="lead-title-box">
+              <span class="lead-idx" style="background: #25D366; color: #fff;">WA #${idx + 1}</span>
+              <span class="lead-name">${item.leadName}</span>
+              <span class="lead-phone">${item.leadPhone}</span>
+            </div>
+            <div class="lead-status-pill" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">${item.leadStatus}</div>
+          </div>
+          <div class="lead-sub-info">
+            <span>🏢 Company: <strong>${item.leadCompany}</strong></span>
+            <span style="margin-left: 14px;">⏱️ Sent Time: <strong>${item.messageTime}</strong></span>
+          </div>
+          <div class="remarks-box" style="border-left: 3px solid #25D366; background: #f0fdf4;">
+            <div class="remarks-lbl" style="color: #166534;">💬 Direct WhatsApp Message Content:</div>
+            <div class="remarks-text" style="color: #14532d;">${item.messageText}</div>
+          </div>
+          ${item.productsShared ? `
+          <div style="font-size: 9.5px; margin-top: 4px; color: #0f766e; background: #ccfbf1; padding: 4px 8px; border-radius: 4px;">
+            📦 Attached Catalogues: <strong>${item.productsShared}</strong>
+          </div>` : ''}
+        </div>
+      `)
+        .join('')
+    : `
+    <div class="empty-calls-box" style="padding: 12px; margin-bottom: 14px;">
+      <div style="font-size: 11px; color: #64748b;">No direct WhatsApp outreach messages logged on this date.</div>
+    </div>
+  `;
+
+  const followUpsHtml = report.scheduledFollowUps && report.scheduledFollowUps.length > 0
+    ? report.scheduledFollowUps
+        .map((fu, idx) => `
+        <div class="lead-card" style="border-left: 3px solid #8b5cf6;">
+          <div class="lead-top-row">
+            <div class="lead-title-box">
+              <span class="lead-idx" style="background: #8b5cf6; color: #fff;">FU #${idx + 1}</span>
+              <span class="lead-name">${fu.leadName}</span>
+              <span class="lead-phone">${fu.leadPhone}</span>
+            </div>
+            <div class="lead-status-pill ${fu.isCompleted ? 'tag-done' : 'tag-pending'}" style="font-size: 9px; padding: 3px 8px;">
+              ${fu.isCompleted ? '✓ Completed' : '⏳ Scheduled (Pending)'}
+            </div>
+          </div>
+          <div class="lead-sub-info">
+            <span>🏢 Company: <strong>${fu.leadCompany}</strong></span>
+            <span style="margin-left: 14px;">Medium: <strong>${fu.channel === 'WHATSAPP' ? '💬 WhatsApp' : fu.channel === 'MEETING' ? '🤝 Meeting' : '📞 Phone Callback'}</strong></span>
+          </div>
+          <div class="fu-box" style="margin-top: 6px; background: #faf5ff; border: 1px solid #e9d5ff;">
+            <div class="fu-detail-row">
+              <strong>Scheduled Date & Time:</strong> ${fu.scheduledDate} at ${fu.scheduledTime}
+            </div>
+            <div class="fu-detail-row">
+              <strong>Follow-up Objective:</strong> ${fu.purpose}
+            </div>
+          </div>
+        </div>
+      `)
+        .join('')
+    : `
+    <div class="empty-calls-box" style="padding: 12px; margin-bottom: 14px;">
+      <div style="font-size: 11px; color: #64748b;">No follow-up callbacks or tasks scheduled for this date.</div>
     </div>
   `;
 
@@ -778,6 +954,20 @@ export function generateDailyCallReportHtml(report: DailyCallReportData): string
     </div>
 
     ${leadCardsHtml}
+
+    <!-- Direct WhatsApp Outreach Messages -->
+    <div class="section-title">
+      <span>💬 Direct WhatsApp Outreach & Messages Sent (${report.leadWhatsAppMessages ? report.leadWhatsAppMessages.length : 0})</span>
+    </div>
+
+    ${whatsAppCardsHtml}
+
+    <!-- Scheduled Follow-up Tasks & Callbacks -->
+    <div class="section-title">
+      <span>⏰ Scheduled Follow-ups & Callbacks (${report.scheduledFollowUps ? report.scheduledFollowUps.length : 0})</span>
+    </div>
+
+    ${followUpsHtml}
 
     <!-- Document Footer -->
     <div class="doc-footer">

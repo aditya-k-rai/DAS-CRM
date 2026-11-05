@@ -808,6 +808,25 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     const callProductInterest = isWaSharedDuringCall ? undefined : prodInterestString;
     const callNotes = data.notes || (callProductInterest ? `Talked with client: Discussed ${callProductInterest}` : (isWaSharedDuringCall ? 'Call completed (Product shared via WhatsApp Direct)' : 'Call completed'));
 
+    // Check if this lead had prior completed call attempts across contactHistory
+    const priorCompletedCalls = (contactHistory || []).filter((c: any) => {
+      const t = String(c.type || '').toUpperCase();
+      const o = String(c.outcome || '').toUpperCase();
+      const m = String(c.sharingMedium || '').toUpperCase();
+      return (
+        t.includes('CALL') ||
+        t.includes('PHONE') ||
+        o.includes('TALK') ||
+        o.includes('BUSY') ||
+        o.includes('ANSWER') ||
+        o.includes('NOT_RESPOND') ||
+        o.includes('SWITCH') ||
+        m.includes('CALL')
+      );
+    });
+    const isFirstCallToLead = priorCompletedCalls.length === 0;
+    const computedCallSubtype: 'FRESH' | 'FOLLOWUP' = isFirstCallToLead ? 'FRESH' : 'FOLLOWUP';
+
     // 1. Call attempt (he talked) — Timestamp set to nowMs so it appears FIRST in Timeline
     if (isCallFunnel) {
       const callType: ContactType =
@@ -845,6 +864,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         followUpDate: data.scheduledDate,
         followUpTime: data.scheduledTime,
         scheduledType: (data.scheduledType as any) || (data.targetStage === 'Meeting Scheduled' ? 'MEETING' : 'CALL'),
+        callSubtype: computedCallSubtype,
+        isFresh: isFirstCallToLead,
+        isFreshCall: isFirstCallToLead,
       };
 
       attemptsToPrepend.push(callAttempt);
@@ -1020,6 +1042,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           type: 'CALL_OUT',
           outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
           durationSeconds: callDurationSecs,
+          callSubtype: computedCallSubtype,
+          isFresh: isFirstCallToLead,
+          isFreshCall: isFirstCallToLead,
           // When shared via WhatsApp during call, only WhatsApp activity records productInterest so 1 WhatsApp share is counted
           productInterest: undefined,
           followUpDate: data.scheduledDate,
@@ -1047,6 +1072,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           type: 'CALL_OUT',
           outcome: data.outcome === 'PICKED_UP' ? 'TALKED' : data.outcome,
           durationSeconds: callDurationSecs,
+          callSubtype: computedCallSubtype,
+          isFresh: isFirstCallToLead,
+          isFreshCall: isFirstCallToLead,
           productInterest: prodInterestString,
           followUpDate: data.scheduledDate,
           followUpTime: data.scheduledTime,

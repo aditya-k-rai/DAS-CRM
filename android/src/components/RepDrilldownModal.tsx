@@ -49,6 +49,17 @@ export interface DrilldownActivityItem {
   quoteStatus?: string;
   products?: string[];
   productCount?: number;
+  duration?: string;
+  durationSeconds?: number;
+  followUp?: {
+    channel: string;
+    scheduledDate: string;
+    scheduledTime: string;
+    purpose: string;
+    isCompleted?: boolean;
+    status?: string;
+  } | null;
+  whatsappMessage?: string;
 }
 
 export interface PerformanceRepData {
@@ -712,6 +723,14 @@ export function RepDrilldownModal({
                             ✓ {item.outcome}
                           </Text>
                         )}
+
+                        {item.duration ? (
+                          <View style={[styles.catBadge, { backgroundColor: 'rgba(56,189,248,0.2)' }]}>
+                            <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8' }}>
+                              ⏱️ {item.duration}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
 
                       <Text style={{ fontSize: 9, color: colors.textMuted }}>
@@ -723,6 +742,27 @@ export function RepDrilldownModal({
                       <Text style={[styles.notesText, { color: colors.text }]}>
                         {item.notes}
                       </Text>
+                    ) : null}
+
+                    {item.followUp ? (
+                      <View style={[styles.drilldownFuBox, { backgroundColor: isDark ? 'rgba(147,51,234,0.12)' : '#faf5ff', borderColor: isDark ? 'rgba(147,51,234,0.3)' : '#e9d5ff' }]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#a855f7' }}>
+                            {item.followUp.channel === 'WHATSAPP' ? '💬 WhatsApp Follow-up' : item.followUp.channel === 'MEETING' ? '🤝 Meeting Visit' : '📞 Phone Call Callback'}
+                          </Text>
+                          <View style={[styles.fuStatusTag, item.followUp.isCompleted ? { backgroundColor: 'rgba(16,185,129,0.2)' } : { backgroundColor: 'rgba(245,158,11,0.2)' }]}>
+                            <Text style={{ fontSize: 8, fontWeight: '800', color: item.followUp.isCompleted ? '#10b981' : '#f59e0b' }}>
+                              {item.followUp.isCompleted ? '✓ Completed' : '⏳ Scheduled (Pending)'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={{ fontSize: 9, color: colors.text, marginTop: 2 }}>
+                          🗓️ Scheduled: <Text style={{ fontWeight: '800' }}>{item.followUp.scheduledDate} at {item.followUp.scheduledTime}</Text>
+                        </Text>
+                        <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 1 }}>
+                          🎯 Objective: {item.followUp.purpose}
+                        </Text>
+                      </View>
                     ) : null}
 
                     {item.products && item.products.length > 0 && (
@@ -771,6 +811,7 @@ const styles = StyleSheet.create({
   modalBox: {
     width: '100%',
     maxWidth: 620,
+    height: '92%',
     maxHeight: '92%',
     borderRadius: 20,
     borderWidth: 1,
@@ -1010,6 +1051,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   miniProductPill: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  drilldownFuBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 8,
+    marginTop: 4,
+  },
+  fuStatusTag: {
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
