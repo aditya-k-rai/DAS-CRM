@@ -302,7 +302,7 @@ export async function reconcileUnsyncedLocalAttempts(_serverActivities: any[]): 
  * Fetch and build raw unified datasets from all CRM subsystems.
  */
 export async function fetchUnifiedCRMData() {
-  const results = await Promise.allSettled([
+  const fetchPromise = Promise.allSettled([
     apiFetch('/users').then(r => (r.ok ? r.json() : [])).catch(() => []),
     apiFetch('/leads?limit=500').then(r => (r.ok ? r.json() : [])).catch(() => []),
     apiFetch('/activities?limit=1000').then(r => (r.ok ? r.json() : [])).catch(() => []),
@@ -311,7 +311,19 @@ export async function fetchUnifiedCRMData() {
     apiFetch('/tasks?limit=500').then(r => (r.ok ? r.json() : [])).catch(() => []),
   ]);
 
-  let rawUsers = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
+  // Overall circuit breaker: Never let goals telemetry stall beyond 4.5 seconds
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Goals fetch timeout')), 4500)
+  );
+
+  let results: PromiseSettledResult<any>[] = [];
+  try {
+    results = await Promise.race([fetchPromise, timeoutPromise]);
+  } catch (_) {
+    // If timeout or unhandled network failure occurred, proceed with whatever cached records exist
+  }
+
+  let rawUsers = results[0]?.status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
   
   // Also load staff from local cache if available to get comprehensive staff roster and existing TL assignments
   if (typeof window !== 'undefined') {
@@ -349,7 +361,7 @@ export async function fetchUnifiedCRMData() {
 
   // Normalize leads
   let rawLeads: any[] = [];
-  if (results[1].status === 'fulfilled') {
+  if (results[1]?.status === 'fulfilled') {
     const val = results[1].value;
     rawLeads = Array.isArray(val) ? val : (val?.leads || val?.data || []);
   }
@@ -357,7 +369,8 @@ export async function fetchUnifiedCRMData() {
   // Fallback to local leads if remote is empty
   if (rawLeads.length === 0 && typeof window !== 'undefined') {
     try {
-      const localCached = localStorage.getItem('das_crm_leads_cache');
+      const fullCached = localStorage.getItem('das_crm_all_leads_cache');
+      const localCached = fullCached || localStorage.getItem('das_crm_leads_cache');
       if (localCached) {
         const parsed = JSON.parse(localCached);
         if (Array.isArray(parsed)) rawLeads = parsed;
@@ -367,14 +380,23 @@ export async function fetchUnifiedCRMData() {
 
   // Normalize activities
   let rawActivities: any[] = [];
-  if (results[2].status === 'fulfilled') {
+  if (results[2]?.status === 'fulfilled') {
     const val = results[2].value;
     rawActivities = Array.isArray(val) ? val : (val?.items || val?.activities || []);
+  }
+  if (rawActivities.length === 0 && typeof window !== 'undefined') {
+    try {
+      const cachedAct = localStorage.getItem('das_crm_cached_activities');
+      if (cachedAct) {
+        const parsed = JSON.parse(cachedAct);
+        if (Array.isArray(parsed)) rawActivities = parsed;
+      }
+    } catch (_) {}
   }
 
   // Normalize quotations
   let rawQuotes: any[] = [];
-  if (results[3].status === 'fulfilled') {
+  if (results[3]?.status === 'fulfilled') {
     const val = results[3].value;
     rawQuotes = Array.isArray(val?.quotes) ? val.quotes : (Array.isArray(val) ? val : []);
   }
@@ -389,11 +411,11 @@ export async function fetchUnifiedCRMData() {
   }
 
   // Goals config
-  const goalsPayload = results[4].status === 'fulfilled' ? results[4].value : null;
+  const goalsPayload = results[4]?.status === 'fulfilled' ? results[4].value : null;
 
   // Normalize tasks & follow-ups
   let rawTasks: any[] = [];
-  if (results[5].status === 'fulfilled') {
+  if (results[5]?.status === 'fulfilled') {
     const val = results[5].value;
     rawTasks = Array.isArray(val) ? val : (val?.tasks || val?.items || val?.data || []);
   }

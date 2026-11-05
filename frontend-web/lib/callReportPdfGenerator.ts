@@ -815,3 +815,4 @@ export function printOrDownloadDailyCallReport(report: DailyCallReportData): voi
     }, 1000);
   }, 300);
 }
+

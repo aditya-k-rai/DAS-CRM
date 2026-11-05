@@ -363,9 +363,13 @@ export function ManagerRoleDashboard() {
     fetchFollowUps();
 
     // Listen for live lead allocation updates across tabs and components
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      fetchLeads();
-      fetchFollowUps();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchLeads();
+        fetchFollowUps();
+      }, 1200);
     };
 
     if (typeof window !== 'undefined') {
@@ -376,12 +380,12 @@ export function ManagerRoleDashboard() {
       try {
         bc = new BroadcastChannel('das_crm_lead_sync');
         bc.onmessage = () => {
-          fetchLeads();
-          fetchFollowUps();
+          handleUpdate();
         };
       } catch (_) {}
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('storage', handleUpdate);
         if (bc) bc.close();

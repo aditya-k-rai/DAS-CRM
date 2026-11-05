@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react';
 import { getAuthToken, getApiBase } from '@/lib/apiClient';
-import { clearAllDashboardCaches } from '@/lib/cacheUtils';
 
 export interface RealtimeSyncOptions {
   onLeadChange?: (event: any) => void;
@@ -46,7 +45,12 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
         eventSourceRef.current = es;
 
         es.onopen = () => {
+          const wasReconnecting = backoffDelayRef.current > 1000;
           backoffDelayRef.current = 1000; // Reset backoff on successful connection
+          if (wasReconnecting && isMounted && typeof window !== 'undefined') {
+            // Once securely reconnected, trigger a single catch-up sync
+            window.dispatchEvent(new CustomEvent('das_crm_leads_updated'));
+          }
         };
 
         const handleIncomingEvent = (event: MessageEvent) => {
@@ -54,9 +58,6 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
           try {
             const parsed = JSON.parse(event.data);
             if (parsed.type === 'heartbeat') return;
-
-            // Invalidate query caches to force authoritative database read
-            clearAllDashboardCaches();
 
             // Live-patch lead status/changes into local caches if specified
             if (parsed.leadId && parsed.changes && typeof window !== 'undefined') {
@@ -117,10 +118,13 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
           const nextDelay = Math.min(backoffDelayRef.current * 2 + jitter, 30000);
           backoffDelayRef.current = nextDelay;
 
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
           reconnectTimeoutRef.current = setTimeout(() => {
+            // Reconnect silently: NEVER dispatch leads_updated on reconnect attempts
+            // to prevent cascading infinite fetch loops across dashboard modules
             connect();
-            // On reconnect: trigger a sync refresh to catch up on any missed events
-            window.dispatchEvent(new CustomEvent('das_crm_leads_updated'));
           }, nextDelay);
         };
       } catch (e) {

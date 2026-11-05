@@ -853,8 +853,12 @@ export function LeadsTable() {
   // Listen for realtime cross-tab and cross-component updates
   useEffect(() => {
     clearStaleCaches();
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      fetchLeadsPage(1, true);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchLeadsPage(1, true);
+      }, 1200);
     };
 
     const handleStorageUpdate = (e: StorageEvent) => {
@@ -877,6 +881,7 @@ export function LeadsTable() {
       } catch (_) {}
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('storage', handleStorageUpdate);
         if (bc) bc.close();

@@ -300,8 +300,12 @@ export function TeamLeaderRoleDashboard() {
   useEffect(() => {
     fetchData();
 
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      fetchData();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchData();
+      }, 1200);
     };
 
     if (typeof window !== 'undefined') {
@@ -312,11 +316,12 @@ export function TeamLeaderRoleDashboard() {
       try {
         bc = new BroadcastChannel('das_crm_lead_sync');
         bc.onmessage = () => {
-          fetchData();
+          handleUpdate();
         };
       } catch (_) {}
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('storage', handleUpdate);
         if (bc) bc.close();

@@ -1134,8 +1134,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     loadLeadDetails();
 
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      loadLeadDetails();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadLeadDetails();
+      }, 1200);
     };
 
     if (typeof window !== 'undefined') {
@@ -1148,6 +1152,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     return () => {
       isMounted = false;
+      if (debounceTimer) clearTimeout(debounceTimer);
       if (typeof window !== 'undefined') {
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('das_crm_workflow_updated', handleUpdate);

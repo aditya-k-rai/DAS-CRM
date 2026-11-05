@@ -901,6 +901,14 @@ export function EmployeeListWidget({
   useEffect(() => {
     loadLeadsData();
 
+    let debounceTimer: any = null;
+    const debouncedLoad = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadLeadsData();
+      }, 1500);
+    };
+
     const handleLeadsUpdated = (e?: Event) => {
       const customEvt = e as CustomEvent;
       if (customEvt?.detail) {
@@ -926,7 +934,7 @@ export function EmployeeListWidget({
           );
         }
       }
-      loadLeadsData();
+      debouncedLoad();
     };
 
     window.addEventListener('das_crm_leads_updated', handleLeadsUpdated);
@@ -964,6 +972,7 @@ export function EmployeeListWidget({
     }, 30000);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('das_crm_leads_updated', handleLeadsUpdated);
       window.removeEventListener('das-crm-leads-updated', handleLeadsUpdated);
       window.removeEventListener('lead_status_updated', handleLeadsUpdated);

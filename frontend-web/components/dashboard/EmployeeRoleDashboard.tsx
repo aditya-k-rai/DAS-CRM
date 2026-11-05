@@ -235,20 +235,21 @@ export function EmployeeRoleDashboard() {
   const syncData = useCallback(async () => {
     setIsLoading(true);
 
-    // ── 1. Fetch leads from backend API via authenticated client ──
-    let serverLeads: any[] = [];
     try {
-      const res = await apiFetch('/leads?limit=500');
-      if (res.ok) {
-        const data = await res.json();
-        const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-        if (Array.isArray(items)) {
-          serverLeads = items;
+      // ── 1. Fetch leads from backend API via authenticated client ──
+      let serverLeads: any[] = [];
+      try {
+        const res = await apiFetch('/leads?limit=500');
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data.leads || data.data || []);
+          if (Array.isArray(items)) {
+            serverLeads = items;
+          }
         }
+      } catch (err) {
+        console.warn('API lead sync error in Sales Dashboard:', err);
       }
-    } catch (err) {
-      console.warn('API lead sync error in Sales Dashboard:', err);
-    }
 
     // Fallback to cached lead directory if server is offline or refreshing
     if (serverLeads.length === 0 && typeof window !== 'undefined') {
@@ -610,16 +611,28 @@ export function EmployeeRoleDashboard() {
       };
     });
     setOpportunities(mappedOpportunities);
-
-    setIsLoading(false);
+    } catch (err) {
+      console.warn('Dashboard sync unexpected error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   }, [currentUser, selectedRep, isSalesExec, currentUserId, currentUserEmail, currentUserName]);
 
   useEffect(() => {
     syncData();
 
-    // Listen for cross-component lead re-allocation and ingestion updates
+    // Safety fallback: Never leave the user stuck on loading spinner beyond 3.5s
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 3500);
+
+    // Debounce updates to prevent refresh storms
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      syncData();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        syncData();
+      }, 1000);
     };
 
     if (typeof window !== 'undefined') {
@@ -630,11 +643,13 @@ export function EmployeeRoleDashboard() {
       try {
         bc = new BroadcastChannel('das_crm_lead_sync');
         bc.onmessage = () => {
-          syncData();
+          handleUpdate();
         };
       } catch (_) {}
 
       return () => {
+        clearTimeout(safetyTimer);
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('storage', handleUpdate);
         if (bc) bc.close();

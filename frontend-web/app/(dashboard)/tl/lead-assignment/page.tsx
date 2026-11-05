@@ -144,8 +144,12 @@ export default function TeamLeaderLeadAssignmentPage() {
   useEffect(() => {
     fetchData();
 
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      fetchData();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchData();
+      }, 1200);
     };
 
     if (typeof window !== 'undefined') {
@@ -161,6 +165,7 @@ export default function TeamLeaderLeadAssignmentPage() {
       } catch (_) {}
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('storage', handleUpdate);
         if (bc) bc.close();

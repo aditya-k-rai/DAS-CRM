@@ -12,11 +12,19 @@ export const CLOUD_CANDIDATE_URLS = [
 
 export const getApiBase = () => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('das_crm_active_api_base');
-    if (saved) return saved.replace(/\/+$/, '');
-
     const host = window.location.hostname;
     const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+
+    const saved = localStorage.getItem('das_crm_active_api_base');
+    if (saved) {
+      // Prevent stale Render cloud URLs from permanently poisoning local dev
+      if (isLocal && (saved.includes('onrender.com') || saved.includes('render.com'))) {
+        localStorage.removeItem('das_crm_active_api_base');
+      } else {
+        return saved.replace(/\/+$/, '');
+      }
+    }
+
     if (isLocal) {
       return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/+$/, '');
     }
@@ -70,17 +78,35 @@ export function clearAuthTokens() {
   localStorage.removeItem('das_crm_refresh_token');
 }
 
+/**
+ * fetchWithTimeout executes a standard window.fetch with an AbortController timeout.
+ * Prevents requests to cold, slow, or offline endpoints from hanging for minutes.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: init.signal || controller.signal,
+    });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function executeRefreshToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
   try {
     const apiBase = getApiBase();
-    const res = await fetch(`${apiBase}/auth/refresh`, {
+    const res = await fetchWithTimeout(`${apiBase}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
-    });
+    }, 4000);
 
     if (!res.ok) {
       clearAuthTokens();
@@ -119,15 +145,15 @@ export async function apiFetch(
 
   let response: Response;
   try {
-    response = await fetch(fullUrl, { ...options, headers });
+    response = await fetchWithTimeout(fullUrl, { ...options, headers }, 5000);
   } catch (netErr) {
     if (!urlOrPath.startsWith('http') && typeof window !== 'undefined') {
       const candidates = CLOUD_CANDIDATE_URLS.filter((c) => !apiBase.includes(c));
       for (const cand of candidates) {
         try {
           const fallbackUrl = `${cand}${urlOrPath.startsWith('/') ? '' : '/'}${urlOrPath}`;
-          const res = await fetch(fallbackUrl, { ...options, headers });
-          if (res.ok || res.status < 500) {
+          const res = await fetchWithTimeout(fallbackUrl, { ...options, headers }, 2500);
+          if (res.ok) {
             localStorage.setItem('das_crm_active_api_base', cand);
             return res;
           }
@@ -142,8 +168,8 @@ export async function apiFetch(
     for (const cand of candidates) {
       try {
         const fallbackUrl = `${cand}${urlOrPath.startsWith('/') ? '' : '/'}${urlOrPath}`;
-        const res = await fetch(fallbackUrl, { ...options, headers });
-        if (res.ok || res.status < 500) {
+        const res = await fetchWithTimeout(fallbackUrl, { ...options, headers }, 2500);
+        if (res.ok) {
           localStorage.setItem('das_crm_active_api_base', cand);
           return res;
         }
@@ -167,7 +193,7 @@ export async function apiFetch(
           onRefreshed(newAccessToken);
           // Retry current request with new token
           headers.set('Authorization', `Bearer ${newAccessToken}`);
-          return fetch(fullUrl, { ...options, headers });
+          return fetchWithTimeout(fullUrl, { ...options, headers }, 5000);
         }
       } catch (err) {
         isRefreshing = false;
@@ -179,7 +205,7 @@ export async function apiFetch(
       return new Promise<Response>((resolve, reject) => {
         addRefreshSubscriber((newToken: string) => {
           headers.set('Authorization', `Bearer ${newToken}`);
-          fetch(fullUrl, { ...options, headers }).then(resolve).catch(reject);
+          fetchWithTimeout(fullUrl, { ...options, headers }, 5000).then(resolve).catch(reject);
         });
       });
     }

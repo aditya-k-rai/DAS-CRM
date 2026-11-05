@@ -395,8 +395,12 @@ export default function LeadPipelinePage() {
     clearStaleCaches();
     fetchAuditLogsAndLeads();
 
+    let debounceTimer: any = null;
     const handleUpdate = () => {
-      fetchAuditLogsAndLeads();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchAuditLogsAndLeads();
+      }, 1200);
     };
 
     if (typeof window !== 'undefined') {
@@ -412,6 +416,7 @@ export default function LeadPipelinePage() {
       } catch (_) {}
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
         window.removeEventListener('storage', handleUpdate);
         if (bc) bc.close();

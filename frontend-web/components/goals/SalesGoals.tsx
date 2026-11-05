@@ -92,8 +92,21 @@ export function SalesGoals() {
   useEffect(() => {
     loadData();
 
-    // Listen to real-time events across all CRM modules
-    const handleSync = () => loadData(false);
+    // Safety fallback: Never leave the user stuck on the loading spinner for more than 3.5s
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }, 3500);
+
+    // Debounced sync to prevent event storms from re-triggering rapid loads
+    let debounceTimer: any = null;
+    const handleSync = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadData(false);
+      }, 1500);
+    };
+
     window.addEventListener('das_crm_activities_updated', handleSync);
     window.addEventListener('das_crm_leads_updated', handleSync);
     window.addEventListener('das_crm_quotes_updated', handleSync);
@@ -101,6 +114,8 @@ export function SalesGoals() {
     window.addEventListener('das_crm_contact_history_updated', handleSync);
 
     return () => {
+      clearTimeout(safetyTimer);
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('das_crm_activities_updated', handleSync);
       window.removeEventListener('das_crm_leads_updated', handleSync);
       window.removeEventListener('das_crm_quotes_updated', handleSync);
