@@ -24,6 +24,7 @@ interface GoalsCalendarProps {
   heatmapDays: DayPerformanceHeatmap[];
   isMonthView: boolean;
   onToggleMonthView: (isMonth: boolean) => void;
+  onOpenAuditReport?: () => void;
 }
 
 export function GoalsCalendar({
@@ -34,6 +35,7 @@ export function GoalsCalendar({
   heatmapDays,
   isMonthView,
   onToggleMonthView,
+  onOpenAuditReport,
 }: GoalsCalendarProps) {
   const [yearStr, monthStr] = selectedMonth.split('-');
   const year = parseInt(yearStr, 10) || new Date().getFullYear();
@@ -301,6 +303,16 @@ export function GoalsCalendar({
               {selectedDayData?.completionScore || 0}%)
             </span>
           </div>
+
+          {onOpenAuditReport && (
+            <button
+              onClick={onOpenAuditReport}
+              className="w-full mt-3 py-2 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm hover:shadow-indigo-500/10"
+            >
+              <FileText size={14} className="text-indigo-400" />
+              <span>View &amp; Download Daily Report (PDF)</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

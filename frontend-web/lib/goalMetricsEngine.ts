@@ -308,6 +308,7 @@ export async function fetchUnifiedCRMData() {
     apiFetch('/activities?limit=1000').then(r => (r.ok ? r.json() : [])).catch(() => []),
     fetch('/api/quotations').then(r => (r.ok ? r.json() : { quotes: [] })).catch(() => ({ quotes: [] })),
     fetch('/api/goals').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    apiFetch('/tasks?limit=500').then(r => (r.ok ? r.json() : [])).catch(() => []),
   ]);
 
   let rawUsers = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
@@ -390,6 +391,13 @@ export async function fetchUnifiedCRMData() {
   // Goals config
   const goalsPayload = results[4].status === 'fulfilled' ? results[4].value : null;
 
+  // Normalize tasks & follow-ups
+  let rawTasks: any[] = [];
+  if (results[5].status === 'fulfilled') {
+    const val = results[5].value;
+    rawTasks = Array.isArray(val) ? val : (val?.tasks || val?.items || val?.data || []);
+  }
+
   // Sanitize contaminated local storage on client load (read-only, no PostgreSQL mutations)
   if (typeof window !== 'undefined') {
     sanitizeClientLocalStorage();
@@ -401,6 +409,7 @@ export async function fetchUnifiedCRMData() {
     activities: rawActivities,
     quotes: rawQuotes,
     goalsConfig: goalsPayload,
+    tasks: rawTasks,
   };
 }
 

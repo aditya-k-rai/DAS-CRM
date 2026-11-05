@@ -47,6 +47,7 @@ import { GlobalGoalSettings, UserGoalTarget } from '@/lib/serverGoals';
 import { SetGoalModal } from './SetGoalModal';
 import { GoalsCalendar } from './GoalsCalendar';
 import { RepDrilldownModal } from './RepDrilldownModal';
+import { DailyCallAuditReportModal } from './DailyCallAuditReportModal';
 
 export function SalesGoals() {
   const { currentUser } = useAuth();
@@ -66,6 +67,7 @@ export function SalesGoals() {
   // Modals
   const [isSetGoalOpen, setIsSetGoalOpen] = useState<boolean>(false);
   const [drilldownRep, setDrilldownRep] = useState<PerformanceRecord | null>(null);
+  const [isAuditReportOpen, setIsAuditReportOpen] = useState<boolean>(false);
 
   // Role detection
   const userRoleStr = (currentUser?.role || 'ADMIN').toUpperCase();
@@ -320,6 +322,16 @@ export function SalesGoals() {
             <RefreshCw size={14} className={isRefreshing ? 'animate-spin text-indigo-400' : ''} />
           </button>
 
+          {/* Daily Call & Follow-up Audit Report Action */}
+          <button
+            onClick={() => setIsAuditReportOpen(true)}
+            className="px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:shadow-indigo-500/10"
+            title="View & Download Daily Call Report (PDF)"
+          >
+            <FileText size={14} className="text-indigo-400" />
+            <span>PDF Report</span>
+          </button>
+
           {/* Set Goal Button (Admin & Manager only) */}
           {isAdminOrManager && (
             <button
@@ -544,6 +556,7 @@ export function SalesGoals() {
         heatmapDays={heatmapDays}
         isMonthView={isMonthView}
         onToggleMonthView={setIsMonthView}
+        onOpenAuditReport={() => setIsAuditReportOpen(true)}
       />
 
       {/* ─── REP & TEAM LEADER PERFORMANCE BREAKDOWN TABLE ─────────────── */}
@@ -799,6 +812,19 @@ export function SalesGoals() {
         userOverrides={rawCRMData?.goalsConfig?.userOverrides || []}
         allUsers={records}
         onSave={handleSaveGoals}
+      />
+
+      {/* ─── 📄 DAILY CALL & ACTIVITY AUDIT REPORT MODAL (VIEW & PDF DOWNLOAD) ─── */}
+      <DailyCallAuditReportModal
+        isOpen={isAuditReportOpen}
+        onClose={() => setIsAuditReportOpen(false)}
+        rep={drilldownRep || filteredRecords[0] || records[0] || null}
+        initialDate={selectedDate}
+        leads={rawCRMData?.leads || []}
+        tasks={rawCRMData?.tasks || []}
+        allReps={filteredRecords}
+        onSelectRep={(r) => setDrilldownRep(r)}
+        onSelectDate={(d) => setSelectedDate(d)}
       />
     </div>
   );

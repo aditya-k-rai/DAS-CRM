@@ -48,3 +48,4 @@ export function toDateKey(dateInput?: string | Date | null): string {
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+

@@ -29,6 +29,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuthStore } from '../store/authStore';
 import { apiService, Lead, Employee } from '../services/apiService';
 import { RepDrilldownModal, PerformanceRecord, DrilldownActivityItem } from '../components/RepDrilldownModal';
+import { DailyCallAuditReportModal } from '../components/DailyCallAuditReportModal';
 import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
 import { toDateKey } from '../services/dateUtils';
 
@@ -72,6 +73,7 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
   const [searchQuery, setSearchQuery] = useState('');
   const [drilldownRep, setDrilldownRep] = useState<PerformanceRecord | null>(null);
+  const [isAuditReportOpen, setIsAuditReportOpen] = useState<boolean>(false);
 
   const handlePrevMonth = () => {
     const [y, m] = selectedMonth.split('-').map(Number);
@@ -845,6 +847,16 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
             {loading ? <ActivityIndicator size="small" color="#6366f1" /> : <Text style={{ fontSize: 13 }}>🔄</Text>}
           </TouchableOpacity>
 
+          {/* Daily Call Report PDF Action */}
+          <TouchableOpacity
+            style={[styles.reportHeaderBtn, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}
+            onPress={() => setIsAuditReportOpen(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 12 }}>📄</Text>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#6366f1' }}>PDF</Text>
+          </TouchableOpacity>
+
           {/* Set Quotas (Admin only) */}
           {isAdminOrManager && (
             <TouchableOpacity
@@ -1061,6 +1073,18 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
                 </Text>
               </View>
             </View>
+
+            {/* 1-Tap Daily Call & Follow-up Audit Report PDF View & Download */}
+            <TouchableOpacity
+              style={[styles.viewPdfReportBtn, { backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : '#eef2ff', borderColor: '#c7d2fe' }]}
+              onPress={() => setIsAuditReportOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 13 }}>📄</Text>
+              <Text style={[styles.viewPdfReportBtnText, { color: '#4f46e5' }]}>
+                View & Download Daily Call Report (PDF)
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1250,6 +1274,17 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
         />
       )}
 
+      {/* 📄 DAILY CALL & ACTIVITY AUDIT REPORT MODAL (VIEW & PDF DOWNLOAD) */}
+      <DailyCallAuditReportModal
+        visible={isAuditReportOpen}
+        onClose={() => setIsAuditReportOpen(false)}
+        rep={drilldownRep || filteredRecords[0] || records[0] || null}
+        initialDate={selectedDate}
+        leads={leads}
+        followUps={followUps}
+        onSelectDate={(newDate) => setSelectedDate(newDate)}
+      />
+
       {/* ⚙️ SET GOALS & QUOTAS MODAL */}
       <Modal visible={isSetGoalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -1333,6 +1368,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '900' },
   headerSub: { fontSize: 10, marginTop: 1 },
   iconBtn: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  reportHeaderBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
   setGoalsBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10 },
   setGoalsBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
 
@@ -1361,6 +1397,8 @@ const styles = StyleSheet.create({
   inspectorGrid: { flexDirection: 'row', gap: 4 },
   inspectorPill: { flex: 1, borderRadius: 8, borderWidth: 1, padding: 5, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
   inspectorVal: { fontSize: 11, fontWeight: '900', marginTop: 2 },
+  viewPdfReportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 9, borderRadius: 8, borderWidth: 1 },
+  viewPdfReportBtnText: { fontSize: 11, fontWeight: '800' },
 
   metricsGrid: { gap: 10, marginBottom: 14 },
   metricCard: { borderRadius: 16, borderWidth: 1, padding: 14 },
