@@ -48,6 +48,7 @@ import {
   InvoiceItem,
 } from '../services/whatsappTemplateEngine';
 import { productCatalogService } from '../services/productCatalogService';
+import { offlineSyncEngine } from '../services/offlineSyncEngine';
 import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { DirectWhatsAppModal } from '../components/DirectWhatsAppModal';
@@ -192,6 +193,10 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     if (!leadId) return;
     setIsSyncing(true);
     try {
+      // ⚡ First push any unsynced local calls, WhatsApp chats, and follow-ups to cloud
+      await apiService.syncLocalActivitiesAndFollowUpsToServer(token).catch(() => {});
+      await offlineSyncEngine.flushQueue().catch(() => {});
+
       const [fetchedLead, activitiesRes] = await Promise.all([
         apiService.getLeadById(token, leadId),
         apiService.getLeadActivities(token, leadId),

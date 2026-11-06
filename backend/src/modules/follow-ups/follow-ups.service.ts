@@ -809,7 +809,11 @@ export class FollowUpsService {
     }
 
     if (existing.isCompleted) {
-      throw new BadRequestException('This follow-up is already completed.');
+      return {
+        success: true,
+        message: 'This follow-up is already completed.',
+        item: existing,
+      };
     }
 
     const now = new Date();

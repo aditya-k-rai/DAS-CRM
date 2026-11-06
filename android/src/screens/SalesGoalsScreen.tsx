@@ -32,6 +32,7 @@ import { RepDrilldownModal, PerformanceRecord, DrilldownActivityItem } from '../
 import { DailyCallAuditReportModal } from '../components/DailyCallAuditReportModal';
 import LeadDetailScreen from './LeadDetailScreen';
 import { followUpSyncEngine, FollowUpTask } from '../services/followUpSyncEngine';
+import { offlineSyncEngine } from '../services/offlineSyncEngine';
 import { toDateKey } from '../services/dateUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -137,6 +138,10 @@ export const SalesGoalsScreen: React.FC<SalesGoalsScreenProps> = ({ onClose }) =
           if (cfg.monthlyMeetings) setMonthlyMeetingsTargetInput(String(cfg.monthlyMeetings));
         }
       } catch (_) {}
+
+      // 1b. Synchronize any offline or unsynced calls & completed follow-ups first
+      await apiService.syncLocalActivitiesAndFollowUpsToServer(token).catch(() => {});
+      await offlineSyncEngine.flushQueue().catch(() => {});
 
       // 2. Fetch remote leads, staff, quotes, follow-ups, and activities concurrently
       const [lRes, eRes, qRes, fuRes, actRes] = await Promise.all([

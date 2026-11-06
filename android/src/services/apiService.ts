@@ -1624,6 +1624,154 @@ class ApiService {
     }
     return { success: true, message: 'Optimistically allocated locally.' };
   }
+  /**
+   * Two-Way Cloud Synchronization Engine:
+   * Scans local contact histories (das_crm_contact_history_*) and local follow-ups (@das_crm_followup_tasks_cache)
+   * and pushes all unsynced calls, WhatsApp messages, and completed follow-ups to the PostgreSQL database.
+   */
+  async syncLocalActivitiesAndFollowUpsToServer(token?: string | null): Promise<{ syncedActivities: number; syncedFollowUps: number }> {
+    let syncedActivities = 0;
+    let syncedFollowUps = 0;
+
+    const authToken = token || (await AsyncStorage.getItem('das_crm_token'));
+    if (!authToken || authToken.startsWith('offline_') || authToken.startsWith('jwt_offline_')) {
+      return { syncedActivities: 0, syncedFollowUps: 0 };
+    }
+
+    try {
+      // 1. Scan and sync local contact histories (calls, whatsapp, notes)
+      const allKeys = await AsyncStorage.getAllKeys();
+      const contactKeys = allKeys.filter(k => k.startsWith('das_crm_contact_history_'));
+
+      for (const key of contactKeys) {
+        const leadId = key.replace('das_crm_contact_history_', '').trim();
+        const rawJson = await AsyncStorage.getItem(key);
+        if (!rawJson) continue;
+
+        let items: any[] = [];
+        try {
+          items = JSON.parse(rawJson);
+        } catch (_) {
+          continue;
+        }
+
+        if (!Array.isArray(items) || items.length === 0) continue;
+
+        let hasChanges = false;
+        for (const item of items) {
+          if (!item) continue;
+          if (item.syncedToServer) continue;
+
+          // Skip corrupted / test placeholder entries
+          const nLower = String(item.notes || item.sentMessage || '').toLowerCase();
+          if (nLower.includes('this is test discription') || nLower.includes('old jacket 1 (qty: 1 · ₹10,499')) continue;
+
+          const rawType = String(item.type || item.sharingMedium || 'CALL').toUpperCase();
+          const isCall = rawType.includes('CALL') || !rawType.includes('WHATSAPP');
+          const isWA = rawType.includes('WHATSAPP') || rawType.includes('WA');
+
+          const actType = isCall ? 'CALL' : (isWA ? 'NOTE' : 'NOTE');
+          const callDurationSecs = Number(item.durationSeconds || item.talkTimeSecs || 0);
+
+          try {
+            const pushRes = await fetchWithFailover('/activities', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`,
+              },
+              body: JSON.stringify({
+                activityType: actType,
+                leadId,
+                userId: item.userId || item.callerId,
+                notes: item.notes || item.sentMessage || (isCall ? `Call: ${item.outcome || 'Completed'}` : 'Direct outreach logged'),
+                subject: item.subOption || item.subject || (isCall ? 'Call Outreach' : 'Direct Outreach'),
+                outcome: item.outcome || (isCall ? 'TALKED' : 'WA_SENT'),
+                durationSeconds: callDurationSecs,
+                durationMin: Math.ceil(callDurationSecs / 60),
+                createdAt: item.timestamp || item.createdAt || new Date().toISOString(),
+                metadata: {
+                  type: isCall ? 'CALL_OUT' : 'WHATSAPP_DIRECT',
+                  channel: isCall ? 'CALL' : 'WHATSAPP_DIRECT',
+                  outcome: item.outcome || (isCall ? 'TALKED' : 'WA_SENT'),
+                  durationSeconds: callDurationSecs,
+                  callSubtype: item.callSubtype || (item.isFresh ? 'FRESH' : 'FOLLOWUP'),
+                  isFresh: Boolean(item.isFresh),
+                  isFreshCall: Boolean(item.isFresh),
+                  followUpDate: item.scheduledDate,
+                  followUpTime: item.scheduledTime,
+                  followUpType: item.scheduledType || (isCall ? 'CALL' : 'WHATSAPP'),
+                  scheduledType: item.scheduledType || (isCall ? 'CALL' : 'WHATSAPP'),
+                  by: item.by || item.callerName,
+                  byRole: item.byRole || item.callerRole || 'SALES_EXEC',
+                  timestamp: item.timestamp || item.createdAt || new Date().toISOString(),
+                },
+              }),
+            }, 6000);
+
+            if (pushRes && (pushRes.ok || pushRes.status === 201 || pushRes.status === 200)) {
+              item.syncedToServer = true;
+              hasChanges = true;
+              syncedActivities++;
+            }
+          } catch (_) {}
+        }
+
+        if (hasChanges) {
+          await AsyncStorage.setItem(key, JSON.stringify(items)).catch(() => {});
+        }
+      }
+
+      // 2. Scan and sync completed follow-ups
+      for (const storageKey of ['@das_crm_followup_tasks_cache', 'das_crm_followup_tasks_cache']) {
+        const rawTasks = await AsyncStorage.getItem(storageKey);
+        if (!rawTasks) continue;
+
+        let tasks: any[] = [];
+        try {
+          tasks = JSON.parse(rawTasks);
+        } catch (_) {
+          continue;
+        }
+
+        if (!Array.isArray(tasks) || tasks.length === 0) continue;
+
+        let tasksChanged = false;
+        for (const t of tasks) {
+          if (!t || !t.id) continue;
+          if ((t.isCompleted || t.status === 'COMPLETED') && !t.syncedCompletionToServer) {
+            try {
+              const res = await fetchWithFailover(`/follow-ups/${t.id}/complete`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${authToken}`,
+                },
+                body: JSON.stringify({
+                  outcome: t.outcomeNote || t.outcome || 'Completed from Mobile App',
+                  completionNotes: t.completionNotes || t.outcomeNote || 'Completed via Android sync',
+                }),
+              }, 6000);
+
+              if (res && (res.ok || res.status === 200 || res.status === 204)) {
+                t.syncedCompletionToServer = true;
+                tasksChanged = true;
+                syncedFollowUps++;
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (tasksChanged) {
+          await AsyncStorage.setItem(storageKey, JSON.stringify(tasks)).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('[apiService] syncLocalActivitiesAndFollowUpsToServer error:', err);
+    }
+
+    return { syncedActivities, syncedFollowUps };
+  }
 }
 
 export const apiService = new ApiService();

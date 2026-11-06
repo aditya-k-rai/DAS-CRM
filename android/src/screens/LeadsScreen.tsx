@@ -512,6 +512,7 @@ export default function LeadsScreen({ route }: any) {
   const loadLeads = async (isPullToRefresh = false) => {
     if (isPullToRefresh) {
       setRefreshing(true);
+      apiService.syncLocalActivitiesAndFollowUpsToServer(token).catch(() => {});
     } else {
       setIsLoading(true);
     }

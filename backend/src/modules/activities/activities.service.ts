@@ -34,8 +34,15 @@ export class ActivitiesService {
       nextAction?: string;
       nextActionDate?: Date;
       metadata?: Record<string, any>;
+      userId?: string;
+      createdAt?: Date | string;
+      timestamp?: Date | string;
     },
   ) {
+    const rawTimestamp = (dto as any).createdAt || (dto as any).timestamp || dto.metadata?.timestamp;
+    const effectiveCreatedAt = rawTimestamp ? new Date(rawTimestamp) : undefined;
+    const validCreatedAt = effectiveCreatedAt && !isNaN(effectiveCreatedAt.getTime()) ? effectiveCreatedAt : undefined;
+
     const typeEnum = Object.values(ActivityType).includes(dto.activityType)
       ? dto.activityType
       : 'NOTE';
@@ -48,6 +55,7 @@ export class ActivitiesService {
       outcome: dto.outcome || dto.metadata?.outcome,
       nextAction: dto.nextAction || dto.metadata?.nextAction,
       nextActionDate: dto.nextActionDate || dto.metadata?.nextActionDate,
+      timestamp: validCreatedAt ? validCreatedAt.toISOString() : (dto.metadata?.timestamp || new Date().toISOString()),
     };
 
     // Safe validation of leadId against organization's leads to prevent foreign key errors on offline drafts
@@ -78,7 +86,8 @@ export class ActivitiesService {
     }
 
     // Deduplication check: prevent duplicate activity spamming within 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const dedupeWindow = validCreatedAt ? new Date(validCreatedAt.getTime() - 2 * 60 * 1000) : new Date(Date.now() - 5 * 60 * 1000);
+    const dedupeWindowEnd = validCreatedAt ? new Date(validCreatedAt.getTime() + 2 * 60 * 1000) : undefined;
     const existingActivity = await this.prisma.activity.findFirst({
       where: {
         organizationId,
@@ -86,7 +95,9 @@ export class ActivitiesService {
         type: typeEnum,
         leadId: validLeadId,
         description: dto.notes,
-        createdAt: { gte: fiveMinutesAgo },
+        createdAt: dedupeWindowEnd
+          ? { gte: dedupeWindow, lte: dedupeWindowEnd }
+          : { gte: dedupeWindow },
       },
       include: {
         user: {
@@ -115,6 +126,7 @@ export class ActivitiesService {
         dealId: dto.dealId,
         description: dto.notes,
         metadata: mergedMetadata,
+        ...(validCreatedAt ? { createdAt: validCreatedAt } : {}),
       },
       include: {
         user: {

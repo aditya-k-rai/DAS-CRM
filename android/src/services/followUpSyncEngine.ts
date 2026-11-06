@@ -916,24 +916,43 @@ class FollowUpSyncEngine {
     await this.persistTasks(updatedTasks);
 
     // Backend sync with multi-endpoint failover
+    const completionPayload = {
+      outcome,
+      completionNotes,
+      createNextFollowUp: Boolean(nextFollowUpPayload),
+      nextFollowUpDate: nextFollowUpPayload?.scheduledDate,
+      nextFollowUpTime: nextFollowUpPayload?.scheduledTime,
+      nextFollowUpType: nextFollowUpPayload?.followUpType,
+      nextFollowUpTitle: nextFollowUpPayload?.title,
+    };
+
+    let syncSucceeded = false;
     try {
-      await fetchWithFailover(`/follow-ups/${taskId}/complete`, {
+      const res = await fetchWithFailover(`/follow-ups/${taskId}/complete`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          outcome,
-          completionNotes,
-          createNextFollowUp: Boolean(nextFollowUpPayload),
-          nextFollowUpDate: nextFollowUpPayload?.scheduledDate,
-          nextFollowUpTime: nextFollowUpPayload?.scheduledTime,
-          nextFollowUpType: nextFollowUpPayload?.followUpType,
-          nextFollowUpTitle: nextFollowUpPayload?.title,
-        }),
+        body: JSON.stringify(completionPayload),
       });
+      if (res && (res.ok || res.status === 200 || res.status === 204)) {
+        syncSucceeded = true;
+      }
     } catch (_) {}
+
+    if (!syncSucceeded) {
+      try {
+        await offlineSyncEngine.enqueue({
+          action: 'GENERIC_MUTATION',
+          endpoint: `/follow-ups/${taskId}/complete`,
+          method: 'PATCH',
+          payload: completionPayload,
+          entityId: taskId,
+        });
+        offlineSyncEngine.flushQueue().catch(() => {});
+      } catch (_) {}
+    }
 
     // Chain next follow-up if provided
     if (nextFollowUpPayload && targetTask) {

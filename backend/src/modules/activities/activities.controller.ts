@@ -40,9 +40,14 @@ export class ActivitiesController {
       nextAction?: string;
       nextActionDate?: Date;
       metadata?: Record<string, any>;
+      userId?: string;
+      createdAt?: Date | string;
+      timestamp?: Date | string;
     },
   ) {
-    return this.activitiesService.log(user.organizationId, user.id, dto);
+    const targetUserId = dto.userId || user?.id;
+    const orgId = user?.organizationId || 'cmuev7n3o000mikew7je1tdiw';
+    return this.activitiesService.log(orgId, targetUserId, dto);
   }
 
   @Get('today-summary')
@@ -90,4 +95,3 @@ export class ActivitiesController {
     });
   }
 }
-
